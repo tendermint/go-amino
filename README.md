@@ -1,4 +1,4 @@
-# `tendermint/wire`
+# `tendermint/go-wire`
 
 The `binary` submodule encodes primary types and structs into bytes.
 
