@@ -1,11 +1,3 @@
-### NOTICE
-
-This documentation is out of date.
-* 0x00 is reserved as a nil byte for RegisterInterface
-* moved TypeByte() into RegisterInterface/ConcreteType
-* Pointers that don't have a declared TypeByte() are
-  encoded with a leading 0x00 (nil) or 0x01.
-
 # `tendermint/wire`
 
 The `binary` submodule encodes primary types and structs into bytes.
@@ -136,3 +128,13 @@ WriteBinary(Dog{}, buf, n, err)        // Writes GreeterTypeDog byte
 dog_ := ReadBinary(Dog{}, buf, n, err) // Expects to read GreeterTypeDog byte
 dog := dog_.(Dog)                      // ok if *err != nil, otherwise dog_ == nil.
 ```
+
+### Revisions
+
+This documentation is out of date.  Here are some changes that still need documentation:
+
+* 0x00 is reserved as a nil byte for RegisterInterface
+* moved TypeByte() into RegisterInterface/ConcreteType
+* Pointers that don't have a declared TypeByte() are
+  encoded with a leading 0x00 (nil) or 0x01.
+
