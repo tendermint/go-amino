@@ -1,4 +1,4 @@
-Tendermint Core
+Tendermint Go-Wire
 Copyright (C) 2015 Tendermint
 
 This program is free software: you can redistribute it and/or modify
