@@ -137,4 +137,5 @@ This documentation is out of date.  Here are some changes that still need docume
 * moved TypeByte() into RegisterInterface/ConcreteType
 * Pointers that don't have a declared TypeByte() are
   encoded with a leading 0x00 (nil) or 0x01.
+* ReadBinary\*, ReadString, ReadByteSlice, ReadByteSlices take a `lmt` parameter
 
