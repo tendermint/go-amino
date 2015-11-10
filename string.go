@@ -8,12 +8,12 @@ import (
 
 // String
 
-func WriteString(s string, w io.Writer, n *int64, err *error) {
+func WriteString(s string, w io.Writer, n *int, err *error) {
 	WriteVarint(len(s), w, n, err)
 	WriteTo([]byte(s), w, n, err)
 }
 
-func ReadString(r io.Reader, n *int64, err *error) string {
+func ReadString(r io.Reader, lmt int, n *int, err *error) string {
 	length := ReadVarint(r, n, err)
 	if *err != nil {
 		return ""
@@ -22,7 +22,7 @@ func ReadString(r io.Reader, n *int64, err *error) string {
 		*err = ErrBinaryReadSizeUnderflow
 		return ""
 	}
-	if MaxBinaryReadSize < MaxInt64(int64(length), *n+int64(length)) {
+	if lmt != 0 && lmt < MaxInt(length, *n+length) {
 		*err = ErrBinaryReadSizeOverflow
 		return ""
 	}

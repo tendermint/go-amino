@@ -10,7 +10,7 @@ func TestVarint(t *testing.T) {
 
 	check := func(i int, s string) {
 		buf := new(bytes.Buffer)
-		n, err := new(int64), new(error)
+		n, err := new(int), new(error)
 		WriteVarint(i, buf, n, err)
 		bufBytes := buf.Bytes() // Read before consuming below.
 		i_ := ReadVarint(buf, n, err)
@@ -50,7 +50,7 @@ func TestUvarint(t *testing.T) {
 
 	check := func(i uint, s string) {
 		buf := new(bytes.Buffer)
-		n, err := new(int64), new(error)
+		n, err := new(int), new(error)
 		WriteUvarint(i, buf, n, err)
 		bufBytes := buf.Bytes()
 		i_ := ReadUvarint(buf, n, err)

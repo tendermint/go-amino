@@ -6,12 +6,12 @@ import (
 	. "github.com/tendermint/go-common"
 )
 
-func WriteByteSlice(bz []byte, w io.Writer, n *int64, err *error) {
+func WriteByteSlice(bz []byte, w io.Writer, n *int, err *error) {
 	WriteVarint(len(bz), w, n, err)
 	WriteTo(bz, w, n, err)
 }
 
-func ReadByteSlice(r io.Reader, n *int64, err *error) []byte {
+func ReadByteSlice(r io.Reader, lmt int, n *int, err *error) []byte {
 	length := ReadVarint(r, n, err)
 	if *err != nil {
 		return nil
@@ -20,7 +20,7 @@ func ReadByteSlice(r io.Reader, n *int64, err *error) []byte {
 		*err = ErrBinaryReadSizeUnderflow
 		return nil
 	}
-	if MaxBinaryReadSize < MaxInt64(int64(length), *n+int64(length)) {
+	if lmt != 0 && lmt < MaxInt(length, *n+length) {
 		*err = ErrBinaryReadSizeOverflow
 		return nil
 	}
@@ -32,7 +32,7 @@ func ReadByteSlice(r io.Reader, n *int64, err *error) []byte {
 
 //-----------------------------------------------------------------------------
 
-func WriteByteSlices(bzz [][]byte, w io.Writer, n *int64, err *error) {
+func WriteByteSlices(bzz [][]byte, w io.Writer, n *int, err *error) {
 	WriteVarint(len(bzz), w, n, err)
 	for _, bz := range bzz {
 		WriteByteSlice(bz, w, n, err)
@@ -42,7 +42,7 @@ func WriteByteSlices(bzz [][]byte, w io.Writer, n *int64, err *error) {
 	}
 }
 
-func ReadByteSlices(r io.Reader, n *int64, err *error) [][]byte {
+func ReadByteSlices(r io.Reader, lmt int, n *int, err *error) [][]byte {
 	length := ReadVarint(r, n, err)
 	if *err != nil {
 		return nil
@@ -51,14 +51,14 @@ func ReadByteSlices(r io.Reader, n *int64, err *error) [][]byte {
 		*err = ErrBinaryReadSizeUnderflow
 		return nil
 	}
-	if MaxBinaryReadSize < MaxInt64(int64(length), *n+int64(length)) {
+	if lmt != 0 && lmt < MaxInt(length, *n+length) {
 		*err = ErrBinaryReadSizeOverflow
 		return nil
 	}
 
 	bzz := make([][]byte, length)
 	for i := 0; i < length; i++ {
-		bz := ReadByteSlice(r, n, err)
+		bz := ReadByteSlice(r, lmt, n, err)
 		if *err != nil {
 			return nil
 		}

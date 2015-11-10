@@ -9,43 +9,52 @@ import (
 	. "github.com/tendermint/go-common"
 )
 
-// TODO document and maybe make it configurable.
-const MaxBinaryReadSize = 21 * 1024 * 1024
-
 var ErrBinaryReadSizeOverflow = errors.New("Error: binary read size overflow")
 var ErrBinaryReadSizeUnderflow = errors.New("Error: binary read size underflow")
 
-func ReadBinary(o interface{}, r io.Reader, n *int64, err *error) interface{} {
+const (
+	ReadSliceChunkSize = 1024
+)
+
+func ReadBinary(o interface{}, r io.Reader, lmt int, n *int, err *error) (res interface{}) {
 	rv, rt := reflect.ValueOf(o), reflect.TypeOf(o)
 	if rv.Kind() == reflect.Ptr {
 		if rv.IsNil() {
 			// This allows ReadBinaryObject() to return a nil pointer,
 			// if the value read is nil.
 			rvPtr := reflect.New(rt)
-			ReadBinaryPtr(rvPtr.Interface(), r, n, err)
-			return rvPtr.Elem().Interface()
+			ReadBinaryPtr(rvPtr.Interface(), r, lmt, n, err)
+			res = rvPtr.Elem().Interface()
 		} else {
-			readReflectBinary(rv, rt, Options{}, r, n, err)
-			return o
+			readReflectBinary(rv, rt, Options{}, r, lmt, n, err)
+			res = o
 		}
 	} else {
 		ptrRv := reflect.New(rt)
-		readReflectBinary(ptrRv.Elem(), rt, Options{}, r, n, err)
-		return ptrRv.Elem().Interface()
+		readReflectBinary(ptrRv.Elem(), rt, Options{}, r, lmt, n, err)
+		res = ptrRv.Elem().Interface()
 	}
+	if lmt != 0 && lmt < *n && *err == nil {
+		*err = ErrBinaryReadSizeOverflow
+	}
+	return res
 }
 
-func ReadBinaryPtr(o interface{}, r io.Reader, n *int64, err *error) interface{} {
+func ReadBinaryPtr(o interface{}, r io.Reader, lmt int, n *int, err *error) (res interface{}) {
 	rv, rt := reflect.ValueOf(o), reflect.TypeOf(o)
 	if rv.Kind() == reflect.Ptr {
-		readReflectBinary(rv.Elem(), rt.Elem(), Options{}, r, n, err)
+		readReflectBinary(rv.Elem(), rt.Elem(), Options{}, r, lmt, n, err)
 	} else {
 		PanicSanity("ReadBinaryPtr expects o to be a pointer")
 	}
-	return o
+	res = o
+	if lmt != 0 && lmt < *n && *err == nil {
+		*err = ErrBinaryReadSizeOverflow
+	}
+	return res
 }
 
-func WriteBinary(o interface{}, w io.Writer, n *int64, err *error) {
+func WriteBinary(o interface{}, w io.Writer, n *int, err *error) {
 	rv := reflect.ValueOf(o)
 	rt := reflect.TypeOf(o)
 	writeReflectBinary(rv, rt, Options{}, w, n, err)
@@ -102,7 +111,7 @@ func ReadJSONObjectPtr(o interface{}, object interface{}, err *error) interface{
 	return o
 }
 
-func WriteJSON(o interface{}, w io.Writer, n *int64, err *error) {
+func WriteJSON(o interface{}, w io.Writer, n *int, err *error) {
 	rv := reflect.ValueOf(o)
 	rt := reflect.TypeOf(o)
 	if rv.Kind() == reflect.Ptr {
@@ -113,22 +122,22 @@ func WriteJSON(o interface{}, w io.Writer, n *int64, err *error) {
 
 // Write all of bz to w
 // Increment n and set err accordingly.
-func WriteTo(bz []byte, w io.Writer, n *int64, err *error) {
+func WriteTo(bz []byte, w io.Writer, n *int, err *error) {
 	if *err != nil {
 		return
 	}
 	n_, err_ := w.Write(bz)
-	*n += int64(n_)
+	*n += n_
 	*err = err_
 }
 
 // Read len(buf) from r
 // Increment n and set err accordingly.
-func ReadFull(buf []byte, r io.Reader, n *int64, err *error) {
+func ReadFull(buf []byte, r io.Reader, n *int, err *error) {
 	if *err != nil {
 		return
 	}
 	n_, err_ := io.ReadFull(r, buf)
-	*n += int64(n_)
+	*n += n_
 	*err = err_
 }

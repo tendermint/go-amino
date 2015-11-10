@@ -77,8 +77,8 @@ func TestAnimalInterface(t *testing.T) {
 	snakeReader := bytes.NewReader(snakeBytes)
 
 	// Now you can read it.
-	n, err := new(int64), new(error)
-	it := ReadBinary(foo, snakeReader, n, err).(Animal)
+	n, err := new(int), new(error)
+	it := ReadBinary(foo, snakeReader, 0, n, err).(Animal)
 	fmt.Println(it, reflect.TypeOf(it))
 }
 
@@ -369,8 +369,8 @@ func TestBinary(t *testing.T) {
 		instance, instancePtr := testCase.Instantiator()
 
 		// Read onto a struct
-		n, err := new(int64), new(error)
-		res := ReadBinary(instance, bytes.NewReader(data), n, err)
+		n, err := new(int), new(error)
+		res := ReadBinary(instance, bytes.NewReader(data), 0, n, err)
 		if *err != nil {
 			t.Fatalf("Failed to read into instance: %v", *err)
 		}
@@ -379,18 +379,33 @@ func TestBinary(t *testing.T) {
 		testCase.Validator(res, t)
 
 		// Read onto a pointer
-		n, err = new(int64), new(error)
-		res = ReadBinaryPtr(instancePtr, bytes.NewReader(data), n, err)
+		n, err = new(int), new(error)
+		res = ReadBinaryPtr(instancePtr, bytes.NewReader(data), 0, n, err)
 		if *err != nil {
 			t.Fatalf("Failed to read into instance: %v", *err)
 		}
-
 		if res != instancePtr {
 			t.Errorf("Expected pointer to pass through")
 		}
 
 		// Validate object
 		testCase.Validator(reflect.ValueOf(res).Elem().Interface(), t)
+
+		// Read with len(data)-1 limit should fail.
+		instance, _ = testCase.Instantiator()
+		n, err = new(int), new(error)
+		ReadBinary(instance, bytes.NewReader(data), len(data)-1, n, err)
+		if *err != ErrBinaryReadSizeOverflow {
+			t.Fatalf("Expected ErrBinaryReadSizeOverflow")
+		}
+
+		// Read with len(data) limit should succeed.
+		instance, _ = testCase.Instantiator()
+		n, err = new(int), new(error)
+		ReadBinary(instance, bytes.NewReader(data), len(data), n, err)
+		if *err != nil {
+			t.Fatalf("Failed to read instance with sufficient limit: %v", (*err).Error(), *n, len(data), reflect.TypeOf(instance))
+		}
 	}
 
 }
@@ -459,14 +474,14 @@ func TestJSONFieldNames(t *testing.T) {
 //------------------------------------------------------------------------------
 
 func TestBadAlloc(t *testing.T) {
-	n, err := new(int64), new(error)
+	n, err := new(int), new(error)
 	instance := new([]byte)
 	data := RandBytes(100 * 1024)
 	b := new(bytes.Buffer)
 	// this slice of data claims to be much bigger than it really is
 	WriteUvarint(uint(10000000000000000), b, n, err)
 	b.Write(data)
-	res := ReadBinary(instance, b, n, err)
+	res := ReadBinary(instance, b, 0, n, err)
 	fmt.Println(res, *err)
 }
 
@@ -499,8 +514,8 @@ func TestSimpleArray(t *testing.T) {
 	fooReader := bytes.NewReader(fooBytes)
 
 	// Now you can read it.
-	n, err := new(int64), new(error)
-	it := ReadBinary(foo, fooReader, n, err).(SimpleArray)
+	n, err := new(int), new(error)
+	it := ReadBinary(foo, fooReader, 0, n, err).(SimpleArray)
 
 	if !bytes.Equal(it[:], fooArray[:]) {
 		t.Errorf("Expected %v but got %v", fooArray, it)

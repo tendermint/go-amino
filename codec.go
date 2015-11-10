@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-type Encoder func(o interface{}, w io.Writer, n *int64, err *error)
-type Decoder func(r io.Reader, n *int64, err *error) interface{}
+type Encoder func(o interface{}, w io.Writer, n *int, err *error)
+type Decoder func(r io.Reader, n *int, err *error) interface{}
 type Comparator func(o1 interface{}, o2 interface{}) int
 
 type Codec struct {
@@ -37,7 +37,7 @@ const (
 	typeTime      = byte(0x20)
 )
 
-func BasicCodecEncoder(o interface{}, w io.Writer, n *int64, err *error) {
+func BasicCodecEncoder(o interface{}, w io.Writer, n *int, err *error) {
 	switch o := o.(type) {
 	case nil:
 		PanicSanity("nil type unsupported")
@@ -88,7 +88,7 @@ func BasicCodecEncoder(o interface{}, w io.Writer, n *int64, err *error) {
 	}
 }
 
-func BasicCodecDecoder(r io.Reader, n *int64, err *error) (o interface{}) {
+func BasicCodecDecoder(r io.Reader, n *int, err *error) (o interface{}) {
 	type_ := ReadByte(r, n, err)
 	if *err != nil {
 		return
@@ -117,9 +117,9 @@ func BasicCodecDecoder(r io.Reader, n *int64, err *error) (o interface{}) {
 	case typeUvarint:
 		o = ReadUvarint(r, n, err)
 	case typeString:
-		o = ReadString(r, n, err)
+		o = ReadString(r, 0, n, err)
 	case typeByteSlice:
-		o = ReadByteSlice(r, n, err)
+		o = ReadByteSlice(r, 0, n, err)
 	case typeTime:
 		o = ReadTime(r, n, err)
 	default:
