@@ -253,7 +253,7 @@ func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Rea
 			if *err != nil {
 				return
 			}
-			log.Info("Read bytearray", "bytes", buf, "n", *n)
+			//log.Info("Read bytearray", "bytes", buf, "n", *n)
 			reflect.Copy(rv, reflect.ValueOf(buf))
 		} else {
 			for i := 0; i < length; i++ {
@@ -267,7 +267,7 @@ func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Rea
 					return
 				}
 			}
-			log.Info("Read x-array", "x", elemRt, "length", length, "n", *n)
+			//log.Info("Read x-array", "x", elemRt, "length", length, "n", *n)
 		}
 
 	case reflect.Slice:
@@ -275,13 +275,13 @@ func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Rea
 		if elemRt.Kind() == reflect.Uint8 {
 			// Special case: Byteslices
 			byteslice := ReadByteSlice(r, lmt, n, err)
-			log.Info("Read byteslice", "bytes", byteslice, "n", *n)
+			//log.Info("Read byteslice", "bytes", byteslice, "n", *n)
 			rv.Set(reflect.ValueOf(byteslice))
 		} else {
 			var sliceRv reflect.Value
 			// Read length
 			length := ReadVarint(r, n, err)
-			log.Info("Read slice", "length", length, "n", *n)
+			//log.Info("Read slice", "length", length, "n", *n)
 			sliceRv = reflect.MakeSlice(rt, 0, 0)
 			// read one ReadSliceChunkSize at a time and append
 			for i := 0; i*ReadSliceChunkSize < length; i++ {
@@ -308,7 +308,7 @@ func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Rea
 		if rt == timeType {
 			// Special case: time.Time
 			t := ReadTime(r, n, err)
-			log.Info("Read time", "t", t, "n", *n)
+			//log.Info("Read time", "t", t, "n", *n)
 			rv.Set(reflect.ValueOf(t))
 		} else {
 			for _, fieldInfo := range typeInfo.Fields {
@@ -320,74 +320,74 @@ func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Rea
 
 	case reflect.String:
 		str := ReadString(r, lmt, n, err)
-		log.Info("Read string", "str", str, "n", *n)
+		//log.Info("Read string", "str", str, "n", *n)
 		rv.SetString(str)
 
 	case reflect.Int64:
 		if opts.Varint {
 			num := ReadVarint(r, n, err)
-			log.Info("Read num", "num", num, "n", *n)
+			//log.Info("Read num", "num", num, "n", *n)
 			rv.SetInt(int64(num))
 		} else {
 			num := ReadInt64(r, n, err)
-			log.Info("Read num", "num", num, "n", *n)
+			//log.Info("Read num", "num", num, "n", *n)
 			rv.SetInt(int64(num))
 		}
 
 	case reflect.Int32:
 		num := ReadUint32(r, n, err)
-		log.Info("Read num", "num", num, "n", *n)
+		//log.Info("Read num", "num", num, "n", *n)
 		rv.SetInt(int64(num))
 
 	case reflect.Int16:
 		num := ReadUint16(r, n, err)
-		log.Info("Read num", "num", num, "n", *n)
+		//log.Info("Read num", "num", num, "n", *n)
 		rv.SetInt(int64(num))
 
 	case reflect.Int8:
 		num := ReadUint8(r, n, err)
-		log.Info("Read num", "num", num, "n", *n)
+		//log.Info("Read num", "num", num, "n", *n)
 		rv.SetInt(int64(num))
 
 	case reflect.Int:
 		num := ReadVarint(r, n, err)
-		log.Info("Read num", "num", num, "n", *n)
+		//log.Info("Read num", "num", num, "n", *n)
 		rv.SetInt(int64(num))
 
 	case reflect.Uint64:
 		if opts.Varint {
 			num := ReadVarint(r, n, err)
-			log.Info("Read num", "num", num, "n", *n)
+			//log.Info("Read num", "num", num, "n", *n)
 			rv.SetUint(uint64(num))
 		} else {
 			num := ReadUint64(r, n, err)
-			log.Info("Read num", "num", num, "n", *n)
+			//log.Info("Read num", "num", num, "n", *n)
 			rv.SetUint(uint64(num))
 		}
 
 	case reflect.Uint32:
 		num := ReadUint32(r, n, err)
-		log.Info("Read num", "num", num, "n", *n)
+		//log.Info("Read num", "num", num, "n", *n)
 		rv.SetUint(uint64(num))
 
 	case reflect.Uint16:
 		num := ReadUint16(r, n, err)
-		log.Info("Read num", "num", num, "n", *n)
+		//log.Info("Read num", "num", num, "n", *n)
 		rv.SetUint(uint64(num))
 
 	case reflect.Uint8:
 		num := ReadUint8(r, n, err)
-		log.Info("Read num", "num", num, "n", *n)
+		//log.Info("Read num", "num", num, "n", *n)
 		rv.SetUint(uint64(num))
 
 	case reflect.Uint:
 		num := ReadVarint(r, n, err)
-		log.Info("Read num", "num", num, "n", *n)
+		//log.Info("Read num", "num", num, "n", *n)
 		rv.SetUint(uint64(num))
 
 	case reflect.Bool:
 		num := ReadUint8(r, n, err)
-		log.Info("Read bool", "bool", num, "n", *n)
+		//log.Info("Read bool", "bool", num, "n", *n)
 		rv.SetBool(num > 0)
 
 	default:
@@ -667,7 +667,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 				*err = errors.New(Fmt("Expected bytearray of length %v but got %v", length, len(buf)))
 				return
 			}
-			log.Info("Read bytearray", "bytes", buf)
+			//log.Info("Read bytearray", "bytes", buf)
 			reflect.Copy(rv, reflect.ValueOf(buf))
 		} else {
 			oSlice, ok := o.([]interface{})
@@ -683,7 +683,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 				elemRv := rv.Index(i)
 				readReflectJSON(elemRv, elemRt, oSlice[i], err)
 			}
-			log.Info("Read x-array", "x", elemRt, "length", length)
+			//log.Info("Read x-array", "x", elemRt, "length", length)
 		}
 
 	case reflect.Slice:
@@ -700,7 +700,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 				*err = err_
 				return
 			}
-			log.Info("Read byteslice", "bytes", byteslice)
+			//log.Info("Read byteslice", "bytes", byteslice)
 			rv.Set(reflect.ValueOf(byteslice))
 		} else {
 			// Read length
@@ -710,7 +710,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 				return
 			}
 			length := len(oSlice)
-			log.Info("Read slice", "length", length)
+			//log.Info("Read slice", "length", length)
 			sliceRv := reflect.MakeSlice(rt, length, length)
 			// Read elems
 			for i := 0; i < length; i++ {
@@ -728,7 +728,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 				*err = errors.New(Fmt("Expected string but got type %v", reflect.TypeOf(o)))
 				return
 			}
-			log.Info("Read time", "t", str)
+			//log.Info("Read time", "t", str)
 			t, err_ := time.Parse(iso8601, str)
 			if err_ != nil {
 				*err = err_
@@ -760,7 +760,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 			*err = errors.New(Fmt("Expected string but got type %v", reflect.TypeOf(o)))
 			return
 		}
-		log.Info("Read string", "str", str)
+		//log.Info("Read string", "str", str)
 		rv.SetString(str)
 
 	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int:
@@ -769,7 +769,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 			*err = errors.New(Fmt("Expected numeric but got type %v", reflect.TypeOf(o)))
 			return
 		}
-		log.Info("Read num", "num", num)
+		//log.Info("Read num", "num", num)
 		rv.SetInt(int64(num))
 
 	case reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
@@ -782,7 +782,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 			*err = errors.New(Fmt("Expected unsigned numeric but got %v", num))
 			return
 		}
-		log.Info("Read num", "num", num)
+		//log.Info("Read num", "num", num)
 		rv.SetUint(uint64(num))
 
 	case reflect.Bool:
@@ -791,7 +791,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 			*err = errors.New(Fmt("Expected boolean but got type %v", reflect.TypeOf(o)))
 			return
 		}
-		log.Info("Read boolean", "boolean", bl)
+		//log.Info("Read boolean", "boolean", bl)
 		rv.SetBool(bl)
 
 	default:
@@ -800,7 +800,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 }
 
 func writeReflectJSON(rv reflect.Value, rt reflect.Type, w io.Writer, n *int, err *error) {
-	log.Info(Fmt("writeReflectJSON(%v, %v, %v, %v, %v)", rv, rt, w, n, err))
+	//log.Info(Fmt("writeReflectJSON(%v, %v, %v, %v, %v)", rv, rt, w, n, err))
 
 	// Get typeInfo
 	typeInfo := GetTypeInfo(rt)
