@@ -19,6 +19,12 @@ func BinaryBytes(o interface{}) []byte {
 	return w.Bytes()
 }
 
+func ReadBinaryBytes(d []byte, o interface{}) error {
+	r, n, err := bytes.NewBuffer(d), new(int), new(error)
+	ReadBinary(o, r, 0, n, err)
+	return *err
+}
+
 func JSONBytes(o interface{}) []byte {
 	w, n, err := new(bytes.Buffer), new(int), new(error)
 	WriteJSON(o, w, n, err)
