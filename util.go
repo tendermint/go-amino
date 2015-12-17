@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 
-	"code.google.com/p/go.crypto/ripemd160"
+	"golang.org/x/crypto/ripemd160"
 
 	. "github.com/tendermint/go-common"
 )
