@@ -566,6 +566,147 @@ func writeReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, w io.Wr
 	}
 }
 
+//
+func reflectBinarySize(rv reflect.Value, rt reflect.Type, opts Options, err *error) (size int) {
+	// Get typeInfo
+	typeInfo := GetTypeInfo(rt)
+
+	if rt.Kind() == reflect.Interface {
+		if rv.IsNil() {
+			// just 0x00
+			return 1
+		}
+		crv := rv.Elem()  // concrete reflection value
+		crt := crv.Type() // concrete reflection type
+		if typeInfo.IsRegisteredInterface {
+			// See if the crt is registered.
+			// If so, we're more restrictive.
+			_, ok := typeInfo.TypeToByte[crt]
+			if !ok {
+				switch crt.Kind() {
+				case reflect.Ptr:
+					*err = errors.New(Fmt("Unexpected pointer type %v for registered interface %v. "+
+						"Was it registered as a value receiver rather than as a pointer receiver?", crt, rt.Name()))
+				case reflect.Struct:
+					*err = errors.New(Fmt("Unexpected struct type %v for registered interface %v. "+
+						"Was it registered as a pointer receiver rather than as a value receiver?", crt, rt.Name()))
+				default:
+					*err = errors.New(Fmt("Unexpected type %v for registered interface %v. "+
+						"If this is intentional, please register it.", crt, rt.Name()))
+				}
+				return
+			}
+		} else {
+			// We support writing unsafely for convenience.
+		}
+		// We don't have to worry about the typeByte here,
+		// the reflectBinarySize() call below will count it.
+		return reflectBinarySize(crv, crt, opts, err)
+	}
+
+	if rt.Kind() == reflect.Ptr {
+		// Dereference pointer
+		rv, rt = rv.Elem(), rt.Elem()
+		typeInfo = GetTypeInfo(rt)
+		if !rv.IsValid() {
+			// For better compatibility with other languages,
+			// as far as tendermint/wire is concerned,
+			// pointers to nil values are the same as nil.
+			// So its just a 0x00 again
+			return 1
+		}
+		if typeInfo.Byte == 0x00 {
+			// XXX: huh?! pointer byte?
+			// WriteByte(0x01, w, n, err)
+			size += 1
+			// continue...
+		} else {
+			// continue...
+		}
+	}
+
+	// Write type byte
+	if typeInfo.Byte != 0x00 {
+		// type bytes are just length 1 for now
+		size += 1
+	}
+
+	// All other types
+	switch rt.Kind() {
+	case reflect.Array:
+		elemRt := rt.Elem()
+		length := rt.Len()
+		if elemRt.Kind() == reflect.Uint8 {
+			size += length
+		} else {
+			// Write elems
+			for i := 0; i < length; i++ {
+				elemRv := rv.Index(i)
+				size += reflectBinarySize(elemRv, elemRt, opts, err)
+			}
+		}
+
+	case reflect.Slice:
+		elemRt := rt.Elem()
+		if elemRt.Kind() == reflect.Uint8 {
+			// Special case: Byteslices
+			byteslice := rv.Bytes()
+			size += len(byteslice) // TODO: direct from rv/rt ?
+		} else {
+			length := rv.Len()
+			// one byte for length of length, rest for length
+			size += (1 + uvarintSize(uint64(length)))
+			// Write elems
+			for i := 0; i < length; i++ {
+				elemRv := rv.Index(i)
+				size += reflectBinarySize(elemRv, elemRt, opts, err)
+			}
+		}
+
+	case reflect.Struct:
+		if rt == timeType {
+			// Special case: time.Time
+			// TODO!
+		} else {
+			for _, fieldInfo := range typeInfo.Fields {
+				i, fieldType, opts := fieldInfo.unpack()
+				fieldRv := rv.Field(i)
+				size += reflectBinarySize(fieldRv, fieldType, opts, err)
+			}
+		}
+
+	case reflect.String:
+		s := rv.String()
+		size += (1 + uvarintSize(uint64(len(s))))
+		size += len(s)
+
+	case reflect.Int64, reflect.Uint64:
+		if opts.Varint {
+			size += (1 + uvarintSize(uint64(rv.Int())))
+		} else {
+			size += 8
+		}
+
+	case reflect.Int32, reflect.Uint32:
+		size += 4
+
+	case reflect.Int16, reflect.Uint16:
+		size += 2
+
+	case reflect.Int8, reflect.Uint8:
+		size += 1
+
+	case reflect.Int, reflect.Uint:
+		size += (1 + uvarintSize(uint64(rv.Int())))
+
+	case reflect.Bool:
+		size += 1
+	default:
+		PanicSanity(Fmt("Unknown field type %v", rt.Kind()))
+	}
+	return size
+}
+
 //-----------------------------------------------------------------------------
 
 func readByteJSON(o interface{}) (typeByte byte, rest interface{}, err error) {
