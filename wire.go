@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
@@ -11,6 +12,7 @@ import (
 
 var ErrBinaryReadSizeOverflow = errors.New("Error: binary read size overflow")
 var ErrBinaryReadSizeUnderflow = errors.New("Error: binary read size underflow")
+var ErrBinaryReadWrongLengthPrefix = errors.New("Error: binary read wrong length prefix")
 
 const (
 	ReadSliceChunkSize = 1024
@@ -54,10 +56,29 @@ func ReadBinaryPtr(o interface{}, r io.Reader, lmt int, n *int, err *error) (res
 	return res
 }
 
+func ReadBinaryPtrLengthPrefixed(o interface{}, r io.Reader, lmt int, n *int, err *error) (res interface{}) {
+	length := ReadVarint(r, n, err)
+	nSave := *n
+	res = ReadBinaryPtr(o, r, lmt, n, err)
+	nRes := *n - nSave
+	if nRes != length && *err == nil {
+		*err = ErrBinaryReadWrongLengthPrefix
+	}
+	return res
+}
+
 func WriteBinary(o interface{}, w io.Writer, n *int, err *error) {
 	rv := reflect.ValueOf(o)
 	rt := reflect.TypeOf(o)
 	writeReflectBinary(rv, rt, Options{}, w, n, err)
+}
+
+func WriteBinaryLengthPrefixed(o interface{}, w io.Writer, n *int, err *error) {
+	var bufN int
+	var buf = new(bytes.Buffer)
+	WriteBinary(o, buf, &bufN, err)
+	WriteVarint(buf.Len(), w, n, err)
+	WriteTo(buf.Bytes(), w, n, err)
 }
 
 func ReadJSON(o interface{}, bytes []byte, err *error) interface{} {
