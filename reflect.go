@@ -20,9 +20,6 @@ type TypeInfo struct {
 	ByteToType            map[byte]reflect.Type
 	TypeToByte            map[reflect.Type]byte
 
-	// If Type is concrete
-	Byte byte
-
 	// If Type is kind reflect.Struct
 	Fields []StructFieldInfo
 }
@@ -71,18 +68,6 @@ func GetTypeFromStructDeclaration(o interface{}) reflect.Type {
 	return rt.Field(0).Type
 }
 
-func SetByteForType(typeByte byte, rt reflect.Type) {
-	typeInfo := GetTypeInfo(rt)
-	if typeInfo.Byte != 0x00 && typeInfo.Byte != typeByte {
-		PanicSanity(Fmt("Type %v already registered with type byte %X", rt, typeByte))
-	}
-	typeInfo.Byte = typeByte
-	// If pointer, we need to set it for the concrete type as well.
-	if rt.Kind() == reflect.Ptr {
-		SetByteForType(typeByte, rt.Elem())
-	}
-}
-
 // Predeclaration of common types
 var (
 	timeType = GetTypeFromStructDeclaration(struct{ time.Time }{})
@@ -125,7 +110,6 @@ func RegisterInterface(o interface{}, ctypes ...ConcreteType) *TypeInfo {
 	for _, ctype := range ctypes {
 		crt := reflect.TypeOf(ctype.O)
 		typeByte := ctype.Byte
-		SetByteForType(typeByte, crt)
 		if typeByte == 0x00 {
 			PanicSanity(Fmt("Byte of 0x00 is reserved for nil (%v)", ctype))
 		}
@@ -198,11 +182,16 @@ func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Rea
 			*err = errors.New(Fmt("Unexpected type byte %X for type %v", typeByte, rt))
 			return
 		}
-		crv := reflect.New(crt).Elem()
-		r = NewPrefixedReader([]byte{typeByte}, r)
-		*n -= 1 // Must also rewind *n
-		readReflectBinary(crv, crt, opts, r, lmt, n, err)
-		rv.Set(crv) // NOTE: orig rv is ignored.
+		if crt.Kind() == reflect.Ptr {
+			crt = crt.Elem()
+			crv := reflect.New(crt)
+			readReflectBinary(crv.Elem(), crt, opts, r, lmt, n, err)
+			rv.Set(crv) // NOTE: orig rv is ignored.
+		} else {
+			crv := reflect.New(crt).Elem()
+			readReflectBinary(crv, crt, opts, r, lmt, n, err)
+			rv.Set(crv) // NOTE: orig rv is ignored.
+		}
 		return
 	}
 
@@ -213,6 +202,9 @@ func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Rea
 		}
 		if typeByte == 0x00 {
 			return // nil
+		} else if typeByte != 0x01 {
+			*err = errors.New(Fmt("Unexpected type byte %X for ptr of untyped thing", typeByte))
+			return
 		}
 		// Create new if rv is nil.
 		if rv.IsNil() {
@@ -223,23 +215,7 @@ func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Rea
 		// Dereference pointer
 		rv, rt = rv.Elem(), rt.Elem()
 		typeInfo = GetTypeInfo(rt)
-		if typeInfo.Byte != 0x00 {
-			r = NewPrefixedReader([]byte{typeByte}, r)
-			*n -= 1 // Must also rewind *n
-		} else if typeByte != 0x01 {
-			*err = errors.New(Fmt("Unexpected type byte %X for ptr of untyped thing", typeByte))
-			return
-		}
 		// continue...
-	}
-
-	// Read Byte prefix
-	if typeInfo.Byte != 0x00 {
-		typeByte := ReadByte(r, n, err)
-		if typeByte != typeInfo.Byte {
-			*err = errors.New(Fmt("Expected Byte of %X but got %X", typeInfo.Byte, typeByte))
-			return
-		}
 	}
 
 	switch rt.Kind() {
@@ -404,7 +380,6 @@ func writeReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, w io.Wr
 
 	if rt.Kind() == reflect.Interface {
 		if rv.IsNil() {
-			// XXX ensure that typeByte 0 is reserved.
 			WriteByte(0x00, w, n, err)
 			return
 		}
@@ -413,7 +388,7 @@ func writeReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, w io.Wr
 		if typeInfo.IsRegisteredInterface {
 			// See if the crt is registered.
 			// If so, we're more restrictive.
-			_, ok := typeInfo.TypeToByte[crt]
+			typeByte, ok := typeInfo.TypeToByte[crt]
 			if !ok {
 				switch crt.Kind() {
 				case reflect.Ptr:
@@ -428,12 +403,20 @@ func writeReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, w io.Wr
 				}
 				return
 			}
+			if crt.Kind() == reflect.Ptr {
+				crv, crt = crv.Elem(), crt.Elem()
+				if !crv.IsValid() {
+					*err = errors.New(Fmt("Unexpected nil-pointer of type %v for registered interface %v. "+
+						"For compatibility with other languages, nil-pointer interface values are forbidden.", crt, rt.Name()))
+					return
+				}
+			}
+			WriteByte(typeByte, w, n, err)
+			writeReflectBinary(crv, crt, opts, w, n, err)
 		} else {
-			// We support writing unsafely for convenience.
+			// We support writing unregistered interfaces for convenience.
+			writeReflectBinary(crv, crt, opts, w, n, err)
 		}
-		// We don't have to write the typeByte here,
-		// the writeReflectBinary() call below will write it.
-		writeReflectBinary(crv, crt, opts, w, n, err)
 		return
 	}
 
@@ -442,23 +425,12 @@ func writeReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, w io.Wr
 		rv, rt = rv.Elem(), rt.Elem()
 		typeInfo = GetTypeInfo(rt)
 		if !rv.IsValid() {
-			// For better compatibility with other languages,
-			// as far as tendermint/wire is concerned,
-			// pointers to nil values are the same as nil.
 			WriteByte(0x00, w, n, err)
 			return
-		}
-		if typeInfo.Byte == 0x00 {
+		} else {
 			WriteByte(0x01, w, n, err)
 			// continue...
-		} else {
-			// continue...
 		}
-	}
-
-	// Write type byte
-	if typeInfo.Byte != 0x00 {
-		WriteByte(typeInfo.Byte, w, n, err)
 	}
 
 	// All other types
@@ -601,7 +573,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 		if o == nil {
 			return // nil
 		}
-		typeByte, _, err_ := readByteJSON(o)
+		typeByte, rest, err_ := readByteJSON(o)
 		if err_ != nil {
 			*err = err_
 			return
@@ -611,9 +583,16 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 			*err = errors.New(Fmt("Byte %X not registered for interface %v", typeByte, rt))
 			return
 		}
-		crv := reflect.New(crt).Elem()
-		readReflectJSON(crv, crt, o, err)
-		rv.Set(crv) // NOTE: orig rv is ignored.
+		if crt.Kind() == reflect.Ptr {
+			crt = crt.Elem()
+			crv := reflect.New(crt)
+			readReflectJSON(crv.Elem(), crt, rest, err)
+			rv.Set(crv) // NOTE: orig rv is ignored.
+		} else {
+			crv := reflect.New(crt).Elem()
+			readReflectJSON(crv, crt, rest, err)
+			rv.Set(crv) // NOTE: orig rv is ignored.
+		}
 		return
 	}
 
@@ -631,20 +610,6 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 		rv, rt = rv.Elem(), rt.Elem()
 		typeInfo = GetTypeInfo(rt)
 		// continue...
-	}
-
-	// Read Byte prefix
-	if typeInfo.Byte != 0x00 {
-		typeByte, rest, err_ := readByteJSON(o)
-		if err_ != nil {
-			*err = err_
-			return
-		}
-		if typeByte != typeInfo.Byte {
-			*err = errors.New(Fmt("Expected Byte of %X but got %X", typeInfo.Byte, byte(typeByte)))
-			return
-		}
-		o = rest
 	}
 
 	switch rt.Kind() {
@@ -807,7 +772,6 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, w io.Writer, n *int, er
 
 	if rt.Kind() == reflect.Interface {
 		if rv.IsNil() {
-			// XXX ensure that typeByte 0 is reserved.
 			WriteTo([]byte("null"), w, n, err)
 			return
 		}
@@ -816,7 +780,7 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, w io.Writer, n *int, er
 		if typeInfo.IsRegisteredInterface {
 			// See if the crt is registered.
 			// If so, we're more restrictive.
-			_, ok := typeInfo.TypeToByte[crt]
+			typeByte, ok := typeInfo.TypeToByte[crt]
 			if !ok {
 				switch crt.Kind() {
 				case reflect.Ptr:
@@ -831,12 +795,21 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, w io.Writer, n *int, er
 				}
 				return
 			}
+			if crt.Kind() == reflect.Ptr {
+				crv, crt = crv.Elem(), crt.Elem()
+				if !crv.IsValid() {
+					*err = errors.New(Fmt("Unexpected nil-pointer of type %v for registered interface %v. "+
+						"For compatibility with other languages, nil-pointer interface values are forbidden.", crt, rt.Name()))
+					return
+				}
+			}
+			WriteTo([]byte(Fmt("[%v,", typeByte)), w, n, err)
+			writeReflectJSON(crv, crt, w, n, err)
+			WriteTo([]byte("]"), w, n, err)
 		} else {
-			// We support writing unsafely for convenience.
+			// We support writing unregistered interfaces for convenience.
+			writeReflectJSON(crv, crt, w, n, err)
 		}
-		// We don't have to write the typeByte here,
-		// the writeReflectJSON() call below will write it.
-		writeReflectJSON(crv, crt, w, n, err)
 		return
 	}
 
@@ -852,12 +825,6 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, w io.Writer, n *int, er
 			return
 		}
 		// continue...
-	}
-
-	// Write Byte
-	if typeInfo.Byte != 0x00 {
-		WriteTo([]byte(Fmt("[%v,", typeInfo.Byte)), w, n, err)
-		defer WriteTo([]byte("]"), w, n, err)
 	}
 
 	// All other types

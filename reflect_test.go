@@ -2,6 +2,7 @@ package wire
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"reflect"
 	"testing"
@@ -17,13 +18,6 @@ type SimpleStruct struct {
 }
 
 type Animal interface{}
-
-const (
-	AnimalTypeCat   = byte(0x01)
-	AnimalTypeDog   = byte(0x02)
-	AnimalTypeSnake = byte(0x03)
-	AnimalTypeViper = byte(0x04)
-)
 
 // Implements Animal
 type Cat struct {
@@ -45,10 +39,10 @@ type Viper struct {
 
 var _ = RegisterInterface(
 	struct{ Animal }{},
-	ConcreteType{Cat{}, AnimalTypeCat},
-	ConcreteType{Dog{}, AnimalTypeDog},
-	ConcreteType{Snake{}, AnimalTypeSnake},
-	ConcreteType{&Viper{}, AnimalTypeViper},
+	ConcreteType{Cat{}, 0x01},
+	ConcreteType{Dog{}, 0x02},
+	ConcreteType{Snake{}, 0x03},
+	ConcreteType{&Viper{}, 0x04},
 )
 
 // TODO: add assertions here ...
@@ -357,7 +351,7 @@ func TestBinary(t *testing.T) {
 
 	for i, testCase := range testCases {
 
-		log.Notice(fmt.Sprintf("Running test case %v", i))
+		t.Log(fmt.Sprintf("Running test case %v", i))
 
 		// Construct an object
 		o := testCase.Constructor()
@@ -414,7 +408,7 @@ func TestJSON(t *testing.T) {
 
 	for i, testCase := range testCases {
 
-		log.Notice(fmt.Sprintf("Running test case %v", i))
+		t.Log(fmt.Sprintf("Running test case %v", i))
 
 		// Construct an object
 		o := testCase.Constructor()
@@ -520,4 +514,193 @@ func TestSimpleArray(t *testing.T) {
 	if !bytes.Equal(it[:], fooArray[:]) {
 		t.Errorf("Expected %v but got %v", fooArray, it)
 	}
+}
+
+//--------------------------------------------------------------------------------
+
+func TestNilPointerInterface(t *testing.T) {
+
+	type MyInterface interface{}
+	type MyConcreteStruct1 struct{}
+	type MyConcreteStruct2 struct{}
+
+	RegisterInterface(
+		struct{ MyInterface }{},
+		ConcreteType{&MyConcreteStruct1{}, 0x01},
+		ConcreteType{&MyConcreteStruct2{}, 0x02},
+	)
+
+	type MyStruct struct {
+		MyInterface
+	}
+
+	myStruct := MyStruct{(*MyConcreteStruct1)(nil)}
+	buf, n, err := new(bytes.Buffer), int(0), error(nil)
+	WriteBinary(myStruct, buf, &n, &err)
+	if err == nil {
+		t.Error("Expected error in writing nil pointer interface")
+	}
+
+	myStruct = MyStruct{&MyConcreteStruct1{}}
+	buf, n, err = new(bytes.Buffer), int(0), error(nil)
+	WriteBinary(myStruct, buf, &n, &err)
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+
+}
+
+//--------------------------------------------------------------------------------
+
+func TestMultipleInterfaces(t *testing.T) {
+
+	type MyInterface1 interface{}
+	type MyInterface2 interface{}
+	type Struct1 struct{}
+	type Struct2 struct{}
+
+	RegisterInterface(
+		struct{ MyInterface1 }{},
+		ConcreteType{&Struct1{}, 0x01},
+		ConcreteType{&Struct2{}, 0x02},
+		ConcreteType{Struct1{}, 0x03},
+		ConcreteType{Struct2{}, 0x04},
+	)
+	RegisterInterface(
+		struct{ MyInterface2 }{},
+		ConcreteType{&Struct1{}, 0x11},
+		ConcreteType{&Struct2{}, 0x12},
+		ConcreteType{Struct1{}, 0x13},
+		ConcreteType{Struct2{}, 0x14},
+	)
+
+	type MyStruct struct {
+		F1 []MyInterface1
+		F2 []MyInterface2
+	}
+
+	myStruct := MyStruct{
+		F1: []MyInterface1{
+			nil,
+			&Struct1{},
+			&Struct2{},
+			Struct1{},
+			Struct2{},
+		},
+		F2: []MyInterface2{
+			nil,
+			&Struct1{},
+			&Struct2{},
+			Struct1{},
+			Struct2{},
+		},
+	}
+	buf, n, err := new(bytes.Buffer), int(0), error(nil)
+	WriteBinary(myStruct, buf, &n, &err)
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+	if hexStr := hex.EncodeToString(buf.Bytes()); hexStr !=
+		"0105"+"0001020304"+"0105"+"0011121314" {
+		t.Error("Unexpected binary bytes", hexStr)
+	}
+
+	// Now, read
+
+	myStruct2 := MyStruct{}
+	ReadBinaryPtr(&myStruct2, buf, 0, &n, &err)
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+
+	if len(myStruct2.F1) != 5 {
+		t.Error("Expected F1 to have 5 items")
+	}
+	if myStruct2.F1[0] != nil {
+		t.Error("Expected F1[0] to be nil")
+	}
+	if _, ok := (myStruct2.F1[1]).(*Struct1); !ok {
+		t.Error("Expected F1[1] to be of type *Struct1")
+	}
+	if s, _ := (myStruct2.F1[1]).(*Struct1); s == nil {
+		t.Error("Expected F1[1] to be of type *Struct1 but not nil")
+	}
+	if _, ok := (myStruct2.F1[2]).(*Struct2); !ok {
+		t.Error("Expected F1[2] to be of type *Struct2")
+	}
+	if s, _ := (myStruct2.F1[2]).(*Struct2); s == nil {
+		t.Error("Expected F1[2] to be of type *Struct2 but not nil")
+	}
+	if _, ok := (myStruct2.F1[3]).(Struct1); !ok {
+		t.Error("Expected F1[3] to be of type Struct1")
+	}
+	if _, ok := (myStruct2.F1[4]).(Struct2); !ok {
+		t.Error("Expected F1[4] to be of type Struct2")
+	}
+	if myStruct2.F2[0] != nil {
+		t.Error("Expected F2[0] to be nil")
+	}
+	if _, ok := (myStruct2.F2[1]).(*Struct1); !ok {
+		t.Error("Expected F2[1] to be of type *Struct1")
+	}
+	if s, _ := (myStruct2.F2[1]).(*Struct1); s == nil {
+		t.Error("Expected F2[1] to be of type *Struct1 but not nil")
+	}
+	if _, ok := (myStruct2.F2[2]).(*Struct2); !ok {
+		t.Error("Expected F2[2] to be of type *Struct2")
+	}
+	if s, _ := (myStruct2.F2[2]).(*Struct2); s == nil {
+		t.Error("Expected F2[2] to be of type *Struct2 but not nil")
+	}
+	if _, ok := (myStruct2.F2[3]).(Struct1); !ok {
+		t.Error("Expected F2[3] to be of type Struct1")
+	}
+	if _, ok := (myStruct2.F2[4]).(Struct2); !ok {
+		t.Error("Expected F2[4] to be of type Struct2")
+	}
+
+}
+
+//--------------------------------------------------------------------------------
+
+func TestPointers(t *testing.T) {
+
+	type Struct1 struct {
+		Foo int
+	}
+
+	type MyStruct struct {
+		F1 *Struct1
+		F2 *Struct1
+	}
+
+	myStruct := MyStruct{
+		F1: nil,
+		F2: &Struct1{8},
+	}
+	buf, n, err := new(bytes.Buffer), int(0), error(nil)
+	WriteBinary(myStruct, buf, &n, &err)
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+	if hexStr := hex.EncodeToString(buf.Bytes()); hexStr !=
+		"00"+"010108" {
+		t.Error("Unexpected binary bytes", hexStr)
+	}
+
+	// Now, read
+
+	myStruct2 := MyStruct{}
+	ReadBinaryPtr(&myStruct2, buf, 0, &n, &err)
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+
+	if myStruct2.F1 != nil {
+		t.Error("Expected F1 to be nil")
+	}
+	if myStruct2.F2.Foo != 8 {
+		t.Error("Expected F2.Foo to be 8")
+	}
+
 }
