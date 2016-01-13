@@ -300,8 +300,8 @@ func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Rea
 			rv.Set(reflect.ValueOf(t))
 		} else {
 			for _, fieldInfo := range typeInfo.Fields {
-				i, fieldType, opts := fieldInfo.unpack()
-				fieldRv := rv.Field(i)
+				fieldIdx, fieldType, opts := fieldInfo.unpack()
+				fieldRv := rv.Field(fieldIdx)
 				readReflectBinary(fieldRv, fieldType, opts, r, lmt, n, err)
 			}
 		}
@@ -509,8 +509,8 @@ func writeReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, w io.Wr
 			WriteTime(rv.Interface().(time.Time), w, n, err)
 		} else {
 			for _, fieldInfo := range typeInfo.Fields {
-				i, fieldType, opts := fieldInfo.unpack()
-				fieldRv := rv.Field(i)
+				fieldIdx, fieldType, opts := fieldInfo.unpack()
+				fieldRv := rv.Field(fieldIdx)
 				writeReflectBinary(fieldRv, fieldType, opts, w, n, err)
 			}
 		}
@@ -753,12 +753,12 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, o interfac
 			// TODO: ensure that all fields are set?
 			// TODO: disallow unknown oMap fields?
 			for _, fieldInfo := range typeInfo.Fields {
-				i, fieldType, opts := fieldInfo.unpack()
+				fieldIdx, fieldType, opts := fieldInfo.unpack()
 				value, ok := oMap[opts.JSONName]
 				if !ok {
 					continue // Skip missing fields.
 				}
-				fieldRv := rv.Field(i)
+				fieldRv := rv.Field(fieldIdx)
 				readReflectJSON(fieldRv, fieldType, opts, value, err)
 			}
 		}
@@ -944,8 +944,8 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, w io.Writ
 			WriteTo(jsonBytes, w, n, err)
 		} else {
 			if len(typeInfo.Fields) == 1 {
-				i, fieldType, opts := typeInfo.Fields[0].unpack()
-				fieldRv := rv.Field(i)
+				fieldIdx, fieldType, opts := typeInfo.Fields[0].unpack()
+				fieldRv := rv.Field(fieldIdx)
 				if opts.Unwrap {
 					writeReflectJSON(fieldRv, fieldType, opts, w, n, err)
 				} else {
@@ -956,18 +956,13 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, w io.Writ
 				}
 			} else {
 				WriteTo([]byte("{"), w, n, err)
-				wroteField := false
-				for _, fieldInfo := range typeInfo.Fields {
-					i, fieldType, opts := fieldInfo.unpack()
-					fieldRv := rv.Field(i)
-					if wroteField {
+				for i, fieldInfo := range typeInfo.Fields {
+					fieldIdx, fieldType, opts := fieldInfo.unpack()
+					fieldRv := rv.Field(fieldIdx)
+					if i > 0 {
 						WriteTo([]byte(","), w, n, err)
-					} else {
-						wroteField = true
 					}
-					if !opts.Unwrap {
-						WriteTo([]byte(Fmt("\"%v\":", opts.JSONName)), w, n, err)
-					}
+					WriteTo([]byte(Fmt("\"%v\":", opts.JSONName)), w, n, err)
 					writeReflectJSON(fieldRv, fieldType, opts, w, n, err)
 				}
 				WriteTo([]byte("}"), w, n, err)
