@@ -366,6 +366,16 @@ func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Rea
 		//log.Info("Read bool", "bool", num, "n", *n)
 		rv.SetBool(num > 0)
 
+	case reflect.Float64:
+		num := ReadFloat64(r, n, err)
+		//log.Info("Read num", "num", num, "n", *n)
+		rv.SetFloat(float64(num))
+
+	case reflect.Float32:
+		num := ReadFloat32(r, n, err)
+		//log.Info("Read num", "num", num, "n", *n)
+		rv.SetFloat(float64(num))
+
 	default:
 		PanicSanity(Fmt("Unknown field type %v", rt.Kind()))
 	}
@@ -532,6 +542,12 @@ func writeReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, w io.Wr
 		} else {
 			WriteUint8(uint8(0), w, n, err)
 		}
+
+	case reflect.Float64:
+		WriteFloat64(rv.Float(), w, n, err)
+
+	case reflect.Float32:
+		WriteFloat32(float32(rv.Float()), w, n, err)
 
 	default:
 		PanicSanity(Fmt("Unknown field type %v", rt.Kind()))
@@ -750,6 +766,15 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 		//log.Info("Read num", "num", num)
 		rv.SetUint(uint64(num))
 
+	case reflect.Float64, reflect.Float32:
+		num, ok := o.(float64)
+		if !ok {
+			*err = errors.New(Fmt("Expected numeric but got type %v", reflect.TypeOf(o)))
+			return
+		}
+		//log.Info("Read num", "num", num)
+		rv.SetFloat(num)
+
 	case reflect.Bool:
 		bl, ok := o.(bool)
 		if !ok {
@@ -903,6 +928,8 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, w io.Writer, n *int, er
 	case reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
 		fallthrough
 	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int:
+		fallthrough
+	case reflect.Float64, reflect.Float32:
 		fallthrough
 	case reflect.Bool:
 		jsonBytes, err_ := json.Marshal(rv.Interface())
