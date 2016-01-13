@@ -28,15 +28,19 @@ type Options struct {
 	JSONName string // (JSON) Corresponding JSON field name. (override with `json=""`)
 	Varint   bool   // (Binary) Use length-prefixed encoding for (u)int64
 	Unsafe   bool   // (JSON/Binary) Explicitly enable support for floats or maps
+	Unwrap   bool   // (JSON) Unwrap struct{interfaceType}
 }
 
 func getOptionsFromField(field reflect.StructField) (skip bool, opts Options) {
+	unwrap := false
 	jsonName := field.Tag.Get("json")
 	if jsonName == "-" {
 		skip = true
 		return
 	} else if jsonName == "" {
 		jsonName = field.Name
+	} else if jsonName == "unwrap" {
+		unwrap = true
 	}
 	varint := false
 	binTag := field.Tag.Get("binary")
@@ -52,6 +56,7 @@ func getOptionsFromField(field reflect.StructField) (skip bool, opts Options) {
 		JSONName: jsonName,
 		Varint:   varint,
 		Unsafe:   unsafe,
+		Unwrap:   unwrap,
 	}
 	return
 }
@@ -938,20 +943,35 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, w io.Writ
 			}
 			WriteTo(jsonBytes, w, n, err)
 		} else {
-			WriteTo([]byte("{"), w, n, err)
-			wroteField := false
-			for _, fieldInfo := range typeInfo.Fields {
-				i, fieldType, opts := fieldInfo.unpack()
+			if len(typeInfo.Fields) == 1 {
+				i, fieldType, opts := typeInfo.Fields[0].unpack()
 				fieldRv := rv.Field(i)
-				if wroteField {
-					WriteTo([]byte(","), w, n, err)
+				if opts.Unwrap {
+					writeReflectJSON(fieldRv, fieldType, opts, w, n, err)
 				} else {
-					wroteField = true
+					WriteTo([]byte("{"), w, n, err)
+					WriteTo([]byte(Fmt("\"%v\":", opts.JSONName)), w, n, err)
+					writeReflectJSON(fieldRv, fieldType, opts, w, n, err)
+					WriteTo([]byte("}"), w, n, err)
 				}
-				WriteTo([]byte(Fmt("\"%v\":", opts.JSONName)), w, n, err)
-				writeReflectJSON(fieldRv, fieldType, opts, w, n, err)
+			} else {
+				WriteTo([]byte("{"), w, n, err)
+				wroteField := false
+				for _, fieldInfo := range typeInfo.Fields {
+					i, fieldType, opts := fieldInfo.unpack()
+					fieldRv := rv.Field(i)
+					if wroteField {
+						WriteTo([]byte(","), w, n, err)
+					} else {
+						wroteField = true
+					}
+					if !opts.Unwrap {
+						WriteTo([]byte(Fmt("\"%v\":", opts.JSONName)), w, n, err)
+					}
+					writeReflectJSON(fieldRv, fieldType, opts, w, n, err)
+				}
+				WriteTo([]byte("}"), w, n, err)
 			}
-			WriteTo([]byte("}"), w, n, err)
 		}
 
 	case reflect.String:
