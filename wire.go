@@ -112,12 +112,12 @@ func ReadJSONObject(o interface{}, object interface{}, err *error) interface{} {
 			ReadJSONObjectPtr(rvPtr.Interface(), object, err)
 			return rvPtr.Elem().Interface()
 		} else {
-			readReflectJSON(rv, rt, object, err)
+			readReflectJSON(rv, rt, Options{}, object, err)
 			return o
 		}
 	} else {
 		ptrRv := reflect.New(rt)
-		readReflectJSON(ptrRv.Elem(), rt, object, err)
+		readReflectJSON(ptrRv.Elem(), rt, Options{}, object, err)
 		return ptrRv.Elem().Interface()
 	}
 }
@@ -125,7 +125,7 @@ func ReadJSONObject(o interface{}, object interface{}, err *error) interface{} {
 func ReadJSONObjectPtr(o interface{}, object interface{}, err *error) interface{} {
 	rv, rt := reflect.ValueOf(o), reflect.TypeOf(o)
 	if rv.Kind() == reflect.Ptr {
-		readReflectJSON(rv.Elem(), rt.Elem(), object, err)
+		readReflectJSON(rv.Elem(), rt.Elem(), Options{}, object, err)
 	} else {
 		PanicSanity("ReadJSON(Object)Ptr expects o to be a pointer")
 	}
@@ -138,7 +138,7 @@ func WriteJSON(o interface{}, w io.Writer, n *int, err *error) {
 	if rv.Kind() == reflect.Ptr {
 		rv, rt = rv.Elem(), rt.Elem()
 	}
-	writeReflectJSON(rv, rt, w, n, err)
+	writeReflectJSON(rv, rt, Options{}, w, n, err)
 }
 
 // Write all of bz to w

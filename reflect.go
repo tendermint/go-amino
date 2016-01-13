@@ -27,6 +27,7 @@ type TypeInfo struct {
 type Options struct {
 	JSONName string // (JSON) Corresponding JSON field name. (override with `json=""`)
 	Varint   bool   // (Binary) Use length-prefixed encoding for (u)int64
+	Unsafe   bool   // (JSON/Binary) Explicitly enable support for floats or maps
 }
 
 func getOptionsFromField(field reflect.StructField) (skip bool, opts Options) {
@@ -42,9 +43,15 @@ func getOptionsFromField(field reflect.StructField) (skip bool, opts Options) {
 	if binTag == "varint" { // TODO: extend
 		varint = true
 	}
+	unsafe := false
+	wireTag := field.Tag.Get("wire")
+	if wireTag == "unsafe" {
+		unsafe = true
+	}
 	opts = Options{
 		JSONName: jsonName,
 		Varint:   varint,
+		Unsafe:   unsafe,
 	}
 	return
 }
@@ -367,11 +374,19 @@ func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Rea
 		rv.SetBool(num > 0)
 
 	case reflect.Float64:
+		if !opts.Unsafe {
+			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
+			return
+		}
 		num := ReadFloat64(r, n, err)
 		//log.Info("Read num", "num", num, "n", *n)
 		rv.SetFloat(float64(num))
 
 	case reflect.Float32:
+		if !opts.Unsafe {
+			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
+			return
+		}
 		num := ReadFloat32(r, n, err)
 		//log.Info("Read num", "num", num, "n", *n)
 		rv.SetFloat(float64(num))
@@ -544,9 +559,17 @@ func writeReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, w io.Wr
 		}
 
 	case reflect.Float64:
+		if !opts.Unsafe {
+			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
+			return
+		}
 		WriteFloat64(rv.Float(), w, n, err)
 
 	case reflect.Float32:
+		if !opts.Unsafe {
+			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
+			return
+		}
 		WriteFloat32(float32(rv.Float()), w, n, err)
 
 	default:
@@ -575,7 +598,7 @@ func readByteJSON(o interface{}) (typeByte byte, rest interface{}, err error) {
 // Contract: Caller must ensure that rt is supported
 // (e.g. is recursively composed of supported native types, and structs and slices.)
 // rv and rt refer to the object we're unmarhsaling into, whereas o is the result of naiive json unmarshal (map[string]interface{})
-func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *error) {
+func readReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, o interface{}, err *error) {
 
 	// Get typeInfo
 	typeInfo := GetTypeInfo(rt)
@@ -602,11 +625,11 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 		if crt.Kind() == reflect.Ptr {
 			crt = crt.Elem()
 			crv := reflect.New(crt)
-			readReflectJSON(crv.Elem(), crt, rest, err)
+			readReflectJSON(crv.Elem(), crt, opts, rest, err)
 			rv.Set(crv) // NOTE: orig rv is ignored.
 		} else {
 			crv := reflect.New(crt).Elem()
-			readReflectJSON(crv, crt, rest, err)
+			readReflectJSON(crv, crt, opts, rest, err)
 			rv.Set(crv) // NOTE: orig rv is ignored.
 		}
 		return
@@ -662,7 +685,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 			}
 			for i := 0; i < length; i++ {
 				elemRv := rv.Index(i)
-				readReflectJSON(elemRv, elemRt, oSlice[i], err)
+				readReflectJSON(elemRv, elemRt, opts, oSlice[i], err)
 			}
 			//log.Info("Read x-array", "x", elemRt, "length", length)
 		}
@@ -696,7 +719,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 			// Read elems
 			for i := 0; i < length; i++ {
 				elemRv := sliceRv.Index(i)
-				readReflectJSON(elemRv, elemRt, oSlice[i], err)
+				readReflectJSON(elemRv, elemRt, opts, oSlice[i], err)
 			}
 			rv.Set(sliceRv)
 		}
@@ -731,7 +754,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 					continue // Skip missing fields.
 				}
 				fieldRv := rv.Field(i)
-				readReflectJSON(fieldRv, fieldType, value, err)
+				readReflectJSON(fieldRv, fieldType, opts, value, err)
 			}
 		}
 
@@ -767,6 +790,10 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 		rv.SetUint(uint64(num))
 
 	case reflect.Float64, reflect.Float32:
+		if !opts.Unsafe {
+			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
+			return
+		}
 		num, ok := o.(float64)
 		if !ok {
 			*err = errors.New(Fmt("Expected numeric but got type %v", reflect.TypeOf(o)))
@@ -776,6 +803,10 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 		rv.SetFloat(num)
 
 	case reflect.Bool:
+		if !opts.Unsafe {
+			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
+			return
+		}
 		bl, ok := o.(bool)
 		if !ok {
 			*err = errors.New(Fmt("Expected boolean but got type %v", reflect.TypeOf(o)))
@@ -789,7 +820,7 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, o interface{}, err *erro
 	}
 }
 
-func writeReflectJSON(rv reflect.Value, rt reflect.Type, w io.Writer, n *int, err *error) {
+func writeReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, w io.Writer, n *int, err *error) {
 	//log.Info(Fmt("writeReflectJSON(%v, %v, %v, %v, %v)", rv, rt, w, n, err))
 
 	// Get typeInfo
@@ -829,11 +860,11 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, w io.Writer, n *int, er
 				}
 			}
 			WriteTo([]byte(Fmt("[%v,", typeByte)), w, n, err)
-			writeReflectJSON(crv, crt, w, n, err)
+			writeReflectJSON(crv, crt, opts, w, n, err)
 			WriteTo([]byte("]"), w, n, err)
 		} else {
 			// We support writing unregistered interfaces for convenience.
-			writeReflectJSON(crv, crt, w, n, err)
+			writeReflectJSON(crv, crt, opts, w, n, err)
 		}
 		return
 	}
@@ -867,7 +898,7 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, w io.Writer, n *int, er
 			// Write elems
 			for i := 0; i < length; i++ {
 				elemRv := rv.Index(i)
-				writeReflectJSON(elemRv, elemRt, w, n, err)
+				writeReflectJSON(elemRv, elemRt, opts, w, n, err)
 				if i < length-1 {
 					WriteTo([]byte(","), w, n, err)
 				}
@@ -887,7 +918,7 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, w io.Writer, n *int, er
 			length := rv.Len()
 			for i := 0; i < length; i++ {
 				elemRv := rv.Index(i)
-				writeReflectJSON(elemRv, elemRt, w, n, err)
+				writeReflectJSON(elemRv, elemRt, opts, w, n, err)
 				if i < length-1 {
 					WriteTo([]byte(","), w, n, err)
 				}
@@ -918,7 +949,7 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, w io.Writer, n *int, er
 					wroteField = true
 				}
 				WriteTo([]byte(Fmt("\"%v\":", opts.JSONName)), w, n, err)
-				writeReflectJSON(fieldRv, fieldType, w, n, err)
+				writeReflectJSON(fieldRv, fieldType, opts, w, n, err)
 			}
 			WriteTo([]byte("}"), w, n, err)
 		}
@@ -929,9 +960,19 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, w io.Writer, n *int, er
 		fallthrough
 	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int:
 		fallthrough
-	case reflect.Float64, reflect.Float32:
-		fallthrough
 	case reflect.Bool:
+		jsonBytes, err_ := json.Marshal(rv.Interface())
+		if err_ != nil {
+			*err = err_
+			return
+		}
+		WriteTo(jsonBytes, w, n, err)
+
+	case reflect.Float64, reflect.Float32:
+		if !opts.Unsafe {
+			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
+			return
+		}
 		jsonBytes, err_ := json.Marshal(rv.Interface())
 		if err_ != nil {
 			*err = err_
