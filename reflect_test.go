@@ -704,3 +704,42 @@ func TestPointers(t *testing.T) {
 	}
 
 }
+
+//--------------------------------------------------------------------------------
+
+func TestUnsafe(t *testing.T) {
+
+	type Struct1 struct {
+		Foo float64
+	}
+
+	type Struct2 struct {
+		Foo float64 `wire:"unsafe"`
+	}
+
+	myStruct := Struct1{5.32}
+	myStruct2 := Struct2{5.32}
+	buf, n, err := new(bytes.Buffer), int(0), error(nil)
+	WriteBinary(myStruct, buf, &n, &err)
+	if err == nil {
+		t.Error("Expected error due to float without `unsafe`")
+	}
+
+	buf, n, err = new(bytes.Buffer), int(0), error(nil)
+	WriteBinary(myStruct2, buf, &n, &err)
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+
+	var s Struct2
+	n, err = int(0), error(nil)
+	ReadBinaryPtr(&s, buf, 0, &n, &err)
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+
+	if s.Foo != myStruct2.Foo {
+		t.Error("Expected float values to be the same. Got", s.Foo, "expected", myStruct2.Foo)
+	}
+
+}
