@@ -22,25 +22,22 @@ type TypeInfo struct {
 
 	// If Type is kind reflect.Struct
 	Fields []StructFieldInfo
+	Unwrap bool // if struct has only one field and its an anonymous interface
 }
 
 type Options struct {
 	JSONName string // (JSON) Corresponding JSON field name. (override with `json=""`)
 	Varint   bool   // (Binary) Use length-prefixed encoding for (u)int64
 	Unsafe   bool   // (JSON/Binary) Explicitly enable support for floats or maps
-	Unwrap   bool   // (JSON) Unwrap struct{interfaceType}
 }
 
 func getOptionsFromField(field reflect.StructField) (skip bool, opts Options) {
-	unwrap := false
 	jsonName := field.Tag.Get("json")
 	if jsonName == "-" {
 		skip = true
 		return
 	} else if jsonName == "" {
 		jsonName = field.Name
-	} else if jsonName == "unwrap" {
-		unwrap = true
 	}
 	varint := false
 	binTag := field.Tag.Get("binary")
@@ -56,7 +53,6 @@ func getOptionsFromField(field reflect.StructField) (skip bool, opts Options) {
 		JSONName: jsonName,
 		Varint:   varint,
 		Unsafe:   unsafe,
-		Unwrap:   unwrap,
 	}
 	return
 }
@@ -162,6 +158,13 @@ func MakeTypeInfo(rt reflect.Type) *TypeInfo {
 				Type:    field.Type,
 				Options: opts,
 			})
+
+			if numFields == 1 {
+				jsonName := field.Tag.Get("json")
+				if jsonName == "unwrap" {
+					info.Unwrap = true
+				}
+			}
 		}
 		info.Fields = structFields
 	}
@@ -745,21 +748,27 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, o interfac
 			}
 			rv.Set(reflect.ValueOf(t))
 		} else {
-			oMap, ok := o.(map[string]interface{})
-			if !ok {
-				*err = errors.New(Fmt("Expected map but got type %v", reflect.TypeOf(o)))
-				return
-			}
-			// TODO: ensure that all fields are set?
-			// TODO: disallow unknown oMap fields?
-			for _, fieldInfo := range typeInfo.Fields {
-				fieldIdx, fieldType, opts := fieldInfo.unpack()
-				value, ok := oMap[opts.JSONName]
-				if !ok {
-					continue // Skip missing fields.
-				}
+			if typeInfo.Unwrap {
+				fieldIdx, fieldType, opts := typeInfo.Fields[0].unpack()
 				fieldRv := rv.Field(fieldIdx)
-				readReflectJSON(fieldRv, fieldType, opts, value, err)
+				readReflectJSON(fieldRv, fieldType, opts, o, err)
+			} else {
+				oMap, ok := o.(map[string]interface{})
+				if !ok {
+					*err = errors.New(Fmt("Expected map but got type %v", reflect.TypeOf(o)))
+					return
+				}
+				// TODO: ensure that all fields are set?
+				// TODO: disallow unknown oMap fields?
+				for _, fieldInfo := range typeInfo.Fields {
+					fieldIdx, fieldType, opts := fieldInfo.unpack()
+					value, ok := oMap[opts.JSONName]
+					if !ok {
+						continue // Skip missing fields.
+					}
+					fieldRv := rv.Field(fieldIdx)
+					readReflectJSON(fieldRv, fieldType, opts, value, err)
+				}
 			}
 		}
 
@@ -943,17 +952,10 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, w io.Writ
 			}
 			WriteTo(jsonBytes, w, n, err)
 		} else {
-			if len(typeInfo.Fields) == 1 {
+			if typeInfo.Unwrap {
 				fieldIdx, fieldType, opts := typeInfo.Fields[0].unpack()
 				fieldRv := rv.Field(fieldIdx)
-				if opts.Unwrap {
-					writeReflectJSON(fieldRv, fieldType, opts, w, n, err)
-				} else {
-					WriteTo([]byte("{"), w, n, err)
-					WriteTo([]byte(Fmt("\"%v\":", opts.JSONName)), w, n, err)
-					writeReflectJSON(fieldRv, fieldType, opts, w, n, err)
-					WriteTo([]byte("}"), w, n, err)
-				}
+				writeReflectJSON(fieldRv, fieldType, opts, w, n, err)
 			} else {
 				WriteTo([]byte("{"), w, n, err)
 				for i, fieldInfo := range typeInfo.Fields {
