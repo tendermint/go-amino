@@ -766,7 +766,9 @@ func TestUnwrap(t *testing.T) {
 		t.Error("Unexpected error", err)
 	}
 	jsonBytes := buf.Bytes()
-	fmt.Println(string(jsonBytes))
+	if string(jsonBytes) != `[1,{"A":5}]` {
+		t.Error("Unexpected jsonBytes", string(jsonBytes))
+	}
 
 	var s Struct1
 	err = error(nil)
