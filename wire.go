@@ -12,7 +12,6 @@ import (
 
 var ErrBinaryReadSizeOverflow = errors.New("Error: binary read size overflow")
 var ErrBinaryReadSizeUnderflow = errors.New("Error: binary read size underflow")
-var ErrBinaryReadWrongLengthPrefix = errors.New("Error: binary read wrong length prefix")
 
 const (
 	ReadSliceChunkSize = 1024
@@ -62,7 +61,7 @@ func ReadBinaryPtrLengthPrefixed(o interface{}, r io.Reader, lmt int, n *int, er
 	res = ReadBinaryPtr(o, r, lmt, n, err)
 	nRes := *n - nSave
 	if nRes != length && *err == nil {
-		*err = ErrBinaryReadWrongLengthPrefix
+		*err = errors.New(Fmt("Error: binary ready wrong length prefix. Declared:%v vs actual:%v", length, nRes))
 	}
 	return res
 }
