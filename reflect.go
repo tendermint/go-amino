@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,27 +26,35 @@ type TypeInfo struct {
 }
 
 type Options struct {
-	JSONName string // (JSON) Corresponding JSON field name. (override with `json=""`)
-	Varint   bool   // (Binary) Use length-prefixed encoding for (u)int64
+	JSONName      string      // (JSON) Corresponding JSON field name. (override with `json=""`)
+	JSONOmitEmpty bool        // (JSON) Omit field if value is empty
+	Varint        bool        // (Binary) Use length-prefixed encoding for (u)int64
+	ZeroValue     interface{} // Prototype zero object
 }
 
 func getOptionsFromField(field reflect.StructField) (skip bool, opts Options) {
-	jsonName := field.Tag.Get("json")
-	if jsonName == "-" {
+	jsonTag := field.Tag.Get("json")
+	binTag := field.Tag.Get("binary")
+	//wireTag := field.Tag.Get("wire")
+	if jsonTag == "-" {
 		skip = true
 		return
-	} else if jsonName == "" {
-		jsonName = field.Name
 	}
-	varint := false
-	binTag := field.Tag.Get("binary")
+	jsonTagParts := strings.Split(jsonTag, ",")
+	if jsonTagParts[0] == "" {
+		opts.JSONName = field.Name
+	} else {
+		opts.JSONName = jsonTagParts[0]
+	}
+	if len(jsonTagParts) > 1 {
+		if jsonTagParts[1] == "omitempty" {
+			opts.JSONOmitEmpty = true
+		}
+	}
 	if binTag == "varint" { // TODO: extend
-		varint = true
+		opts.Varint = true
 	}
-	opts = Options{
-		JSONName: jsonName,
-		Varint:   varint,
-	}
+	opts.ZeroValue = reflect.Zero(field.Type).Interface()
 	return
 }
 
@@ -887,6 +896,11 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, w io.Writer, n *int, er
 			for _, fieldInfo := range typeInfo.Fields {
 				i, fieldType, opts := fieldInfo.unpack()
 				fieldRv := rv.Field(i)
+				if opts.JSONOmitEmpty { // Skip zero value if omitempty
+					if fieldRv.Interface() == opts.ZeroValue {
+						continue
+					}
+				}
 				if wroteField {
 					WriteTo([]byte(","), w, n, err)
 				} else {

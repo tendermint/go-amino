@@ -451,13 +451,25 @@ type Foo struct {
 	FieldA string `json:"fieldA"` // json field name is "fieldA"
 	FieldB string // json field name is "FieldB"
 	fieldC string // not exported, not serialized.
+	FieldD string `json:",omitempty"`  // omit if empty
+	FieldE string `json:",omitempty"`  // omit if empty (but won't be)
+	FieldF string `json:"F,omitempty"` // its name is "F", omit if empty
+	FieldG string `json:"G,omitempty"` // its name is "F", omit if empty (but won't be)
 }
 
 func TestJSONFieldNames(t *testing.T) {
 	for i := 0; i < 20; i++ { // Try to ensure deterministic success.
-		foo := Foo{"a", "b", "c"}
+		foo := Foo{
+			FieldA: "a",
+			FieldB: "b",
+			fieldC: "c",
+			FieldD: "",  // omit because empty
+			FieldE: "e", // no omit, not empty
+			FieldF: "",  // omit because empty
+			FieldG: "g", // no omit, not empty
+		}
 		stringified := string(JSONBytes(foo))
-		expected := `{"fieldA":"a","FieldB":"b"}`
+		expected := `{"fieldA":"a","FieldB":"b","FieldE":"e","G":"g"}`
 		if stringified != expected {
 			t.Fatalf("JSONFieldNames error: expected %v, got %v",
 				expected, stringified)
