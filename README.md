@@ -7,7 +7,7 @@ This package also includes a compatible (and slower) JSON codec.
 
 ### Supported types
 
-**Primary types**: `uvarint`, `varint`, `uint[8,16,32,64]`, `int[8,16,32,64]`, `string`, and `time` types are supported
+**Primary types**: `uvarint`, `varint`, `byte`, `uint[8,16,32,64]`, `int[8,16,32,64]`, `string`, and `time` types are supported
 
 **Arrays**: Arrays can hold items of any arbitrary type.  For example, byte-arrays and byte-array-arrays are supported.
 
@@ -22,7 +22,7 @@ This package also includes a compatible (and slower) JSON codec.
 **Maps**: Maps are not supported because for most languages, key orders are nondeterministic.
 If you need to encode/decode maps of arbitrary key-value pairs, encode an array of {key,value} structs instead.
 
-**Floating points**: Floating point number types are not supported because [of reasons](http://gafferongames.com/networking-for-game-programmers/floating-point-determinism/).
+**Floating points**: Floating point number types are discouraged because [of reasons](http://gafferongames.com/networking-for-game-programmers/floating-point-determinism/).  If you need to use them, use the field tag `wire:"unsafe"`.
 
 **Enums**: Enum types are not supported in all languages, and they're simple enough to model as integers anyways.
 
