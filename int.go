@@ -207,6 +207,10 @@ func GetUint64(buf []byte) uint64 {
 // Varint
 
 func UvarintSize(i uint64) int {
+	return uvarintSize(i) + 1 // The first byte encodes uvarintSize(i)
+}
+
+func uvarintSize(i uint64) int {
 	if i == 0 {
 		return 0
 	}
@@ -240,7 +244,7 @@ func WriteVarint(i int, w io.Writer, n *int, err *error) {
 		negate = true
 		i = -i
 	}
-	var size = UvarintSize(uint64(i))
+	var size = uvarintSize(uint64(i))
 	if negate {
 		// e.g. 0xF1 for a single negative byte
 		WriteUint8(uint8(size+0xF0), w, n, err)
@@ -287,7 +291,7 @@ func PutVarint(buf []byte, i int) (n int, err error) {
 		negate = true
 		i = -i
 	}
-	var size = UvarintSize(uint64(i))
+	var size = uvarintSize(uint64(i))
 	if len(buf) < size+1 {
 		return 0, errors.New("Insufficient buffer length")
 	}
@@ -340,7 +344,7 @@ func GetVarint(buf []byte) (i int, n int, err error) {
 // Uvarint
 
 func WriteUvarint(i uint, w io.Writer, n *int, err *error) {
-	var size = UvarintSize(uint64(i))
+	var size = uvarintSize(uint64(i))
 	WriteUint8(uint8(size), w, n, err)
 	if size > 0 {
 		buf := make([]byte, 8)
@@ -364,7 +368,7 @@ func ReadUvarint(r io.Reader, n *int, err *error) uint {
 }
 
 func PutUvarint(buf []byte, i uint) (n int, err error) {
-	var size = UvarintSize(uint64(i))
+	var size = uvarintSize(uint64(i))
 	if len(buf) < size+1 {
 		return 0, errors.New("Insufficient buffer length")
 	}
