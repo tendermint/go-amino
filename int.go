@@ -53,6 +53,14 @@ func ReadInt16(r io.Reader, n *int, err *error) int16 {
 	return int16(binary.BigEndian.Uint16(buf))
 }
 
+func PutInt16(buf []byte, i int16) {
+	binary.BigEndian.PutUint16(buf, uint16(i))
+}
+
+func GetInt16(buf []byte) int16 {
+	return int16(binary.BigEndian.Uint16(buf))
+}
+
 // Uint16
 
 func WriteUint16(i uint16, w io.Writer, n *int, err *error) {
@@ -66,6 +74,14 @@ func ReadUint16(r io.Reader, n *int, err *error) uint16 {
 	buf := make([]byte, 2)
 	ReadFull(buf, r, n, err)
 	return uint16(binary.BigEndian.Uint16(buf))
+}
+
+func PutUint16(buf []byte, i uint16) {
+	binary.BigEndian.PutUint16(buf, i)
+}
+
+func GetUint16(buf []byte) uint16 {
+	return binary.BigEndian.Uint16(buf)
 }
 
 // []Uint16
@@ -111,6 +127,14 @@ func ReadInt32(r io.Reader, n *int, err *error) int32 {
 	return int32(binary.BigEndian.Uint32(buf))
 }
 
+func PutInt32(buf []byte, i int32) {
+	binary.BigEndian.PutUint32(buf, uint32(i))
+}
+
+func GetInt32(buf []byte) int32 {
+	return int32(binary.BigEndian.Uint32(buf))
+}
+
 // Uint32
 
 func WriteUint32(i uint32, w io.Writer, n *int, err *error) {
@@ -124,6 +148,14 @@ func ReadUint32(r io.Reader, n *int, err *error) uint32 {
 	buf := make([]byte, 4)
 	ReadFull(buf, r, n, err)
 	return uint32(binary.BigEndian.Uint32(buf))
+}
+
+func PutUint32(buf []byte, i uint32) {
+	binary.BigEndian.PutUint32(buf, i)
+}
+
+func GetUint32(buf []byte) uint32 {
+	return binary.BigEndian.Uint32(buf)
 }
 
 // Int64
@@ -141,6 +173,14 @@ func ReadInt64(r io.Reader, n *int, err *error) int64 {
 	return int64(binary.BigEndian.Uint64(buf))
 }
 
+func PutInt64(buf []byte, i int64) {
+	binary.BigEndian.PutUint64(buf, uint64(i))
+}
+
+func GetInt64(buf []byte) int64 {
+	return int64(binary.BigEndian.Uint64(buf))
+}
+
 // Uint64
 
 func WriteUint64(i uint64, w io.Writer, n *int, err *error) {
@@ -154,6 +194,14 @@ func ReadUint64(r io.Reader, n *int, err *error) uint64 {
 	buf := make([]byte, 8)
 	ReadFull(buf, r, n, err)
 	return uint64(binary.BigEndian.Uint64(buf))
+}
+
+func PutUint64(buf []byte, i uint64) {
+	binary.BigEndian.PutUint64(buf, i)
+}
+
+func GetUint64(buf []byte) uint64 {
+	return binary.BigEndian.Uint64(buf)
 }
 
 // Varint
@@ -233,6 +281,62 @@ func ReadVarint(r io.Reader, n *int, err *error) int {
 	}
 }
 
+func PutVarint(buf []byte, i int) (n int, err error) {
+	var negate = false
+	if i < 0 {
+		negate = true
+		i = -i
+	}
+	var size = uvarintSize(uint64(i))
+	if len(buf) < size+1 {
+		return 0, errors.New("Insufficient buffer length")
+	}
+	if negate {
+		// e.g. 0xF1 for a single negative byte
+		buf[0] = byte(size + 0xF0)
+	} else {
+		buf[0] = byte(size)
+	}
+	if size > 0 {
+		buf2 := make([]byte, 8)
+		binary.BigEndian.PutUint64(buf2, uint64(i))
+		copy(buf[1:], buf2[(8-size):])
+	}
+	return size + 1, nil
+}
+
+func GetVarint(buf []byte) (i int, n int, err error) {
+	if len(buf) == 0 {
+		return 0, 0, errors.New("Insufficent buffer length")
+	}
+	var size = int(buf[0])
+	var negate = false
+	if (size >> 4) == 0xF {
+		negate = true
+		size = size & 0x0F
+	}
+	if size > 8 {
+		return 0, 0, errors.New("Varint overflow")
+	}
+	if size == 0 {
+		if negate {
+			return 0, 0, errors.New("Varint does not allow negative zero")
+		}
+		return 0, 1, nil
+	}
+	if len(buf) < 1+size {
+		return 0, 0, errors.New("Insufficient buffer length")
+	}
+	buf2 := make([]byte, 8)
+	copy(buf2[(8-size):], buf[1:1+size])
+	i = int(binary.BigEndian.Uint64(buf2))
+	if negate {
+		return -i, size + 1, nil
+	} else {
+		return i, size + 1, nil
+	}
+}
+
 // Uvarint
 
 func WriteUvarint(i uint, w io.Writer, n *int, err *error) {
@@ -257,6 +361,40 @@ func ReadUvarint(r io.Reader, n *int, err *error) uint {
 	buf := make([]byte, 8)
 	ReadFull(buf[(8-size):], r, n, err)
 	return uint(binary.BigEndian.Uint64(buf))
+}
+
+func PutUvarint(buf []byte, i uint) (n int, err error) {
+	var size = uvarintSize(uint64(i))
+	if len(buf) < size+1 {
+		return 0, errors.New("Insufficient buffer length")
+	}
+	buf[0] = byte(size)
+	if size > 0 {
+		buf2 := make([]byte, 8)
+		binary.BigEndian.PutUint64(buf2, uint64(i))
+		copy(buf[1:], buf2[(8-size):])
+	}
+	return size + 1, nil
+}
+
+func GetUvarint(buf []byte) (i uint, n int, err error) {
+	if len(buf) == 0 {
+		return 0, 0, errors.New("Insufficent buffer length")
+	}
+	var size = int(buf[0])
+	if size > 8 {
+		return 0, 0, errors.New("Uvarint overflow")
+	}
+	if size == 0 {
+		return 0, 1, nil
+	}
+	if len(buf) < 1+size {
+		return 0, 0, errors.New("Insufficient buffer length")
+	}
+	buf2 := make([]byte, 8)
+	copy(buf2[(8-size):], buf[1:1+size])
+	i = uint(binary.BigEndian.Uint64(buf2))
+	return i, size + 1, nil
 }
 
 func setFirstErr(err *error, newErr error) {

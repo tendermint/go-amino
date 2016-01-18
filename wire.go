@@ -10,8 +10,9 @@ import (
 	. "github.com/tendermint/go-common"
 )
 
-var ErrBinaryReadSizeOverflow = errors.New("Error: binary read size overflow")
-var ErrBinaryReadSizeUnderflow = errors.New("Error: binary read size underflow")
+var ErrBinaryReadOverflow = errors.New("Error: binary read overflow")
+var ErrBinaryReadInvalidLength = errors.New("Error: binary read invalid length")
+var ErrBinaryWriteOverflow = errors.New("Error: binary write overflow")
 
 const (
 	ReadSliceChunkSize = 1024
@@ -36,7 +37,7 @@ func ReadBinary(o interface{}, r io.Reader, lmt int, n *int, err *error) (res in
 		res = ptrRv.Elem().Interface()
 	}
 	if lmt != 0 && lmt < *n && *err == nil {
-		*err = ErrBinaryReadSizeOverflow
+		*err = ErrBinaryReadOverflow
 	}
 	return res
 }
@@ -50,7 +51,7 @@ func ReadBinaryPtr(o interface{}, r io.Reader, lmt int, n *int, err *error) (res
 	}
 	res = o
 	if lmt != 0 && lmt < *n && *err == nil {
-		*err = ErrBinaryReadSizeOverflow
+		*err = ErrBinaryReadOverflow
 	}
 	return res
 }

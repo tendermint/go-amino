@@ -389,8 +389,8 @@ func TestBinary(t *testing.T) {
 		instance, _ = testCase.Instantiator()
 		n, err = new(int), new(error)
 		ReadBinary(instance, bytes.NewReader(data), len(data)-1, n, err)
-		if *err != ErrBinaryReadSizeOverflow {
-			t.Fatalf("Expected ErrBinaryReadSizeOverflow")
+		if *err != ErrBinaryReadOverflow {
+			t.Fatalf("Expected ErrBinaryReadOverflow")
 		}
 
 		// Read with len(data) limit should succeed.

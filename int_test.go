@@ -9,18 +9,53 @@ import (
 func TestVarint(t *testing.T) {
 
 	check := func(i int, s string) {
-		buf := new(bytes.Buffer)
-		n, err := new(int), new(error)
-		WriteVarint(i, buf, n, err)
-		bufBytes := buf.Bytes() // Read before consuming below.
-		i_ := ReadVarint(buf, n, err)
-		if i != i_ {
-			fmt.Println(bufBytes)
-			t.Fatalf("Encoded %v and got %v", i, i_)
+		// Test with WriteVarint
+		{
+			buf := new(bytes.Buffer)
+			n, err := new(int), new(error)
+			WriteVarint(i, buf, n, err)
+			bufBytes := buf.Bytes() // Read before consuming below.
+			i_ := ReadVarint(buf, n, err)
+			if i != i_ {
+				fmt.Println(bufBytes)
+				t.Fatalf("Encoded %v and got %v", i, i_)
+			}
+			if s != "" {
+				if bufHex := fmt.Sprintf("%X", bufBytes); bufHex != s {
+					t.Fatalf("Encoded %v, expected %v", bufHex, s)
+				}
+			}
 		}
-		if s != "" {
-			if bufHex := fmt.Sprintf("%X", bufBytes); bufHex != s {
-				t.Fatalf("Encoded %v, expected %v", bufHex, s)
+		// Test with PutVarint
+		{
+			buf := make([]byte, 100, 100)
+			n1, err := PutVarint(buf, i)
+			if err != nil {
+				t.Errorf("Unexpected error in PutVarint %v (encoding %v)", err.Error(), i)
+			}
+			if s != "" {
+				if n1 != len(s)/2 {
+					t.Errorf("Unexpected PutVarint length %v, expected %v (encoding %v)", n1, len(s)/2, i)
+				}
+				if bufHex := fmt.Sprintf("%X", buf[:n1]); bufHex != s {
+					t.Errorf("Got %v, expected %v (encoding %v)", bufHex, s, i)
+				}
+			}
+			i2, n2, err := GetVarint(buf)
+			if err != nil {
+				t.Errorf("Unexpected error in GetVarint %v (encoding %v)", err.Error(), i)
+			}
+			if s != "" {
+				if n2 != len(s)/2 {
+					t.Errorf("Unexpected GetVarint length %v, expected %v (encoding %v)", n2, len(s)/2, i)
+				}
+			} else {
+				if n1 != n2 {
+					t.Errorf("Unmatched Put/Get lengths. %v vs %v (encoding %v)", n1, n2, i)
+				}
+			}
+			if i != i2 {
+				t.Errorf("Put/Get expected %v, got %v (encoding %v)", i, i2, i)
 			}
 		}
 	}
@@ -49,18 +84,53 @@ func TestVarint(t *testing.T) {
 func TestUvarint(t *testing.T) {
 
 	check := func(i uint, s string) {
-		buf := new(bytes.Buffer)
-		n, err := new(int), new(error)
-		WriteUvarint(i, buf, n, err)
-		bufBytes := buf.Bytes()
-		i_ := ReadUvarint(buf, n, err)
-		if i != i_ {
-			fmt.Println(buf.Bytes())
-			t.Fatalf("Encoded %v and got %v", i, i_)
+		// Test with WriteUvarint
+		{
+			buf := new(bytes.Buffer)
+			n, err := new(int), new(error)
+			WriteUvarint(i, buf, n, err)
+			bufBytes := buf.Bytes()
+			i_ := ReadUvarint(buf, n, err)
+			if i != i_ {
+				fmt.Println(buf.Bytes())
+				t.Fatalf("Encoded %v and got %v", i, i_)
+			}
+			if s != "" {
+				if bufHex := fmt.Sprintf("%X", bufBytes); bufHex != s {
+					t.Fatalf("Encoded %v, expected %v", bufHex, s)
+				}
+			}
 		}
-		if s != "" {
-			if bufHex := fmt.Sprintf("%X", bufBytes); bufHex != s {
-				t.Fatalf("Encoded %v, expected %v", bufHex, s)
+		// Test with PutUvarint
+		{
+			buf := make([]byte, 100, 100)
+			n1, err := PutUvarint(buf, i)
+			if err != nil {
+				t.Errorf("Unexpected error in PutUvarint %v (encoding %v)", err.Error(), i)
+			}
+			if s != "" {
+				if n1 != len(s)/2 {
+					t.Errorf("Unexpected PutUvarint length %v, expected %v (encoding %v)", n1, len(s)/2, i)
+				}
+				if bufHex := fmt.Sprintf("%X", buf[:n1]); bufHex != s {
+					t.Errorf("Got %v, expected %v (encoding %v)", bufHex, s, i)
+				}
+			}
+			i2, n2, err := GetUvarint(buf)
+			if err != nil {
+				t.Errorf("Unexpected error in GetUvarint %v (encoding %v)", err.Error(), i)
+			}
+			if s != "" {
+				if n2 != len(s)/2 {
+					t.Errorf("Unexpected GetUvarint length %v, expected %v (encoding %v)", n2, len(s)/2, i)
+				}
+			} else {
+				if n1 != n2 {
+					t.Errorf("Unmatched Put/Get lengths. %v vs %v (encoding %v)", n1, n2, i)
+				}
+			}
+			if i != i2 {
+				t.Errorf("Put/Get expected %v, got %v (encoding %v)", i, i2, i)
 			}
 		}
 	}

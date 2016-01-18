@@ -79,8 +79,49 @@ func TestReadByteSliceLimit(t *testing.T) {
 	buf = bytes.NewBuffer(bufBytes)
 	var n4 int
 	ReadByteSlice(buf, len(bufBytes)-1, &n4, &err)
-	if err != ErrBinaryReadSizeOverflow {
+	if err != ErrBinaryReadOverflow {
 		t.Error("Expected ErrBinaryReadsizeOverflow")
 	}
 
+}
+
+func TestPutByteSlice(t *testing.T) {
+	var buf []byte = make([]byte, 1000)
+	var testBytes = []byte("ThisIsSomeTestArray")
+	n, err := PutByteSlice(buf, testBytes)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	if !bytes.Equal(buf[0:2], []byte{1, 19}) {
+		t.Error("Expected first two bytes to encode varint 19")
+	}
+	if n != 21 {
+		t.Error("Expected to write 21 bytes")
+	}
+	if !bytes.Equal(buf[2:21], testBytes) {
+		t.Error("Expected last 19 bytes to encode string")
+	}
+	if !bytes.Equal(buf[21:], make([]byte, 1000-21)) {
+		t.Error("Expected remaining bytes to be zero")
+	}
+}
+
+func TestGetByteSlice(t *testing.T) {
+	var buf []byte = make([]byte, 1000)
+	var testBytes = []byte("ThisIsSomeTestArray")
+	n, err := PutByteSlice(buf, testBytes)
+	if err != nil {
+		t.Error(err.Error())
+	}
+
+	got, n, err := GetByteSlice(buf)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	if n != 21 {
+		t.Error("Expected to read 21 bytes")
+	}
+	if !bytes.Equal(got, testBytes) {
+		t.Error("Expected to read %v, got %v", testBytes, got)
+	}
 }

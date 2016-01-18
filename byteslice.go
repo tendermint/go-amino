@@ -17,17 +17,49 @@ func ReadByteSlice(r io.Reader, lmt int, n *int, err *error) []byte {
 		return nil
 	}
 	if length < 0 {
-		*err = ErrBinaryReadSizeUnderflow
+		*err = ErrBinaryReadInvalidLength
 		return nil
 	}
 	if lmt != 0 && lmt < MaxInt(length, *n+length) {
-		*err = ErrBinaryReadSizeOverflow
+		*err = ErrBinaryReadOverflow
 		return nil
 	}
 
 	buf := make([]byte, length)
 	ReadFull(buf, r, n, err)
 	return buf
+}
+
+func PutByteSlice(buf []byte, bz []byte) (n int, err error) {
+	n_, err := PutVarint(buf, len(bz))
+	if err != nil {
+		return 0, err
+	}
+	buf = buf[n_:]
+	n += n_
+	if len(buf) < len(bz) {
+		return 0, ErrBinaryWriteOverflow
+	}
+	copy(buf, bz)
+	return n + len(bz), nil
+}
+
+func GetByteSlice(buf []byte) (bz []byte, n int, err error) {
+	length, n_, err := GetVarint(buf)
+	if err != nil {
+		return nil, 0, err
+	}
+	buf = buf[n_:]
+	n += n_
+	if length < 0 {
+		return nil, 0, ErrBinaryReadInvalidLength
+	}
+	if len(buf) < length {
+		return nil, 0, ErrBinaryReadOverflow
+	}
+	buf2 := make([]byte, length)
+	copy(buf2, buf)
+	return buf2, n + length, nil
 }
 
 //-----------------------------------------------------------------------------
@@ -48,11 +80,11 @@ func ReadByteSlices(r io.Reader, lmt int, n *int, err *error) [][]byte {
 		return nil
 	}
 	if length < 0 {
-		*err = ErrBinaryReadSizeUnderflow
+		*err = ErrBinaryReadInvalidLength
 		return nil
 	}
 	if lmt != 0 && lmt < MaxInt(length, *n+length) {
-		*err = ErrBinaryReadSizeOverflow
+		*err = ErrBinaryReadOverflow
 		return nil
 	}
 

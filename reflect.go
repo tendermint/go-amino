@@ -248,7 +248,7 @@ func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Rea
 					return
 				}
 				if lmt != 0 && lmt < *n {
-					*err = ErrBinaryReadSizeOverflow
+					*err = ErrBinaryReadOverflow
 					return
 				}
 			}
@@ -279,7 +279,7 @@ func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Rea
 						return
 					}
 					if lmt != 0 && lmt < *n {
-						*err = ErrBinaryReadSizeOverflow
+						*err = ErrBinaryReadOverflow
 						return
 					}
 				}

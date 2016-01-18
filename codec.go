@@ -169,3 +169,24 @@ var BasicCodec = Codec{
 	Decode:  BasicCodecDecoder,
 	Compare: BasicCodecComparator,
 }
+
+//----------------------------------------
+
+func BytesCodecEncoder(o interface{}, w io.Writer, n *int, err *error) {
+	WriteByteSlice(o.([]byte), w, n, err)
+}
+
+func BytesCodecDecoder(r io.Reader, n *int, err *error) (o interface{}) {
+	o = ReadByteSlice(r, 0, n, err)
+	return
+}
+
+func BytesCodecComparator(o1 interface{}, o2 interface{}) int {
+	return bytes.Compare(o1.([]byte), o2.([]byte))
+}
+
+var BytesCodec = Codec{
+	Encode:  BytesCodecEncoder,
+	Decode:  BytesCodecDecoder,
+	Compare: BytesCodecComparator,
+}
