@@ -716,3 +716,88 @@ func TestPointers(t *testing.T) {
 	}
 
 }
+
+//--------------------------------------------------------------------------------
+
+func TestUnsafe(t *testing.T) {
+
+	type Struct1 struct {
+		Foo float64
+	}
+
+	type Struct2 struct {
+		Foo float64 `wire:"unsafe"`
+	}
+
+	myStruct := Struct1{5.32}
+	myStruct2 := Struct2{5.32}
+	buf, n, err := new(bytes.Buffer), int(0), error(nil)
+	WriteBinary(myStruct, buf, &n, &err)
+	if err == nil {
+		t.Error("Expected error due to float without `unsafe`")
+	}
+
+	buf, n, err = new(bytes.Buffer), int(0), error(nil)
+	WriteBinary(myStruct2, buf, &n, &err)
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+
+	var s Struct2
+	n, err = int(0), error(nil)
+	ReadBinaryPtr(&s, buf, 0, &n, &err)
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+
+	if s.Foo != myStruct2.Foo {
+		t.Error("Expected float values to be the same. Got", s.Foo, "expected", myStruct2.Foo)
+	}
+
+}
+
+//--------------------------------------------------------------------------------
+
+func TestUnwrap(t *testing.T) {
+
+	type Result interface{}
+	type ConcreteResult struct{ A int }
+	RegisterInterface(
+		struct{ Result }{},
+		ConcreteType{&ConcreteResult{}, 0x01},
+	)
+
+	type Struct1 struct {
+		Result `json:"unwrap"`
+	}
+
+	myStruct := Struct1{&ConcreteResult{5}}
+	buf, n, err := new(bytes.Buffer), int(0), error(nil)
+	WriteJSON(myStruct, buf, &n, &err)
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+	jsonBytes := buf.Bytes()
+	if string(jsonBytes) != `[1,{"A":5}]` {
+		t.Error("Unexpected jsonBytes", string(jsonBytes))
+	}
+
+	var s Struct1
+	err = error(nil)
+	ReadJSON(&s, jsonBytes, &err)
+	if err != nil {
+		t.Error("Unexpected error", err)
+	}
+
+	sConcrete, ok := s.Result.(*ConcreteResult)
+	if !ok {
+		t.Error("Expected struct result to be of type ConcreteResult. Got", reflect.TypeOf(s.Result))
+	}
+
+	got := sConcrete.A
+	expected := myStruct.Result.(*ConcreteResult).A
+	if got != expected {
+		t.Error("Expected values to match. Got", got, "expected", expected)
+	}
+
+}
