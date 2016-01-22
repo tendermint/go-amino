@@ -969,7 +969,9 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, w io.Writ
 					fieldIdx, fieldType, opts := fieldInfo.unpack()
 					fieldRv := rv.Field(fieldIdx)
 					if opts.JSONOmitEmpty { // Skip zero value if omitempty
-						if fieldRv.Interface() == opts.ZeroValue {
+						if !fieldType.Comparable() && fieldRv.Len() == 0 {
+							continue
+						} else if fieldRv.Interface() == opts.ZeroValue {
 							continue
 						}
 					}
