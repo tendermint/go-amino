@@ -62,6 +62,11 @@ func GetByteSlice(buf []byte) (bz []byte, n int, err error) {
 	return buf2, n + length, nil
 }
 
+// Returns the total encoded size of a byteslice
+func ByteSliceSize(bz []byte) int {
+	return UvarintSize(uint64(len(bz))) + len(bz)
+}
+
 //-----------------------------------------------------------------------------
 
 func WriteByteSlices(bzz [][]byte, w io.Writer, n *int, err *error) {
