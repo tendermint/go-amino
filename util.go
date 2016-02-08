@@ -19,9 +19,10 @@ func BinaryBytes(o interface{}) []byte {
 	return w.Bytes()
 }
 
+// o: a pointer to the object to be filled
 func ReadBinaryBytes(d []byte, o interface{}) error {
 	r, n, err := bytes.NewBuffer(d), new(int), new(error)
-	ReadBinary(o, r, 0, n, err)
+	ReadBinaryPtr(o, r, 0, n, err)
 	return *err
 }
 
