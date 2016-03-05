@@ -164,15 +164,16 @@ func MakeTypeInfo(rt reflect.Type) *TypeInfo {
 				Type:    field.Type,
 				Options: opts,
 			})
-
-			if numFields == 1 {
-				jsonName := field.Tag.Get("json")
-				if jsonName == "unwrap" {
-					info.Unwrap = true
-				}
-			}
 		}
 		info.Fields = structFields
+
+		// Maybe type is a wrapper.
+		if len(structFields) == 1 {
+			jsonName := rt.Field(structFields[0].Index).Tag.Get("json")
+			if jsonName == "unwrap" {
+				info.Unwrap = true
+			}
+		}
 	}
 
 	return info

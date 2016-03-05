@@ -768,10 +768,12 @@ func TestUnwrap(t *testing.T) {
 	)
 
 	type Struct1 struct {
-		Result `json:"unwrap"`
+		Result Result `json:"unwrap"`
+		other  string // this should be ignored, it is unexported
+		Other  string `json:"-"` // this should also be ignored
 	}
 
-	myStruct := Struct1{&ConcreteResult{5}}
+	myStruct := Struct1{Result: &ConcreteResult{5}}
 	buf, n, err := new(bytes.Buffer), int(0), error(nil)
 	WriteJSON(myStruct, buf, &n, &err)
 	if err != nil {
