@@ -92,16 +92,18 @@ const (
 )
 
 // NOTE: do not access typeInfos directly, but call GetTypeInfo()
-var typeInfosMtx sync.Mutex
+var typeInfosMtx sync.RWMutex
 var typeInfos = map[reflect.Type]*TypeInfo{}
 
 func GetTypeInfo(rt reflect.Type) *TypeInfo {
-	typeInfosMtx.Lock()
-	defer typeInfosMtx.Unlock()
+	typeInfosMtx.RLock()
 	info := typeInfos[rt]
+	typeInfosMtx.RUnlock()
 	if info == nil {
 		info = MakeTypeInfo(rt)
+		typeInfosMtx.Lock()
 		typeInfos[rt] = info
+		typeInfosMtx.Unlock()
 	}
 	return info
 }
