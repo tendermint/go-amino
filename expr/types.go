@@ -12,6 +12,8 @@ type Byteful interface {
 	Bytes() ([]byte, error)
 }
 
+//----------------------------------------
+
 type Numeric struct {
 	Type   string
 	Number string
@@ -47,6 +49,8 @@ func (n Numeric) Bytes() ([]byte, error) {
 	return nil, errors.New(Fmt("Unknown Numeric type %v", n.Type))
 }
 
+//----------------------------------------
+
 type Tuple []interface{}
 
 func (t Tuple) Bytes() ([]byte, error) {
@@ -76,6 +80,8 @@ func (t Tuple) String() string {
 	s += ")"
 	return s
 }
+
+//----------------------------------------
 
 type Array []interface{}
 
@@ -107,24 +113,68 @@ func (t Array) String() string {
 	return s
 }
 
-type Bytes []byte
+//----------------------------------------
+
+type Bytes struct {
+	Data           []byte
+	LengthPrefixed bool
+}
+
+func NewBytes(bz []byte, lengthPrefixed bool) Bytes {
+	return Bytes{
+		Data:           bz,
+		LengthPrefixed: lengthPrefixed,
+	}
+}
 
 func (b Bytes) Bytes() ([]byte, error) {
-	return b, nil
+	if b.LengthPrefixed {
+		bz := wire.BinaryBytes(len(b.Data))
+		bz = append(bz, b.Data...)
+		return bz, nil
+	} else {
+		return b.Data, nil
+	}
 }
 
 func (b Bytes) String() string {
-	return Fmt("0x%X", []byte(b))
+	if b.LengthPrefixed {
+		return Fmt("0x%X", []byte(b.Data))
+	} else {
+		return Fmt("x%X", []byte(b.Data))
+	}
 }
 
-type Signature struct {
-	Name string
+//----------------------------------------
+
+type Placeholder struct {
+	Label string
 }
 
-func (s Signature) Bytes() ([]byte, error) {
+func (p Placeholder) Bytes() ([]byte, error) {
 	return []byte{0x00}, nil
 }
 
-func (s Signature) String() string {
-	return Fmt("<SIG:%v>", s.Name)
+func (p Placeholder) String() string {
+	return Fmt("<%v>", p.Label)
+}
+
+//----------------------------------------
+
+type String struct {
+	Text string
+}
+
+func NewString(text string) String {
+	return String{text}
+}
+
+func (s String) Bytes() ([]byte, error) {
+	bz := wire.BinaryBytes(int(len(s.Text)))
+	bz = append(bz, []byte(s.Text)...)
+	return bz, nil
+}
+
+func (s String) String() string {
+	return strconv.Quote(s.Text)
 }
