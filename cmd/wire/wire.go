@@ -31,9 +31,4 @@ func main() {
 	}
 
 	fmt.Println(Fmt("%X", gotBytes))
-
-}
-
-func ParseItem(item string) {
-
 }
