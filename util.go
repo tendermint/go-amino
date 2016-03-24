@@ -50,6 +50,12 @@ func JSONBytesPretty(o interface{}) []byte {
 	return jsonBytes
 }
 
+// o: a pointer to the object to be filled
+func ReadJSONBytes(d []byte, o interface{}) (err error) {
+	ReadJSONPtr(o, d, &err)
+	return
+}
+
 // NOTE: does not care about the type, only the binary representation.
 func BinaryEqual(a, b interface{}) bool {
 	aBytes := BinaryBytes(a)
