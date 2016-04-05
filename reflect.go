@@ -485,9 +485,10 @@ func writeReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, w io.Wr
 			if rv.CanAddr() {
 				byteslice := rv.Slice(0, length).Bytes()
 				WriteTo(byteslice, w, n, err)
+
 			} else {
 				buf := make([]byte, length)
-				reflect.Copy(reflect.ValueOf(buf), rv)
+				reflect.Copy(reflect.ValueOf(buf), rv) // XXX: looks expensive!
 				WriteTo(buf, w, n, err)
 			}
 		} else {
@@ -826,10 +827,6 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, o interfac
 		rv.SetFloat(num)
 
 	case reflect.Bool:
-		if !opts.Unsafe {
-			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
-			return
-		}
 		bl, ok := o.(bool)
 		if !ok {
 			*err = errors.New(Fmt("Expected boolean but got type %v", reflect.TypeOf(o)))
