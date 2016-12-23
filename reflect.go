@@ -1023,6 +1023,8 @@ func isEmpty(rt reflect.Type, rv reflect.Value, opts Options) bool {
 		}
 		return false
 	} else {
+		// TODO: A faster alternative might be to call writeReflectJSON
+		// onto a buffer and check if its "{}" or not.
 		switch rt.Kind() {
 		case reflect.Struct:
 			// check fields
