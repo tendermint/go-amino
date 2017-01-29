@@ -19,10 +19,10 @@ func BinaryBytes(o interface{}) []byte {
 	return w.Bytes()
 }
 
-// o: a pointer to the object to be filled
-func ReadBinaryBytes(d []byte, o interface{}) error {
+// ptr: a pointer to the object to be filled
+func ReadBinaryBytes(d []byte, ptr interface{}) error {
 	r, n, err := bytes.NewBuffer(d), new(int), new(error)
-	ReadBinaryPtr(o, r, 0, n, err)
+	ReadBinaryPtr(ptr, r, 0, n, err)
 	return *err
 }
 
@@ -50,9 +50,9 @@ func JSONBytesPretty(o interface{}) []byte {
 	return jsonBytes
 }
 
-// o: a pointer to the object to be filled
-func ReadJSONBytes(d []byte, o interface{}) (err error) {
-	ReadJSONPtr(o, d, &err)
+// ptr: a pointer to the object to be filled
+func ReadJSONBytes(d []byte, ptr interface{}) (err error) {
+	ReadJSONPtr(ptr, d, &err)
 	return
 }
 
