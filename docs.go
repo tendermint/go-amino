@@ -47,8 +47,8 @@ In json, the typical idiom is to use a type string and message data:
 I took inspiration from two blog posts, that demonstrate how to use this
 to build (de)serialization in a go-wire like way.
 
-  * http://eagain.net/articles/go-dynamic-json/
-  * http://eagain.net/articles/go-json-kind/
+* http://eagain.net/articles/go-dynamic-json/
+* http://eagain.net/articles/go-json-kind/
 
 This package unifies these two in a single Mapper.
 
