@@ -1,14 +1,14 @@
 package data_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	wire "github.com/tendermint/go-wire"
 )
 
-func TestSimpleJSON(t *testing.T) {
+func TestSimpleBinary(t *testing.T) {
 	assert, require := assert.New(t), require.New(t)
 
 	cases := []struct {
@@ -22,9 +22,9 @@ func TestSimpleJSON(t *testing.T) {
 		assert.NotEmpty(tc.foo.Foo())
 		wrap := FooerS{tc.foo}
 		parsed := FooerS{}
-		d, err := json.Marshal(wrap)
-		require.Nil(err, "%+v", err)
-		err = json.Unmarshal(d, &parsed)
+		d := wire.BinaryBytes(wrap)
+		require.NotEmpty(d)
+		err := wire.ReadBinaryBytes(d, &parsed)
 		require.Nil(err, "%+v", err)
 		assert.Equal(tc.foo.Foo(), parsed.Foo())
 	}

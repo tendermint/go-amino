@@ -7,13 +7,13 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Mapper struct {
-	kindToType map[string]reflect.Type `json:"-"`
-	typeToKind map[reflect.Type]string `json:"-"`
+type JSONMapper struct {
+	kindToType map[string]reflect.Type
+	typeToKind map[reflect.Type]string
 }
 
-func NewMapper() *Mapper {
-	return &Mapper{
+func NewJSONMapper(base interface{}) *JSONMapper {
+	return &JSONMapper{
 		kindToType: map[string]reflect.Type{},
 		typeToKind: map[reflect.Type]string{},
 	}
@@ -22,14 +22,13 @@ func NewMapper() *Mapper {
 // RegisterInterface allows you to register multiple concrete types.
 //
 // Returns itself to allow calls to be chained
-func (m *Mapper) RegisterInterface(kind string, data interface{}) *Mapper {
+func (m *JSONMapper) RegisterInterface(kind string, b byte, data interface{}) {
 	typ := reflect.TypeOf(data)
 	m.kindToType[kind] = typ
 	m.typeToKind[typ] = kind
-	return m
 }
 
-func (m *Mapper) getTarget(kind string) (interface{}, error) {
+func (m *JSONMapper) getTarget(kind string) (interface{}, error) {
 	typ, ok := m.kindToType[kind]
 	if !ok {
 		return nil, errors.Errorf("Unmarshaling into unknown type: %s", kind)
@@ -38,7 +37,7 @@ func (m *Mapper) getTarget(kind string) (interface{}, error) {
 	return target, nil
 }
 
-func (m *Mapper) getKind(obj interface{}) (string, error) {
+func (m *JSONMapper) getKind(obj interface{}) (string, error) {
 	typ := reflect.TypeOf(obj)
 	kind, ok := m.typeToKind[typ]
 	if !ok {
@@ -47,7 +46,7 @@ func (m *Mapper) getKind(obj interface{}) (string, error) {
 	return kind, nil
 }
 
-func (m *Mapper) Unmarshal(data []byte) (interface{}, error) {
+func (m *JSONMapper) FromJSON(data []byte) (interface{}, error) {
 	e := envelope{
 		Msg: &json.RawMessage{},
 	}
@@ -65,7 +64,7 @@ func (m *Mapper) Unmarshal(data []byte) (interface{}, error) {
 	return res, err
 }
 
-func (m *Mapper) Marshal(data interface{}) ([]byte, error) {
+func (m *JSONMapper) ToJSON(data interface{}) ([]byte, error) {
 	raw, err := json.Marshal(data)
 	if err != nil {
 		return nil, errors.WithStack(err)
