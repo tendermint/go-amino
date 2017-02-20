@@ -29,3 +29,29 @@ func TestSimpleJSON(t *testing.T) {
 		assert.Equal(tc.foo.Foo(), parsed.Foo())
 	}
 }
+
+func TestNestedJSON(t *testing.T) {
+	assert, require := assert.New(t), require.New(t)
+
+	cases := []struct {
+		expected string
+		foo      Fooer
+	}{
+		{"Bar Fly", Bar{Name: "Fly"}},
+		{"Foz Baz", Baz{Name: "For Bar"}},
+		{"My: Bar None", Nested{"My", FooerS{Bar{"None"}}}},
+	}
+
+	for _, tc := range cases {
+		assert.Equal(tc.expected, tc.foo.Foo())
+		wrap := FooerS{tc.foo}
+		parsed := FooerS{}
+		// also works with indentation
+		d, err := json.MarshalIndent(wrap, "", "  ")
+		require.Nil(err, "%+v", err)
+		// fmt.Println(string(d))
+		err = json.Unmarshal(d, &parsed)
+		require.Nil(err, "%+v", err)
+		assert.Equal(tc.expected, parsed.Foo())
+	}
+}

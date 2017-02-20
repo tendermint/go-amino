@@ -13,7 +13,7 @@ type Fooer interface {
 }
 
 type Bar struct {
-	Name string
+	Name string `json:"name"`
 }
 
 func (b Bar) Foo() string {
@@ -21,39 +21,44 @@ func (b Bar) Foo() string {
 }
 
 type Baz struct {
-	Name string
+	Name string `json:"name"`
 }
 
 func (b Baz) Foo() string {
 	return strings.Replace(b.Name, "r", "z", -1)
 }
 
-type BigThing struct {
-	Name  string
-	Age   int
-	Dings Fooer
+type Nested struct {
+	Prefix string `json:"prefix"`
+	Sub    FooerS `json:"sub"`
+}
+
+func (n Nested) Foo() string {
+	return n.Prefix + ": " + n.Sub.Foo()
 }
 
 /** This is parse code: todo - autogenerate **/
 
-var parser data.Mapper
+var fooersParser data.Mapper
+
+func init() {
+	fooersParser = data.NewMapper(FooerS{})
+}
 
 type FooerS struct {
 	Fooer
 }
 
-func init() {
-	parser = data.NewMapper(FooerS{}).
-		RegisterInterface("bar", 0x01, Bar{}).
-		RegisterInterface("baz", 0x02, Baz{})
+func (f FooerS) RegisterInterface(kind string, b byte, obj interface{}) data.Mapper {
+	return fooersParser.RegisterInterface(kind, b, obj)
 }
 
 func (f FooerS) MarshalJSON() ([]byte, error) {
-	return parser.ToJSON(f.Fooer)
+	return fooersParser.ToJSON(f.Fooer)
 }
 
 func (f *FooerS) UnmarshalJSON(data []byte) (err error) {
-	parsed, err := parser.FromJSON(data)
+	parsed, err := fooersParser.FromJSON(data)
 	if err == nil {
 		f.Fooer = parsed.(Fooer)
 	}
@@ -65,4 +70,14 @@ func (f *FooerS) Set(foo Fooer) {
 	f.Fooer = foo
 }
 
-/** end parse code **/
+/** end TO-BE auto-generated code **/
+
+/** This connects our code with the auto-generated helpers **/
+
+// this init must come after the above init (which should be in a file from import)
+func init() {
+	FooerS{}.
+		RegisterInterface("bar", 0x01, Bar{}).
+		RegisterInterface("baz", 0x02, Baz{}).
+		RegisterInterface("nest", 0x03, Nested{})
+}

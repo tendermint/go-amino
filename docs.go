@@ -50,7 +50,32 @@ to build (de)serialization in a go-wire like way.
   * http://eagain.net/articles/go-dynamic-json/
   * http://eagain.net/articles/go-json-kind/
 
-And based on this, I try to unify the data to work with interfaces in both
-binary and json representations.
+This package unifies these two in a single Mapper.
+
+You app needs to do three things to take full advantage of this:
+
+1. For every interface you wish to serialize, define a holder struct
+   with some helper methods, like FooerS wraps Fooer in common_test.go
+2. In all structs that include this interface, include the wrapping struct
+  instead.  Functionally, this also fulfills the interface, so except for
+  setting it or casting it to a sub-type it works the same.
+3. Register the interface implementations as in the last init of common_test.go
+  If you are currently using go-wire, you should be doing this already
+
+The benefits here is you can now run any of the following methods, both for
+efficient storage in our go app, and a common format for rpc / humans.
+
+  orig := FooerS{foo}
+
+  // read/write binary a la tendermint/go-wire
+  bparsed := FooerS{}
+  err := wire.ReadBinaryBytes(
+    wire.BinaryBytes(orig), &bparsed)
+
+  // read/write json a la encoding/json
+  jparsed := FooerS{}
+  j, err := json.MarshalIndent(orig, "", "\t")
+  err = json.Unmarshal(j, &jparsed)
+
 */
 package data
