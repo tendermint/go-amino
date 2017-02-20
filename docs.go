@@ -41,7 +41,7 @@ In json, the typical idiom is to use a type string and message data:
 
   {
     "type": "this part tells you how to interpret the message",
-    "msg": ...the actual message is here, in some kind of json...
+    "data": ...the actual message is here, in some kind of json...
   }
 
 I took inspiration from two blog posts, that demonstrate how to use this
@@ -54,13 +54,9 @@ This package unifies these two in a single Mapper.
 
 You app needs to do three things to take full advantage of this:
 
-1. For every interface you wish to serialize, define a holder struct
-   with some helper methods, like FooerS wraps Fooer in common_test.go
-2. In all structs that include this interface, include the wrapping struct
-  instead.  Functionally, this also fulfills the interface, so except for
-  setting it or casting it to a sub-type it works the same.
-3. Register the interface implementations as in the last init of common_test.go
-  If you are currently using go-wire, you should be doing this already
+1. For every interface you wish to serialize, define a holder struct with some helper methods, like FooerS wraps Fooer in common_test.go
+2. In all structs that include this interface, include the wrapping struct instead.  Functionally, this also fulfills the interface, so except for setting it or casting it to a sub-type it works the same.
+3. Register the interface implementations as in the last init of common_test.go. If you are currently using go-wire, you should be doing this already
 
 The benefits here is you can now run any of the following methods, both for
 efficient storage in our go app, and a common format for rpc / humans.
@@ -77,5 +73,7 @@ efficient storage in our go app, and a common format for rpc / humans.
   j, err := json.MarshalIndent(orig, "", "\t")
   err = json.Unmarshal(j, &jparsed)
 
+See https://github.com/tendermint/go-data/blob/master/common_test.go to see
+how to set up your code to use this.
 */
 package data

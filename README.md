@@ -51,7 +51,7 @@ In json, the typical idiom is to use a type string and message data:
 
 	{
 	  "type": "this part tells you how to interpret the message",
-	  "msg": ...the actual message is here, in some kind of json...
+	  "data": ...the actual message is here, in some kind of json...
 	}
 
 I took inspiration from two blog posts, that demonstrate how to use this
@@ -64,21 +64,9 @@ This package unifies these two in a single Mapper.
 
 You app needs to do three things to take full advantage of this:
 
-1. For every interface you wish to serialize, define a holder struct
-
-
-	with some helper methods, like FooerS wraps Fooer in common_test.go
-
-2. In all structs that include this interface, include the wrapping struct
-
-
-	instead.  Functionally, this also fulfills the interface, so except for
-	setting it or casting it to a sub-type it works the same.
-
-3. Register the interface implementations as in the last init of common_test.go
-
-
-	If you are currently using go-wire, you should be doing this already
+1. For every interface you wish to serialize, define a holder struct with some helper methods, like FooerS wraps Fooer in common_test.go
+2. In all structs that include this interface, include the wrapping struct instead.  Functionally, this also fulfills the interface, so except for setting it or casting it to a sub-type it works the same.
+3. Register the interface implementations as in the last init of common_test.go. If you are currently using go-wire, you should be doing this already
 
 The benefits here is you can now run any of the following methods, both for
 efficient storage in our go app, and a common format for rpc / humans.
@@ -96,17 +84,15 @@ efficient storage in our go app, and a common format for rpc / humans.
 	j, err := json.MarshalIndent(orig, "", "\t")
 	err = json.Unmarshal(j, &jparsed)
 
+See <a href="https://github.com/tendermint/go-data/blob/master/common_test.go">https://github.com/tendermint/go-data/blob/master/common_test.go</a> to see
+how to set up your code to use this.
+
 
 
 
 ## <a name="pkg-index">Index</a>
-* [type BinaryMapper](#BinaryMapper)
-  * [func NewBinaryMapper(base interface{}) *BinaryMapper](#NewBinaryMapper)
-  * [func (m *BinaryMapper) RegisterInterface(kind string, b byte, data interface{})](#BinaryMapper.RegisterInterface)
 * [type JSONMapper](#JSONMapper)
-  * [func NewJSONMapper(base interface{}) *JSONMapper](#NewJSONMapper)
   * [func (m *JSONMapper) FromJSON(data []byte) (interface{}, error)](#JSONMapper.FromJSON)
-  * [func (m *JSONMapper) RegisterInterface(kind string, b byte, data interface{})](#JSONMapper.RegisterInterface)
   * [func (m *JSONMapper) ToJSON(data interface{}) ([]byte, error)](#JSONMapper.ToJSON)
 * [type Mapper](#Mapper)
   * [func NewMapper(base interface{}) Mapper](#NewMapper)
@@ -117,38 +103,6 @@ efficient storage in our go app, and a common format for rpc / humans.
 [binary.go](/src/github.com/tendermint/go-data/binary.go) [docs.go](/src/github.com/tendermint/go-data/docs.go) [json.go](/src/github.com/tendermint/go-data/json.go) [wrapper.go](/src/github.com/tendermint/go-data/wrapper.go) 
 
 
-
-
-
-
-## <a name="BinaryMapper">type</a> [BinaryMapper](/src/target/binary.go?s=59:133#L1)
-``` go
-type BinaryMapper struct {
-    // contains filtered or unexported fields
-}
-```
-
-
-
-
-
-
-### <a name="NewBinaryMapper">func</a> [NewBinaryMapper](/src/target/binary.go?s=135:187#L1)
-``` go
-func NewBinaryMapper(base interface{}) *BinaryMapper
-```
-
-
-
-
-### <a name="BinaryMapper.RegisterInterface">func</a> (\*BinaryMapper) [RegisterInterface](/src/target/binary.go?s=424:503#L10)
-``` go
-func (m *BinaryMapper) RegisterInterface(kind string, b byte, data interface{})
-```
-RegisterInterface allows you to register multiple concrete types.
-
-We call wire.RegisterInterface with the entire (growing list) each time,
-as we do not know when the end is near.
 
 
 
@@ -165,64 +119,92 @@ type JSONMapper struct {
 
 
 
-### <a name="NewJSONMapper">func</a> [NewJSONMapper](/src/target/json.go?s=180:228#L5)
-``` go
-func NewJSONMapper(base interface{}) *JSONMapper
-```
 
 
 
-
-### <a name="JSONMapper.FromJSON">func</a> (\*JSONMapper) [FromJSON](/src/target/json.go?s=1096:1159#L39)
+### <a name="JSONMapper.FromJSON">func</a> (\*JSONMapper) [FromJSON](/src/target/json.go?s=1202:1265#L41)
 ``` go
 func (m *JSONMapper) FromJSON(data []byte) (interface{}, error)
 ```
-
-
-
-### <a name="JSONMapper.RegisterInterface">func</a> (\*JSONMapper) [RegisterInterface](/src/target/json.go?s=459:536#L15)
-``` go
-func (m *JSONMapper) RegisterInterface(kind string, b byte, data interface{})
-```
-RegisterInterface allows you to register multiple concrete types.
-
-Returns itself to allow calls to be chained
+FromJSON will deserialize the output of ToJSON for every registered
+implementation of the interface
 
 
 
 
-### <a name="JSONMapper.ToJSON">func</a> (\*JSONMapper) [ToJSON](/src/target/json.go?s=1490:1551#L57)
+### <a name="JSONMapper.ToJSON">func</a> (\*JSONMapper) [ToJSON](/src/target/json.go?s=1814:1875#L67)
 ``` go
 func (m *JSONMapper) ToJSON(data interface{}) ([]byte, error)
 ```
+ToJson will serialize a registered implementation into a format like:
+
+
+	{
+	  "type": "foo",
+	  "data": {
+	    "name": "dings"
+	  }
+	}
+
+this allows us to properly deserialize with FromJSON
 
 
 
-## <a name="Mapper">type</a> [Mapper](/src/target/wrapper.go?s=14:64#L1)
+
+## <a name="Mapper">type</a> [Mapper](/src/target/wrapper.go?s=485:535#L5)
 ``` go
 type Mapper struct {
     *JSONMapper
-    *BinaryMapper
+    // contains filtered or unexported fields
 }
 ```
+Mapper is the main entry point in the package.
+
+On init, you should call NewMapper() for each interface type you want
+to support flexible de-serialization, and then
+RegisterInterface() in the init() function for each implementation of these
+interfaces.
+
+Note that unlike go-wire, you can call RegisterInterface separately from
+different locations with each implementation, not all in one place.
+Just be careful not to use the same key or byte, of init will *panic*
 
 
 
 
 
 
-### <a name="NewMapper">func</a> [NewMapper](/src/target/wrapper.go?s=66:105#L1)
+
+### <a name="NewMapper">func</a> [NewMapper](/src/target/wrapper.go?s=747:786#L17)
 ``` go
 func NewMapper(base interface{}) Mapper
 ```
+NewMapper creates a Mapper.
+
+If you have:
+
+
+	type Foo interface {....}
+	type FooS struct { Foo }
+
+then you should pass in FooS{} in NewMapper, and implementations of Foo
+in RegisterInterface
 
 
 
 
-### <a name="Mapper.RegisterInterface">func</a> (Mapper) [RegisterInterface](/src/target/wrapper.go?s=206:285#L5)
+
+### <a name="Mapper.RegisterInterface">func</a> (Mapper) [RegisterInterface](/src/target/wrapper.go?s=1184:1263#L30)
 ``` go
 func (m Mapper) RegisterInterface(kind string, b byte, data interface{}) Mapper
 ```
+RegisterInterface should be called once for each implementation of the
+interface that we wish to support.
+
+kind is the type string used in the json representation, while b is the
+type byte used in the go-wire representation. data is one instance of this
+concrete type, like Bar{}
+
 
 
 

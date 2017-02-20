@@ -12,7 +12,7 @@ type JSONMapper struct {
 	typeToKind map[reflect.Type]string
 }
 
-func NewJSONMapper(base interface{}) *JSONMapper {
+func newJSONMapper(base interface{}) *JSONMapper {
 	return &JSONMapper{
 		kindToType: map[string]reflect.Type{},
 		typeToKind: map[reflect.Type]string{},
@@ -22,7 +22,7 @@ func NewJSONMapper(base interface{}) *JSONMapper {
 // RegisterInterface allows you to register multiple concrete types.
 //
 // Returns itself to allow calls to be chained
-func (m *JSONMapper) RegisterInterface(kind string, b byte, data interface{}) {
+func (m *JSONMapper) registerInterface(kind string, b byte, data interface{}) {
 	typ := reflect.TypeOf(data)
 	m.kindToType[kind] = typ
 	m.typeToKind[typ] = kind
@@ -46,16 +46,18 @@ func (m *JSONMapper) getKind(obj interface{}) (string, error) {
 	return kind, nil
 }
 
+// FromJSON will deserialize the output of ToJSON for every registered
+// implementation of the interface
 func (m *JSONMapper) FromJSON(data []byte) (interface{}, error) {
 	e := envelope{
-		Msg: &json.RawMessage{},
+		Data: &json.RawMessage{},
 	}
 	err := json.Unmarshal(data, &e)
 	if err != nil {
 		return nil, err
 	}
 	// switch on the type, then unmarshal into that
-	bytes := *e.Msg.(*json.RawMessage)
+	bytes := *e.Data.(*json.RawMessage)
 	res, err := m.getTarget(e.Kind)
 	if err != nil {
 		return nil, err
@@ -64,6 +66,14 @@ func (m *JSONMapper) FromJSON(data []byte) (interface{}, error) {
 	return res, err
 }
 
+// ToJson will serialize a registered implementation into a format like:
+//   {
+//     "type": "foo",
+//     "data": {
+//       "name": "dings"
+//     }
+//   }
+// this allows us to properly deserialize with FromJSON
 func (m *JSONMapper) ToJSON(data interface{}) ([]byte, error) {
 	raw, err := json.Marshal(data)
 	if err != nil {
@@ -76,7 +86,7 @@ func (m *JSONMapper) ToJSON(data interface{}) ([]byte, error) {
 	msg := json.RawMessage(raw)
 	e := envelope{
 		Kind: kind,
-		Msg:  &msg,
+		Data: &msg,
 	}
 	return json.Marshal(e)
 }
@@ -84,5 +94,5 @@ func (m *JSONMapper) ToJSON(data interface{}) ([]byte, error) {
 // envelope lets us switch on type
 type envelope struct {
 	Kind string      `json:"type"`
-	Msg  interface{} `json:"msg"`
+	Data interface{} `json:"data"`
 }
