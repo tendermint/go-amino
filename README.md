@@ -91,6 +91,11 @@ how to set up your code to use this.
 
 
 ## <a name="pkg-index">Index</a>
+* [Variables](#pkg-variables)
+* [type ByteEncoder](#ByteEncoder)
+* [type Bytes](#Bytes)
+  * [func (b Bytes) MarshalJSON() ([]byte, error)](#Bytes.MarshalJSON)
+  * [func (b *Bytes) UnmarshalJSON(data []byte) error](#Bytes.UnmarshalJSON)
 * [type JSONMapper](#JSONMapper)
   * [func (m *JSONMapper) FromJSON(data []byte) (interface{}, error)](#JSONMapper.FromJSON)
   * [func (m *JSONMapper) ToJSON(data interface{}) ([]byte, error)](#JSONMapper.ToJSON)
@@ -100,10 +105,91 @@ how to set up your code to use this.
 
 
 #### <a name="pkg-files">Package files</a>
-[binary.go](/src/github.com/tendermint/go-data/binary.go) [docs.go](/src/github.com/tendermint/go-data/docs.go) [json.go](/src/github.com/tendermint/go-data/json.go) [wrapper.go](/src/github.com/tendermint/go-data/wrapper.go) 
+[binary.go](/src/github.com/tendermint/go-data/binary.go) [bytes.go](/src/github.com/tendermint/go-data/bytes.go) [docs.go](/src/github.com/tendermint/go-data/docs.go) [json.go](/src/github.com/tendermint/go-data/json.go) [wrapper.go](/src/github.com/tendermint/go-data/wrapper.go) 
 
 
 
+## <a name="pkg-variables">Variables</a>
+``` go
+var (
+    Encoder       ByteEncoder = hexEncoder{}
+    HexEncoder                = hexEncoder{}
+    B64Encoder                = base64Encoder{base64.URLEncoding}
+    RawB64Encoder             = base64Encoder{base64.RawURLEncoding}
+)
+```
+Encoder is a global setting for all byte encoding
+This is the default.  Please override in the main()/init()
+of your program to change how byte slices are presented
+
+
+
+
+## <a name="ByteEncoder">type</a> [ByteEncoder](/src/target/bytes.go?s=1436:1547#L44)
+``` go
+type ByteEncoder interface {
+    Marshal(bytes []byte) ([]byte, error)
+    Unmarshal(dst *[]byte, src []byte) error
+}
+```
+ByteEncoder handles both the marshalling and unmarshalling of
+an arbitrary byte slice.
+
+All Bytes use the global Encoder set in this package.
+If you want to use this encoding for byte arrays, you can just
+implement a simple custom marshaller for your byte array
+
+
+	type Dings [64]byte
+	
+	func (d Dings) MarshalJSON() ([]byte, error) {
+	  return data.Encoder.Marshal(d[:])
+	}
+	
+	func (d *Dings) UnmarshalJSON(data []byte) error {
+	  ref := (*d)[:]
+	  return data.Encoder.Unmarshal(&ref, data)
+	}
+
+
+
+
+
+
+
+
+
+
+## <a name="Bytes">type</a> [Bytes](/src/target/bytes.go?s=681:698#L16)
+``` go
+type Bytes []byte
+```
+Bytes is a special byte slice that allows us to control the
+serialization format per app.
+
+Thus, basecoin could use hex, another app base64, and a third
+app base58...
+
+
+
+
+
+
+
+
+
+
+### <a name="Bytes.MarshalJSON">func</a> (Bytes) [MarshalJSON](/src/target/bytes.go?s=700:744#L18)
+``` go
+func (b Bytes) MarshalJSON() ([]byte, error)
+```
+
+
+
+### <a name="Bytes.UnmarshalJSON">func</a> (\*Bytes) [UnmarshalJSON](/src/target/bytes.go?s=777:825#L22)
+``` go
+func (b *Bytes) UnmarshalJSON(data []byte) error
+```
 
 
 
