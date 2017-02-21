@@ -11,6 +11,10 @@ import (
 // Encoder is a global setting for all byte encoding
 // This is the default.  Please override in the main()/init()
 // of your program to change how byte slices are presented
+//
+// In addition to these implementation, you can also find
+// BTCEncoder and FlickrEncoder that use base58 variants in
+// github.com/tendermint/go-data/base58
 var (
 	Encoder       ByteEncoder = hexEncoder{}
 	HexEncoder                = hexEncoder{}
@@ -47,9 +51,11 @@ func (b *Bytes) UnmarshalJSON(data []byte) error {
 //     return data.Encoder.Marshal(d[:])
 //   }
 //
-//   func (d *Dings) UnmarshalJSON(data []byte) error {
-//     ref := (*d)[:]
-//     return data.Encoder.Unmarshal(&ref, data)
+//   func (d *Dings) UnmarshalJSON(enc []byte) error {
+//     var ref []byte
+//     err := data.Encoder.Unmarshal(&ref, enc)
+//     copy(d[:], ref)
+//     return err
 //   }
 type ByteEncoder interface {
 	Marshal(bytes []byte) ([]byte, error)

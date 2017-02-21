@@ -106,3 +106,63 @@ func TestBytes(t *testing.T) {
 		assert.Equal(tc.expected, view.Data)
 	}
 }
+
+/*** this is example code for the byte array ***/
+
+type Dings [5]byte
+
+func (d Dings) MarshalJSON() ([]byte, error) {
+	return data.Encoder.Marshal(d[:])
+}
+
+func (d *Dings) UnmarshalJSON(enc []byte) error {
+	var ref []byte
+	err := data.Encoder.Unmarshal(&ref, enc)
+	copy(d[:], ref)
+	return err
+}
+
+func TestByteArray(t *testing.T) {
+	assert, require := assert.New(t), require.New(t)
+
+	d := Dings{}
+	copy(d[:], []byte("D!.3s"))
+
+	cases := []struct {
+		encoder  data.ByteEncoder
+		data     Dings
+		expected string
+	}{
+		{data.HexEncoder, Dings{0x1a, 0x2b, 0x3c, 0x4d, 0x5e}, "1a2b3c4d5e"},
+		{data.B64Encoder, d, "RCEuM3M="},
+		{data.RawB64Encoder, d, "RCEuM3M"},
+	}
+
+	for i, tc := range cases {
+		data.Encoder = tc.encoder
+		// encode the data
+		d, err := json.Marshal(tc.data)
+		require.Nil(err, "%d: %+v", i, err)
+		// recover the data
+		out := Dings{}
+		err = json.Unmarshal(d, &out)
+		require.Nil(err, "%d: %+v", i, err)
+		assert.Equal(tc.data, out, "%d", i)
+		// check the encoding
+		view := ""
+		err = json.Unmarshal(d, &view)
+		require.Nil(err, "%d: %+v", i, err)
+		assert.Equal(tc.expected, view)
+	}
+
+	// Test invalid data
+	invalid := []byte(`"food"`)
+	data.Encoder = data.HexEncoder
+	ding := Dings{1, 2, 3, 4, 5}
+	parsed := ding
+	require.Equal(ding, parsed)
+	// on a failed parsing, we don't overwrite any data
+	err := json.Unmarshal(invalid, &parsed)
+	require.NotNil(err)
+	assert.Equal(ding, parsed)
+}
