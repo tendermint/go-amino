@@ -19,6 +19,18 @@ func newJSONMapper(base interface{}) *JSONMapper {
 	}
 }
 
+// ToJSON is a convenience method to serialize with encoding/json
+func ToJSON(o interface{}) ([]byte, error) {
+	d, err := json.Marshal(o)
+	return d, errors.WithStack(err)
+}
+
+// FromJSON is a convenience method to deserialize with encoding/json
+func FromJSON(d []byte, o interface{}) error {
+	return errors.WithStack(
+		json.Unmarshal(d, o))
+}
+
 // RegisterInterface allows you to register multiple concrete types.
 //
 // Returns itself to allow calls to be chained
