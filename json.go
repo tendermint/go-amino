@@ -34,7 +34,7 @@ func FromJSON(d []byte, o interface{}) error {
 // RegisterInterface allows you to register multiple concrete types.
 //
 // Returns itself to allow calls to be chained
-func (m *JSONMapper) registerInterface(kind string, b byte, data interface{}) {
+func (m *JSONMapper) registerInterface(data interface{}, kind string, b byte) {
 	typ := reflect.TypeOf(data)
 	m.kindToType[kind] = typ
 	m.typeToKind[typ] = kind

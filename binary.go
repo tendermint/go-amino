@@ -20,7 +20,7 @@ func newBinaryMapper(base interface{}) *binaryMapper {
 //
 // We call wire.RegisterInterface with the entire (growing list) each time,
 // as we do not know when the end is near.
-func (m *binaryMapper) registerInterface(kind string, b byte, data interface{}) {
+func (m *binaryMapper) registerInterface(data interface{}, kind string, b byte) {
 	m.impls = append(m.impls, wire.ConcreteType{O: data, Byte: b})
 	wire.RegisterInterface(m.base, m.impls...)
 }

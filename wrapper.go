@@ -37,8 +37,8 @@ func NewMapper(base interface{}) Mapper {
 // kind is the type string used in the json representation, while b is the
 // type byte used in the go-wire representation. data is one instance of this
 // concrete type, like Bar{}
-func (m Mapper) RegisterInterface(kind string, b byte, data interface{}) Mapper {
-	m.JSONMapper.registerInterface(kind, b, data)
-	m.binaryMapper.registerInterface(kind, b, data)
+func (m Mapper) RegisterInterface(data interface{}, kind string, b byte) Mapper {
+	m.JSONMapper.registerInterface(data, kind, b)
+	m.binaryMapper.registerInterface(data, kind, b)
 	return m
 }

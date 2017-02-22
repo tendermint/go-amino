@@ -49,8 +49,8 @@ type FooerS struct {
 	Fooer
 }
 
-func (f FooerS) RegisterInterface(kind string, b byte, obj interface{}) data.Mapper {
-	return fooersParser.RegisterInterface(kind, b, obj)
+func (f FooerS) RegisterInterface(obj interface{}, kind string, b byte) data.Mapper {
+	return fooersParser.RegisterInterface(obj, kind, b)
 }
 
 func (f FooerS) MarshalJSON() ([]byte, error) {
@@ -77,7 +77,7 @@ func (f *FooerS) Set(foo Fooer) {
 // this init must come after the above init (which should be in a file from import)
 func init() {
 	FooerS{}.
-		RegisterInterface("bar", 0x01, Bar{}).
-		RegisterInterface("baz", 0x02, Baz{}).
-		RegisterInterface("nest", 0x03, Nested{})
+		RegisterInterface(Bar{}, "bar", 0x01).
+		RegisterInterface(Baz{}, "baz", 0x02).
+		RegisterInterface(Nested{}, "nest", 0x03)
 }
