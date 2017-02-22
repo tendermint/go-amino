@@ -40,6 +40,7 @@ func (m *JSONMapper) registerInterface(data interface{}, kind string, b byte) {
 	m.typeToKind[typ] = kind
 }
 
+// getTarget returns a pointer to an allocated object of the proper kind
 func (m *JSONMapper) getTarget(kind string) (interface{}, error) {
 	typ, ok := m.kindToType[kind]
 	if !ok {
@@ -75,6 +76,8 @@ func (m *JSONMapper) FromJSON(data []byte) (interface{}, error) {
 		return nil, err
 	}
 	err = json.Unmarshal(bytes, &res)
+	// getTarget returned a pointer for Unmarshall, now dereference it
+	res = reflect.ValueOf(res).Elem().Interface()
 	return res, err
 }
 
