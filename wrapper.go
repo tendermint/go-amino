@@ -1,5 +1,7 @@
 package data
 
+import "fmt"
+
 /*
 Mapper is the main entry point in the package.
 
@@ -41,4 +43,34 @@ func (m Mapper) RegisterInterface(data interface{}, kind string, b byte) Mapper 
 	m.JSONMapper.registerInterface(data, kind, b)
 	m.binaryMapper.registerInterface(data, kind, b)
 	return m
+}
+
+// ToText is a rather special-case serialization for cli, especially for []byte
+// interfaces
+//
+// It tries to serialize as json, and the result looks like:
+//   { "type": "string", "data": "string" }
+// Then it will return "<type>:<data>"
+//
+// Main usecase is serializing eg. crypto.PubKeyS as "ed25119:a1b2c3d4..."
+// for displaying in cli tools.
+func ToText(o interface{}) (string, error) {
+	d, err := ToJSON(o)
+	if err != nil {
+		return "", err
+	}
+	text := textEnv{}
+	err = FromJSON(d, &text)
+	if err != nil {
+		return "", err
+	}
+	res := fmt.Sprintf("%s:%s", text.Kind, text.Data)
+	return res, nil
+}
+
+// textEnv lets us parse an envelope if the data was output as string
+// (either text, or a serialized []byte)
+type textEnv struct {
+	Kind string `json:"type"`
+	Data string `json:"data"`
 }

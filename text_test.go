@@ -1,0 +1,68 @@
+package data_test
+
+import (
+	"fmt"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	data "github.com/tendermint/go-data"
+)
+
+// Key
+type Key interface{}
+
+// implementations
+type Cool struct{ data.Bytes }
+type Lame struct{ data.Bytes }
+
+var keyMapper data.Mapper
+
+// register both private key types with go-data (and thus go-wire)
+func init() {
+	keyMapper = data.NewMapper(KeyS{}).
+		RegisterInterface(Cool{}, "cool", 1).
+		RegisterInterface(Lame{}, "lame", 88)
+}
+
+// KeyS adds json serialization to Key
+type KeyS struct {
+	Key
+}
+
+func (p KeyS) MarshalJSON() ([]byte, error) {
+	return keyMapper.ToJSON(p.Key)
+}
+
+func (p *KeyS) UnmarshalJSON(data []byte) (err error) {
+	parsed, err := keyMapper.FromJSON(data)
+	if err == nil {
+		p.Key = parsed.(Key)
+	}
+	return
+}
+
+func TestSimpleText(t *testing.T) {
+	assert, require := assert.New(t), require.New(t)
+
+	data.Encoder = data.HexEncoder
+	cases := []struct {
+		key      Key
+		expected string
+	}{
+		{key: Cool{data.Bytes{0x42, 0x69}}, expected: "cool:4269"},
+		{key: Lame{data.Bytes{0x70, 0x53, 0x11}}, expected: "lame:705311"},
+	}
+
+	for _, tc := range cases {
+		wrap := KeyS{tc.key}
+		// check json
+		d, err := data.ToJSON(wrap)
+		require.Nil(err, "%+v", err)
+		fmt.Println(string(d))
+		// check text
+		text, err := data.ToText(wrap)
+		require.Nil(err, "%+v", err)
+		assert.Equal(tc.expected, text)
+	}
+}

@@ -21,7 +21,7 @@ func newJSONMapper(base interface{}) *JSONMapper {
 
 // ToJSON is a convenience method to serialize with encoding/json
 func ToJSON(o interface{}) ([]byte, error) {
-	d, err := json.Marshal(o)
+	d, err := json.MarshalIndent(o, "", "\t")
 	return d, errors.WithStack(err)
 }
 

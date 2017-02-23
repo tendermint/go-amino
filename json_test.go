@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	data "github.com/tendermint/go-data"
 )
 
 func TestSimpleJSON(t *testing.T) {
@@ -47,9 +48,8 @@ func TestNestedJSON(t *testing.T) {
 		wrap := FooerS{tc.foo}
 		parsed := FooerS{}
 		// also works with indentation
-		d, err := json.MarshalIndent(wrap, "", "  ")
+		d, err := data.ToJSON(wrap)
 		require.Nil(err, "%+v", err)
-		// fmt.Println(string(d))
 		err = json.Unmarshal(d, &parsed)
 		require.Nil(err, "%+v", err)
 		assert.Equal(tc.expected, parsed.Foo())
