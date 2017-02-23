@@ -1,7 +1,6 @@
 package data_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -57,9 +56,8 @@ func TestSimpleText(t *testing.T) {
 	for _, tc := range cases {
 		wrap := KeyS{tc.key}
 		// check json
-		d, err := data.ToJSON(wrap)
+		_, err := data.ToJSON(wrap)
 		require.Nil(err, "%+v", err)
-		fmt.Println(string(d))
 		// check text
 		text, err := data.ToText(wrap)
 		require.Nil(err, "%+v", err)

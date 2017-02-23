@@ -1,6 +1,7 @@
 package data
 
 import (
+	"bytes"
 	"encoding/json"
 	"reflect"
 
@@ -62,6 +63,10 @@ func (m *JSONMapper) getKind(obj interface{}) (string, error) {
 // FromJSON will deserialize the output of ToJSON for every registered
 // implementation of the interface
 func (m *JSONMapper) FromJSON(data []byte) (interface{}, error) {
+	// handle null specially
+	if bytes.Equal(data, []byte("null")) {
+		return nil, nil
+	}
 	e := envelope{
 		Data: &json.RawMessage{},
 	}
@@ -90,6 +95,10 @@ func (m *JSONMapper) FromJSON(data []byte) (interface{}, error) {
 //   }
 // this allows us to properly deserialize with FromJSON
 func (m *JSONMapper) ToJSON(data interface{}) ([]byte, error) {
+	// handle null specially
+	if data == nil {
+		return []byte("null"), nil
+	}
 	raw, err := json.Marshal(data)
 	if err != nil {
 		return nil, errors.WithStack(err)
