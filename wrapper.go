@@ -54,11 +54,23 @@ func (m Mapper) RegisterInterface(data interface{}, kind string, b byte) Mapper 
 //
 // Main usecase is serializing eg. crypto.PubKeyS as "ed25119:a1b2c3d4..."
 // for displaying in cli tools.
+//
+// It also supports encoding data.Bytes to a string using the proper codec
+// (or anything else that has a marshals to a string)
 func ToText(o interface{}) (string, error) {
 	d, err := ToJSON(o)
 	if err != nil {
 		return "", err
 	}
+
+	// try to recover as a string (data.Bytes case)
+	var s string
+	err = FromJSON(d, &s)
+	if err == nil {
+		return s, nil
+	}
+
+	// if not, then try to recover as an interface (crypto.*S case)
 	text := textEnv{}
 	err = FromJSON(d, &text)
 	if err != nil {

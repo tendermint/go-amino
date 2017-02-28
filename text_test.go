@@ -64,3 +64,23 @@ func TestSimpleText(t *testing.T) {
 		assert.Equal(tc.expected, text)
 	}
 }
+
+func TestBytesTest(t *testing.T) {
+	assert, require := assert.New(t), require.New(t)
+
+	data.Encoder = data.HexEncoder
+	cases := []struct {
+		bytes    data.Bytes
+		expected string
+	}{
+		{data.Bytes{0x34, 0x54}, "3454"},
+		{data.Bytes{}, ""},
+		{data.Bytes{0xde, 0xad, 0xbe, 0x66}, "deadbe66"},
+	}
+
+	for _, tc := range cases {
+		text, err := data.ToText(tc.bytes)
+		require.Nil(err, "%+v", err)
+		assert.Equal(tc.expected, text)
+	}
+}
