@@ -8,13 +8,13 @@ import (
 	"github.com/pkg/errors"
 )
 
-type JSONMapper struct {
+type jsonMapper struct {
 	kindToType map[string]reflect.Type
 	typeToKind map[reflect.Type]string
 }
 
-func newJSONMapper(base interface{}) *JSONMapper {
-	return &JSONMapper{
+func newJsonMapper(base interface{}) *jsonMapper {
+	return &jsonMapper{
 		kindToType: map[string]reflect.Type{},
 		typeToKind: map[reflect.Type]string{},
 	}
@@ -32,17 +32,17 @@ func FromJSON(d []byte, o interface{}) error {
 		json.Unmarshal(d, o))
 }
 
-// RegisterInterface allows you to register multiple concrete types.
+// registerImplementation allows you to register multiple concrete types.
 //
 // Returns itself to allow calls to be chained
-func (m *JSONMapper) registerInterface(data interface{}, kind string, b byte) {
+func (m *jsonMapper) registerImplementation(data interface{}, kind string, b byte) {
 	typ := reflect.TypeOf(data)
 	m.kindToType[kind] = typ
 	m.typeToKind[typ] = kind
 }
 
 // getTarget returns a pointer to an allocated object of the proper kind
-func (m *JSONMapper) getTarget(kind string) (interface{}, error) {
+func (m *jsonMapper) getTarget(kind string) (interface{}, error) {
 	typ, ok := m.kindToType[kind]
 	if !ok {
 		return nil, errors.Errorf("Unmarshaling into unknown type: %s", kind)
@@ -51,7 +51,7 @@ func (m *JSONMapper) getTarget(kind string) (interface{}, error) {
 	return target, nil
 }
 
-func (m *JSONMapper) getKind(obj interface{}) (string, error) {
+func (m *jsonMapper) getKind(obj interface{}) (string, error) {
 	typ := reflect.TypeOf(obj)
 	kind, ok := m.typeToKind[typ]
 	if !ok {
@@ -62,7 +62,7 @@ func (m *JSONMapper) getKind(obj interface{}) (string, error) {
 
 // FromJSON will deserialize the output of ToJSON for every registered
 // implementation of the interface
-func (m *JSONMapper) FromJSON(data []byte) (interface{}, error) {
+func (m *jsonMapper) FromJSON(data []byte) (interface{}, error) {
 	// handle null specially
 	if bytes.Equal(data, []byte("null")) {
 		return nil, nil
@@ -94,7 +94,7 @@ func (m *JSONMapper) FromJSON(data []byte) (interface{}, error) {
 //     }
 //   }
 // this allows us to properly deserialize with FromJSON
-func (m *JSONMapper) ToJSON(data interface{}) ([]byte, error) {
+func (m *jsonMapper) ToJSON(data interface{}) ([]byte, error) {
 	// handle null specially
 	if data == nil {
 		return []byte("null"), nil

@@ -20,8 +20,8 @@ var keyMapper data.Mapper
 // register both private key types with go-data (and thus go-wire)
 func init() {
 	keyMapper = data.NewMapper(KeyS{}).
-		RegisterInterface(Cool{}, "cool", 1).
-		RegisterInterface(Lame{}, "lame", 88)
+		RegisterImplementation(Cool{}, "cool", 1).
+		RegisterImplementation(Lame{}, "lame", 88)
 }
 
 // KeyS adds json serialization to Key

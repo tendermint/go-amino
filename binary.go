@@ -16,11 +16,11 @@ func newBinaryMapper(base interface{}) *binaryMapper {
 	}
 }
 
-// RegisterInterface allows you to register multiple concrete types.
+// registerImplementation allows you to register multiple concrete types.
 //
 // We call wire.RegisterInterface with the entire (growing list) each time,
 // as we do not know when the end is near.
-func (m *binaryMapper) registerInterface(data interface{}, kind string, b byte) {
+func (m *binaryMapper) registerImplementation(data interface{}, kind string, b byte) {
 	m.impls = append(m.impls, wire.ConcreteType{O: data, Byte: b})
 	wire.RegisterInterface(m.base, m.impls...)
 }

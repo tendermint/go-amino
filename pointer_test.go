@@ -38,8 +38,8 @@ var ptrMapper data.Mapper
 func init() {
 	ps, pi := PStr(""), PInt(0)
 	ptrMapper = data.NewMapper(KeyS{}).
-		RegisterInterface(&ps, "str", 5).
-		RegisterInterface(&pi, "int", 25)
+		RegisterImplementation(&ps, "str", 5).
+		RegisterImplementation(&pi, "int", 25)
 }
 
 // PtrS adds json serialization to Ptr
