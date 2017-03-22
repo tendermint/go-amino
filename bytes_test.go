@@ -21,7 +21,7 @@ func TestEncoders(t *testing.T) {
 	}{
 		// hexidecimal
 		{hex, []byte(`"1a2b3c4d"`), []byte{0x1a, 0x2b, 0x3c, 0x4d}},
-		{hex, []byte(`"de14"`), []byte{0xde, 0x14}},
+		{hex, []byte(`"DE14"`), []byte{0xde, 0x14}},
 		// these are errors
 		{hex, []byte(`0123`), nil},     // not in quotes
 		{hex, []byte(`"dewq12"`), nil}, // invalid chars
@@ -82,7 +82,7 @@ func TestBytes(t *testing.T) {
 		data     data.Bytes
 		expected string
 	}{
-		{data.HexEncoder, []byte{0x1a, 0x2b, 0x3c, 0x4d}, "1a2b3c4d"},
+		{data.HexEncoder, []byte{0x1a, 0x2b, 0x3c, 0x4d}, "1A2B3C4D"},
 		{data.B64Encoder, []byte("D!.3s"), "RCEuM3M="},
 		{data.RawB64Encoder, []byte("D!.3s"), "RCEuM3M"},
 	}
@@ -133,7 +133,7 @@ func TestByteArray(t *testing.T) {
 		data     Dings
 		expected string
 	}{
-		{data.HexEncoder, Dings{0x1a, 0x2b, 0x3c, 0x4d, 0x5e}, "1a2b3c4d5e"},
+		{data.HexEncoder, Dings{0x1a, 0x2b, 0x3c, 0x4d, 0x5e}, "1A2B3C4D5E"},
 		{data.B64Encoder, d, "RCEuM3M="},
 		{data.RawB64Encoder, d, "RCEuM3M"},
 	}

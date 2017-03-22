@@ -50,7 +50,7 @@ func TestSimpleText(t *testing.T) {
 		expected string
 	}{
 		{key: Cool{data.Bytes{0x42, 0x69}}, expected: "cool:4269"},
-		{key: Lame{data.Bytes{0x70, 0x53, 0x11}}, expected: "lame:705311"},
+		{key: Lame{data.Bytes{0x70, 0xA3, 0x1e}}, expected: "lame:70A31E"},
 	}
 
 	for _, tc := range cases {
@@ -75,7 +75,7 @@ func TestBytesTest(t *testing.T) {
 	}{
 		{data.Bytes{0x34, 0x54}, "3454"},
 		{data.Bytes{}, ""},
-		{data.Bytes{0xde, 0xad, 0xbe, 0x66}, "deadbe66"},
+		{data.Bytes{0xde, 0xad, 0xbe, 0x66}, "DEADBE66"},
 	}
 
 	for _, tc := range cases {

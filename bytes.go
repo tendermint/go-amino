@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"strings"
 
 	"github.com/pkg/errors"
 )
@@ -87,7 +88,7 @@ func (_ hexEncoder) Unmarshal(dst *[]byte, src []byte) (err error) {
 }
 
 func (_ hexEncoder) Marshal(bytes []byte) ([]byte, error) {
-	s := hex.EncodeToString(bytes)
+	s := strings.ToUpper(hex.EncodeToString(bytes))
 	return json.Marshal(s)
 }
 
