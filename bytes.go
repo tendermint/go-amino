@@ -38,6 +38,11 @@ func (b *Bytes) UnmarshalJSON(data []byte) error {
 	return Encoder.Unmarshal(ref, data)
 }
 
+// Allow it to fulfill various interfaces in light-client, etc...
+func (b Bytes) Bytes() []byte {
+	return b
+}
+
 // ByteEncoder handles both the marshalling and unmarshalling of
 // an arbitrary byte slice.
 //
