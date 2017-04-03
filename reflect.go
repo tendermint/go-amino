@@ -750,8 +750,8 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, o interfac
 				*err = errors.New(Fmt("Expected string but got type %v", reflect.TypeOf(o)))
 				return
 			}
-			//log.Info("Read time", "t", str)
-			t, err_ := time.Parse(iso8601, str)
+			// try three ways, seconds, milliseconds, or microseconds...
+			t, err_ := time.Parse(time.RFC3339Nano, str)
 			if err_ != nil {
 				*err = err_
 				return
