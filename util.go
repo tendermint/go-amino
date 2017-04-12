@@ -22,7 +22,7 @@ func BinaryBytes(o interface{}) []byte {
 // ptr: a pointer to the object to be filled
 func ReadBinaryBytes(d []byte, ptr interface{}) error {
 	r, n, err := bytes.NewBuffer(d), new(int), new(error)
-	ReadBinaryPtr(ptr, r, 0, n, err)
+	ReadBinaryPtr(ptr, r, len(d), n, err)
 	return *err
 }
 
