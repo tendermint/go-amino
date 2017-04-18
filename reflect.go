@@ -88,7 +88,7 @@ var (
 )
 
 const (
-	iso8601 = "2006-01-02T15:04:05.000Z" // forced microseconds
+	RFC3339Millis = "2006-01-02T15:04:05.000Z" // forced microseconds
 )
 
 // NOTE: do not access typeInfos directly, but call GetTypeInfo()
@@ -750,8 +750,8 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, o interfac
 				*err = errors.New(Fmt("Expected string but got type %v", reflect.TypeOf(o)))
 				return
 			}
-			//log.Info("Read time", "t", str)
-			t, err_ := time.Parse(iso8601, str)
+			// try three ways, seconds, milliseconds, or microseconds...
+			t, err_ := time.Parse(time.RFC3339Nano, str)
 			if err_ != nil {
 				*err = err_
 				return
@@ -950,7 +950,7 @@ func writeReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, w io.Writ
 		if rt == timeType {
 			// Special case: time.Time
 			t := rv.Interface().(time.Time).UTC()
-			str := t.Format(iso8601)
+			str := t.Format(RFC3339Millis)
 			jsonBytes, err_ := json.Marshal(str)
 			if err_ != nil {
 				*err = err_
