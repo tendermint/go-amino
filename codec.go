@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	. "github.com/tendermint/go-common"
+	. "github.com/tendermint/tmlibs/common"
 	"io"
 	"reflect"
 	"time"

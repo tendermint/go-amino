@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	. "github.com/tendermint/go-common"
+	. "github.com/tendermint/tmlibs/common"
 )
 
 type TypeInfo struct {

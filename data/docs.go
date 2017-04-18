@@ -73,7 +73,7 @@ efficient storage in our go app, and a common format for rpc / humans.
   j, err := json.MarshalIndent(orig, "", "\t")
   err = json.Unmarshal(j, &jparsed)
 
-See https://github.com/tendermint/go-data/blob/master/common_test.go to see
+See https://github.com/tendermint/go-wire/data/blob/master/common_test.go to see
 how to set up your code to use this.
 */
 package data

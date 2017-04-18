@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	data "github.com/tendermint/go-data"
-	"github.com/tendermint/go-data/base58"
+	data "github.com/tendermint/go-wire/data"
+	"github.com/tendermint/go-wire/data/base58"
 )
 
 func TestEncoders(t *testing.T) {

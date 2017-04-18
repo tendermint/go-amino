@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	data "github.com/tendermint/go-data"
+	data "github.com/tendermint/go-wire/data"
 )
 
 // Key
@@ -17,7 +17,7 @@ type Lame struct{ data.Bytes }
 
 var keyMapper data.Mapper
 
-// register both private key types with go-data (and thus go-wire)
+// register both private key types with go-wire/data (and thus go-wire)
 func init() {
 	keyMapper = data.NewMapper(KeyS{}).
 		RegisterImplementation(Cool{}, "cool", 1).

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/tendermint/go-common"
+	. "github.com/tendermint/tmlibs/common"
 )
 
 type SimpleStruct struct {
