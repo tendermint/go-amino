@@ -3,7 +3,7 @@ package wire
 import (
 	"io"
 
-	. "github.com/tendermint/go-common"
+	. "github.com/tendermint/tmlibs/common"
 )
 
 func WriteByteSlice(bz []byte, w io.Writer, n *int, err *error) {

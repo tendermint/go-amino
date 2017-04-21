@@ -4,7 +4,7 @@ import (
 	"io"
 	"time"
 
-	. "github.com/tendermint/go-common"
+	. "github.com/tendermint/tmlibs/common"
 )
 
 /*

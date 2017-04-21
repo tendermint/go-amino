@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strconv"
 
-	. "github.com/tendermint/go-common"
+	. "github.com/tendermint/tmlibs/common"
 	"github.com/tendermint/go-wire"
 )
 
