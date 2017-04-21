@@ -1,0 +1,15 @@
+package: github.com/tendermint/go-wire
+import:
+- package: github.com/pkg/errors
+- package: github.com/tendermint/tmlibs
+  subpackages:
+  - common
+  - logger
+- package: golang.org/x/crypto
+  subpackages:
+  - ripemd160
+testImport:
+- package: github.com/stretchr/testify
+  subpackages:
+  - assert
+  - require
