@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strconv"
 
-	. "github.com/tendermint/tmlibs/common"
+	cmn "github.com/tendermint/tmlibs/common"
 	"github.com/tendermint/go-wire"
 )
 
@@ -46,7 +46,7 @@ func (n Numeric) Bytes() ([]byte, error) {
 	case "i8": // Int8
 		return wire.BinaryBytes(int8(num)), nil
 	}
-	return nil, errors.New(Fmt("Unknown Numeric type %v", n.Type))
+	return nil, errors.New(cmn.Fmt("Unknown Numeric type %v", n.Type))
 }
 
 //----------------------------------------
@@ -72,9 +72,9 @@ func (t Tuple) String() string {
 	s := "("
 	for i, ti := range t {
 		if i == 0 {
-			s += Fmt("%v", ti)
+			s += cmn.Fmt("%v", ti)
 		} else {
-			s += Fmt(" %v", ti)
+			s += cmn.Fmt(" %v", ti)
 		}
 	}
 	s += ")"
@@ -104,9 +104,9 @@ func (t Array) String() string {
 	s := "["
 	for i, ti := range t {
 		if i == 0 {
-			s += Fmt("%v", ti)
+			s += cmn.Fmt("%v", ti)
 		} else {
-			s += Fmt(",%v", ti)
+			s += cmn.Fmt(",%v", ti)
 		}
 	}
 	s += "]"
@@ -139,9 +139,9 @@ func (b Bytes) Bytes() ([]byte, error) {
 
 func (b Bytes) String() string {
 	if b.LengthPrefixed {
-		return Fmt("0x%X", []byte(b.Data))
+		return cmn.Fmt("0x%X", []byte(b.Data))
 	} else {
-		return Fmt("x%X", []byte(b.Data))
+		return cmn.Fmt("x%X", []byte(b.Data))
 	}
 }
 
@@ -156,7 +156,7 @@ func (p Placeholder) Bytes() ([]byte, error) {
 }
 
 func (p Placeholder) String() string {
-	return Fmt("<%v>", p.Label)
+	return cmn.Fmt("<%v>", p.Label)
 }
 
 //----------------------------------------

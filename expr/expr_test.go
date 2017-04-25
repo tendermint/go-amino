@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	. "github.com/tendermint/tmlibs/common"
+	cmn "github.com/tendermint/tmlibs/common"
 )
 
 func TestParse(t *testing.T) {
@@ -29,9 +29,9 @@ func testParse(t *testing.T, input string, expected string) {
 		t.Error(err.Error())
 		return
 	}
-	gotStr := Fmt("%v", got)
+	gotStr := cmn.Fmt("%v", got)
 	if gotStr != expected {
-		t.Error(Fmt("Expected %v, got %v", expected, gotStr))
+		t.Error(cmn.Fmt("Expected %v, got %v", expected, gotStr))
 	}
 }
 
@@ -62,8 +62,8 @@ func testBytes(t *testing.T, input string, expected string) {
 		t.Error(err.Error())
 		return
 	}
-	gotHex := Fmt("%X", gotBytes)
+	gotHex := cmn.Fmt("%X", gotBytes)
 	if gotHex != expected {
-		t.Error(Fmt("Expected %v, got %v", expected, gotHex))
+		t.Error(cmn.Fmt("Expected %v, got %v", expected, gotHex))
 	}
 }

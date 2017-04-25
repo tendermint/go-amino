@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/tendermint/tmlibs/common"
+	cmn "github.com/tendermint/tmlibs/common"
 )
 
 type SimpleStruct struct {
@@ -482,7 +482,7 @@ func TestJSONFieldNames(t *testing.T) {
 func TestBadAlloc(t *testing.T) {
 	n, err := new(int), new(error)
 	instance := new([]byte)
-	data := RandBytes(100 * 1024)
+	data := cmn.RandBytes(100 * 1024)
 	b := new(bytes.Buffer)
 	// this slice of data claims to be much bigger than it really is
 	WriteUvarint(uint(1<<32-1), b, n, err)
