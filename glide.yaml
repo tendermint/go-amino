@@ -4,7 +4,6 @@ import:
 - package: github.com/tendermint/tmlibs
   subpackages:
   - common
-  - logger
 - package: golang.org/x/crypto
   subpackages:
   - ripemd160

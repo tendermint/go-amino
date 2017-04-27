@@ -17,7 +17,6 @@ imports:
   version: 2f8551d3b614dd0c0c6c114c42ab25901cc41a52
   subpackages:
   - common
-  - logger
 - name: golang.org/x/crypto
   version: 7c6cc321c680f03b9ef0764448e780704f486b51
   subpackages:
