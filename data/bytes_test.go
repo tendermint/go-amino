@@ -1,7 +1,6 @@
 package data_test
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"testing"
 
@@ -196,40 +195,49 @@ func TestByteArray(t *testing.T) {
 	assert.Equal(ding, parsed)
 }
 
-func TestWTF(t *testing.T) {
-	assert := assert.New(t)
-	enc := base64.URLEncoding
+// I guess this is "proper"?  Seems funny though...
+// echo -n "deadbQ==" | base64 -D | od -H
+// echo -n "deadb9==" | base64 -D | od -H
+// both ---> 6f9de675
+// func TestWTF(t *testing.T) {
+// 	assert := assert.New(t)
+// 	url := base64.URLEncoding
+// 	std := base64.StdEncoding
 
-	cases := []string{
-		// normal...
-		"ABCD",
-		"RCEuM3M=",
-		"RCE_M3M=",
-		"RCE_M30=",
-		"D4_a--1B",
-		// these fail...
-		// "D4_a--1=",
-		// "D4_a0-1=",
-		// "D4_a__1=",
-		// "D4_a0-9=",
-		// "Finey-1=",
-		// "Finey41=",
-		// "Fineyo1=",
-		// these work
-		"D4_a0-A=",
-		"D4_a0BA=",
-		// more random ending in [1-9]=
-		// "aa4=",
-		// "deadbe7=",
-		// wait, 0 is safe...
-		"deadbe0=",
-	}
+// 	cases := []struct {
+// 		s string
+// 		e *base64.Encoding
+// 	}{
+// 		// these fail...
+// 		{"D4_a--1=", url},
+// 		{"D4_a0-1=", url},
+// 		{"D4_a__1=", url},
+// 		{"D4/a++1=", std},
+// 		{"D4_a0-9=", url},
+// 		{"Finey-1=", url},
+// 		{"Finey41=", url},
+// 		{"Finey+1=", std},
+// 		{"Finey+1+", std},
+// 		{"Fineyo1=", url},
+// 		// these work
+// 		{"D4_a0-A=", url},
+// 		{"D4_a0BA=", url},
+// 		// more random ending in [1-9]=
+// 		{"deadbe7=", url},
+// 		{"deadb7==", url},
+// 		{"deadbe==", url},
+// 		// wait, 0= is safe...
+// 		{"deadbe0=", url},
+// 		{"deadAA2=", std},
+// 		{"deadAA9=", std},
+// 		{"deadaa9=", url},
+// 	}
 
-	for _, tc := range cases {
-		b, err := enc.DecodeString(tc)
-		if assert.Nil(err, tc) {
-			s := enc.EncodeToString(b)
-			assert.Equal(tc, s)
-		}
-	}
-}
+// 	for _, tc := range cases {
+// 		b, err := tc.e.DecodeString(tc.s)
+// 		if assert.Nil(err, "%#v", err) {
+// 			s := tc.e.EncodeToString(b)
+// 			assert.Equal(tc.s, s)
+// 		}
+// 	}
+// }
