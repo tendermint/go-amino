@@ -1,6 +1,7 @@
 package data_test
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"testing"
 
@@ -20,7 +21,7 @@ func TestEncoders(t *testing.T) {
 		input, expected []byte
 	}{
 		// hexidecimal
-		{hex, []byte(`"1a2b3c4d"`), []byte{0x1a, 0x2b, 0x3c, 0x4d}},
+		{hex, []byte(`"1A2B3C4D"`), []byte{0x1a, 0x2b, 0x3c, 0x4d}},
 		{hex, []byte(`"DE14"`), []byte{0xde, 0x14}},
 		// these are errors
 		{hex, []byte(`0123`), nil},     // not in quotes
@@ -31,7 +32,7 @@ func TestEncoders(t *testing.T) {
 		{b64, []byte(`"Zm9v"`), []byte("foo")},
 		{b64, []byte(`"RCEuM3M="`), []byte("D!.3s")},
 		// make sure url encoding!
-		{b64, []byte(`"D4_a--1="`), []byte{0x0f, 0x8f, 0xda, 0xfb, 0xed}},
+		{b64, []byte(`"D4_a--w="`), []byte{0x0f, 0x8f, 0xda, 0xfb, 0xec}},
 		// these are errors
 		{b64, []byte(`"D4/a++1="`), nil}, // non-url encoding
 		{b64, []byte(`0123`), nil},       // not in quotes
@@ -42,7 +43,7 @@ func TestEncoders(t *testing.T) {
 		{rb64, []byte(`"Zm9v"`), []byte("foo")},
 		{rb64, []byte(`"RCEuM3M"`), []byte("D!.3s")},
 		// make sure url encoding!
-		{rb64, []byte(`"D4_a--1"`), []byte{0x0f, 0x8f, 0xda, 0xfb, 0xed}},
+		{rb64, []byte(`"D4_a--w"`), []byte{0x0f, 0x8f, 0xda, 0xfb, 0xec}},
 		// these are errors
 		{rb64, []byte(`"D4/a++1"`), nil}, // non-url encoding
 		{rb64, []byte(`0123`), nil},      // not in quotes
@@ -58,7 +59,35 @@ func TestEncoders(t *testing.T) {
 			assert.NotNil(err, tc.input)
 		} else if assert.Nil(err, "%s: %+v", tc.input, err) {
 			assert.Equal(tc.expected, output, tc.input)
+			rev, err := tc.encoder.Marshal(tc.expected)
+			if assert.Nil(err, tc.input) {
+				assert.Equal(tc.input, rev)
+			}
 		}
+	}
+}
+
+func TestString(t *testing.T) {
+	assert := assert.New(t)
+
+	hex := data.HexEncoder
+	b64 := data.B64Encoder
+	rb64 := data.RawB64Encoder
+	cases := []struct {
+		encoder  data.ByteEncoder
+		expected string
+		input    []byte
+	}{
+		// hexidecimal
+		{hex, "1A2B3C4D", []byte{0x1a, 0x2b, 0x3c, 0x4d}},
+		{hex, "DE14", []byte{0xde, 0x14}},
+		{b64, "RCEuM3M=", []byte("D!.3s")},
+		{rb64, "D4_a--w", []byte{0x0f, 0x8f, 0xda, 0xfb, 0xec}},
+	}
+	for _, tc := range cases {
+		data.Encoder = tc.encoder
+		b := data.Bytes(tc.input)
+		assert.Equal(tc.expected, b.String())
 	}
 }
 
@@ -165,4 +194,42 @@ func TestByteArray(t *testing.T) {
 	err := json.Unmarshal(invalid, &parsed)
 	require.NotNil(err)
 	assert.Equal(ding, parsed)
+}
+
+func TestWTF(t *testing.T) {
+	assert := assert.New(t)
+	enc := base64.URLEncoding
+
+	cases := []string{
+		// normal...
+		"ABCD",
+		"RCEuM3M=",
+		"RCE_M3M=",
+		"RCE_M30=",
+		"D4_a--1B",
+		// these fail...
+		// "D4_a--1=",
+		// "D4_a0-1=",
+		// "D4_a__1=",
+		// "D4_a0-9=",
+		// "Finey-1=",
+		// "Finey41=",
+		// "Fineyo1=",
+		// these work
+		"D4_a0-A=",
+		"D4_a0BA=",
+		// more random ending in [1-9]=
+		// "aa4=",
+		// "deadbe7=",
+		// wait, 0 is safe...
+		"deadbe0=",
+	}
+
+	for _, tc := range cases {
+		b, err := enc.DecodeString(tc)
+		if assert.Nil(err, tc) {
+			s := enc.EncodeToString(b)
+			assert.Equal(tc, s)
+		}
+	}
 }

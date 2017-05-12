@@ -44,6 +44,16 @@ func (b Bytes) Bytes() []byte {
 	return b
 }
 
+// String gets a simple string for printing (the json output minus quotes)
+func (b Bytes) String() string {
+	raw, err := Encoder.Marshal(b)
+	l := len(raw)
+	if err != nil || l < 2 {
+		return "Bytes<?????>"
+	}
+	return string(raw[1 : l-1])
+}
+
 // ByteEncoder handles both the marshalling and unmarshalling of
 // an arbitrary byte slice.
 //
@@ -72,9 +82,7 @@ type ByteEncoder interface {
 // string
 type hexEncoder struct{}
 
-func (h hexEncoder) _assertByteEncoder() ByteEncoder {
-	return h
-}
+var _ ByteEncoder = hexEncoder{}
 
 func (_ hexEncoder) Unmarshal(dst *[]byte, src []byte) (err error) {
 	var s string
@@ -98,9 +106,7 @@ type base64Encoder struct {
 	*base64.Encoding
 }
 
-func (e base64Encoder) _assertByteEncoder() ByteEncoder {
-	return e
-}
+var _ ByteEncoder = base64Encoder{}
 
 func (e base64Encoder) Unmarshal(dst *[]byte, src []byte) (err error) {
 	var s string
