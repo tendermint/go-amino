@@ -1,11 +1,21 @@
 package data
 
-import "github.com/clipperhouse/typewriter"
+import (
+	"strings"
+
+	"github.com/clipperhouse/typewriter"
+)
+
+var templates = typewriter.TemplateSlice{
+	holder,
+	register,
+}
 
 // this is the template for generating the go-data wrappers of an interface
-var tmpl = &typewriter.Template{
+var holder = &typewriter.Template{
 	Name:           "Holder",
 	TypeConstraint: typewriter.Constraint{},
+	FuncMap:        fmap,
 	Text: `
 import (
   "github.com/tendermint/go-wire/data"
@@ -41,8 +51,26 @@ func (h {{.Holder}}) Unwrap() {{.Inner}} {
 func (h {{.Holder}}) Empty() bool {
   return h.{{.Inner}} == nil
 }
+
+/*** below are bindings for each implementation ***/
 `,
 }
 
-// RegisterImplementation(PubKeyEd25519{}, NameEd25519, TypeEd25519).
-// RegisterImplementation(PubKeySecp256k1{}, NameSecp256k1, TypeSecp256k1)
+var register = &typewriter.Template{
+	Name:           "Register",
+	TypeConstraint: typewriter.Constraint{},
+	FuncMap:        fmap,
+	Text: `
+func init() {
+  {{.Holder}}Mapper.RegisterImplementation({{ if .Impl.Pointer }}&{{ end }}{{.Impl.Name}}{}, "{{.Impl.Name | ToLower }}", 0x{{.Count}})
+}
+
+func (hi {{ if .Impl.Pointer }}*{{ end }}{{.Impl.Name}}) Wrap() {{.Holder}} {
+  return {{.Holder}}{hi}
+}
+`,
+}
+
+var fmap = map[string]interface{}{
+	"ToLower": strings.ToLower,
+}

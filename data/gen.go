@@ -1,7 +1,6 @@
 package data
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 
@@ -36,13 +35,6 @@ func (sw *HolderWriter) Write(w io.Writer, t typewriter.Type) error {
 		// nothing to be done
 		return nil
 	}
-	for _, t := range tag.Values {
-		if t.Name == "Impl" {
-			for _, p := range t.TypeParameters {
-				fmt.Printf("param: %#v\n", p)
-			}
-		}
-	}
 
 	license := `// Auto-generated adapters for happily unmarshaling interfaces
 // Apache License 2.0
@@ -54,11 +46,6 @@ func (sw *HolderWriter) Write(w io.Writer, t typewriter.Type) error {
 		return err
 	}
 
-	ptmpl, err := tmpl.Parse()
-	if err != nil {
-		return err
-	}
-
 	// prepare parameters
 	name := t.Name + "Holder"
 	if len(tag.Values) > 0 {
@@ -66,18 +53,33 @@ func (sw *HolderWriter) Write(w io.Writer, t typewriter.Type) error {
 	}
 	m := model{Type: t, Holder: name, Inner: t.Name}
 
-	bw := bytes.NewBuffer(nil)
-	if err := ptmpl.Execute(bw, m); err != nil {
+	// now, first main holder
+	v := typewriter.TagValue{Name: "Holder"}
+	htmpl, err := templates.ByTagValue(t, v)
+	if err != nil {
 		return err
 	}
-	fmt.Print(license)
-	byt := bw.Bytes()
-	fmt.Println(string(byt))
-	w.Write(byt)
+	if err := htmpl.Execute(w, m); err != nil {
+		return err
+	}
 
-	// if err := ptmpl.Execute(w, m); err != nil {
-	//   return err
-	// }
+	// Now, add any implementations...
+	v.Name = "Register"
+	rtmpl, err := templates.ByTagValue(t, v)
+	if err != nil {
+		return err
+	}
+	for _, t := range tag.Values {
+		if t.Name == "Impl" {
+			for i, p := range t.TypeParameters {
+				m.Impl = p
+				m.Count = i + 1
+				if err := rtmpl.Execute(w, m); err != nil {
+					return err
+				}
+			}
+		}
+	}
 
 	return nil
 }
@@ -86,4 +88,6 @@ type model struct {
 	Type   typewriter.Type
 	Holder string
 	Inner  string
+	Impl   typewriter.Type // fill in when adding for implementations
+	Count  int
 }
