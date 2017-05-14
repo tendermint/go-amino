@@ -13,3 +13,6 @@ get_deps:
 
 pigeon:
 	pigeon -o expr/expr.go expr/expr.peg
+
+tools:
+	@go get github.com/clipperhouse/gen
