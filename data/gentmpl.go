@@ -18,7 +18,7 @@ var holder = &typewriter.Template{
 	FuncMap:        fmap,
 	Text: `
 type {{.Holder}} struct {
-  {{.Inner}}
+  {{.Inner}} "json:\"unwrap\""
 }
 
 var {{.Holder}}Mapper = data.NewMapper({{.Holder}}{})
@@ -58,7 +58,7 @@ var register = &typewriter.Template{
 	FuncMap:        fmap,
 	Text: `
 func init() {
-  {{.Holder}}Mapper.RegisterImplementation({{ if .Impl.Pointer }}&{{ end }}{{.Impl.Name}}{}, "{{.Impl.Name | ToLower }}", 0x{{.Count}})
+  {{.Holder}}Mapper.RegisterImplementation({{ if .Impl.Pointer }}&{{ end }}{{.Impl.Name}}{}, "{{.ImplType }}", 0x{{.Count}})
 }
 
 func (hi {{ if .Impl.Pointer }}*{{ end }}{{.Impl.Name}}) Wrap() {{.Holder}} {

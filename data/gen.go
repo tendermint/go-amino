@@ -69,11 +69,18 @@ func (sw *HolderWriter) Write(w io.Writer, t typewriter.Type) error {
 	if err != nil {
 		return err
 	}
-	for _, t := range tag.Values {
+
+	for ti, t := range tag.Values {
 		if t.Name == "Impl" {
 			for i, p := range t.TypeParameters {
 				m.Impl = p
 				m.Count = i + 1
+				ni := ti + i + 1
+				if len(tag.Values) > ni {
+					m.ImplType = tag.Values[ni].Name
+				} else {
+					m.ImplType = p.Name
+				}
 				if err := rtmpl.Execute(w, m); err != nil {
 					return err
 				}
@@ -85,9 +92,10 @@ func (sw *HolderWriter) Write(w io.Writer, t typewriter.Type) error {
 }
 
 type model struct {
-	Type   typewriter.Type
-	Holder string
-	Inner  string
-	Impl   typewriter.Type // fill in when adding for implementations
-	Count  int
+	Type     typewriter.Type
+	Holder   string
+	Inner    string
+	Impl     typewriter.Type // fill in when adding for implementations
+	ImplType string
+	Count    int
 }
