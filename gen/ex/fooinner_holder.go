@@ -13,7 +13,7 @@ import (
 // Copyright (c) 2017 Ethan Frey (ethan.frey@tendermint.com)
 
 type Foo struct {
-	FooInner
+	FooInner "json:\"unwrap\""
 }
 
 var FooMapper = data.NewMapper(Foo{})

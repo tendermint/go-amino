@@ -28,9 +28,9 @@ pigeon:
 	pigeon -o expr/expr.go expr/expr.peg
 
 tools:
-	@go get github.com/clipperhouse/gen
-	cd ${STRING} && git remote add haus https://github.com/hausdorff/stringer.git
-	cd ${STRING} && git fetch haus && git checkout fix-imports
-	cd ${STRING} && go install .
-	go install github.com/clipperhouse/gen
+	go get github.com/clipperhouse/gen
+	@cd ${STRING} && git remote add haus https://github.com/hausdorff/stringer.git
+	@cd ${STRING} && git fetch haus && git checkout fix-imports
+	@cd ${STRING} && go install .
+	@go install github.com/clipperhouse/gen
 
