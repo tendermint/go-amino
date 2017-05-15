@@ -1,6 +1,6 @@
 # Codegen for Interface Wrappers
 
-We often want to wrap interfaces in structs to help with wire and json serialization.  However, there is a lot of boilerplate, so I made this tool.  Look at `go-crypto/pubkeyinner_holder.go` for an example of the boilderplate....
+We often want to wrap interfaces in structs to help with wire and json serialization.  However, there is a lot of boilerplate, so I made this tool.  Look at `go-crypto/pubkeyinner_holder.go` for an example of the boilerplate ...
 
 ## Setup (one-time)
 
