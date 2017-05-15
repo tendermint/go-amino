@@ -3,6 +3,7 @@ package data
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/clipperhouse/typewriter"
 )
@@ -79,7 +80,7 @@ func (sw *HolderWriter) Write(w io.Writer, t typewriter.Type) error {
 				if len(tag.Values) > ni {
 					m.ImplType = tag.Values[ni].Name
 				} else {
-					m.ImplType = p.Name
+					m.ImplType = strings.ToLower(p.Name)
 				}
 				if err := rtmpl.Execute(w, m); err != nil {
 					return err
