@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.2 (May 15, 2017)
+
+FEATURES:
+
+- `github.com/tendermint/go-data` -> `github.com/tendermint/go-wire/data`
+
+IMPROVEMENTS:
+
+- Update imports for new `tmlibs` repository
+
 ## 0.6.1 (April 18, 2017)
 
 FEATURES:
