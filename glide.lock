@@ -1,6 +1,8 @@
-hash: eb254ec1d05d281085f13658d1c102bd4d3af48485f5a0f72759c154a35f9676
-updated: 2017-04-27T21:12:50.215781533Z
+hash: ef298394075ed9e51238956557635cfe6d592e74d3801b10faa6a6b0059216bc
+updated: 2017-05-15T09:15:54.260968491-04:00
 imports:
+- name: github.com/clipperhouse/typewriter
+  version: c1a48da378ebb7db1db9f35981b5cc24bf2e5b85
 - name: github.com/go-stack/stack
   version: 100eb0c0a9c5b306ca2fb4f165df21d80ada4b82
 - name: github.com/mattn/go-colorable
@@ -25,6 +27,11 @@ imports:
   version: 9ccfe848b9db8435a24c424abbc07a921adf1df5
   subpackages:
   - unix
+- name: golang.org/x/tools
+  version: 144c6642b5d832d6c44a53dad6ee61665dd432ce
+  subpackages:
+  - go/ast/astutil
+  - imports
 testImports:
 - name: github.com/davecgh/go-spew
   version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
