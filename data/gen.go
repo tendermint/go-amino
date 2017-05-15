@@ -24,8 +24,8 @@ func (sw *HolderWriter) Name() string {
 	return "holder"
 }
 
-func (sw *HolderWriter) Imports(t typewriter.Type) (result []typewriter.ImportSpec) {
-	return result
+func (sw *HolderWriter) Imports(t typewriter.Type) []typewriter.ImportSpec {
+	return []typewriter.ImportSpec{{Path: "github.com/tendermint/go-wire/data"}}
 }
 
 func (sw *HolderWriter) Write(w io.Writer, t typewriter.Type) error {

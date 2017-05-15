@@ -17,10 +17,6 @@ var holder = &typewriter.Template{
 	TypeConstraint: typewriter.Constraint{},
 	FuncMap:        fmap,
 	Text: `
-import (
-  "github.com/tendermint/go-wire/data"
-)
-
 type {{.Holder}} struct {
   {{.Inner}}
 }
