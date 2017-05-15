@@ -14,7 +14,7 @@ type FooInner interface {
 type Bling struct{}
 
 func (b Bling) Bar() int {
-	return common.RandInt(88)
+	return common.RandInt()
 }
 
 type Fuzz struct{}
