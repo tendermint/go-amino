@@ -7,28 +7,28 @@ import (
 )
 
 var templates = typewriter.TemplateSlice{
-	holder,
+	wrapper,
 	register,
 }
 
 // this is the template for generating the go-data wrappers of an interface
-var holder = &typewriter.Template{
-	Name:           "Holder",
+var wrapper = &typewriter.Template{
+	Name:           "Wrapper",
 	TypeConstraint: typewriter.Constraint{},
 	FuncMap:        fmap,
 	Text: `
-type {{.Holder}} struct {
+type {{.Wrapper}} struct {
   {{.Inner}} "json:\"unwrap\""
 }
 
-var {{.Holder}}Mapper = data.NewMapper({{.Holder}}{})
+var {{.Wrapper}}Mapper = data.NewMapper({{.Wrapper}}{})
 
-func (h {{.Holder}}) MarshalJSON() ([]byte, error) {
-  return {{.Holder}}Mapper.ToJSON(h.{{.Inner}})
+func (h {{.Wrapper}}) MarshalJSON() ([]byte, error) {
+  return {{.Wrapper}}Mapper.ToJSON(h.{{.Inner}})
 }
 
-func (h *{{.Holder}}) UnmarshalJSON(data []byte) (err error) {
-  parsed, err := {{.Holder}}Mapper.FromJSON(data)
+func (h *{{.Wrapper}}) UnmarshalJSON(data []byte) (err error) {
+  parsed, err := {{.Wrapper}}Mapper.FromJSON(data)
   if err == nil && parsed != nil {
     h.{{.Inner}} = parsed.({{.Inner}})
   }
@@ -36,15 +36,15 @@ func (h *{{.Holder}}) UnmarshalJSON(data []byte) (err error) {
 }
 
 // Unwrap recovers the concrete interface safely (regardless of levels of embeds)
-func (h {{.Holder}}) Unwrap() {{.Inner}} {
+func (h {{.Wrapper}}) Unwrap() {{.Inner}} {
   hi := h.{{.Inner}}
-  for wrap, ok := hi.({{.Holder}}); ok; wrap, ok = hi.({{.Holder}}) {
+  for wrap, ok := hi.({{.Wrapper}}); ok; wrap, ok = hi.({{.Wrapper}}) {
     hi = wrap.{{.Inner}}
   }
   return hi
 }
 
-func (h {{.Holder}}) Empty() bool {
+func (h {{.Wrapper}}) Empty() bool {
   return h.{{.Inner}} == nil
 }
 
@@ -58,11 +58,11 @@ var register = &typewriter.Template{
 	FuncMap:        fmap,
 	Text: `
 func init() {
-  {{.Holder}}Mapper.RegisterImplementation({{ if .Impl.Pointer }}&{{ end }}{{.Impl.Name}}{}, "{{.ImplType }}", 0x{{.Count}})
+  {{.Wrapper}}Mapper.RegisterImplementation({{ if .Impl.Pointer }}&{{ end }}{{.Impl.Name}}{}, "{{.ImplType }}", 0x{{.Count}})
 }
 
-func (hi {{ if .Impl.Pointer }}*{{ end }}{{.Impl.Name}}) Wrap() {{.Holder}} {
-  return {{.Holder}}{hi}
+func (hi {{ if .Impl.Pointer }}*{{ end }}{{.Impl.Name}}) Wrap() {{.Wrapper}} {
+  return {{.Wrapper}}{hi}
 }
 `,
 }

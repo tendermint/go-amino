@@ -6,7 +6,7 @@ import (
 	"github.com/tendermint/tmlibs/common"
 )
 
-// +gen holder:"Foo,Impl[Bling,*Fuzz],bb,ff"
+// +gen wrapper:"Foo,Impl[Bling,*Fuzz],blng,fzz"
 type FooInner interface {
 	Bar() int
 }

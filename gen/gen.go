@@ -9,27 +9,27 @@ import (
 )
 
 func init() {
-	err := typewriter.Register(NewHolderWriter())
+	err := typewriter.Register(NewWrapperWriter())
 	if err != nil {
 		panic(err)
 	}
 }
 
-type HolderWriter struct{}
+type WrapperWriter struct{}
 
-func NewHolderWriter() *HolderWriter {
-	return &HolderWriter{}
+func NewWrapperWriter() *WrapperWriter {
+	return &WrapperWriter{}
 }
 
-func (sw *HolderWriter) Name() string {
-	return "holder"
+func (sw *WrapperWriter) Name() string {
+	return "wrapper"
 }
 
-func (sw *HolderWriter) Imports(t typewriter.Type) []typewriter.ImportSpec {
+func (sw *WrapperWriter) Imports(t typewriter.Type) []typewriter.ImportSpec {
 	return []typewriter.ImportSpec{{Path: "github.com/tendermint/go-wire/data"}}
 }
 
-func (sw *HolderWriter) Write(w io.Writer, t typewriter.Type) error {
+func (sw *WrapperWriter) Write(w io.Writer, t typewriter.Type) error {
 	tag, found := t.FindTag(sw)
 
 	if !found {
@@ -48,14 +48,14 @@ func (sw *HolderWriter) Write(w io.Writer, t typewriter.Type) error {
 	}
 
 	// prepare parameters
-	name := t.Name + "Holder"
+	name := t.Name + "Wrapper"
 	if len(tag.Values) > 0 {
 		name = tag.Values[0].Name
 	}
-	m := model{Type: t, Holder: name, Inner: t.Name}
+	m := model{Type: t, Wrapper: name, Inner: t.Name}
 
-	// now, first main holder
-	v := typewriter.TagValue{Name: "Holder"}
+	// now, first main Wrapper
+	v := typewriter.TagValue{Name: "Wrapper"}
 	htmpl, err := templates.ByTagValue(t, v)
 	if err != nil {
 		return err
@@ -94,7 +94,7 @@ func (sw *HolderWriter) Write(w io.Writer, t typewriter.Type) error {
 
 type model struct {
 	Type     typewriter.Type
-	Holder   string
+	Wrapper  string
 	Inner    string
 	Impl     typewriter.Type // fill in when adding for implementations
 	ImplType string
