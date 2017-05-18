@@ -1,5 +1,8 @@
 .PHONEY: all docs test install get_vendor_deps ensure_tools
 
+GOTOOLS = \
+	github.com/Masterminds/glide
+
 STRING := ../../clipperhouse/stringer
 
 all: test install

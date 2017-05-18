@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.6.2 (May 15, 2017)
+## 0.6.2 (May 18, 2017)
 
 FEATURES:
 
