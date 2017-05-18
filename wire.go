@@ -7,7 +7,7 @@ import (
 	"io"
 	"reflect"
 
-	. "github.com/tendermint/go-common"
+	cmn "github.com/tendermint/tmlibs/common"
 )
 
 var ErrBinaryReadOverflow = errors.New("Error: binary read overflow")
@@ -47,7 +47,7 @@ func ReadBinaryPtr(o interface{}, r io.Reader, lmt int, n *int, err *error) (res
 	if rv.Kind() == reflect.Ptr {
 		readReflectBinary(rv.Elem(), rt.Elem(), Options{}, r, lmt, n, err)
 	} else {
-		PanicSanity("ReadBinaryPtr expects o to be a pointer")
+		cmn.PanicSanity("ReadBinaryPtr expects o to be a pointer")
 	}
 	res = o
 	if lmt != 0 && lmt < *n && *err == nil {
@@ -62,7 +62,7 @@ func ReadBinaryPtrLengthPrefixed(o interface{}, r io.Reader, lmt int, n *int, er
 	res = ReadBinaryPtr(o, r, lmt, n, err)
 	nRes := *n - nSave
 	if nRes != length && *err == nil {
-		*err = errors.New(Fmt("Error: binary ready wrong length prefix. Declared:%v vs actual:%v", length, nRes))
+		*err = errors.New(cmn.Fmt("Error: binary ready wrong length prefix. Declared:%v vs actual:%v", length, nRes))
 	}
 	return res
 }
@@ -127,7 +127,7 @@ func ReadJSONObjectPtr(o interface{}, object interface{}, err *error) interface{
 	if rv.Kind() == reflect.Ptr {
 		readReflectJSON(rv.Elem(), rt.Elem(), Options{}, object, err)
 	} else {
-		PanicSanity("ReadJSON(Object)Ptr expects o to be a pointer")
+		cmn.PanicSanity("ReadJSON(Object)Ptr expects o to be a pointer")
 	}
 	return o
 }

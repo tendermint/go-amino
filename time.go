@@ -4,7 +4,7 @@ import (
 	"io"
 	"time"
 
-	. "github.com/tendermint/go-common"
+	cmn "github.com/tendermint/tmlibs/common"
 )
 
 /*
@@ -21,7 +21,7 @@ func WriteTime(t time.Time, w io.Writer, n *int, err *error) {
 func ReadTime(r io.Reader, n *int, err *error) time.Time {
 	t := ReadInt64(r, n, err)
 	if t%1000000 != 0 {
-		PanicSanity("Time cannot have sub-millisecond precision")
+		cmn.PanicSanity("Time cannot have sub-millisecond precision")
 	}
 	return time.Unix(0, t)
 }

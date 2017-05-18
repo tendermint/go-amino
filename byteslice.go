@@ -3,7 +3,7 @@ package wire
 import (
 	"io"
 
-	. "github.com/tendermint/go-common"
+	cmn "github.com/tendermint/tmlibs/common"
 )
 
 func WriteByteSlice(bz []byte, w io.Writer, n *int, err *error) {
@@ -20,7 +20,7 @@ func ReadByteSlice(r io.Reader, lmt int, n *int, err *error) []byte {
 		*err = ErrBinaryReadInvalidLength
 		return nil
 	}
-	if lmt != 0 && lmt < MaxInt(length, *n+length) {
+	if lmt != 0 && lmt < cmn.MaxInt(length, *n+length) {
 		*err = ErrBinaryReadOverflow
 		return nil
 	}
@@ -88,7 +88,7 @@ func ReadByteSlices(r io.Reader, lmt int, n *int, err *error) [][]byte {
 		*err = ErrBinaryReadInvalidLength
 		return nil
 	}
-	if lmt != 0 && lmt < MaxInt(length, *n+length) {
+	if lmt != 0 && lmt < cmn.MaxInt(length, *n+length) {
 		*err = ErrBinaryReadOverflow
 		return nil
 	}

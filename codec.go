@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	. "github.com/tendermint/go-common"
+	cmn "github.com/tendermint/tmlibs/common"
 	"io"
 	"reflect"
 	"time"
@@ -40,7 +40,7 @@ const (
 func BasicCodecEncoder(o interface{}, w io.Writer, n *int, err *error) {
 	switch o := o.(type) {
 	case nil:
-		PanicSanity("nil type unsupported")
+		cmn.PanicSanity("nil type unsupported")
 	case byte:
 		WriteByte(typeByte, w, n, err)
 		WriteByte(o, w, n, err)
@@ -84,7 +84,7 @@ func BasicCodecEncoder(o interface{}, w io.Writer, n *int, err *error) {
 		WriteByte(typeTime, w, n, err)
 		WriteTime(o, w, n, err)
 	default:
-		PanicSanity(fmt.Sprintf("Unsupported type: %v", reflect.TypeOf(o)))
+		cmn.PanicSanity(fmt.Sprintf("Unsupported type: %v", reflect.TypeOf(o)))
 	}
 }
 
@@ -123,7 +123,7 @@ func BasicCodecDecoder(r io.Reader, n *int, err *error) (o interface{}) {
 	case typeTime:
 		o = ReadTime(r, n, err)
 	default:
-		*err = errors.New(Fmt("Unsupported type byte: %X", type_))
+		*err = errors.New(cmn.Fmt("Unsupported type byte: %X", type_))
 	}
 	return
 }
@@ -159,7 +159,7 @@ func BasicCodecComparator(o1 interface{}, o2 interface{}) int {
 	case time.Time:
 		return int(o1.(time.Time).UnixNano() - o2.(time.Time).UnixNano())
 	default:
-		PanicSanity(Fmt("Unsupported type: %v", reflect.TypeOf(o1)))
+		cmn.PanicSanity(cmn.Fmt("Unsupported type: %v", reflect.TypeOf(o1)))
 	}
 	return 0
 }
