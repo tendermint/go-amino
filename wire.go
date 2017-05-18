@@ -18,6 +18,12 @@ const (
 	ReadSliceChunkSize = 1024
 )
 
+// Return size of o after encoding
+func BinarySize(o interface{}, err *error) int {
+	rv, rt := reflect.ValueOf(o), reflect.TypeOf(o)
+	return reflectBinarySize(rv, rt, Options{}, err)
+}
+
 func ReadBinary(o interface{}, r io.Reader, lmt int, n *int, err *error) (res interface{}) {
 	rv, rt := reflect.ValueOf(o), reflect.TypeOf(o)
 	if rv.Kind() == reflect.Ptr {
