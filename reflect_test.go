@@ -45,6 +45,58 @@ var _ = RegisterInterface(
 	ConcreteType{&Viper{}, 0x04},
 )
 
+type unexportedReceiver struct {
+	animal Animal
+}
+
+type exportedReceiver struct {
+	Animal Animal
+}
+
+func TestUnexportedEmbeddedTypes(t *testing.T) {
+	var _ = RegisterInterface(
+		unexportedReceiver{},
+		ConcreteType{Cat{}, 0x01},
+	)
+
+	origCat := &Cat{SimpleStruct: SimpleStruct{String: "cat"}}
+	// The failed ones first
+	var n int
+	var err error
+	buf := new(bytes.Buffer)
+	WriteBinary(origCat, buf, &n, &err)
+	if err != nil {
+		t.Errorf("writeBinary:: failed to encode Cat: %v", err)
+	}
+	recv := ReadBinary(unexportedReceiver{}, buf, 0, &n, &err).(unexportedReceiver)
+	retrCat, ok := recv.animal.(*Cat)
+	if ok {
+		t.Fatalf("unexpectedly parsed out the Cat type")
+	}
+	if retrCat != nil {
+		t.Fatalf("unexpectedly decoded an unexported field: %#v", retrCat)
+	}
+	buf.Reset()
+
+	// Ensure that we can get the exported ones
+	var _ = RegisterInterface(
+		exportedReceiver{},
+		ConcreteType{Cat{}, 0x01},
+	)
+	WriteBinary(origCat, buf, &n, &err)
+	if err != nil {
+		t.Errorf("writeBinary:: failed to encode Cat: %v", err)
+	}
+	rrecv := ReadBinary(exportedReceiver{}, buf, 0, &n, &err).(exportedReceiver)
+	retrCat, ok = rrecv.Animal.(*Cat)
+	if !ok {
+		t.Fatalf("expected to be able to parse out the Cat type; rrecv: %#v", rrecv.Animal)
+	}
+	if g, w := retrCat, origCat; !reflect.DeepEqual(g, w) {
+		t.Fatalf("expected the previously serialized cat: got=(%#v) want=(%#v)", g, w)
+	}
+}
+
 // TODO: add assertions here ...
 func TestAnimalInterface(t *testing.T) {
 	var foo Animal
