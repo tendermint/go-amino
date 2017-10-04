@@ -67,6 +67,9 @@ func ReadBinaryPtrLengthPrefixed(o interface{}, r io.Reader, lmt int, n *int, er
 	return res
 }
 
+// WriteBinary is the binary encoder. Its arguments are the subject to be
+// encoded, the writer that'll receive the encoded bytes, as well as a
+// receiver to store the bytes written and any error encountered.
 func WriteBinary(o interface{}, w io.Writer, n *int, err *error) {
 	rv := reflect.ValueOf(o)
 	rt := reflect.TypeOf(o)
