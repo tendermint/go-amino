@@ -2,6 +2,7 @@ package wire
 
 import (
 	"io"
+	"math"
 
 	cmn "github.com/tendermint/tmlibs/common"
 )
@@ -18,6 +19,10 @@ func ReadByteSlice(r io.Reader, lmt int, n *int, err *error) []byte {
 	}
 	if length < 0 {
 		*err = ErrBinaryReadInvalidLength
+		return nil
+	}
+	if length > math.MaxInt32 {
+		*err = ErrBinaryReadOverflow
 		return nil
 	}
 	if lmt != 0 && lmt < cmn.MaxInt(length, *n+length) {

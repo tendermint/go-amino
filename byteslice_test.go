@@ -3,6 +3,8 @@ package wire
 import (
 	"bytes"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestReadByteSliceEquality(t *testing.T) {
@@ -124,4 +126,15 @@ func TestGetByteSlice(t *testing.T) {
 	if !bytes.Equal(got, testBytes) {
 		t.Error("Expected to read %v, got %v", testBytes, got)
 	}
+}
+
+// Issues:
+// + https://github.com/tendermint/go-wire/issues/25
+// + https://github.com/tendermint/go-wire/issues/37
+func TestFuzzBinaryLengthOverflowsCaught(t *testing.T) {
+	n, err := int(0), error(nil)
+	var x []byte
+	bs := ReadBinary(x, bytes.NewReader([]byte{8, 127, 255, 255, 255, 255, 255, 255, 255}), 0, &n, &err)
+	require.Equal(t, err, ErrBinaryReadOverflow, "expected to detect a length overflow")
+	require.Nil(t, bs, "expecting no bytes read out")
 }
