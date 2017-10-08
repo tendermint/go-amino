@@ -22,7 +22,7 @@ func ReadBinary(o interface{}, r io.Reader, lmt int, n *int, err *error) (res in
 	rv, rt := reflect.ValueOf(o), reflect.TypeOf(o)
 	if rv.Kind() == reflect.Ptr {
 		if rv.IsNil() {
-			// This allows ReadBinaryObject() to return a nil pointer,
+			// This allows ReadBinary() to return a nil pointer,
 			// if the value read is nil.
 			rvPtr := reflect.New(rt)
 			ReadBinaryPtr(rvPtr.Interface(), r, lmt, n, err)
