@@ -19,7 +19,6 @@ func BinaryBytes(o interface{}) []byte {
 	return w.Bytes()
 }
 
-// WARN: NOT SAFE
 // ptr: a pointer to the object to be filled
 func ReadBinaryBytes(d []byte, ptr interface{}) error {
 	r, n, err := bytes.NewBuffer(d), new(int), new(error)
