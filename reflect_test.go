@@ -855,3 +855,44 @@ func TestUnwrap(t *testing.T) {
 	}
 
 }
+
+// -----------------------------------------------
+
+type MyStruct1 struct {
+	A string `json:"a"`
+}
+
+type MyStruct2 struct {
+	A string `json:"a"`
+	B string `json:"b,omitempty"`
+}
+
+func TestReadOmitEmptyJSON(t *testing.T) {
+	s := &MyStruct1{"hi"}
+	s2 := new(MyStruct2)
+
+	b := JSONBytes(s)
+	err := ReadJSONBytes(b, s2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if s.A != s2.A {
+		t.Fatalf("Expected values to match, got %s, expected %s", s2.A, s.A)
+	}
+}
+
+func TestReadOmitEmptyBinary(t *testing.T) {
+	s := &MyStruct1{"hi"}
+	s2 := new(MyStruct2)
+
+	b := BinaryBytes(s)
+	err := ReadBinaryBytes(b, s2)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if s.A != s2.A {
+		t.Fatalf("Expected values to match, got %s, expected %s", s2.A, s.A)
+	}
+}
