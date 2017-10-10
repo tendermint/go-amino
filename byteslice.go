@@ -21,6 +21,8 @@ func ReadByteSlice(r io.Reader, lmt int, n *int, err *error) []byte {
 		*err = ErrBinaryReadInvalidLength
 		return nil
 	}
+
+	// check that length is less than the maximum slice size
 	if length > math.MaxInt32 {
 		*err = ErrBinaryReadOverflow
 		return nil
