@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	cmn "github.com/tendermint/tmlibs/common"
 )
 
@@ -53,48 +55,74 @@ type exportedReceiver struct {
 	Animal Animal
 }
 
-func TestUnexportedEmbeddedTypes(t *testing.T) {
-	var _ = RegisterInterface(
-		unexportedReceiver{},
-		ConcreteType{Cat{}, 0x01},
-	)
+func TestTime(t *testing.T) {
 
-	origCat := &Cat{SimpleStruct: SimpleStruct{String: "cat"}}
-	// The failed ones first
-	var n int
-	var err error
-	buf := new(bytes.Buffer)
-	WriteBinary(origCat, buf, &n, &err)
-	if err != nil {
-		t.Errorf("writeBinary:: failed to encode Cat: %v", err)
+	// default time should be encoded as 0
+	// time's before jan 1 1970 should be encoded as default time (0)
+	now := time.Now()
+	cases := []struct {
+		testTime     time.Time
+		expectedTime time.Time
+	}{
+		{time.Time{}, time.Time{}},
+		{now, now},
+		{time.Unix(-10, 0), time.Time{}},
+		{time.Unix(0, -10), time.Time{}},
 	}
-	recv := ReadBinary(unexportedReceiver{}, buf, 0, &n, &err).(unexportedReceiver)
-	retrCat, ok := recv.animal.(*Cat)
+
+	for _, c := range cases {
+		var thisTime time.Time
+		n, err := new(int), new(error)
+		buf := new(bytes.Buffer)
+		WriteBinary(c.testTime, buf, n, err)
+
+		thisTime = ReadBinary(thisTime, buf, 0, new(int), new(error)).(time.Time)
+
+		if !thisTime.Truncate(time.Millisecond).Equal(c.expectedTime.Truncate(time.Millisecond)) {
+			t.Fatalf("times dont match. got %v, expected %v", thisTime, c.expectedTime)
+		}
+	}
+}
+
+func TestUnexportedEmbeddedTypes(t *testing.T) {
+
+	origCat := Cat{SimpleStruct{String: "cat"}}
+	exportedCat := exportedReceiver{origCat} // this is what we encode
+	writeCat := func() *bytes.Buffer {
+		n, err := new(int), new(error)
+		buf := new(bytes.Buffer)
+		WriteBinary(exportedCat, buf, n, err)
+		if *err != nil {
+			t.Errorf("writeBinary:: failed to encode Cat: %v", *err)
+		}
+		return buf
+	}
+
+	// try to read into unexportedReceiver (should fail)
+	buf := writeCat()
+	n, err := new(int), new(error)
+	unexp := ReadBinary(unexportedReceiver{}, buf, 0, n, err).(unexportedReceiver)
+	if *err != nil {
+		t.Fatalf("unexpected err: %v", *err)
+	}
+	returnCat, ok := unexp.animal.(Cat)
 	if ok {
 		t.Fatalf("unexpectedly parsed out the Cat type")
 	}
-	if retrCat != nil {
-		t.Fatalf("unexpectedly decoded an unexported field: %#v", retrCat)
-	}
-	buf.Reset()
 
-	// Ensure that we can get the exported ones
-	var _ = RegisterInterface(
-		exportedReceiver{},
-		ConcreteType{Cat{}, 0x01},
-	)
-	WriteBinary(origCat, buf, &n, &err)
-	if err != nil {
-		t.Errorf("writeBinary:: failed to encode Cat: %v", err)
+	// try to read into exportedReceiver (should pass)
+	buf = writeCat()
+	n, err = new(int), new(error)
+	exp := ReadBinary(exportedReceiver{}, buf, 0, n, err).(exportedReceiver)
+	if *err != nil {
+		t.Fatalf("unexpected err: %v", *err)
 	}
-	rrecv := ReadBinary(exportedReceiver{}, buf, 0, &n, &err).(exportedReceiver)
-	retrCat, ok = rrecv.Animal.(*Cat)
+	returnCat, ok = exp.Animal.(Cat)
 	if !ok {
-		t.Fatalf("expected to be able to parse out the Cat type; rrecv: %#v", rrecv.Animal)
+		t.Fatalf("expected to be able to parse out the Cat type; rrecv: %#v", exp.Animal)
 	}
-	if g, w := retrCat, origCat; !reflect.DeepEqual(g, w) {
-		t.Fatalf("expected the previously serialized cat: got=(%#v) want=(%#v)", g, w)
-	}
+	assert.Equal(t, origCat, returnCat, fmt.Sprintf("cats dont match"))
+
 }
 
 // TODO: add assertions here ...
