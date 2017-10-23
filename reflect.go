@@ -115,10 +115,10 @@ type ConcreteType struct {
 }
 
 // This function should be used to register the receiving interface that will
-// be used to decode an underlying concrete type. If embedding the interface
-// in a struct, the interface MUST be the only field and it MUST be an exported field.
+// be used to decoded an underlying concrete type. The interface MUST be embedded
+// in a struct, and the interface MUST be the only field and it MUST be exported.
 // For example:
-//	RegisterInterface(struct{ Animal }{}, ConcreteType{&foo, 0x01)
+//      RegisterInterface(struct{ Animal }{}, ConcreteType{&foo, 0x01})
 func RegisterInterface(o interface{}, ctypes ...ConcreteType) *TypeInfo {
 	it := GetTypeFromStructDeclaration(o)
 	if it.Kind() != reflect.Interface {
