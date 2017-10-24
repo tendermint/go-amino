@@ -10,9 +10,13 @@ import (
 	cmn "github.com/tendermint/tmlibs/common"
 )
 
-var ErrBinaryReadOverflow = errors.New("Error: binary read overflow")
-var ErrBinaryReadInvalidLength = errors.New("Error: binary read invalid length")
-var ErrBinaryWriteOverflow = errors.New("Error: binary write overflow")
+var (
+	ErrBinaryReadOverflow                  = errors.New("Error: binary read overflow")
+	ErrBinaryReadInvalidLength             = errors.New("Error: binary read invalid length")
+	ErrBinaryReadInvalidTimeNegative       = errors.New("Error: binary read invalid time - negative")
+	ErrBinaryReadInvalidTimeSubMillisecond = errors.New("Error: binary read invalid time - sub millisecond")
+	ErrBinaryWriteOverflow                 = errors.New("Error: binary write overflow")
+)
 
 const (
 	ReadSliceChunkSize = 1024
