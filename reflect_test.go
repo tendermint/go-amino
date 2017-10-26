@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	cmn "github.com/tendermint/tmlibs/common"
 )
 
@@ -44,6 +46,106 @@ var _ = RegisterInterface(
 	ConcreteType{Snake{}, 0x03},
 	ConcreteType{&Viper{}, 0x04},
 )
+
+type unexportedReceiver struct {
+	animal Animal
+}
+
+type exportedReceiver struct {
+	Animal Animal
+}
+
+func TestTime(t *testing.T) {
+
+	// panic trying to encode times before 1970
+	panicCases := []time.Time{
+		time.Time{},
+		time.Unix(-10, 0),
+		time.Unix(0, -10),
+	}
+	for _, c := range panicCases {
+		n, err := new(int), new(error)
+		buf := new(bytes.Buffer)
+		assert.Panics(t, func() { WriteBinary(c, buf, n, err) }, "expected WriteBinary to panic on times before 1970")
+	}
+
+	// ensure we can encode/decode a recent time
+	now := time.Now()
+	n, err := new(int), new(error)
+	buf := new(bytes.Buffer)
+	WriteBinary(now, buf, n, err)
+
+	var thisTime time.Time
+	thisTime = ReadBinary(thisTime, buf, 0, new(int), new(error)).(time.Time)
+	if !thisTime.Truncate(time.Millisecond).Equal(now.Truncate(time.Millisecond)) {
+		t.Fatalf("times dont match. got %v, expected %v", thisTime, now)
+	}
+
+	// error trying to decode bad times
+	errorCases := []struct {
+		thisTime time.Time
+		err      error
+	}{
+		{time.Time{}, ErrBinaryReadInvalidTimeNegative},
+		{time.Unix(-10, 0), ErrBinaryReadInvalidTimeNegative},
+		{time.Unix(0, -10), ErrBinaryReadInvalidTimeNegative},
+
+		{time.Unix(0, 10), ErrBinaryReadInvalidTimeSubMillisecond},
+		{time.Unix(1, 10), ErrBinaryReadInvalidTimeSubMillisecond},
+	}
+	for _, c := range errorCases {
+		n, err := new(int), new(error)
+		buf := new(bytes.Buffer)
+		timeNano := c.thisTime.UnixNano()
+		WriteInt64(timeNano, buf, n, err)
+		var thisTime time.Time
+		thisTime = ReadBinary(thisTime, buf, 0, n, err).(time.Time)
+		assert.Equal(t, *err, c.err, "expected ReadBinary to throw an error")
+		assert.Equal(t, thisTime, time.Time{}, "expected ReadBinary to return default time")
+	}
+}
+
+func TestUnexportedEmbeddedTypes(t *testing.T) {
+
+	now := time.Now().Truncate(time.Millisecond)
+	origCat := Cat{SimpleStruct{String: "cat", Time: now}}
+	exportedCat := exportedReceiver{origCat} // this is what we encode
+	writeCat := func() *bytes.Buffer {
+		n, err := new(int), new(error)
+		buf := new(bytes.Buffer)
+		WriteBinary(exportedCat, buf, n, err)
+		if *err != nil {
+			t.Errorf("writeBinary:: failed to encode Cat: %v", *err)
+		}
+		return buf
+	}
+
+	// try to read into unexportedReceiver (should fail)
+	buf := writeCat()
+	n, err := new(int), new(error)
+	unexp := ReadBinary(unexportedReceiver{}, buf, 0, n, err).(unexportedReceiver)
+	if *err != nil {
+		t.Fatalf("unexpected err: %v", *err)
+	}
+	returnCat, ok := unexp.animal.(Cat)
+	if ok {
+		t.Fatalf("unexpectedly parsed out the Cat type")
+	}
+
+	// try to read into exportedReceiver (should pass)
+	buf = writeCat()
+	n, err = new(int), new(error)
+	exp := ReadBinary(exportedReceiver{}, buf, 0, n, err).(exportedReceiver)
+	if *err != nil {
+		t.Fatalf("unexpected err: %v", *err)
+	}
+	returnCat, ok = exp.Animal.(Cat)
+	if !ok {
+		t.Fatalf("expected to be able to parse out the Cat type; rrecv: %#v", exp.Animal)
+	}
+	assert.Equal(t, origCat, returnCat, fmt.Sprintf("cats dont match"))
+
+}
 
 // TODO: add assertions here ...
 func TestAnimalInterface(t *testing.T) {
@@ -195,12 +297,14 @@ func constructComplex2() interface{} {
 			SimpleStruct{
 				String: "String",
 				Bytes:  []byte("Bytes"),
+				Time:   time.Now(),
 			},
 		},
 		Dog: &Dog{
 			SimpleStruct{
 				String: "Woof",
 				Bytes:  []byte("Bark"),
+				Time:   time.Now(),
 			},
 		},
 		Snake:  Snake([]byte("hiss")),
@@ -270,12 +374,14 @@ func constructComplexArray() interface{} {
 				SimpleStruct{
 					String: "String",
 					Bytes:  []byte("Bytes"),
+					Time:   time.Now(),
 				},
 			},
 			Dog{
 				SimpleStruct{
 					String: "Woof",
 					Bytes:  []byte("Bark"),
+					Time:   time.Now(),
 				},
 			},
 			Snake([]byte("hiss")),

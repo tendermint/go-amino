@@ -10,9 +10,13 @@ import (
 	cmn "github.com/tendermint/tmlibs/common"
 )
 
-var ErrBinaryReadOverflow = errors.New("Error: binary read overflow")
-var ErrBinaryReadInvalidLength = errors.New("Error: binary read invalid length")
-var ErrBinaryWriteOverflow = errors.New("Error: binary write overflow")
+var (
+	ErrBinaryReadOverflow                  = errors.New("Error: binary read overflow")
+	ErrBinaryReadInvalidLength             = errors.New("Error: binary read invalid length")
+	ErrBinaryReadInvalidTimeNegative       = errors.New("Error: binary read invalid time - negative")
+	ErrBinaryReadInvalidTimeSubMillisecond = errors.New("Error: binary read invalid time - sub millisecond")
+	ErrBinaryWriteOverflow                 = errors.New("Error: binary write overflow")
+)
 
 const (
 	ReadSliceChunkSize = 1024
@@ -22,7 +26,7 @@ func ReadBinary(o interface{}, r io.Reader, lmt int, n *int, err *error) (res in
 	rv, rt := reflect.ValueOf(o), reflect.TypeOf(o)
 	if rv.Kind() == reflect.Ptr {
 		if rv.IsNil() {
-			// This allows ReadBinaryObject() to return a nil pointer,
+			// This allows ReadBinary() to return a nil pointer,
 			// if the value read is nil.
 			rvPtr := reflect.New(rt)
 			ReadBinaryPtr(rvPtr.Interface(), r, lmt, n, err)
@@ -67,6 +71,9 @@ func ReadBinaryPtrLengthPrefixed(o interface{}, r io.Reader, lmt int, n *int, er
 	return res
 }
 
+// WriteBinary is the binary encoder. Its arguments are the subject to be
+// encoded, the writer that'll receive the encoded bytes, as well as a
+// receiver to store the bytes written and any error encountered.
 func WriteBinary(o interface{}, w io.Writer, n *int, err *error) {
 	rv := reflect.ValueOf(o)
 	rt := reflect.TypeOf(o)
