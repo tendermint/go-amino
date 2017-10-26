@@ -7,13 +7,10 @@ import (
 	cmn "github.com/tendermint/tmlibs/common"
 )
 
-/*
-Writes nanoseconds since epoch but with millisecond precision.
-This is to ease compatibility with Javascript etc.
-*/
-
 // WriteTime writes the number of nanoseconds, with millisecond resolution,
 // since January 1, 1970 UTC, to the Writer as an Int64.
+// Milliseconds are used to ease compatibility with Javascript,
+// which does not support finer resolution.
 // NOTE: panics if the given time is less than January 1, 1970 UTC
 func WriteTime(t time.Time, w io.Writer, n *int, err *error) {
 	nanosecs := t.UnixNano()
