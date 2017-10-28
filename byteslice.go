@@ -32,9 +32,9 @@ func ReadByteSlice(r io.Reader, lmt int, n *int, err *error) []byte {
 		return nil
 	}
 
-	if length == 0 {
+	/*	if length == 0 {
 		return nil // zero value for []byte
-	}
+	}*/
 
 	buf := make([]byte, length)
 	ReadFull(buf, r, n, err)
