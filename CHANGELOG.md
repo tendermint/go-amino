@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1 (Oct 27, 2017)
+
+BUG FIXES:
+ - dont use nil for empty byte array (undoes fix from 0.7.0 pending further analysis)
+
 ## 0.7.0 (Oct 26, 2017)
 
 BREAKING CHANGE:
