@@ -4,11 +4,13 @@ import "io"
 
 type TMEncoderFastIOWriterIntr interface {
 	WriteBool(b bool, w io.Writer, n *int, err *error)
-	WriteByte(b byte, w io.Writer, n *int, err *error)
+	WriteFloat32(f float32, w io.Writer, n *int, err *error)
+	WriteFloat64(f float64, w io.Writer, n *int, err *error)
 	WriteInt8(i int8, w io.Writer, n *int, err *error)
 	WriteInt16(i int16, w io.Writer, n *int, err *error)
 	WriteInt32(i int32, w io.Writer, n *int, err *error)
 	WriteInt64(i int64, w io.Writer, n *int, err *error)
+	WriteOctet(b byte, w io.Writer, n *int, err *error)
 	WriteTo(bz []byte, w io.Writer, n *int, err *error)
 	WriteUint8(i uint8, w io.Writer, n *int, err *error)
 	WriteUint16(i uint16, w io.Writer, n *int, err *error)

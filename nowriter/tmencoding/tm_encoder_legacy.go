@@ -2,12 +2,14 @@ package tmencoding
 
 import "io"
 import "encoding/binary"
+import "math"
 
 type TMEncoderLegacy struct {
 }
 
 var _ TMEncoderFastIOWriterIntr = (*TMEncoderLegacy)(nil)
 
+// Does not use builder pattern to encourage migration away from this struct
 func (e *TMEncoderLegacy) WriteBool(b bool, w io.Writer, n *int, err *error) {
 	var bb byte
 	if b {
@@ -18,13 +20,18 @@ func (e *TMEncoderLegacy) WriteBool(b bool, w io.Writer, n *int, err *error) {
 	e.WriteTo([]byte{bb}, w, n, err)
 }
 
-func (e *TMEncoderLegacy) WriteByte(b byte, w io.Writer, n *int, err *error) {
-	e.WriteTo([]byte{b}, w, n, err)
+func (e *TMEncoderLegacy) WriteFloat32(f float32, w io.Writer, n *int, err *error) {
+	e.WriteUint32(math.Float32bits(f), w, n, err)
+}
+
+func (e *TMEncoderLegacy) WriteFloat64(f float64, w io.Writer, n *int, err *error) {
+	e.WriteUint64(math.Float64bits(f), w, n, err)
 }
 
 func (e *TMEncoderLegacy) WriteInt8(i int8, w io.Writer, n *int, err *error) {
-	e.WriteByte(byte(i), w, n, err)
+	e.WriteOctet(byte(i), w, n, err)
 }
+
 func (e *TMEncoderLegacy) WriteInt16(i int16, w io.Writer, n *int, err *error) {
 	var buf [2]byte
 	binary.BigEndian.PutUint16(buf[:], uint16(i))
@@ -44,8 +51,13 @@ func (e *TMEncoderLegacy) WriteInt64(i int64, w io.Writer, n *int, err *error) {
 	*n += 8
 	e.WriteTo(buf[:], w, n, err)
 }
+
+func (e *TMEncoderLegacy) WriteOctet(b byte, w io.Writer, n *int, err *error) {
+	e.WriteTo([]byte{b}, w, n, err)
+}
+
 func (e *TMEncoderLegacy) WriteUint8(i uint8, w io.Writer, n *int, err *error) {
-	e.WriteByte(byte(i), w, n, err)
+	e.WriteOctet(byte(i), w, n, err)
 }
 
 func (e *TMEncoderLegacy) WriteUint16(i uint16, w io.Writer, n *int, err *error) {

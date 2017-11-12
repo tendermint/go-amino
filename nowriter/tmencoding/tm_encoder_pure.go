@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"math"
 )
 
 type TMEncoderPure struct {
@@ -22,12 +23,16 @@ func (e TMEncoderPure) WriteBool(b bool) []byte {
 	return []byte{bb}
 }
 
-func (e TMEncoderPure) WriteByte(b byte) []byte {
-	return []byte{b}
+func (e TMEncoderPure) WriteFloat32(f float32) []byte {
+	return e.WriteUint32(math.Float32bits(f))
+}
+
+func (e TMEncoderPure) WriteFloat64(f float64) []byte {
+	return e.WriteUint64(math.Float64bits(f))
 }
 
 func (e TMEncoderPure) WriteInt8(i int8) []byte {
-	return e.WriteByte(byte(i))
+	return e.WriteOctet(byte(i))
 }
 
 func (e TMEncoderPure) WriteInt16(i int16) []byte {
@@ -48,8 +53,19 @@ func (e TMEncoderPure) WriteInt64(i int64) []byte {
 	return buf[:]
 }
 
+func (e TMEncoderPure) WriteOctet(b byte) []byte {
+	return []byte{b}
+}
+
+// for orthogonality only
+func (e TMEncoderPure) WriteOctets(b []byte) []byte {
+	arr := make([]byte, len(b))
+	copy(arr, b)
+	return arr
+}
+
 func (e TMEncoderPure) WriteUint8(i uint8) []byte {
-	return e.WriteByte(byte(i))
+	return e.WriteOctet(byte(i))
 }
 
 func (e TMEncoderPure) WriteUint16(i uint16) []byte {
