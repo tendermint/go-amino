@@ -1,5 +1,7 @@
 package tmencoding
 
+import "time"
+
 // Allow chaining builder pattern syntactic sugar variation of Facade
 // teb.WriteInt8(42).WriteInt32(my_integer).Bytes()
 type TMEncoderBuilderIntr interface {
@@ -13,6 +15,7 @@ type TMEncoderBuilderIntr interface {
 	WriteInt64(i int64) TMEncoderBuilderIntr
 	WriteOctet(b byte) TMEncoderBuilderIntr
 	WriteOctets(b []byte) TMEncoderBuilderIntr
+	WriteTime(t time.Time) TMEncoderBuilderIntr
 	WriteUint8(i uint8) TMEncoderBuilderIntr
 	WriteUint16s(iz []uint16) TMEncoderBuilderIntr
 	WriteUint32(i uint32) TMEncoderBuilderIntr

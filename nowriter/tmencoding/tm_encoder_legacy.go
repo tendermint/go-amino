@@ -3,11 +3,14 @@ package tmencoding
 import "io"
 import "encoding/binary"
 import "math"
+import "time"
+import cmn "github.com/tendermint/tmlibs/common"
 
 type TMEncoderLegacy struct {
 }
 
-var _ TMEncoderFastIOWriterIntr = (*TMEncoderLegacy)(nil)
+var Legacy *TMEncoderLegacy = &TMEncoderLegacy{}          // convenience
+var _ TMEncoderFastIOWriterIntr = (*TMEncoderLegacy)(nil) // complete
 
 // Does not use builder pattern to encourage migration away from this struct
 func (e *TMEncoderLegacy) WriteBool(b bool, w io.Writer, n *int, err *error) {
@@ -54,6 +57,16 @@ func (e *TMEncoderLegacy) WriteInt64(i int64, w io.Writer, n *int, err *error) {
 
 func (e *TMEncoderLegacy) WriteOctet(b byte, w io.Writer, n *int, err *error) {
 	e.WriteTo([]byte{b}, w, n, err)
+}
+
+func (e *TMEncoderLegacy) WriteTime(t time.Time, w io.Writer, n *int, err *error) {
+	nanosecs := t.UnixNano()
+	millisecs := nanosecs / 1000000
+	if nanosecs < 0 {
+		cmn.PanicSanity("can't encode times below 1970")
+	} else {
+		e.WriteInt64(millisecs*1000000, w, n, err)
+	}
 }
 
 func (e *TMEncoderLegacy) WriteUint8(i uint8, w io.Writer, n *int, err *error) {

@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	cmn "github.com/tendermint/tmlibs/common"
 	"math"
+	"time"
 )
 
 type TMEncoderPure struct {
@@ -62,6 +64,15 @@ func (e TMEncoderPure) WriteOctets(b []byte) []byte {
 	arr := make([]byte, len(b))
 	copy(arr, b)
 	return arr
+}
+
+func (e TMEncoderPure) WriteTime(t time.Time) []byte {
+	nanosecs := t.UnixNano()
+	millisecs := nanosecs / 1000000
+	if nanosecs < 0 {
+		cmn.PanicSanity("can't encode times below 1970")
+	}
+	return e.WriteInt64(millisecs * 1000000)
 }
 
 func (e TMEncoderPure) WriteUint8(i uint8) []byte {

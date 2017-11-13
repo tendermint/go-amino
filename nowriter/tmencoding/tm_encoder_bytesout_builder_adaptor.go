@@ -1,6 +1,7 @@
 package tmencoding
 
 import "bytes"
+import "time"
 
 type TMEncoderBytesOutBuilderAdaptor struct {
 	TMEncoderBuilderIntr
@@ -54,6 +55,11 @@ func (a *TMEncoderBytesOutBuilderAdaptor) WriteOctet(b byte) TMEncoderBuilderInt
 
 func (a *TMEncoderBytesOutBuilderAdaptor) WriteOctets(b []byte) TMEncoderBuilderIntr {
 	a.buf.Write(b)
+	return a
+}
+
+func (a *TMEncoderBytesOutBuilderAdaptor) WriteTime(t time.Time) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.WriteTime(t))
 	return a
 }
 

@@ -1,5 +1,7 @@
 package tmencoding
 
+import "time"
+
 type TMEncoderBytesOutIntr interface {
 	WriteBool(b bool) []byte
 	WriteFloat32(f float32) []byte
@@ -10,6 +12,7 @@ type TMEncoderBytesOutIntr interface {
 	WriteInt64(i int64) []byte
 	WriteOctet(b byte) []byte
 	WriteOctets(b []byte) []byte
+	WriteTime(t time.Time) []byte
 	WriteUint8(i uint8) []byte
 	WriteUint16(i uint16) []byte
 	WriteUint16s(iz []uint16) []byte
