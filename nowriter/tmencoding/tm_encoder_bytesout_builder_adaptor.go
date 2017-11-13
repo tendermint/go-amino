@@ -3,8 +3,9 @@ package tmencoding
 import "bytes"
 import "time"
 
+var _ TMEncoderBuilderIntr = (*TMEncoderBytesOutBuilderAdaptor)(nil)
+
 type TMEncoderBytesOutBuilderAdaptor struct {
-	TMEncoderBuilderIntr
 	buf  bytes.Buffer
 	pure TMEncoderBytesOutIntr
 }
