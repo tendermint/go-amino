@@ -2,7 +2,7 @@ package tmencoding
 
 import "time"
 
-type TMEncoderEasyIntr interface {
+type TMEncoderColumnarBuilder interface {
 	WriteBool(b bool)
 	WriteFloat32(f float32)
 	WriteFloat64(f float64)

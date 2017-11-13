@@ -1,6 +1,6 @@
 package tmencoding
 
 type TMEncoderFacadeIntr interface {
-	TMEncoderEasyIntr
+	TMEncoderColumnarBuilder
 	Bytes() []byte
 }
