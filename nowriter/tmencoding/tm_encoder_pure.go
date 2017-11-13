@@ -9,6 +9,7 @@ import (
 	"time"
 )
 
+// Implementation of the TMEncoderBytesOut interface.
 type TMEncoderPure struct {
 }
 

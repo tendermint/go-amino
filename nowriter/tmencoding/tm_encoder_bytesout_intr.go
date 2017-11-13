@@ -2,6 +2,7 @@ package tmencoding
 
 import "time"
 
+// Simplest pure interface for encoding and generally preferred.
 type TMEncoderBytesOutIntr interface {
 	WriteBool(b bool) []byte
 	WriteFloat32(f float32) []byte

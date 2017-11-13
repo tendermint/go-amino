@@ -2,6 +2,7 @@ package tmencoding
 
 import "time"
 
+// Simplest stateful builder interface with chaining disallowed.
 type TMEncoderColumnarBuilder interface {
 	WriteBool(b bool)
 	WriteFloat32(f float32)

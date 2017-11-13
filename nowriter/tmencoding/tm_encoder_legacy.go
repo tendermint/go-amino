@@ -6,6 +6,7 @@ import "math"
 import "time"
 import cmn "github.com/tendermint/tmlibs/common"
 
+// Implementation of the legacy (`TMEncoderFastIOWriterIntr`) interface
 type TMEncoderLegacy struct {
 }
 

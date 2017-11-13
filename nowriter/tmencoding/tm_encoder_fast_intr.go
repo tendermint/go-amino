@@ -3,6 +3,13 @@ package tmencoding
 import "io"
 import "time"
 
+// Legacy interface following old code as closely as possible.
+// Changed `WriteBytes` to `WriteOctets` to solve `go vet` issue.
+// The explicit declaration of this interface provides a verbal
+// discussion tool as well as a code marking work and it allows
+// us to migrate away from using the global namespace for the Write*
+// methods in the old 'wire.go' as we refactor.  This class may
+// disappear once the refactoring is complete.
 type TMEncoderFastIOWriterIntr interface {
 	WriteBool(b bool, w io.Writer, n *int, err *error)
 	WriteFloat32(f float32, w io.Writer, n *int, err *error)
