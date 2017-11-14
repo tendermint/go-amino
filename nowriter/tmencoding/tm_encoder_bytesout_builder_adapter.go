@@ -10,10 +10,10 @@ var _ TMEncoderBuilderIntr = (*TMEncoderBytesOutBuilderAdapter)(nil)
 // to provide the TMEncoderBuilderIntr
 type TMEncoderBytesOutBuilderAdapter struct {
 	buf  bytes.Buffer
-	pure TMEncoderBytesOutIntr
+	pure TMEncoderPure
 }
 
-func NewTMEncoderBytesOutBuilderAdapter(pure TMEncoderBytesOutIntr) *TMEncoderBytesOutBuilderAdapter {
+func NewTMEncoderBytesOutBuilderAdapter(pure TMEncoderPure) *TMEncoderBytesOutBuilderAdapter {
 	return &TMEncoderBytesOutBuilderAdapter{bytes.Buffer{}, pure}
 }
 
@@ -21,82 +21,82 @@ func (a *TMEncoderBytesOutBuilderAdapter) Bytes() []byte {
 	return a.buf.Bytes()
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteBool(b bool) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteBool(b))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeBool(b bool) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeBool(b))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteFloat32(f float32) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteFloat32(f))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeFloat32(f float32) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeFloat32(f))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteFloat64(f float64) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteFloat64(f))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeFloat64(f float64) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeFloat64(f))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteInt8(i int8) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteInt8(i))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeInt8(i int8) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeInt8(i))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteInt16(i int16) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteInt16(i))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeInt16(i int16) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeInt16(i))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteInt32(i int32) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteInt32(i))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeInt32(i int32) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeInt32(i))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteInt64(i int64) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteInt64(i))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeInt64(i int64) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeInt64(i))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteOctet(b byte) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteOctet(b))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeOctet(b byte) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeOctet(b))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteOctets(b []byte) TMEncoderBuilderIntr {
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeOctets(b []byte) TMEncoderBuilderIntr {
 	a.buf.Write(b)
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteTime(t time.Time) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteTime(t))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeTime(t time.Time) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeTime(t))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteUint8(i uint8) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteUint8(i))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeUint8(i uint8) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeUint8(i))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteUint16s(iz []uint16) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteUint16s(iz))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeUint16s(iz []uint16) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeUint16s(iz))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteUint32(i uint32) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteUint32(i))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeUint32(i uint32) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeUint32(i))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteUint64(i uint64) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteUint64(i))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeUint64(i uint64) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeUint64(i))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteUvarint(i uint) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteUvarint(i))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeUvarint(i uint) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeUvarint(i))
 	return a
 }
 
-func (a *TMEncoderBytesOutBuilderAdapter) WriteVarint(i int) TMEncoderBuilderIntr {
-	a.buf.Write(a.pure.WriteVarint(i))
+func (a *TMEncoderBytesOutBuilderAdapter) EncodeVarint(i int) TMEncoderBuilderIntr {
+	a.buf.Write(a.pure.EncodeVarint(i))
 	return a
 }
