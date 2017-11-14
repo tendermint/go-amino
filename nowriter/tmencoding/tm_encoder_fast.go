@@ -19,6 +19,7 @@ type TMEncoderFastIOWriter interface {
 	WriteInt32(i int32, w io.Writer, n *int, err *error)
 	WriteInt64(i int64, w io.Writer, n *int, err *error)
 	WriteOctet(b byte, w io.Writer, n *int, err *error)
+	WriteOctetSlice(bz []byte, w io.Writer, n *int, err *error)
 	WriteTime(t time.Time, w io.Writer, n *int, err *error)
 	WriteTo(bz []byte, w io.Writer, n *int, err *error)
 	WriteUint8(i uint8, w io.Writer, n *int, err *error)

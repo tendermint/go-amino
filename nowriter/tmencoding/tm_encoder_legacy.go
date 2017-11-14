@@ -12,7 +12,7 @@ import (
 type TMEncoderLegacy struct {
 }
 
-var Legacy *TMEncoderLegacy = &TMEncoderLegacy{}          // convenience
+var Legacy *TMEncoderLegacy = &TMEncoderLegacy{}      // convenience
 var _ TMEncoderFastIOWriter = (*TMEncoderLegacy)(nil) // complete
 
 // Does not use builder pattern to encourage migration away from this struct
@@ -173,4 +173,11 @@ func uvarintSize(i uint64) int {
 		return 7
 	}
 	return 8
+}
+
+func (e *TMEncoderLegacy) WriteOctetSlice(bz []byte, w io.Writer, n *int, err *error) {
+	e.WriteVarint(len(bz), w, n, err)
+	if len(bz) > 0 {
+		e.WriteTo(bz, w, n, err)
+	}
 }
