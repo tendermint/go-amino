@@ -10,7 +10,7 @@ import "time"
 // us to migrate away from using the global namespace for the Write*
 // methods in the old 'wire.go' as we refactor.  This class may
 // disappear once the refactoring is complete.
-type TMEncoderFastIOWriterIntr interface {
+type TMEncoderFastIOWriter interface {
 	WriteBool(b bool, w io.Writer, n *int, err *error)
 	WriteFloat32(f float32, w io.Writer, n *int, err *error)
 	WriteFloat64(f float64, w io.Writer, n *int, err *error)

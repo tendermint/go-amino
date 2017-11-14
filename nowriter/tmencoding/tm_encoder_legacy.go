@@ -8,12 +8,12 @@ import (
 	"time"
 )
 
-// Implementation of the legacy (`TMEncoderFastIOWriterIntr`) interface
+// Implementation of the legacy (`TMEncoderFastIOWriter`) interface
 type TMEncoderLegacy struct {
 }
 
 var Legacy *TMEncoderLegacy = &TMEncoderLegacy{}          // convenience
-var _ TMEncoderFastIOWriterIntr = (*TMEncoderLegacy)(nil) // complete
+var _ TMEncoderFastIOWriter = (*TMEncoderLegacy)(nil) // complete
 
 // Does not use builder pattern to encourage migration away from this struct
 func (e *TMEncoderLegacy) WriteBool(b bool, w io.Writer, n *int, err *error) {
