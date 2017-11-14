@@ -1,17 +1,19 @@
 package tmbuilder
 
-import "io"
-import "encoding/binary"
-import "math"
-import "time"
-import cmn "github.com/tendermint/tmlibs/common"
+import (
+	"encoding/binary"
+	cmn "github.com/tendermint/tmlibs/common"
+	"io"
+	"math"
+	"time"
+)
 
 // Implementation of the legacy (`TMWriteEncoder`) interface
 type TMBuilderLegacy struct {
 }
 
-var Legacy *TMBuilderLegacy = &TMBuilderLegacy{}           // convenience
-var _ TMWriteEncoder = (*TMBuilderLegacy)(nil) // complete
+var Legacy *TMBuilderLegacy = &TMBuilderLegacy{} // convenience
+var _ TMWriteEncoder = (*TMBuilderLegacy)(nil)   // complete
 
 // Does not use builder pattern to encourage migration away from this struct
 func (e *TMBuilderLegacy) WriteBool(b bool, w io.Writer, n *int, err *error) {
