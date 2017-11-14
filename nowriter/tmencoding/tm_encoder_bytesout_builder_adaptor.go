@@ -14,10 +14,7 @@ type TMEncoderBytesOutBuilderAdaptor struct {
 }
 
 func NewTMEncoderBytesOutBuilderAdaptor(pure TMEncoderBytesOutIntr) *TMEncoderBytesOutBuilderAdaptor {
-	a := TMEncoderBytesOutBuilderAdaptor{}
-	a.buf = bytes.Buffer{}
-	a.pure = pure
-	return &a
+	return &TMEncoderBytesOutBuilderAdaptor{bytes.Buffer{}, pure}
 }
 
 func (a *TMEncoderBytesOutBuilderAdaptor) Bytes() []byte {
