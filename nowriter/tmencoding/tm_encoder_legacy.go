@@ -1,10 +1,12 @@
 package tmencoding
 
-import "io"
-import "encoding/binary"
-import "math"
-import "time"
-import cmn "github.com/tendermint/tmlibs/common"
+import (
+	"encoding/binary"
+	cmn "github.com/tendermint/tmlibs/common"
+	"io"
+	"math"
+	"time"
+)
 
 // Implementation of the legacy (`TMEncoderFastIOWriterIntr`) interface
 type TMEncoderLegacy struct {
