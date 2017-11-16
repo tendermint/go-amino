@@ -45,8 +45,8 @@ func (e TMEncoderPure) EncodeInt16(i int16) []byte {
 }
 
 func (e TMEncoderPure) EncodeInt32(i int32) []byte {
-	var buf [2]byte
-	binary.BigEndian.PutUint16(buf[:], uint16(i))
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:], uint32(i))
 	return buf[:]
 }
 
