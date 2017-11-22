@@ -1,7 +1,10 @@
 package tmencoding
 
-import "io"
-import "time"
+import (
+	"github.com/tendermint/go-wire/nowriter/tmlegacy"
+	"io"
+	"time"
+)
 
 // Legacy interface following old code as closely as possible.
 // Changed `WriteBytes` to `WriteOctets` to solve `go vet` issue.
@@ -30,3 +33,5 @@ type TMEncoderFastIOWriter interface {
 	WriteUvarint(i uint, w io.Writer, n *int, err *error)
 	WriteVarint(i int, w io.Writer, n *int, err *error)
 }
+
+var _ TMEncoderFastIOWriter = (*tmlegacy.TMEncoderLegacy)(nil) // complete

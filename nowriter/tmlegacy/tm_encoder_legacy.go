@@ -1,4 +1,4 @@
-package tmencoding
+package tmlegacy
 
 import (
 	"encoding/binary"
@@ -12,8 +12,7 @@ import (
 type TMEncoderLegacy struct {
 }
 
-var Legacy *TMEncoderLegacy = &TMEncoderLegacy{}      // convenience
-var _ TMEncoderFastIOWriter = (*TMEncoderLegacy)(nil) // complete
+var Legacy *TMEncoderLegacy = &TMEncoderLegacy{} // convenience
 
 // Does not use builder pattern to encourage migration away from this struct
 func (e *TMEncoderLegacy) WriteBool(b bool, w io.Writer, n *int, err *error) {
