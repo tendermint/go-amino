@@ -9,6 +9,21 @@ import (
 	data "github.com/tendermint/go-wire/data"
 )
 
+func TestMarshal(t *testing.T) {
+	assert := assert.New(t)
+
+	b := []byte("hello world")
+	dataB := data.Bytes(b)
+	b2, err := dataB.Marshal()
+	assert.Nil(err)
+	assert.Equal(b, b2)
+
+	var dataB2 data.Bytes
+	err = (&dataB2).Unmarshal(b)
+	assert.Nil(err)
+	assert.Equal(dataB, dataB2)
+}
+
 func TestEncoders(t *testing.T) {
 	assert := assert.New(t)
 
