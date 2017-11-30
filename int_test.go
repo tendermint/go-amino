@@ -93,6 +93,7 @@ func TestVarint(t *testing.T) {
 		check(1<<32+0, "050100000000")
 		check(1<<32+1, "050100000001")
 		check(1<<53-1, "071FFFFFFFFFFFFF")
+		check(1<<63-1, "087FFFFFFFFFFFFFFF")
 	}
 	// Negatives
 	check(-1<<31+1, "F47FFFFFFF")
@@ -101,6 +102,8 @@ func TestVarint(t *testing.T) {
 		check(-1<<32-0, "F50100000000")
 		check(-1<<32-1, "F50100000001")
 		check(-1<<53+1, "F71FFFFFFFFFFFFF")
+		check(-1<<63, "F88000000000000000")
+		check(-1<<63+1, "F87FFFFFFFFFFFFFFF")
 	}
 }
 
