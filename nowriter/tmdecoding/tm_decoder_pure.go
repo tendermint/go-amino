@@ -43,6 +43,7 @@ func (e TMDecoderPure) DecodeFloat32(inp []byte) (f float32, bytesRead int, err 
 	bytesRead = primitiveSize
 	return
 }
+
 func (e TMDecoderPure) DecodeFloat64(inp []byte) (f float64, bytesRead int, err error) {
 	const primitiveSize int = 8
 	if len(inp) < primitiveSize {
@@ -187,7 +188,7 @@ func (e TMDecoderPure) DecodeUvarint(inp []byte) (i uint, bytesRead int, err err
 	var size = uint8(inp[0])
 	if size > 8 {
 		err = errors.New("Uvarint overflow")
-		bytesRead = -1
+		bytesRead = errorBytesRead
 		return
 	}
 	if size == 0 {
@@ -217,13 +218,13 @@ func (e TMDecoderPure) DecodeVarint(inp []byte) (i int, bytesRead int, err error
 	}
 	if size > 8 {
 		err = errors.New("Varint overflow")
-		bytesRead = -1
+		bytesRead = errorBytesRead
 		return
 	}
 	if size == 0 {
 		if polarity == -1 {
 			err = errors.New("Varint does not allow negative zero")
-			bytesRead = -1
+			bytesRead = errorBytesRead
 		} else {
 			bytesRead = 1
 			// i = 0 // already 0
