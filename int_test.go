@@ -8,6 +8,15 @@ import (
 
 const arch64 = uint64(^uint(0)) == ^uint64(0)
 
+func TestInt16(t *testing.T) {
+	buf := new(bytes.Buffer)
+	n, err := new(int), new(error)
+	WriteUint16(11, buf, n, err)
+	if *n != 2 {
+		t.Fatalf("Encoded uint16 expected 2 bytes got %d", *n)
+	}
+}
+
 // Returns true of overflow or underflow
 func checkIntSpill(i int64) bool {
 	return i == (int64)((int)(i))
