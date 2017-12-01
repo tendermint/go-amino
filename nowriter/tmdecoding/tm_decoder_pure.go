@@ -182,7 +182,7 @@ func (e TMDecoderPure) DecodeUint64(inp []byte) (i uint64, bytesRead int, err er
 
 func (e TMDecoderPure) DecodeUvarint(inp []byte) (i uint, bytesRead int, err error) {
 	inpSize := len(inp)
-	if len(inp) < 1 {
+	if inpSize < 1 {
 		return
 	}
 	var size = uint8(inp[0])
@@ -208,7 +208,7 @@ func (e TMDecoderPure) DecodeUvarint(inp []byte) (i uint, bytesRead int, err err
 func (e TMDecoderPure) DecodeVarint(inp []byte) (i int, bytesRead int, err error) {
 	inpSize := len(inp)
 	polarity := 1
-	if len(inp) < 1 {
+	if inpSize < 1 {
 		return
 	}
 	var size = uint8(inp[0])
