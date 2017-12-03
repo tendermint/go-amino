@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"github.com/tendermint/go-wire/nowriter/tmlegacy"
+	"github.com/tendermint/go-wire/nowriter/tmvarint"
 	cmn "github.com/tendermint/tmlibs/common"
 	"math"
 	"time"
@@ -14,7 +16,8 @@ type TMEncoderPure struct {
 }
 
 var _ TMEncoder = TMEncoderPure{}
-var legacy TMEncoderLegacy
+var legacy tmlegacy.TMEncoderLegacy
+var v0varint tmvarint.TMVarint = tmvarint.TMVarintV0{}
 
 func (e TMEncoderPure) EncodeBool(b bool) []byte {
 	var bb byte
@@ -118,49 +121,9 @@ func (e TMEncoderPure) EncodeUint64(i uint64) []byte {
 }
 
 func (e TMEncoderPure) EncodeUvarint(i uint) []byte {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	var inst_n int
-	n := &inst_n
-	var inst_err error
-	err := &inst_err
-
-	var size = uvarintSize(uint64(i))
-	legacy.WriteUint8(uint8(size), w, n, err)
-	if size > 0 {
-		var buf [8]byte
-		binary.BigEndian.PutUint64(buf[:], uint64(i))
-		legacy.WriteTo(buf[(8-size):], w, n, err)
-	}
-
-	return b.Bytes()
+	return v0varint.EncodeUvarint(i)
 }
 
 func (e TMEncoderPure) EncodeVarint(i int) []byte {
-	var b bytes.Buffer
-	w := bufio.NewWriter(&b)
-	var inst_n int
-	n := &inst_n
-	var inst_err error
-	err := &inst_err
-
-	var negate = false
-	if i < 0 {
-		negate = true
-		i = -i
-	}
-	var size = uvarintSize(uint64(i))
-	if negate {
-		// e.g. 0xF1 for a single negative byte
-		legacy.WriteUint8(uint8(size+0xF0), w, n, err)
-	} else {
-		legacy.WriteUint8(uint8(size), w, n, err)
-	}
-	if size > 0 {
-		var buf [8]byte
-		binary.BigEndian.PutUint64(buf[:], uint64(i))
-		legacy.WriteTo(buf[(8-size):], w, n, err)
-	}
-
-	return b.Bytes()
+	return v0varint.EncodeVarint(i)
 }
