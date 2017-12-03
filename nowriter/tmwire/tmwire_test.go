@@ -2,11 +2,15 @@ package tmwire
 
 import (
 	"bytes"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
+
+	cmn "github.com/tendermint/tmlibs/common"
+
 	"github.com/tendermint/go-wire/nowriter/tmdecoding"
 	"github.com/tendermint/go-wire/nowriter/tmencoding"
 	"github.com/tendermint/go-wire/nowriter/tmlegacy"
-	"testing"
 )
 
 var legacy = tmlegacy.TMEncoderLegacy{}
@@ -26,6 +30,30 @@ func TestByte(t *testing.T) {
 		}
 		b3, n3, err3 := dec.DecodeOctet(b1)
 		if b3 != x0 {
+			t.Fatalf("Decoded bytes do not match for %#v and %#v", b3, x0)
+		}
+		if n3 != *n1 {
+			t.Fatalf("Decoded byte count is not correct")
+		}
+		assert.Nil(t, err3)
+	}
+}
+
+func TestBytes(t *testing.T) {
+	cases := []int{1, 40, 255, 256, 257, 65530, 65535, 65536, 65537}
+
+	for _, l0 := range cases {
+		x0 := cmn.RandBytes(l0)
+		buf1 := new(bytes.Buffer)
+		n1, err1 := new(int), new(error)
+		legacy.WriteOctetSlice(x0, buf1, n1, err1)
+		b1 := buf1.Bytes()
+		b2 := pure.EncodeOctets(x0)
+		if !bytes.Equal(b1, b2) {
+			t.Fatalf("Bytes do not match for %#v and %#v", b1, b2)
+		}
+		b3, n3, err3 := dec.DecodeOctets(b1)
+		if !bytes.Equal(b3, x0) {
 			t.Fatalf("Decoded bytes do not match for %#v and %#v", b3, x0)
 		}
 		if n3 != *n1 {
@@ -55,6 +83,38 @@ func TestUint16(t *testing.T) {
 		}
 		assert.Nil(t, err3)
 	}
+}
+
+func TestUint16s(t *testing.T) {
+	// This should panic on 32-bit machine
+	/*
+		countBytes := []byte{0xff, 0xff, 0xff, 0xff}
+		count := binary.BigEndian.Uint32(countBytes)
+		fmt.Println(count, int32(count))
+		size := int(2 * count)
+		x0 := make([]byte, size+4)
+		copy(x0[:4], countBytes)
+		dec.DecodeUint16s(x0)
+	*/
+	x0 := []uint16{0xff, 0xffff, 0xabcd, 0xdabc}
+	buf1 := new(bytes.Buffer)
+	n1, err1 := new(int), new(error)
+	legacy.WriteUint16s(x0, buf1, n1, err1)
+	b1 := buf1.Bytes()
+	b2 := pure.EncodeUint16s(x0)
+	if !bytes.Equal(b1, b2) {
+		t.Fatalf("Bytes do not match for %#v and %#v", b1, b2)
+	}
+	b3, n3, err3 := dec.DecodeUint16s(b1)
+	for i := range b3 {
+		if x0[i] != b3[i] {
+			t.Fatalf("Decoded Uint16 do not match for %#v and %#v", b3, x0)
+		}
+	}
+	if n3 != *n1 {
+		t.Fatalf("Decoded byte count is not correct: %d and %d", n3, *n1)
+	}
+	assert.Nil(t, err3)
 }
 
 func TestUint32(t *testing.T) {
