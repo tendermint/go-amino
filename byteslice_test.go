@@ -124,7 +124,7 @@ func TestGetByteSlice(t *testing.T) {
 		t.Error("Expected to read 21 bytes")
 	}
 	if !bytes.Equal(got, testBytes) {
-		t.Error("Expected to read %v, got %v", testBytes, got)
+		t.Errorf("Expected to read %v, got %v", testBytes, got)
 	}
 }
 

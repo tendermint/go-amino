@@ -176,19 +176,16 @@ func TestAnimalInterface(t *testing.T) {
 
 	// Type of pointer to Animal
 	rt := reflect.TypeOf(&foo)
-	fmt.Printf("rt: %v\n", rt)
 
 	// Type of Animal itself.
 	// NOTE: normally this is acquired through other means
 	// like introspecting on method signatures, or struct fields.
 	rte := rt.Elem()
-	fmt.Printf("rte: %v\n", rte)
 
 	// Get a new pointer to the interface
 	// NOTE: calling .Interface() is to get the actual value,
 	// instead of reflection values.
-	ptr := reflect.New(rte).Interface()
-	fmt.Printf("ptr: %v", ptr)
+	reflect.New(rte).Interface()
 
 	// Make a binary byteslice that represents a *snake.
 	foo = Snake([]byte("snake"))
@@ -197,8 +194,8 @@ func TestAnimalInterface(t *testing.T) {
 
 	// Now you can read it.
 	n, err := new(int), new(error)
-	it := ReadBinary(foo, snakeReader, 0, n, err).(Animal)
-	fmt.Println(it, reflect.TypeOf(it))
+	animal := ReadBinary(foo, snakeReader, 0, n, err).(Animal)
+	assert.NotNil(t, animal)
 }
 
 //-------------------------------------
@@ -527,7 +524,8 @@ func TestBinary(t *testing.T) {
 		n, err = new(int), new(error)
 		ReadBinary(instance, bytes.NewReader(data), len(data), n, err)
 		if *err != nil {
-			t.Fatalf("Failed to read instance with sufficient limit: %v", (*err).Error(), *n, len(data), reflect.TypeOf(instance))
+			t.Fatalf("Failed to read instance with sufficient limit: %v n: %v len(data): %v type: %v",
+				(*err).Error(), *n, len(data), reflect.TypeOf(instance))
 		}
 	}
 
@@ -616,8 +614,7 @@ func TestBadAlloc(t *testing.T) {
 	// this slice of data claims to be much bigger than it really is
 	WriteUvarint(uint(1<<32-1), b, n, err)
 	b.Write(data)
-	res := ReadBinary(instance, b, 0, n, err)
-	fmt.Println(res, *err)
+	ReadBinary(instance, b, 0, n, err)
 }
 
 //------------------------------------------------------------------------------
@@ -629,19 +626,16 @@ func TestSimpleArray(t *testing.T) {
 
 	// Type of pointer to array
 	rt := reflect.TypeOf(&foo)
-	fmt.Printf("rt: %v\n", rt) // *binary.SimpleArray
 
 	// Type of array itself.
 	// NOTE: normally this is acquired through other means
 	// like introspecting on method signatures, or struct fields.
 	rte := rt.Elem()
-	fmt.Printf("rte: %v\n", rte) // binary.SimpleArray
 
 	// Get a new pointer to the array
 	// NOTE: calling .Interface() is to get the actual value,
 	// instead of reflection values.
-	ptr := reflect.New(rte).Interface()
-	fmt.Printf("ptr: %v\n", ptr) // &[0 0 0 0 0]
+	reflect.New(rte).Interface()
 
 	// Make a simple int aray
 	fooArray := SimpleArray([5]byte{1, 10, 50, 100, 200})
