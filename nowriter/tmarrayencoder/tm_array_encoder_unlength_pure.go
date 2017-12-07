@@ -9,7 +9,6 @@ type TMArrayEncoderUnlengthPure struct {
 
 var _ TMArrayEncoderUnlength = TMArrayEncoderUnlengthPure{}
 
-//var basis tmenc
 func (a TMArrayEncoderUnlengthPure) EncodeBoolArray(b []bool) (ary []byte) {
 	for _, e := range b {
 		ary = append(ary, elementEncoder.EncodeBool(e)...)
