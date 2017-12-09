@@ -10,6 +10,7 @@ import (
 	cmn "github.com/tendermint/tmlibs/common"
 )
 
+// DEPRECATED Use Marshal
 func BinaryBytes(o interface{}) []byte {
 	w, n, err := new(bytes.Buffer), new(int), new(error)
 	WriteBinary(o, w, n, err)
@@ -19,6 +20,7 @@ func BinaryBytes(o interface{}) []byte {
 	return w.Bytes()
 }
 
+// DEPRECATED Use Unmarshal
 // ptr: a pointer to the object to be filled
 func ReadBinaryBytes(d []byte, ptr interface{}) error {
 	r, n, err := bytes.NewBuffer(d), new(int), new(error)
