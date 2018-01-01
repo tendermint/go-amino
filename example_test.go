@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package wire_test
+package wire
 
 import (
-	"bytes"
-	"fmt"
-	"log"
+	"testing"
 
-	"github.com/tendermint/go-wire"
+	"github.com/stretchr/testify/assert"
 )
 
-func Example_RegisterInterface() {
+func TestEndToEndReflectBinary(t *testing.T) {
+
 	type Receiver interface{}
 	type bcMessage struct {
 		Message string
@@ -38,55 +37,22 @@ func Example_RegisterInterface() {
 		Peers int
 	}
 
-	var _ = wire.RegisterInterface(
-		struct{ Receiver }{},
-		wire.ConcreteType{&bcMessage{}, 0x01},
-		wire.ConcreteType{&bcResponse{}, 0x02},
-		wire.ConcreteType{&bcStatus{}, 0x03},
-	)
-}
+	var wire = NewCodec()
+	wire.RegisterInterface((*Receiver)(nil), nil)
+	wire.RegisterConcrete(&bcMessage{}, "bcMessage", nil)
+	wire.RegisterConcrete(&bcResponse{}, "bcResponse", nil)
+	wire.RegisterConcrete(&bcStatus{}, "bcStatus", nil)
 
-func Example_EndToEnd_ReadWriteBinary() {
-	type Receiver interface{}
-	type bcMessage struct {
-		Message string
-		Height  int
-	}
-
-	type bcResponse struct {
-		Status  int
-		Message string
-	}
-
-	type bcStatus struct {
-		Peers int
-	}
-
-	var _ = wire.RegisterInterface(
-		struct{ Receiver }{},
-		wire.ConcreteType{&bcMessage{}, 0x01},
-		wire.ConcreteType{&bcResponse{}, 0x02},
-		wire.ConcreteType{&bcStatus{}, 0x03},
-	)
-
-	var n int
-	var err error
-	buf := new(bytes.Buffer)
 	bm := &bcMessage{Message: "Tendermint", Height: 100}
-	wire.WriteBinary(bm, buf, &n, &err)
-	if err != nil {
-		log.Fatalf("writeBinary: %v", err)
-	}
-	fmt.Printf("Encoded: %x\n", buf.Bytes())
+	bmBytes, err := wire.MarshalBinary(bm)
+	assert.Nil(t, err)
+	t.Logf("Encoded: %x\n", bmBytes)
 
-	recv := wire.ReadBinary(struct{ Receiver }{}, buf, 0, &n, &err).(struct{ Receiver }).Receiver
-	if err != nil {
-		log.Fatalf("readBinary: %v", err)
-	}
-	decoded := recv.(*bcMessage)
-	fmt.Printf("Decoded: %#v\n", decoded)
+	var rcvr Receiver
+	err = wire.UnmarshalBinary(bmBytes, &rcvr)
+	assert.Nil(t, err)
+	bm2 := rcvr.(*bcMessage)
+	t.Logf("Decoded: %#v\n", bm2)
 
-	// Output:
-	// Encoded: 01010a54656e6465726d696e740164
-	// Decoded: &wire_test.bcMessage{Message:"Tendermint", Height:100}
+	assert.Equal(t, bm, bm2)
 }
