@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"strings"
-	"sync"
 	"time"
 )
 
@@ -159,7 +157,9 @@ type FieldOptions struct {
 // encoded/decoded by go-wire.
 // Usage:
 // `wire.RegisterInterface((*MyInterface1)(nil), nil)`
-func RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
+func (cdc *Codec) RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
+	cdc.mtx.Lock()
+	defer cdc.mtx.Unlock()
 
 	// Get reflect.Type from ptr.
 	rt := getTypeFromPointer(ptr)
@@ -174,14 +174,16 @@ func RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
 	info.InterfaceOptions = *opts
 
 	// Finally, register.
-	setTypeInfo(info)
+	cdc.setTypeInfo(info)
 }
 
 // This function should be used to register concrete types that will appear in
 // interface fields/elements to be encoded/decoded by go-wire.
 // Usage:
 // `wire.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)`
-func RegisterConcrete(o interface{}, name string, opts *ConcreteOptions) {
+func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOptions) {
+	cdc.mtx.Lock()
+	defer cdc.mtx.Unlock()
 
 	var pointerPreferred bool
 
@@ -202,11 +204,11 @@ func RegisterConcrete(o interface{}, name string, opts *ConcreteOptions) {
 	info.Registered = true
 	info.Name = name
 	info.Prefix, info.Disamb = nameToPrefix(name)
-	info.Fields = parseFieldInfos(rt)
+	info.Fields = cdc.parseFieldInfos(rt)
 	info.ConcreteOptions = *opts
 
 	// Actually register the interface.
-	setTypeInfo(info)
+	cdc.setTypeInfo(info)
 }
 
 //----------------------------------------
@@ -217,9 +219,9 @@ var timeType = reflect.TypeOf(time.Time{})
 const RFC3339Millis = "2006-01-02T15:04:05.000Z" // forced microseconds
 
 //----------------------------------------
-// decodeReflectBinary
+// cdc.decodeReflectBinary
 
-func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	var _n int
 
 	switch info.Type.Kind() {
@@ -228,16 +230,16 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 	// Complex
 
 	case reflect.Array:
-		return decodeReflectBinaryArray(bz, info, rv, opts)
+		return cdc.decodeReflectBinaryArray(bz, info, rv, opts)
 
 	case reflect.Interface:
-		return decodeReflectBinaryInterface(bz, info, rv, opts)
+		return cdc.decodeReflectBinaryInterface(bz, info, rv, opts)
 
 	case reflect.Slice:
-		return decodeReflectBinarySlice(bz, info, rv, opts)
+		return cdc.decodeReflectBinarySlice(bz, info, rv, opts)
 
 	case reflect.Struct:
-		return decodeReflectBinaryStruct(bz, info, rv, opts)
+		return cdc.decodeReflectBinaryStruct(bz, info, rv, opts)
 
 	//----------------------------------------
 	// Signed
@@ -404,10 +406,10 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 
 }
 
-func decodeReflectBinaryInterface(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 
 	// Read disambiguation / prefix bytes.
-	disfix, hasDisamb, prefix, hasPrefix, isNil, _n, err := decodeDisambPrefixBytes(bz)
+	disfix, hasDisamb, prefix, hasPrefix, isNil, _n, err := cdc.decodeDisambPrefixBytes(bz)
 	if slide(bz, &bz, &n, _n) && err != nil {
 		return
 	}
@@ -420,9 +422,9 @@ func decodeReflectBinaryInterface(bz []byte, info *TypeInfo, rv reflect.Value, o
 	// Get concrete type info.
 	var cinfo *TypeInfo
 	if hasDisamb {
-		cinfo, err = getTypeInfoFromDisfix(disfix)
+		cinfo, err = cdc.getTypeInfoFromDisfix(disfix)
 	} else if hasPrefix {
-		cinfo, err = getTypeInfoFromPrefix(prefix)
+		cinfo, err = cdc.getTypeInfoFromPrefix(prefix)
 	} else {
 		err = fmt.Errorf("Expected disambiguation or prefix bytes")
 	}
@@ -434,12 +436,12 @@ func decodeReflectBinaryInterface(bz []byte, info *TypeInfo, rv reflect.Value, o
 	var crv = reflect.New(cinfo.Type).Elem()
 
 	// Read into crv.
-	_n, err = decodeReflectBinary(bz, cinfo, crv, opts)
+	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, opts)
 	slide(bz, &bz, &n, _n)
 	return
 }
 
-func decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	ert := info.Type.Elem()
 	length := info.Type.Len()
 	_n := 0
@@ -455,13 +457,13 @@ func decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect.Value, opts 
 
 	default: // General case.
 		var einfo *TypeInfo
-		einfo, err = getTypeInfo(ert)
+		einfo, err = cdc.getTypeInfo(ert)
 		if err != nil {
 			return
 		}
 		for i := 0; i < length; i++ {
 			erv := rv.Index(i)
-			_n, err = decodeReflectBinary(bz, einfo, erv, opts)
+			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, opts)
 			if slide(bz, &bz, &n, _n) && err != nil {
 				return
 			}
@@ -470,7 +472,7 @@ func decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect.Value, opts 
 	}
 }
 
-func decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	ert := info.Type.Elem()
 	_n := 0
 
@@ -497,13 +499,13 @@ func decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect.Value, opts 
 		// Read into a new slice.
 		var srv = reflect.MakeSlice(ert, 0, int(length))
 		var einfo *TypeInfo
-		einfo, err = getTypeInfo(ert)
+		einfo, err = cdc.getTypeInfo(ert)
 		if err != nil {
 			return
 		}
 		for i := 0; i < int(length); i++ {
 			erv := srv.Index(i)
-			_n, err = decodeReflectBinary(bz, einfo, erv, opts)
+			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, opts)
 			if slide(bz, &bz, &n, _n) && err != nil {
 				return
 			}
@@ -516,7 +518,7 @@ func decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect.Value, opts 
 	}
 }
 
-func decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	_n := 0
 
 	switch info.Type {
@@ -533,12 +535,12 @@ func decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts
 	default:
 		for _, field := range info.Fields {
 			var finfo *TypeInfo
-			finfo, err = getTypeInfo(field.Type)
+			finfo, err = cdc.getTypeInfo(field.Type)
 			if err != nil {
 				return
 			}
 			frv := rv.Field(field.Index)
-			_n, err = decodeReflectBinary(bz, finfo, frv, field.FieldOptions)
+			_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions)
 			if slide(bz, &bz, &n, _n) && err != nil {
 				return
 			}
@@ -548,15 +550,15 @@ func decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts
 }
 
 //----------------------------------------
-// encodeReflectBinary
+// cdc.encodeReflectBinary
 
-func encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	// Dereference pointer transparently.
 	if info.Type.Kind() == reflect.Ptr {
 		var rt reflect.Type
 		rv, rt = rv.Elem(), info.Type.Elem()
-		info, err = getTypeInfo(rt)
+		info, err = cdc.getTypeInfo(rt)
 		if err != nil {
 			return
 		}
@@ -568,16 +570,16 @@ func encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts Fie
 	// Complex
 
 	case reflect.Array:
-		err = encodeReflectBinaryArray(w, info, rv, opts)
+		err = cdc.encodeReflectBinaryArray(w, info, rv, opts)
 
 	case reflect.Interface:
-		err = encodeReflectBinaryInterface(w, info, rv, opts)
+		err = cdc.encodeReflectBinaryInterface(w, info, rv, opts)
 
 	case reflect.Slice:
-		err = encodeReflectBinarySlice(w, info, rv, opts)
+		err = cdc.encodeReflectBinarySlice(w, info, rv, opts)
 
 	case reflect.Struct:
-		err = encodeReflectBinaryStruct(w, info, rv, opts)
+		err = cdc.encodeReflectBinaryStruct(w, info, rv, opts)
 
 	//----------------------------------------
 	// Signed
@@ -653,7 +655,7 @@ func encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts Fie
 	return
 }
 
-func encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	if rv.IsNil() {
 		_, err = w.Write([]byte{0x00, 0x00, 0x00, 0x00})
@@ -676,7 +678,7 @@ func encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv reflect.Value,
 
 	// Get *TypeInfo for concrete type.
 	var cinfo *TypeInfo
-	cinfo, err = getTypeInfo(crt)
+	cinfo, err = cdc.getTypeInfo(crt)
 	if err != nil {
 		return
 	}
@@ -699,11 +701,11 @@ func encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv reflect.Value,
 		return
 	}
 
-	err = encodeReflectBinary(w, cinfo, crv, opts)
+	err = cdc.encodeReflectBinary(w, cinfo, crv, opts)
 	return
 }
 
-func encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	ert := info.Type.Elem()
 	length := info.Type.Len()
 
@@ -723,13 +725,13 @@ func encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opt
 
 	default:
 		var einfo *TypeInfo
-		einfo, err = getTypeInfo(ert)
+		einfo, err = cdc.getTypeInfo(ert)
 		if err != nil {
 			return
 		}
 		for i := 0; i < length; i++ {
 			erv := rv.Index(i)
-			err = encodeReflectBinary(w, einfo, erv, opts)
+			err = cdc.encodeReflectBinary(w, einfo, erv, opts)
 			if err != nil {
 				return err
 			}
@@ -738,7 +740,7 @@ func encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opt
 	}
 }
 
-func encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	ert := info.Type.Elem()
 
 	switch ert.Kind() {
@@ -758,13 +760,13 @@ func encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv reflect.Value, opt
 
 		// Write elems
 		var einfo *TypeInfo
-		einfo, err = getTypeInfo(ert)
+		einfo, err = cdc.getTypeInfo(ert)
 		if err != nil {
 			return
 		}
 		for i := 0; i < length; i++ {
 			erv := rv.Index(i)
-			err = encodeReflectBinary(w, einfo, erv, opts)
+			err = cdc.encodeReflectBinary(w, einfo, erv, opts)
 			if err != nil {
 				return
 			}
@@ -773,7 +775,7 @@ func encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv reflect.Value, opt
 	}
 }
 
-func encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	switch info.Type {
 
@@ -784,12 +786,12 @@ func encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, op
 	default:
 		for _, field := range info.Fields {
 			var finfo *TypeInfo
-			finfo, err = getTypeInfo(field.Type)
+			finfo, err = cdc.getTypeInfo(field.Type)
 			if err != nil {
 				return
 			}
 			frv := rv.Field(field.Index)
-			err = encodeReflectBinary(w, finfo, frv, field.FieldOptions)
+			err = cdc.encodeReflectBinary(w, finfo, frv, field.FieldOptions)
 			if err != nil {
 				return
 			}
@@ -797,135 +799,6 @@ func encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, op
 		return
 	}
 
-}
-
-//----------------------------------------
-// TypeInfo
-
-var mtx sync.RWMutex
-var typeInfos = make(map[reflect.Type]*TypeInfo)
-var interfaceInfos []*TypeInfo
-var prefixToTypeInfos = make(map[PrefixBytes]*TypeInfo)
-var disfixToTypeInfos = make(map[DisfixBytes]*TypeInfo)
-
-func setTypeInfo(info *TypeInfo) {
-	mtx.Lock()
-	defer mtx.Unlock()
-
-	if _, ok := typeInfos[info.Type]; ok {
-		panic(fmt.Sprintf("TypeInfo already exists for %v", info.Type))
-	}
-
-	typeInfos[info.Type] = info
-	if info.Type.Kind() == reflect.Interface {
-		interfaceInfos = append(interfaceInfos, info)
-	} else if info.Registered {
-		prefix := info.Prefix
-		disamb := info.Disamb
-		disfix := toDisfix(prefix, disamb)
-		prefixToTypeInfos[prefix] = info
-		disfixToTypeInfos[disfix] = info
-	}
-}
-
-func getTypeInfo(rt reflect.Type) (info *TypeInfo, err error) {
-	mtx.RLock()
-	defer mtx.RUnlock()
-
-	info, ok := typeInfos[rt]
-	if !ok {
-		err = fmt.Errorf("unregistered interface type %v", rt)
-	}
-	return
-}
-
-func getTypeInfoFromPrefix(pb PrefixBytes) (info *TypeInfo, err error) {
-	mtx.RLock()
-	defer mtx.RUnlock()
-
-	info, ok := prefixToTypeInfos[pb]
-	if !ok {
-		err = fmt.Errorf("unrecognized prefix bytes %X", pb)
-	}
-	return
-}
-
-func getTypeInfoFromDisfix(df DisfixBytes) (info *TypeInfo, err error) {
-	mtx.RLock()
-	defer mtx.RUnlock()
-
-	info, ok := disfixToTypeInfos[df]
-	if !ok {
-		err = fmt.Errorf("unrecognized disambiguation+prefix bytes %X", df)
-	}
-	return
-}
-
-func parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
-	if rt.Kind() != reflect.Struct {
-		return nil
-	}
-
-	infos = make([]FieldInfo, 0, rt.NumField())
-	for i := 0; i < rt.NumField(); i++ {
-		field := rt.Field(i)
-		if field.PkgPath != "" {
-			continue // field is private
-		}
-		skip, opts := parseFieldOptions(field)
-		if skip {
-			continue // e.g. json:"-"
-		}
-		fieldInfo := FieldInfo{
-			Index:        i,
-			Type:         field.Type,
-			ZeroProto:    reflect.Zero(field.Type).Interface(),
-			FieldOptions: opts,
-		}
-		checkUnsafe(fieldInfo)
-		infos = append(infos, fieldInfo)
-	}
-	return infos
-}
-
-func parseFieldOptions(field reflect.StructField) (skip bool, opts FieldOptions) {
-	binTag := field.Tag.Get("binary")
-	wireTag := field.Tag.Get("wire")
-	jsonTag := field.Tag.Get("json")
-
-	// If `json:"-"`, don't encode.
-	// NOTE: This skips binary as well.
-	if jsonTag == "-" {
-		skip = true
-		return
-	}
-
-	// Get JSON field name.
-	jsonTagParts := strings.Split(jsonTag, ",")
-	if jsonTagParts[0] == "" {
-		opts.JSONName = field.Name
-	} else {
-		opts.JSONName = jsonTagParts[0]
-	}
-
-	// Get JSON omitempty.
-	if len(jsonTagParts) > 1 {
-		if jsonTagParts[1] == "omitempty" {
-			opts.JSONOmitEmpty = true
-		}
-	}
-
-	// Parse binary tags.
-	if binTag == "varint" { // TODO: extend
-		opts.BinVarint = true
-	}
-
-	// Parse wire tags.
-	if wireTag == "unsafe" {
-		opts.Unsafe = true
-	}
-
-	return
 }
 
 //----------------------------------------
@@ -971,7 +844,7 @@ func toDisfix(pb PrefixBytes, db DisambBytes) (df DisfixBytes) {
 	return
 }
 
-func decodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBytes, hasPb bool, isNil bool, n int, err error) {
+func (cdc *Codec) decodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBytes, hasPb bool, isNil bool, n int, err error) {
 	// Validate
 	if len(bz) < 4 {
 		err = fmt.Errorf("eof while reading prefix bytes")
