@@ -549,71 +549,67 @@ func encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts Opt
 
 	case reflect.Int64:
 		if opts.Varint {
-			err = WriteVarint(w, int(rv.Int()))
+			err = EncodeVarint(w, int(rv.Int()))
 		} else {
-			err = WriteInt64(w, rv.Int())
+			err = EncodeInt64(w, rv.Int())
 		}
 
 	case reflect.Int32:
-		err = WriteInt32(w, int32(rv.Int()))
+		err = EncodeInt32(w, int32(rv.Int()))
 
 	case reflect.Int16:
-		err = WriteInt16(w, int16(rv.Int()))
+		err = EncodeInt16(w, int16(rv.Int()))
 
 	case reflect.Int8:
-		err = WriteInt8(w, int8(rv.Int()))
+		err = EncodeInt8(w, int8(rv.Int()))
 
 	case reflect.Int:
-		err = WriteVarint(w, int(rv.Int()))
+		err = EncodeVarint(w, int(rv.Int()))
 
 	//----------------------------------------
 	// Unsigned
 
 	case reflect.Uint64:
 		if opts.Varint {
-			err = WriteUvarint(w, uint(rv.Uint()))
+			err = EncodeUvarint(w, uint(rv.Uint()))
 		} else {
-			err = WriteUint64(w, rv.Uint())
+			err = EncodeUint64(w, rv.Uint())
 		}
 
 	case reflect.Uint32:
-		err = WriteUint32(w, uint32(rv.Uint()))
+		err = EncodeUint32(w, uint32(rv.Uint()))
 
 	case reflect.Uint16:
-		err = WriteUint16(w, uint16(rv.Uint()))
+		err = EncodeUint16(w, uint16(rv.Uint()))
 
 	case reflect.Uint8:
-		err = WriteUint8(w, uint8(rv.Uint()))
+		err = EncodeUint8(w, uint8(rv.Uint()))
 
 	case reflect.Uint:
-		err = WriteUvarint(w, uint(rv.Uint()))
+		err = EncodeUvarint(w, uint(rv.Uint()))
 
 	//----------------------------------------
 	// Misc
 
 	case reflect.Bool:
-		if rv.Bool() {
-			err = WriteUint8(w, uint8(1))
-		} else {
-			err = WriteUint8(w, uint8(0))
-		}
+		err = EncodeBool(w, rv.Bool())
 
 	case reflect.Float64:
 		if !opts.Unsafe {
 			err = fmt.Errorf("Wire float* support requires `wire:\"unsafe\"`")
 			return
 		}
-		err = WriteFloat64(w, rv.Float())
+		err = EncodeFloat64(w, rv.Float())
 
 	case reflect.Float32:
 		if !opts.Unsafe {
 			err = fmt.Errorf("Wire float* support requires `wire:\"unsafe\"`")
 			return
 		}
-		err = WriteFloat32(w, float32(rv.Float()))
+		err = EncodeFloat32(w, float32(rv.Float()))
 
 	case reflect.String:
-		err = WriteString(w, rv.String())
+		err = EncodeString(w, rv.String())
 
 	default:
 		panic(fmt.Sprintf("unknown field type %v", info.Type.Kind()))
@@ -706,13 +702,13 @@ func encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv reflect.Value, opt
 
 	case reflect.Uint8: // Special case: byte slice
 		byteslice := rv.Bytes()
-		_, err = WriteByteSlice(w, byteslice)
+		_, err = EncodeByteSlice(w, byteslice)
 		return
 
 	default:
 		// Write length
 		length := rv.Len()
-		_, err = WriteVarint(w, length)
+		_, err = EncodeVarint(w, length)
 		if err != nil {
 			return err
 		}
@@ -735,7 +731,7 @@ func encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, op
 	switch rt.Kind() {
 
 	case timeType: // Special case: time.Time
-		_, err = WriteTime(w, rv.Interface().(time.Time))
+		_, err = EncodeTime(w, rv.Interface().(time.Time))
 		return
 
 	default:

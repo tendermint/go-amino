@@ -50,6 +50,14 @@ func DecodeInt64(bz []byte) (i int64, n int, err error) {
 	return
 }
 
+func DecodeVarint(bz []byte) (i int, n int, err error) {
+	i, n = binary.Varint(bz)
+	if n == 0 {
+		err = fmt.Errorf("eof decoding varint")
+	}
+	return
+}
+
 //----------------------------------------
 // Unsigned
 
@@ -102,9 +110,6 @@ func DecodeUint64(bz []byte) (i uint64, n int, err error) {
 	return
 }
 
-//----------------------------------------
-// (u)varints
-
 func DecodeUvarint(bz []byte) (i uint64, n int, err error) {
 	i, n = binary.Uvarint(bz)
 	if n == 0 {
@@ -113,16 +118,8 @@ func DecodeUvarint(bz []byte) (i uint64, n int, err error) {
 	return
 }
 
-func DecodeVarint(bz []byte) (i int, n int, err error) {
-	i, n = binary.Varint(bz)
-	if n == 0 {
-		err = fmt.Errorf("eof decoding varint")
-	}
-	return
-}
-
 //----------------------------------------
-// Misc.
+// Other
 
 func DecodeBool(bz []byte) (b bool, n int, err error) {
 	const size int = 1
@@ -131,13 +128,13 @@ func DecodeBool(bz []byte) (b bool, n int, err error) {
 	}
 	switch bz[0] {
 	case 0:
-		n = size
+		b = false
 	case 1:
-		n = size
 		b = true
 	default:
 		err = fmt.Errorf("invalid bool")
 	}
+	n = size
 	return
 }
 
@@ -165,12 +162,13 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 	return
 }
 
+// DecodeTime decodes a Int64 and interprets it as the
+// number of nanoseconds since January 1, 1970 UTC, and
+// returns the corresponding time. If the Int64 read is
+// less than zero, or not a multiple of a million, it sets
+// the error and returns the default time.
 func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 	i, n, err := DecodeInt64(bz)
-	if i < 0 {
-		err = fmt.Errorf("DecodeTime: negative time")
-		return
-	}
 	if i%1000000 != 0 {
 		err = fmt.Errorf("submillisecond precision not supported")
 		return
@@ -182,8 +180,7 @@ func DecodeByteSlice(bz []byte) (bz2 []byte, n int, err error) {
 	var count int64
 	var _n int
 	count, _n, err = DecodeVarint(bz)
-	incrSlice(bz, &bz, &n, _n)
-	if err != nil {
+	if slide(bz, &bz, &n, _n) && err != nil {
 		return
 	}
 	if len(bz) < count {
@@ -196,11 +193,19 @@ func DecodeByteSlice(bz []byte) (bz2 []byte, n int, err error) {
 	return
 }
 
+func DecodeString(bz []byte) (s string, n int, err error) {
+	var bz2 []byte
+	bz2, n, err = DecodeByteSlice(bz)
+	s = string(bz2)
+	return
+}
+
 //----------------------------------------
+// Misc.
 
 // CONTRACT: by the time this is called, len(bz) >= _n
 // Returns true so you can write one-liners.
-func incrSlice(bz []byte, bz2 *[]byte, n *int, _n int) bool {
+func slide(bz []byte, bz2 *[]byte, n *int, _n int) bool {
 	*bz2 = bz[_n:]
 	*n += _n
 	return true
