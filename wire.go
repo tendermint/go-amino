@@ -7,17 +7,18 @@ import (
 )
 
 func MarshalBinary(o interface{}) ([]byte, error) {
-	w, n, err := new(bytes.Buffer), new(int), new(error)
-	WriteBinary(o, w, n, err)
-	if *err != nil {
-		return nil, *err
-	}
-
-	return w.Bytes(), nil
-
+	w := new(bytes.Buffer)
 	rv := reflect.ValueOf(o)
 	rt := reflect.TypeOf(o)
-	writeReflectBinary(rv, rt, Options{}, w, n, err)
+	info, err := getTypeInfo(rt)
+	if err != nil {
+		return nil, err
+	}
+	err = encodeReflectBinary(w, info, rv, FieldOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return w.Bytes(), nil
 }
 
 func UnmarshalBinary(bz []byte, ptr interface{}) error {
@@ -25,13 +26,19 @@ func UnmarshalBinary(bz []byte, ptr interface{}) error {
 	if rv.Kind() != reflect.Ptr {
 		panic("Unmarshal expects a pointer")
 	}
-	n, err := decodeReflectBinary(bz, rv.Elem(), rt.Elem(), FieldOptions{})
+	rv, rt = rv.Elem(), rt.Elem()
+	info, err := getTypeInfo(rt)
+	if err != nil {
+		return err
+	}
+	n, err := decodeReflectBinary(bz, info, rv, FieldOptions{})
 	if err != nil {
 		return err
 	}
 	if n != len(bz) {
-		err = fmt.Errorf("Unmarshal didn't read all bytes")
+		return fmt.Errorf("Unmarshal didn't read all bytes")
 	}
+	return nil
 }
 
 func UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) error {
