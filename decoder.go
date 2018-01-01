@@ -2,7 +2,7 @@ package wire
 
 import (
 	"encoding/binary"
-	"errors"
+	"fmt"
 	"math"
 	"time"
 )
@@ -50,7 +50,7 @@ func DecodeInt64(bz []byte) (i int64, n int, err error) {
 	return
 }
 
-func DecodeVarint(bz []byte) (i int, n int, err error) {
+func DecodeVarint(bz []byte) (i int64, n int, err error) {
 	i, n = binary.Varint(bz)
 	if n == 0 {
 		err = fmt.Errorf("eof decoding varint")
@@ -173,7 +173,8 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 		err = fmt.Errorf("submillisecond precision not supported")
 		return
 	}
-	return time.Unix(0, t)
+	t = time.Unix(0, i)
+	return
 }
 
 func DecodeByteSlice(bz []byte) (bz2 []byte, n int, err error) {
@@ -183,13 +184,13 @@ func DecodeByteSlice(bz []byte) (bz2 []byte, n int, err error) {
 	if slide(bz, &bz, &n, _n) && err != nil {
 		return
 	}
-	if len(bz) < count {
+	if len(bz) < int(count) {
 		err = fmt.Errorf("insufficient bytes decoding []byte of length %v", count)
 		return
 	}
 	bz2 = make([]byte, count)
 	copy(bz2, bz[0:count])
-	n += count
+	n += int(count)
 	return
 }
 
@@ -198,15 +199,4 @@ func DecodeString(bz []byte) (s string, n int, err error) {
 	bz2, n, err = DecodeByteSlice(bz)
 	s = string(bz2)
 	return
-}
-
-//----------------------------------------
-// Misc.
-
-// CONTRACT: by the time this is called, len(bz) >= _n
-// Returns true so you can write one-liners.
-func slide(bz []byte, bz2 *[]byte, n *int, _n int) bool {
-	*bz2 = bz[_n:]
-	*n += _n
-	return true
 }

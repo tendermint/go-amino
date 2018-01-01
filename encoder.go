@@ -3,16 +3,15 @@ package wire
 import (
 	"encoding/binary"
 	"io"
+	"math"
 	"time"
-
-	cmn "github.com/tendermint/tmlibs/common"
 )
 
 //----------------------------------------
 // Signed
 
 func EncodeInt8(w io.Writer, i int8) (err error) {
-	return EncodeByte(byte(i), w, n, err)
+	return EncodeByte(w, byte(i))
 }
 
 func EncodeInt16(w io.Writer, i int16) (err error) {
@@ -39,7 +38,7 @@ func EncodeInt64(w io.Writer, i int64) (err error) {
 func EncodeVarint(w io.Writer, i int64) (err error) {
 	var buf [10]byte
 	n := binary.PutVarint(buf[:], i)
-	err = w.Write(buf[0:n])
+	_, err = w.Write(buf[0:n])
 	return
 }
 
@@ -58,7 +57,7 @@ func EncodeByte(w io.Writer, b byte) (err error) {
 }
 
 func EncodeUint8(w io.Writer, i uint8) (err error) {
-	return EncodeByte(byte(i), w, n, err)
+	return EncodeByte(w, byte(i))
 }
 
 func EncodeUint16(w io.Writer, i uint16) (err error) {
@@ -85,7 +84,7 @@ func EncodeUint64(w io.Writer, i uint64) (err error) {
 func EncodeUvarint(w io.Writer, i uint64) (err error) {
 	var buf [10]byte
 	n := binary.PutUvarint(buf[:], i)
-	err = w.Write(buf[0:n])
+	_, err = w.Write(buf[0:n])
 	return
 }
 
@@ -130,14 +129,12 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 }
 
 func EncodeByteSlice(w io.Writer, bz []byte) (err error) {
-	err = EncodeVarint(w, len(bz))
+	err = EncodeVarint(w, int64(len(bz)))
 	if err != nil {
 		return
 	}
 	_, err = w.Write(bz)
-	if err != nil {
-		return
-	}
+	return
 }
 
 func ByteSliceSize(bz []byte) int {

@@ -5,17 +5,14 @@ package wire
 // XXX Scan the codebase for unwraps and double check that they implement above.
 
 import (
+	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
+	"fmt"
 	"io"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
-
-	cmn "github.com/tendermint/tmlibs/common"
 )
 
 /*
@@ -122,6 +119,7 @@ type TypeInfo struct {
 }
 
 type InterfaceInfo struct {
+	NilValue reflect.Value
 	InterfaceOptions
 }
 
@@ -146,7 +144,7 @@ type ConcreteOptions struct {
 type FieldInfo struct {
 	Type         reflect.Type // Struct field type
 	Index        int          // Struct field index
-	ZeroValue    interface{}  // Prototype zero value object.
+	ZeroProto    interface{}  // Prototype zero value object.
 	FieldOptions              // Encoding options
 }
 
@@ -170,12 +168,13 @@ func RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
 	}
 
 	// Construct InterfaceInfo
-	var info InterfaceInfo
+	var info = new(TypeInfo)
 	info.Type = rt
+	info.NilValue = reflect.ValueOf(reflect.Zero(rt))
 	info.InterfaceOptions = *opts
 
 	// Finally, register.
-	setInterfaceInfo(rt, &info)
+	setTypeInfo(info)
 }
 
 // This function should be used to register concrete types that will appear in
@@ -197,7 +196,7 @@ func RegisterConcrete(o interface{}, name string, opts *ConcreteOptions) {
 	}
 
 	// Construct ConcreteInfo
-	var info ConcreteInfo
+	var info = new(TypeInfo)
 	info.Type = rt
 	info.PointerPreferred = pointerPreferred
 	info.Registered = true
@@ -207,7 +206,7 @@ func RegisterConcrete(o interface{}, name string, opts *ConcreteOptions) {
 	info.ConcreteOptions = *opts
 
 	// Actually register the interface.
-	setConcreteInfo(rt, info)
+	setTypeInfo(info)
 }
 
 //----------------------------------------
@@ -245,7 +244,7 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 
 	case reflect.Int64:
 		var num int64
-		if opts.Varint {
+		if opts.BinVarint {
 			num, _n, err = DecodeVarint(bz)
 			if slide(bz, &bz, &n, _n) && err != nil {
 				return
@@ -261,6 +260,7 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 		return
 
 	case reflect.Int32:
+		var num int32
 		num, _n, err = DecodeInt32(bz)
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
@@ -269,6 +269,7 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 		return
 
 	case reflect.Int16:
+		var num int16
 		num, _n, err = DecodeInt16(bz)
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
@@ -277,6 +278,7 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 		return
 
 	case reflect.Int8:
+		var num int8
 		num, _n, err = DecodeInt8(bz)
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
@@ -285,11 +287,12 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 		return
 
 	case reflect.Int:
+		var num int64
 		num, _n, err = DecodeVarint(bz)
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
 		}
-		rv.SetInt(int64(num))
+		rv.SetInt(num)
 		return
 
 	//----------------------------------------
@@ -297,7 +300,7 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 
 	case reflect.Uint64:
 		var num uint64
-		if opts.Varint {
+		if opts.BinVarint {
 			num, _n, err = DecodeUvarint(bz)
 			if slide(bz, &bz, &n, _n) && err != nil {
 				return
@@ -313,6 +316,7 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 		return
 
 	case reflect.Uint32:
+		var num uint32
 		num, _n, err = DecodeUint32(bz)
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
@@ -321,6 +325,7 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 		return
 
 	case reflect.Uint16:
+		var num uint16
 		num, _n, err = DecodeUint16(bz)
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
@@ -329,6 +334,7 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 		return
 
 	case reflect.Uint8:
+		var num uint8
 		num, _n, err = DecodeUint8(bz)
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
@@ -337,17 +343,19 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 		return
 
 	case reflect.Uint:
+		var num uint64
 		num, _n, err = DecodeUvarint(bz)
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
 		}
-		rv.SetUint(uint64(num))
+		rv.SetUint(num)
 		return
 
 	//----------------------------------------
 	// Misc.
 
 	case reflect.Bool:
+		var b bool
 		b, _n, err = DecodeBool(bz)
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
@@ -356,6 +364,7 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 		return
 
 	case reflect.Float64:
+		var f float64
 		if !opts.Unsafe {
 			err = fmt.Errorf("float support requires `wire:\"unsafe\"`")
 			return
@@ -364,10 +373,11 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
 		}
-		rv.SetBool(f)
+		rv.SetFloat(f)
 		return
 
 	case reflect.Float32:
+		var f float32
 		if !opts.Unsafe {
 			err = fmt.Errorf("float support requires `wire:\"unsafe\"`")
 			return
@@ -376,7 +386,7 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
 		}
-		rv.SetBool(f)
+		rv.SetFloat(float64(f))
 		return
 
 	case reflect.String:
@@ -397,8 +407,15 @@ func decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts Field
 func decodeReflectBinaryInterface(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 
 	// Read disambiguation / prefix bytes.
-	disfix, hasDisamb, prefix, hasPrefix, _n := decodeDisambPrefixBytes(bz)
-	slide(bz, &bz, &n, _n)
+	disfix, hasDisamb, prefix, hasPrefix, isNil, _n, err := decodeDisambPrefixBytes(bz)
+	if slide(bz, &bz, &n, _n) && err != nil {
+		return
+	}
+
+	// Special case for nil
+	if isNil {
+		rv.Set(info.NilValue)
+	}
 
 	// Get concrete type info.
 	var cinfo *TypeInfo
@@ -417,7 +434,8 @@ func decodeReflectBinaryInterface(bz []byte, info *TypeInfo, rv reflect.Value, o
 	var crv = reflect.New(cinfo.Type).Elem()
 
 	// Read into crv.
-	err = decodeReflectBinary(bz, cinfo, crv, opts)
+	_n, err = decodeReflectBinary(bz, cinfo, crv, opts)
+	slide(bz, &bz, &n, _n)
 	return
 }
 
@@ -436,7 +454,11 @@ func decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect.Value, opts 
 		return
 
 	default: // General case.
-		einfo := getTypeInfo(ert)
+		var einfo *TypeInfo
+		einfo, err = getTypeInfo(ert)
+		if err != nil {
+			return
+		}
 		for i := 0; i < length; i++ {
 			erv := rv.Index(i)
 			_n, err = decodeReflectBinary(bz, einfo, erv, opts)
@@ -456,7 +478,7 @@ func decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect.Value, opts 
 
 	case reflect.Uint8: // Special case: byte slice
 		var byteslice []byte
-		byteslice, _n, err = DecodeByteSlice(r, lmt, n, err)
+		byteslice, _n, err = DecodeByteSlice(bz)
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
 		}
@@ -466,17 +488,21 @@ func decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect.Value, opts 
 	default: // General case.
 
 		// Read length.
-		var length int
+		var length int64
 		length, _n, err = DecodeVarint(bz)
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
 		}
 
 		// Read into a new slice.
-		var srv = reflect.MakeSlice(rt, 0, length)
-		einfo := getTypeInfo(ert)
-		for i := 0; i < length; i++ {
-			erv := srv.Index(j)
+		var srv = reflect.MakeSlice(ert, 0, int(length))
+		var einfo *TypeInfo
+		einfo, err = getTypeInfo(ert)
+		if err != nil {
+			return
+		}
+		for i := 0; i < int(length); i++ {
+			erv := srv.Index(i)
 			_n, err = decodeReflectBinary(bz, einfo, erv, opts)
 			if slide(bz, &bz, &n, _n) && err != nil {
 				return
@@ -496,7 +522,8 @@ func decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts
 	switch info.Type {
 
 	case timeType: // Special case: time.Time
-		t, _n, err := DecodeTime(r)
+		var t time.Time
+		t, _n, err = DecodeTime(bz)
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
 		}
@@ -504,11 +531,16 @@ func decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts
 		return
 
 	default:
-		for _, finfo := range typeInfo.Fields {
-			frv := rv.Field(finfo.Index)
-			_n, err = decodeReflectBinary(bz, finfo, frv, finfo.Options)
+		for _, field := range info.Fields {
+			var finfo *TypeInfo
+			finfo, err = getTypeInfo(field.Type)
+			if err != nil {
+				return
+			}
+			frv := rv.Field(field.Index)
+			_n, err = decodeReflectBinary(bz, finfo, frv, field.FieldOptions)
 			if slide(bz, &bz, &n, _n) && err != nil {
-				return err
+				return
 			}
 		}
 		return
@@ -518,13 +550,16 @@ func decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts
 //----------------------------------------
 // encodeReflectBinary
 
-func encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts Options) (err error) {
+func encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	// Dereference pointer transparently.
 	if info.Type.Kind() == reflect.Ptr {
 		var rt reflect.Type
 		rv, rt = rv.Elem(), info.Type.Elem()
-		info = getTypeInfo(rt)
+		info, err = getTypeInfo(rt)
+		if err != nil {
+			return
+		}
 	}
 
 	switch info.Type.Kind() {
@@ -548,8 +583,8 @@ func encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts Opt
 	// Signed
 
 	case reflect.Int64:
-		if opts.Varint {
-			err = EncodeVarint(w, int(rv.Int()))
+		if opts.BinVarint {
+			err = EncodeVarint(w, rv.Int())
 		} else {
 			err = EncodeInt64(w, rv.Int())
 		}
@@ -564,14 +599,14 @@ func encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts Opt
 		err = EncodeInt8(w, int8(rv.Int()))
 
 	case reflect.Int:
-		err = EncodeVarint(w, int(rv.Int()))
+		err = EncodeVarint(w, rv.Int())
 
 	//----------------------------------------
 	// Unsigned
 
 	case reflect.Uint64:
-		if opts.Varint {
-			err = EncodeUvarint(w, uint(rv.Uint()))
+		if opts.BinVarint {
+			err = EncodeUvarint(w, rv.Uint())
 		} else {
 			err = EncodeUint64(w, rv.Uint())
 		}
@@ -586,7 +621,7 @@ func encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts Opt
 		err = EncodeUint8(w, uint8(rv.Uint()))
 
 	case reflect.Uint:
-		err = EncodeUvarint(w, uint(rv.Uint()))
+		err = EncodeUvarint(w, rv.Uint())
 
 	//----------------------------------------
 	// Misc
@@ -621,7 +656,7 @@ func encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts Opt
 func encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	if rv.IsNil() {
-		err = w.Write([]byte{0x00, 0x00, 0x00, 0x00})
+		_, err = w.Write([]byte{0x00, 0x00, 0x00, 0x00})
 		return
 	}
 
@@ -630,17 +665,21 @@ func encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv reflect.Value,
 
 	// Dereference pointer transparently.
 	if crt.Kind() == reflect.Ptr {
-		crv = crt.Elem()
+		crv = crv.Elem()
 		crt = crt.Elem()
 		if !crv.IsValid() {
 			err = fmt.Errorf("unexpected nil-pointer of type %v for registered interface %v. "+
-				"For compatibility with other languages, nil-pointer interface values are forbidden.", crt, rt.Name())
+				"For compatibility with other languages, nil-pointer interface values are forbidden.", crt, info.Type.Name())
 			return
 		}
 	}
 
 	// Get *TypeInfo for concrete type.
-	cinfo := getTypeInfo(crt)
+	var cinfo *TypeInfo
+	cinfo, err = getTypeInfo(crt)
+	if err != nil {
+		return
+	}
 	if !cinfo.Registered {
 		err = fmt.Errorf("Cannot encode unknown type %v", crt)
 		return
@@ -664,9 +703,9 @@ func encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv reflect.Value,
 	return
 }
 
-func encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts Options) (err error) {
+func encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	ert := info.Type.Elem()
-	length := rt.Len()
+	length := info.Type.Len()
 
 	switch ert.Kind() {
 
@@ -683,7 +722,11 @@ func encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opt
 		}
 
 	default:
-		einfo := getTypeInfo(ert)
+		var einfo *TypeInfo
+		einfo, err = getTypeInfo(ert)
+		if err != nil {
+			return
+		}
 		for i := 0; i < length; i++ {
 			erv := rv.Index(i)
 			err = encodeReflectBinary(w, einfo, erv, opts)
@@ -695,29 +738,33 @@ func encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opt
 	}
 }
 
-func encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts Options) (err error) {
+func encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	ert := info.Type.Elem()
 
 	switch ert.Kind() {
 
 	case reflect.Uint8: // Special case: byte slice
 		byteslice := rv.Bytes()
-		_, err = EncodeByteSlice(w, byteslice)
+		err = EncodeByteSlice(w, byteslice)
 		return
 
 	default:
 		// Write length
 		length := rv.Len()
-		_, err = EncodeVarint(w, length)
+		err = EncodeVarint(w, int64(length))
 		if err != nil {
 			return err
 		}
 
 		// Write elems
-		einfo := getTypeInfo(ert)
+		var einfo *TypeInfo
+		einfo, err = getTypeInfo(ert)
+		if err != nil {
+			return
+		}
 		for i := 0; i < length; i++ {
 			erv := rv.Index(i)
-			_, err = encodeReflectBinary(w, einfo, erv, opts)
+			err = encodeReflectBinary(w, einfo, erv, opts)
 			if err != nil {
 				return
 			}
@@ -726,19 +773,23 @@ func encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv reflect.Value, opt
 	}
 }
 
-func encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts Options) (err error) {
+func encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
-	switch rt.Kind() {
+	switch info.Type {
 
 	case timeType: // Special case: time.Time
-		_, err = EncodeTime(w, rv.Interface().(time.Time))
+		err = EncodeTime(w, rv.Interface().(time.Time))
 		return
 
 	default:
-		for _, finfo := range info.Fields {
-			// fieldIdx, fieldType, opts := fieldInfo.unpack()
-			frv := rv.Field(finvi.Index)
-			err = encodeReflectBinary(w, finfo, frv, finfo.FieldOptions)
+		for _, field := range info.Fields {
+			var finfo *TypeInfo
+			finfo, err = getTypeInfo(field.Type)
+			if err != nil {
+				return
+			}
+			frv := rv.Field(field.Index)
+			err = encodeReflectBinary(w, finfo, frv, field.FieldOptions)
 			if err != nil {
 				return
 			}
@@ -760,6 +811,10 @@ var disfixToTypeInfos = make(map[DisfixBytes]*TypeInfo)
 func setTypeInfo(info *TypeInfo) {
 	mtx.Lock()
 	defer mtx.Unlock()
+
+	if _, ok := typeInfos[info.Type]; ok {
+		panic(fmt.Sprintf("TypeInfo already exists for %v", info.Type))
+	}
 
 	typeInfos[info.Type] = info
 	if info.Type.Kind() == reflect.Interface {
@@ -824,7 +879,7 @@ func parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
 		fieldInfo := FieldInfo{
 			Index:        i,
 			Type:         field.Type,
-			ZeroValue:    reflect.Zero(field.Type).Interface(),
+			ZeroProto:    reflect.Zero(field.Type).Interface(),
 			FieldOptions: opts,
 		}
 		checkUnsafe(fieldInfo)
@@ -862,7 +917,7 @@ func parseFieldOptions(field reflect.StructField) (skip bool, opts FieldOptions)
 
 	// Parse binary tags.
 	if binTag == "varint" { // TODO: extend
-		opts.Varint = true
+		opts.BinVarint = true
 	}
 
 	// Parse wire tags.
@@ -897,7 +952,7 @@ func checkUnsafe(field FieldInfo) {
 func nameToPrefix(name string) (pb PrefixBytes, db DisambBytes) {
 	hasher := sha256.New()
 	hasher.Write([]byte(name))
-	bz := hasher.Sum()
+	bz := hasher.Sum(nil)
 	for bz[0] == 0x00 {
 		bz = bz[1:]
 	}
