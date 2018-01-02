@@ -47,6 +47,7 @@ func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("MARSHAL BINARY", info)
 	err = cdc.encodeReflectBinary(w, info, rv, FieldOptions{})
 	if err != nil {
 		return nil, err

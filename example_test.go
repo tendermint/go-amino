@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package wire
+package wire_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	wire "github.com/tendermint/go-wire"
 )
 
 func TestEndToEndReflectBinary(t *testing.T) {
@@ -37,19 +39,29 @@ func TestEndToEndReflectBinary(t *testing.T) {
 		Peers int
 	}
 
-	var wire = NewCodec()
-	wire.RegisterInterface((*Receiver)(nil), nil)
-	wire.RegisterConcrete(&bcMessage{}, "bcMessage", nil)
-	wire.RegisterConcrete(&bcResponse{}, "bcResponse", nil)
-	wire.RegisterConcrete(&bcStatus{}, "bcStatus", nil)
-
-	bm := &bcMessage{Message: "Tendermint", Height: 100}
-	bmBytes, err := wire.MarshalBinary(bm)
+	/*bm := &bcMessage{Message: "ABC", Height: 100}
+	unregistered, err := wire.MarshalBinary(bm)
 	assert.Nil(t, err)
+	fmt.Println("### normal", unregistered)*/
+
+	wire2 := wire.NewCodec()
+	wire2.RegisterInterface((*Receiver)(nil), nil)
+	wire2.RegisterConcrete(&bcMessage{}, "bcMessage", nil)
+	wire2.RegisterConcrete(&bcResponse{}, "bcResponse", nil)
+	wire2.RegisterConcrete(&bcStatus{}, "bcStatus", nil)
+	fmt.Println("registered")
+
+	fmt.Println("-------")
+	bm := &bcMessage{Message: "ABC", Height: 100}
+
+	bmBytes, err := wire2.MarshalBinary(bm)
+	assert.Nil(t, err)
+	fmt.Println("### registered bytes", bmBytes)
+	return
 	t.Logf("Encoded: %x\n", bmBytes)
 
 	var rcvr Receiver
-	err = wire.UnmarshalBinary(bmBytes, &rcvr)
+	err = wire2.UnmarshalBinary(bmBytes, &rcvr)
 	assert.Nil(t, err)
 	bm2 := rcvr.(*bcMessage)
 	t.Logf("Decoded: %#v\n", bm2)
