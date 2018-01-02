@@ -9,7 +9,7 @@ import (
 
 type Codec struct {
 	mtx               sync.RWMutex
-	typeInfos         map[reflect.Type]*TypeInfo
+	typeInfos         map[string]*TypeInfo
 	interfaceInfos    []*TypeInfo
 	prefixToTypeInfos map[PrefixBytes]*TypeInfo
 	disfixToTypeInfos map[DisfixBytes]*TypeInfo
@@ -28,11 +28,14 @@ func (cdc *Codec) setTypeInfo(info *TypeInfo) {
 	cdc.mtx.Lock()
 	defer cdc.mtx.Unlock()
 
-	if _, ok := cdc.typeInfos[info.Type]; ok {
-		panic(fmt.Sprintf("TypeInfo already exists for %v", info.Type))
+	if _, ok := cdc.typeInfos[info.TypeKey()]; ok {
+		//if !info.Registered {
+		panic(fmt.Sprintf("TypeInfo already exists for %v", info.TypeKey()))
+		//}
 	}
 
-	cdc.typeInfos[info.Type] = info
+	fmt.Println("SET TYPE INFO", info.Type, info.TypeKey())
+	cdc.typeInfos[info.TypeKey()] = info
 	if info.Type.Kind() == reflect.Interface {
 		cdc.interfaceInfos = append(cdc.interfaceInfos, info)
 	} else if info.Registered {
@@ -44,15 +47,27 @@ func (cdc *Codec) setTypeInfo(info *TypeInfo) {
 	}
 }
 
-func (cdc *Codec) getTypeInfo(rt reflect.Type) (info *TypeInfo, err error) {
+func (cdc *Codec) getTypeInfo(rt reflect.Type) (*TypeInfo, error) {
 	cdc.mtx.RLock()
 	defer cdc.mtx.RUnlock()
 
 	info, ok := cdc.typeInfos[rt]
 	if !ok {
-		err = fmt.Errorf("unregistered interface type %v", rt)
+		fmt.Println("constructing type", rt)
+		// Construct info
+		var info = new(TypeInfo)
+		info.Type = rt
+		info.PointerPreferred = false // TODO
+		info.Registered = false
+		info.Fields = parseFieldInfos(rt)
+
+		// set the info
+		fmt.Println("SET TYPE INFO CONSTRUCTION", rt)
+		cdc.typeInfos[info.TypeKey()] = info
+		return info, nil
 	}
-	return
+	fmt.Println("returning type", info)
+	return info, nil
 }
 
 func (cdc *Codec) getTypeInfoFromPrefix(pb PrefixBytes) (info *TypeInfo, err error) {
@@ -77,7 +92,7 @@ func (cdc *Codec) getTypeInfoFromDisfix(df DisfixBytes) (info *TypeInfo, err err
 	return
 }
 
-func (cdc *Codec) parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
+func parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
 	if rt.Kind() != reflect.Struct {
 		return nil
 	}
@@ -88,7 +103,7 @@ func (cdc *Codec) parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
 		if field.PkgPath != "" {
 			continue // field is private
 		}
-		skip, opts := cdc.parseFieldOptions(field)
+		skip, opts := parseFieldOptions(field)
 		if skip {
 			continue // e.g. json:"-"
 		}
@@ -104,7 +119,7 @@ func (cdc *Codec) parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
 	return infos
 }
 
-func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, opts FieldOptions) {
+func parseFieldOptions(field reflect.StructField) (skip bool, opts FieldOptions) {
 	binTag := field.Tag.Get("binary")
 	wireTag := field.Tag.Get("wire")
 	jsonTag := field.Tag.Get("json")

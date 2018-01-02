@@ -158,10 +158,9 @@ type FieldOptions struct {
 // Usage:
 // `wire.RegisterInterface((*MyInterface1)(nil), nil)`
 func (cdc *Codec) RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
-	cdc.mtx.Lock()
-	defer cdc.mtx.Unlock()
 
 	// Get reflect.Type from ptr.
+	fmt.Println("register interface")
 	rt := getTypeFromPointer(ptr)
 	if rt.Kind() != reflect.Interface {
 		panic(fmt.Sprintf("RegisterInterface expects an interface, got %v", rt))
@@ -171,8 +170,11 @@ func (cdc *Codec) RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
 	var info = new(TypeInfo)
 	info.Type = rt
 	info.NilValue = reflect.ValueOf(reflect.Zero(rt))
-	info.InterfaceOptions = *opts
+	if opts != nil {
+		info.InterfaceOptions = *opts
+	}
 
+	fmt.Println("set type")
 	// Finally, register.
 	cdc.setTypeInfo(info)
 }
@@ -182,8 +184,6 @@ func (cdc *Codec) RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
 // Usage:
 // `wire.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)`
 func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOptions) {
-	cdc.mtx.Lock()
-	defer cdc.mtx.Unlock()
 
 	var pointerPreferred bool
 
@@ -204,8 +204,10 @@ func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOpt
 	info.Registered = true
 	info.Name = name
 	info.Prefix, info.Disamb = nameToPrefix(name)
-	info.Fields = cdc.parseFieldInfos(rt)
-	info.ConcreteOptions = *opts
+	info.Fields = parseFieldInfos(rt)
+	if opts != nil {
+		info.ConcreteOptions = *opts
+	}
 
 	// Actually register the interface.
 	cdc.setTypeInfo(info)
@@ -806,7 +808,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 
 func getTypeFromPointer(ptr interface{}) reflect.Type {
 	rt := reflect.TypeOf(ptr)
-	if rt.Kind() == reflect.Ptr {
+	if rt.Kind() != reflect.Ptr {
 		panic(fmt.Sprintf("expected pointer, got %v", rt))
 	}
 	return rt.Elem()
