@@ -43,11 +43,10 @@ func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
 	w := new(bytes.Buffer)
 	rv := reflect.ValueOf(o)
 	rt := reflect.TypeOf(o)
-	info, err := cdc.getTypeInfo(rt)
+	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("MARSHAL BINARY", info)
 	err = cdc.encodeReflectBinary(w, info, rv, FieldOptions{})
 	if err != nil {
 		return nil, err
@@ -61,7 +60,7 @@ func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
 		panic("Unmarshal expects a pointer")
 	}
 	rv, rt = rv.Elem(), rt.Elem()
-	info, err := cdc.getTypeInfo(rt)
+	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return err
 	}

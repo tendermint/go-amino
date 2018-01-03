@@ -39,29 +39,28 @@ func TestEndToEndReflectBinary(t *testing.T) {
 		Peers int
 	}
 
-	/*bm := &bcMessage{Message: "ABC", Height: 100}
-	unregistered, err := wire.MarshalBinary(bm)
-	assert.Nil(t, err)
-	fmt.Println("### normal", unregistered)*/
-
-	wire2 := wire.NewCodec()
-	wire2.RegisterInterface((*Receiver)(nil), nil)
-	wire2.RegisterConcrete(&bcMessage{}, "bcMessage", nil)
-	wire2.RegisterConcrete(&bcResponse{}, "bcResponse", nil)
-	wire2.RegisterConcrete(&bcStatus{}, "bcStatus", nil)
+	cdc := wire.NewCodec()
+	fmt.Println("1")
+	cdc.RegisterInterface((*Receiver)(nil), nil)
+	fmt.Println("2")
+	cdc.RegisterConcrete(&bcMessage{}, "bcMessage", nil)
+	fmt.Println("3")
+	cdc.RegisterConcrete(&bcResponse{}, "bcResponse", nil)
+	fmt.Println("4")
+	cdc.RegisterConcrete(&bcStatus{}, "bcStatus", nil)
 	fmt.Println("registered")
 
 	fmt.Println("-------")
 	bm := &bcMessage{Message: "ABC", Height: 100}
 
-	bmBytes, err := wire2.MarshalBinary(bm)
+	bmBytes, err := cdc.MarshalBinary(bm)
 	assert.Nil(t, err)
 	fmt.Println("### registered bytes", bmBytes)
 	return
 	t.Logf("Encoded: %x\n", bmBytes)
 
 	var rcvr Receiver
-	err = wire2.UnmarshalBinary(bmBytes, &rcvr)
+	err = cdc.UnmarshalBinary(bmBytes, &rcvr)
 	assert.Nil(t, err)
 	bm2 := rcvr.(*bcMessage)
 	t.Logf("Decoded: %#v\n", bm2)

@@ -9,90 +9,116 @@ import (
 
 type Codec struct {
 	mtx               sync.RWMutex
-	typeInfos         map[string]*TypeInfo
+	typeInfos         map[reflect.Type]*TypeInfo
 	interfaceInfos    []*TypeInfo
-	prefixToTypeInfos map[PrefixBytes]*TypeInfo
-	disfixToTypeInfos map[DisfixBytes]*TypeInfo
+	prefixToTypeInfos map[PrefixBytes][]*TypeInfo
+	disfixToTypeInfo  map[DisfixBytes]*TypeInfo
 }
 
 func NewCodec() *Codec {
 	cdc := &Codec{
 		typeInfos:         make(map[reflect.Type]*TypeInfo),
-		prefixToTypeInfos: make(map[PrefixBytes]*TypeInfo),
-		disfixToTypeInfos: make(map[DisfixBytes]*TypeInfo),
+		prefixToTypeInfos: make(map[PrefixBytes][]*TypeInfo),
+		disfixToTypeInfo:  make(map[DisfixBytes]*TypeInfo),
 	}
 	return cdc
 }
 
-func (cdc *Codec) setTypeInfo(info *TypeInfo) {
+func (cdc *Codec) setTypeInfo_wlock(info *TypeInfo) {
 	cdc.mtx.Lock()
 	defer cdc.mtx.Unlock()
 
-	if _, ok := cdc.typeInfos[info.TypeKey()]; ok {
-		//if !info.Registered {
-		panic(fmt.Sprintf("TypeInfo already exists for %v", info.TypeKey()))
-		//}
+	cdc.setTypeInfo(info)
+}
+
+func (cdc *Codec) setTypeInfo(info *TypeInfo) {
+
+	if info.Type.Kind() == reflect.Ptr {
+		panic(fmt.Sprintf("unexpected pointer type"))
+	}
+	if _, ok := cdc.typeInfos[info.Type]; ok {
+		panic(fmt.Sprintf("TypeInfo already exists for %v", info.Type))
 	}
 
-	fmt.Println("SET TYPE INFO", info.Type, info.TypeKey())
-	cdc.typeInfos[info.TypeKey()] = info
+	cdc.typeInfos[info.Type] = info
 	if info.Type.Kind() == reflect.Interface {
 		cdc.interfaceInfos = append(cdc.interfaceInfos, info)
 	} else if info.Registered {
 		prefix := info.Prefix
 		disamb := info.Disamb
 		disfix := toDisfix(prefix, disamb)
-		cdc.prefixToTypeInfos[prefix] = info
-		cdc.disfixToTypeInfos[disfix] = info
+		// XXX panic if conflict with disfix
+		cdc.prefixToTypeInfos[prefix] = []*TypeInfo{info}
+		cdc.disfixToTypeInfo[disfix] = info
 	}
 }
 
-func (cdc *Codec) getTypeInfo(rt reflect.Type) (*TypeInfo, error) {
-	cdc.mtx.RLock()
-	defer cdc.mtx.RUnlock()
+func (cdc *Codec) getTypeInfo_wlock(rt reflect.Type) (info *TypeInfo, err error) {
+	cdc.mtx.Lock() // write-lock because we might set.
+	defer cdc.mtx.Unlock()
+
+	// Transparently "dereference" pointer type.
+	for rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+	}
 
 	info, ok := cdc.typeInfos[rt]
 	if !ok {
-		fmt.Println("constructing type", rt)
-		// Construct info
-		var info = new(TypeInfo)
-		info.Type = rt
-		info.PointerPreferred = false // TODO
-		info.Registered = false
-		info.Fields = parseFieldInfos(rt)
-
-		// set the info
-		fmt.Println("SET TYPE INFO CONSTRUCTION", rt)
-		cdc.typeInfos[info.TypeKey()] = info
-		return info, nil
+		info, err = cdc.newAutoTypeInfo(rt)
+		if err != nil {
+			return
+		}
+		cdc.setTypeInfo(info)
 	}
-	fmt.Println("returning type", info)
 	return info, nil
 }
 
-func (cdc *Codec) getTypeInfoFromPrefix(pb PrefixBytes) (info *TypeInfo, err error) {
-	cdc.mtx.RLock()
-	defer cdc.mtx.RUnlock()
-
-	info, ok := cdc.prefixToTypeInfos[pb]
-	if !ok {
-		err = fmt.Errorf("unrecognized prefix bytes %X", pb)
+// Constructs a *TypeInfo automatically, not from registration.
+func (cdc *Codec) newAutoTypeInfo(rt reflect.Type) (info *TypeInfo, err error) {
+	if rt.Kind() == reflect.Ptr {
+		panic("unexpected pointer type") // should not happen.
 	}
+	if rt.Kind() == reflect.Interface {
+		err = fmt.Errorf("Unregistered interface %v", rt)
+		return
+	}
+
+	info = new(TypeInfo)
+	info.Type = rt
+	info.PointerPreferred = false
+	info.Registered = false
+	// info.Name =
+	// info.Prefix, info.Disamb =
+	info.Fields = cdc.parseFieldInfos(rt)
+	// info.ConcreteOptions =
 	return
 }
 
-func (cdc *Codec) getTypeInfoFromDisfix(df DisfixBytes) (info *TypeInfo, err error) {
+func (cdc *Codec) getTypeInfoFromPrefix_rlock(pb PrefixBytes) (info *TypeInfo, err error) {
 	cdc.mtx.RLock()
 	defer cdc.mtx.RUnlock()
 
-	info, ok := cdc.disfixToTypeInfos[df]
+	infos, ok := cdc.prefixToTypeInfos[pb]
+	if !ok {
+		err = fmt.Errorf("unrecognized prefix bytes %X", pb)
+	}
+	// XXX handle ambiguous case
+	info = infos[0]
+	return
+}
+
+func (cdc *Codec) getTypeInfoFromDisfix_rlock(df DisfixBytes) (info *TypeInfo, err error) {
+	cdc.mtx.RLock()
+	defer cdc.mtx.RUnlock()
+
+	info, ok := cdc.disfixToTypeInfo[df]
 	if !ok {
 		err = fmt.Errorf("unrecognized disambiguation+prefix bytes %X", df)
 	}
 	return
 }
 
-func parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
+func (cdc *Codec) parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
 	if rt.Kind() != reflect.Struct {
 		return nil
 	}
@@ -103,7 +129,7 @@ func parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
 		if field.PkgPath != "" {
 			continue // field is private
 		}
-		skip, opts := parseFieldOptions(field)
+		skip, opts := cdc.parseFieldOptions(field)
 		if skip {
 			continue // e.g. json:"-"
 		}
@@ -119,7 +145,7 @@ func parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
 	return infos
 }
 
-func parseFieldOptions(field reflect.StructField) (skip bool, opts FieldOptions) {
+func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, opts FieldOptions) {
 	binTag := field.Tag.Get("binary")
 	wireTag := field.Tag.Get("wire")
 	jsonTag := field.Tag.Get("json")

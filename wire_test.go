@@ -5,10 +5,17 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	wire "github.com/tendermint/go-wire"
+	"github.com/tendermint/go-wire"
 )
 
 func TestMarshalGlobal(t *testing.T) {
+
+	type SimpleStruct struct {
+		String string
+		Bytes  []byte
+		Time   time.Time
+	}
+
 	s := SimpleStruct{
 		String: "hello",
 		Bytes:  []byte("goodbye"),
