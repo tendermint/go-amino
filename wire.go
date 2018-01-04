@@ -22,6 +22,21 @@ const (
 	ReadSliceChunkSize = 1024
 )
 
+func Marshal(o interface{}) ([]byte, error) {
+	w, n, err := new(bytes.Buffer), new(int), new(error)
+	WriteBinary(o, w, n, err)
+	if *err != nil {
+		return nil, *err
+	}
+	return w.Bytes(), nil
+}
+
+func Unmarshal(d []byte, ptr interface{}) error {
+	r, n, err := bytes.NewBuffer(d), new(int), new(error)
+	ReadBinaryPtr(ptr, r, len(d), n, err)
+	return *err
+}
+
 func ReadBinary(o interface{}, r io.Reader, lmt int, n *int, err *error) (res interface{}) {
 	rv, rt := reflect.ValueOf(o), reflect.TypeOf(o)
 	if rv.Kind() == reflect.Ptr {

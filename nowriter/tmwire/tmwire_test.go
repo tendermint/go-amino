@@ -8,6 +8,7 @@ import (
 
 	cmn "github.com/tendermint/tmlibs/common"
 
+	"github.com/tendermint/go-wire/nowriter/tmarrayencoder"
 	"github.com/tendermint/go-wire/nowriter/tmdecoding"
 	"github.com/tendermint/go-wire/nowriter/tmencoding"
 	"github.com/tendermint/go-wire/nowriter/tmlegacy"
@@ -16,6 +17,22 @@ import (
 var legacy = tmlegacy.TMEncoderLegacy{}
 var pure = tmencoding.TMEncoderPure{}
 var dec = tmdecoding.TMDecoderPure{}
+var arrayRaw = tmarrayencoder.TMArrayEncoderUnlengthPure{}
+var arrayPrefixed = tmarrayencoder.TMArrayEncoderLengthPure{}
+
+func TestArrayRaw(t *testing.T) {
+	simpleTest := []uint16{0x1122, 0x3344}
+	expected := []byte{0x11, 0x22, 0x33, 0x44}
+	encodedBytes := arrayRaw.EncodeUint16Array(simpleTest)
+	assert.Zero(t, bytes.Compare(encodedBytes, expected))
+}
+
+func TestArrayPrefix(t *testing.T) {
+	simpleTest := []uint16{0x1122, 0x3344}
+	expected := []byte{0x1, 0x2, 0x11, 0x22, 0x33, 0x44}
+	encodedBytes := arrayPrefixed.EncodeUint16Array(simpleTest)
+	assert.Zero(t, bytes.Compare(encodedBytes, expected))
+}
 
 func TestByte(t *testing.T) {
 	for i := 0; i < 256; i += 1 {
