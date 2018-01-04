@@ -632,6 +632,8 @@ func readReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, o interfac
 		}
 		if o == nil {
 			return // nil
+		} else if o_, ok := o.(map[string]interface{}); ok && len(o_) == 0 {
+			return // {}
 		}
 		typeByte, rest, err_ := readByteJSON(o)
 		if err_ != nil {
