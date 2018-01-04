@@ -1,5 +1,7 @@
 # Wire encoding for Golang
 
+TEST
+
 This software implements Go bindings for the Wire encoding protocol.
 The goal of the Wire encoding protocol is to be a simple language-agnostic encoding protocol for rapid prototyping of blockchain applications.
 
