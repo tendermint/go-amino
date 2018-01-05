@@ -34,7 +34,7 @@ func (cdc *Codec) setTypeInfo_wlock(info *TypeInfo) {
 func (cdc *Codec) setTypeInfo(info *TypeInfo) {
 
 	if info.Type.Kind() == reflect.Ptr {
-		panic(fmt.Sprintf("unexpected pointer type"))
+		panic("unexpected pointer type")
 	}
 	if _, ok := cdc.typeInfos[info.Type]; ok {
 		panic(fmt.Sprintf("TypeInfo already exists for %v", info.Type))
