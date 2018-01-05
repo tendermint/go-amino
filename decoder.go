@@ -2,6 +2,7 @@ package wire
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"time"
@@ -53,7 +54,7 @@ func DecodeInt64(bz []byte) (i int64, n int, err error) {
 func DecodeVarint(bz []byte) (i int64, n int, err error) {
 	i, n = binary.Varint(bz)
 	if n == 0 {
-		err = fmt.Errorf("eof decoding varint")
+		err = errors.New("eof decoding varint")
 	}
 	return
 }
@@ -113,7 +114,7 @@ func DecodeUint64(bz []byte) (i uint64, n int, err error) {
 func DecodeUvarint(bz []byte) (i uint64, n int, err error) {
 	i, n = binary.Uvarint(bz)
 	if n == 0 {
-		err = fmt.Errorf("eof decoding uvarint")
+		err = errors.New("eof decoding uvarint")
 	}
 	return
 }
@@ -132,7 +133,7 @@ func DecodeBool(bz []byte) (b bool, n int, err error) {
 	case 1:
 		b = true
 	default:
-		err = fmt.Errorf("invalid bool")
+		err = errors.New("invalid bool")
 	}
 	n = size
 	return
@@ -170,7 +171,7 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 	i, n, err := DecodeInt64(bz)
 	if i%1000000 != 0 {
-		err = fmt.Errorf("submillisecond precision not supported")
+		err = errors.New("submillisecond precision not supported")
 		return
 	}
 	t = time.Unix(0, i)

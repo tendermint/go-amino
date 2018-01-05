@@ -101,6 +101,7 @@ func (cdc *Codec) getTypeInfoFromPrefix_rlock(pb PrefixBytes) (info *TypeInfo, e
 	infos, ok := cdc.prefixToTypeInfos[pb]
 	if !ok {
 		err = fmt.Errorf("unrecognized prefix bytes %X", pb)
+		return
 	}
 	// XXX handle ambiguous case
 	info = infos[0]
@@ -114,6 +115,7 @@ func (cdc *Codec) getTypeInfoFromDisfix_rlock(df DisfixBytes) (info *TypeInfo, e
 	info, ok := cdc.disfixToTypeInfo[df]
 	if !ok {
 		err = fmt.Errorf("unrecognized disambiguation+prefix bytes %X", df)
+		return
 	}
 	return
 }

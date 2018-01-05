@@ -2,7 +2,7 @@ package wire
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"reflect"
 )
 
@@ -69,7 +69,7 @@ func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
 		return err
 	}
 	if n != len(bz) {
-		return fmt.Errorf("Unmarshal didn't read all bytes")
+		return errors.New("Unmarshal didn't read all bytes")
 	}
 	return nil
 }
