@@ -1,8 +1,14 @@
 package wire
 
 import (
+	"fmt"
+	"math/rand"
+	"reflect"
+	"runtime/debug"
 	"testing"
 	"time"
+
+	fuzz "github.com/google/gofuzz"
 )
 
 //----------------------------------------
@@ -25,6 +31,10 @@ type PrimitivesStruct struct {
 	String  string
 	Bytes   []byte
 	Time    time.Time
+}
+
+type ShortArraysStruct struct {
+	TimeAr [4]time.Time
 }
 
 type ArraysStruct struct {
@@ -134,7 +144,8 @@ type EmbeddedSt5 struct {
 }
 
 var structTypes = []interface{}{
-	(*PrimitivesStruct)(nil),
+	//(*PrimitivesStruct)(nil),
+	(*ShortArraysStruct)(nil),
 	(*ArraysStruct)(nil),
 	(*SlicesStruct)(nil),
 	(*PointersStruct)(nil),
@@ -213,27 +224,117 @@ func (_ *SimpleConcrete5) AssureSimpleInterface() {}
 //-------------------------------------
 
 func TestCodecBinaryStruct(t *testing.T) {
-	for _, stPtr := range structTypes {
-		stRv := getTypeFromPointer(stPtr)
-		stName := stRv.Name()
-		t.Run(stName, _testCodecBinary)
+	for _, ptr := range structTypes {
+		rt := getTypeFromPointer(ptr)
+		name := rt.Name()
+		t.Run(name, func(t *testing.T) { _testCodecBinary(t, rt) })
 	}
 }
 
 func TestCodecBinaryDef(t *testing.T) {
-	for _, stPtr := range defTypes {
-		stRv := getTypeFromPointer(stPtr)
-		stName := stRv.Name()
-		t.Run(stName, _testCodecBinary)
+	for _, ptr := range defTypes {
+		rt := getTypeFromPointer(ptr)
+		name := rt.Name()
+		t.Run(name, func(t *testing.T) { _testCodecBinary(t, rt) })
 	}
 }
 
-func _testCodecBinary(t *testing.T) {
-	t.Log("woot")
+func _testCodecBinary(t *testing.T, rt reflect.Type) {
+
+	err := error(nil)
+	bz := []byte{}
+	cdc := NewCodec()
+	f := fuzz.New()
+	rv := reflect.New(rt)
+	rv2 := reflect.New(rt)
+	ptr := rv.Interface()
+	ptr2 := rv2.Interface()
+	rnd := rand.New(rand.NewSource(10))
+	f.RandSource(rnd)
+	f.Funcs(
+		func(bz *[]byte, c fuzz.Continue) {
+			// Prefer nil instead of empty, for deep equality.
+			// (go-wire decoder will always prefer nil).
+			c.Fuzz(bz)
+			if len(*bz) == 0 {
+				*bz = nil
+			}
+		},
+		func(tyme *time.Time, c fuzz.Continue) {
+			// Set time.Unix(_,_) to wipe .wal
+			switch 0 { // c.Intn(4) {
+			case 0:
+				ns := c.Int63n(10)
+				*tyme = time.Unix(0, ns)
+			case 1:
+				ns := c.Int63n(10)
+				*tyme = time.Unix(0, ns)
+				break
+				/*
+					ns := c.Int63n(1e10)
+					*tyme = time.Unix(0, ns)
+				*/
+			case 2:
+				ns := c.Int63n(10)
+				*tyme = time.Unix(0, ns)
+				break
+				/*
+					const maxSeconds = 4611686018 // (1<<63 - 1) / 1e9
+					s := c.Int63n(maxSeconds)
+					ns := c.Int63n(1e10)
+					*tyme = time.Unix(s, ns)
+				*/
+			case 3:
+				ns := c.Int63n(10)
+				*tyme = time.Unix(0, ns)
+				break
+				/*
+					s := c.Int63n(10)
+					ns := c.Int63n(1e10)
+					*tyme = time.Unix(s, ns)
+				*/
+			}
+			// Strip timezone and monotonic for deep equality.
+			*tyme = tyme.UTC().Truncate(time.Millisecond)
+		},
+	)
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("panic'd:\nreason: %v\n%s\nerr: %v\nbz: %X\nrv: %#v\nrv2: %#v\nptr: %v\nptr2: %v\n",
+				r, debug.Stack(), err, bz, rv, rv2, ptr, ptr2,
+			)
+		}
+	}()
+
+	for i := 0; i < 1e1; i++ {
+		fmt.Println("FUZZ ROUND ", i)
+		f.Fuzz(ptr)
+		// fmt.Printf("Fuzzed: %#v\n", ptr)
+
+		// Reset, which makes debugging decoding easier.
+		rv2 = reflect.New(rt)
+		ptr2 = rv2.Interface()
+
+		bz, err = cdc.MarshalBinary(ptr)
+		if err != nil {
+			t.Fatalf("failed to marshal %#v to bytes: %v\n", ptr, err)
+		}
+
+		err = cdc.UnmarshalBinary(bz, ptr2)
+		if err != nil {
+			t.Fatalf("failed to unmarshal bytes %X: %v\nptr: %#v\n", bz, err, ptr)
+		}
+
+		if !reflect.DeepEqual(ptr, ptr2) {
+			t.Fatalf("end to end failed.\nstart: %#v\nend: %#v\nbytes: %X\n",
+				ptr, ptr2, bz)
+		}
+	}
 }
 
 func TestCodecBinaryInterface(t *testing.T) {
-	t.Log("woot2")
+	// XXX
 }
 
 /*

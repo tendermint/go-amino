@@ -25,13 +25,14 @@ type DisambBytes [DisambBytesLen]byte
 type DisfixBytes [DisfixBytesLen]byte // Disamb+Prefix
 
 type TypeInfo struct {
-	Type reflect.Type // Interface type.
+	Type      reflect.Type // Interface type.
+	ZeroValue reflect.Value
+	ZeroProto interface{}
 	InterfaceInfo
 	ConcreteInfo
 }
 
 type InterfaceInfo struct {
-	NilValue reflect.Value
 	InterfaceOptions
 }
 
@@ -47,6 +48,7 @@ type ConcreteInfo struct {
 	Prefix           PrefixBytes // Ignored if !Registered.
 	Disamb           DisambBytes // Ignored if !Registered.
 	Fields           []FieldInfo // If a struct.
+	ZeroProto        interface{} // Prototype zero value object.
 	ConcreteOptions
 }
 
@@ -56,7 +58,6 @@ type ConcreteOptions struct {
 type FieldInfo struct {
 	Type         reflect.Type // Struct field type
 	Index        int          // Struct field index
-	ZeroProto    interface{}  // Prototype zero value object.
 	FieldOptions              // Encoding options
 }
 
@@ -82,10 +83,17 @@ func (cdc *Codec) RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
 	// Construct InterfaceInfo
 	var info = new(TypeInfo)
 	info.Type = rt
-	info.NilValue = reflect.ValueOf(reflect.Zero(rt))
+	// info.PointerPreferred =
+	// info.Registered =
+	// info.Name =
+	// info.Prefix, info.Disamb =
+	// info.Fields =
+	info.ZeroValue = reflect.Zero(rt)
+	info.ZeroProto = reflect.Zero(rt).Interface()
 	if opts != nil {
 		info.InterfaceOptions = *opts
 	}
+	// info.ConcreteOptions =
 
 	// XXX
 	// For each registered concrete type crt:
@@ -132,6 +140,9 @@ func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOpt
 	info.Name = name
 	info.Prefix, info.Disamb = nameToPrefix(name)
 	info.Fields = cdc.parseFieldInfos(rt)
+	info.ZeroValue = reflect.Zero(rt)
+	info.ZeroProto = reflect.Zero(rt).Interface()
+	// info.InterfaceOptions =
 	if opts != nil {
 		info.ConcreteOptions = *opts
 	}
@@ -407,7 +418,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, info *TypeInfo, rv ref
 
 	// Special case for nil
 	if isNil {
-		rv.Set(info.NilValue)
+		rv.Set(info.ZeroValue)
 		return
 	}
 
@@ -460,6 +471,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 			return 0, fmt.Errorf("Insufficient bytes to decode [%v]byte.", length)
 		}
 		reflect.Copy(rv, reflect.ValueOf(bz[0:length]))
+		n += length
 		return
 
 	default: // General case.
@@ -496,7 +508,11 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 		if slide(bz, &bz, &n, _n) && err != nil {
 			return
 		}
-		rv.Set(reflect.ValueOf(byteslice))
+		if len(byteslice) == 0 {
+			rv.Set(reflect.ValueOf([]byte(nil)))
+		} else {
+			rv.Set(reflect.ValueOf(byteslice))
+		}
 		return
 
 	default: // General case.
@@ -508,8 +524,15 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 			return
 		}
 
+		// Special case when length is 0.
+		if length == 0 {
+			rv.Set(info.ZeroValue)
+			return
+		}
+
 		// Read into a new slice.
-		var srv = reflect.MakeSlice(ert, 0, int(length))
+		var esrt = reflect.SliceOf(ert) // TODO could be optimized.
+		var srv = reflect.MakeSlice(esrt, int(length), int(length))
 		var einfo *TypeInfo
 		einfo, err = cdc.getTypeInfo_wlock(ert)
 		if err != nil {
@@ -521,7 +544,6 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 			if slide(bz, &bz, &n, _n) && err != nil {
 				return
 			}
-			srv = reflect.AppendSlice(srv, erv)
 		}
 
 		// TODO do we need this extra step?
@@ -587,6 +609,8 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	for rv.Kind() == reflect.Ptr {
 		rv = rv.Elem()
 	}
+
+	XXX Handle when rv was a nil pointer.
 
 	// Write the prefix bytes if it is a registered concrete type.
 	if info.Registered {
@@ -830,6 +854,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 				return
 			}
 			frv := rv.Field(field.Index)
+			fmt.Printf("frv: %#v (%v)\n", frv, frv.Type())
 			err = cdc.encodeReflectBinary(w, finfo, frv, field.FieldOptions)
 			if err != nil {
 				return

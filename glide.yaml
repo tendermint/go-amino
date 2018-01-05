@@ -8,6 +8,7 @@ import:
 - package: golang.org/x/crypto
   subpackages:
   - ripemd160
+- package: github.com/google/gofuzz
 testImport:
 - package: github.com/stretchr/testify
   subpackages:

@@ -1,5 +1,5 @@
-hash: ef298394075ed9e51238956557635cfe6d592e74d3801b10faa6a6b0059216bc
-updated: 2017-12-27T21:15:34.551575273-08:00
+hash: 648733726c48446a7f6a520129e1afaaae8897bd099d40d1cc27feded6bd9ed6
+updated: 2018-01-04T20:29:16.752630314-08:00
 imports:
 - name: github.com/clipperhouse/typewriter
   version: c1a48da378ebb7db1db9f35981b5cc24bf2e5b85
@@ -19,12 +19,14 @@ imports:
   - gogoproto
   - proto
   - protoc-gen-gogo/descriptor
+- name: github.com/google/gofuzz
+  version: 24818f796faf91cd76ec7bddd72458fbced7a6c1
 - name: github.com/kr/logfmt
   version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/tendermint/tmlibs
-  version: 93c05aa8c06ef38f2b15fcdd1d91eafefda2732d
+  version: b31397aff5f43216ba831338f7dcdee8a53cf433
   subpackages:
   - common
   - log

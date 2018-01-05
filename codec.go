@@ -90,6 +90,9 @@ func (cdc *Codec) newAutoTypeInfo(rt reflect.Type) (info *TypeInfo, err error) {
 	// info.Name =
 	// info.Prefix, info.Disamb =
 	info.Fields = cdc.parseFieldInfos(rt)
+	info.ZeroValue = reflect.Zero(rt)
+	info.ZeroProto = reflect.Zero(rt).Interface()
+	// info.InterfaceOptions =
 	// info.ConcreteOptions =
 	return
 }
@@ -138,7 +141,6 @@ func (cdc *Codec) parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
 		fieldInfo := FieldInfo{
 			Index:        i,
 			Type:         field.Type,
-			ZeroProto:    reflect.Zero(field.Type).Interface(),
 			FieldOptions: opts,
 		}
 		checkUnsafe(fieldInfo)

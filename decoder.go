@@ -14,6 +14,7 @@ import (
 func DecodeInt8(bz []byte) (i int8, n int, err error) {
 	const size int = 1
 	if len(bz) < size {
+		err = errors.New("EOF decoding int8")
 		return
 	}
 	i = int8(bz[0])
@@ -24,6 +25,7 @@ func DecodeInt8(bz []byte) (i int8, n int, err error) {
 func DecodeInt16(bz []byte) (i int16, n int, err error) {
 	const size int = 2
 	if len(bz) < size {
+		err = errors.New("EOF decoding int16")
 		return
 	}
 	i = int16(binary.BigEndian.Uint16(bz[:size]))
@@ -34,6 +36,7 @@ func DecodeInt16(bz []byte) (i int16, n int, err error) {
 func DecodeInt32(bz []byte) (i int32, n int, err error) {
 	const size int = 4
 	if len(bz) < size {
+		err = errors.New("EOF decoding int32")
 		return
 	}
 	i = int32(binary.BigEndian.Uint32(bz[:size]))
@@ -44,6 +47,7 @@ func DecodeInt32(bz []byte) (i int32, n int, err error) {
 func DecodeInt64(bz []byte) (i int64, n int, err error) {
 	const size int = 8
 	if len(bz) < size {
+		err = errors.New("EOF decoding int64")
 		return
 	}
 	i = int64(binary.BigEndian.Uint64(bz[:size]))
@@ -65,6 +69,7 @@ func DecodeVarint(bz []byte) (i int64, n int, err error) {
 func DecodeByte(bz []byte) (b byte, n int, err error) {
 	const size int = 1
 	if len(bz) < size {
+		err = errors.New("eof decoding byte")
 		return
 	}
 	b = bz[0]
@@ -75,6 +80,7 @@ func DecodeByte(bz []byte) (b byte, n int, err error) {
 func DecodeUint8(bz []byte) (i uint8, n int, err error) {
 	const size int = 1
 	if len(bz) < size {
+		err = errors.New("eof decoding uint8")
 		return
 	}
 	i = uint8(bz[0])
@@ -84,6 +90,7 @@ func DecodeUint8(bz []byte) (i uint8, n int, err error) {
 func DecodeUint16(bz []byte) (i uint16, n int, err error) {
 	const size int = 2
 	if len(bz) < size {
+		err = errors.New("eof decoding uint16")
 		return
 	}
 	i = binary.BigEndian.Uint16(bz[:size])
@@ -94,6 +101,7 @@ func DecodeUint16(bz []byte) (i uint16, n int, err error) {
 func DecodeUint32(bz []byte) (i uint32, n int, err error) {
 	const size int = 4
 	if len(bz) < size {
+		err = errors.New("eof decoding uint32")
 		return
 	}
 	i = binary.BigEndian.Uint32(bz[:size])
@@ -104,6 +112,7 @@ func DecodeUint32(bz []byte) (i uint32, n int, err error) {
 func DecodeUint64(bz []byte) (i uint64, n int, err error) {
 	const size int = 8
 	if len(bz) < size {
+		err = errors.New("eof decoding uint64")
 		return
 	}
 	i = binary.BigEndian.Uint64(bz[:size])
@@ -125,6 +134,7 @@ func DecodeUvarint(bz []byte) (i uint64, n int, err error) {
 func DecodeBool(bz []byte) (b bool, n int, err error) {
 	const size int = 1
 	if len(bz) < size {
+		err = errors.New("eof decoding bool")
 		return
 	}
 	switch bz[0] {
@@ -143,6 +153,7 @@ func DecodeBool(bz []byte) (b bool, n int, err error) {
 func DecodeFloat32(bz []byte) (f float32, n int, err error) {
 	const size int = 4
 	if len(bz) < size {
+		err = errors.New("eof decoding float32")
 		return
 	}
 	i := uint32(binary.BigEndian.Uint32(bz[:size]))
@@ -155,6 +166,7 @@ func DecodeFloat32(bz []byte) (f float32, n int, err error) {
 func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 	const size int = 8
 	if len(bz) < size {
+		err = errors.New("eof decoding float64")
 		return
 	}
 	i := uint64(binary.BigEndian.Uint64(bz[:size]))
@@ -163,18 +175,27 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 	return
 }
 
-// DecodeTime decodes a Int64 and interprets it as the
-// number of nanoseconds since January 1, 1970 UTC, and
-// returns the corresponding time. If the Int64 read is
-// less than zero, or not a multiple of a million, it sets
-// the error and returns the default time.
+// DecodeTime decodes seconds (int64) and nanoseconds (int32) since January 1,
+// 1970 UTC, and returns the corresponding time.  If nanoseconds is not in the
+// range [0, 999999999], or if seconds is too large, the behavior is
+// undefined.
+// TODO return errro if behavior is undefined.
 func DecodeTime(bz []byte) (t time.Time, n int, err error) {
-	i, n, err := DecodeInt64(bz)
-	if i%1000000 != 0 {
-		err = errors.New("submillisecond precision not supported")
+	s, _n, err := DecodeInt64(bz)
+	if slide(bz, &bz, &n, _n) && err != nil {
 		return
 	}
-	t = time.Unix(0, i)
+	ns, _n, err := DecodeInt32(bz)
+	if slide(bz, &bz, &n, _n) && err != nil {
+		return
+	}
+	if ns < 0 || 999999999 < ns {
+		err = fmt.Errorf("Invalid time, nanoseconds out of bounds %v", ns)
+		return
+	}
+	t = time.Unix(s, int64(ns))
+	// strip timezone and monotonic for deep equality
+	t = t.UTC().Truncate(0)
 	return
 }
 
