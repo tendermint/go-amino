@@ -179,7 +179,6 @@ func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 	var info = new(TypeInfo)
 	info.Type = rt
 	info.PtrToType = reflect.PtrTo(rt)
-	info.NilPtrValue = reflect.Zero(reflect.PtrTo(rt))
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
 	info.PointerPreferred = false
@@ -200,7 +199,6 @@ func (cdc *Codec) newTypeInfoFromInterfaceType(rt reflect.Type, opts *InterfaceO
 	var info = new(TypeInfo)
 	info.Type = rt
 	info.PtrToType = reflect.PtrTo(rt)
-	info.NilPtrValue = reflect.Zero(reflect.PtrTo(rt))
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
 	// info.PointerPreferred =
@@ -224,7 +222,6 @@ func (cdc *Codec) newTypeInfoFromConcreteType(rt reflect.Type, pointerPreferred 
 	var info = new(TypeInfo)
 	info.Type = rt
 	info.PtrToType = reflect.PtrTo(rt)
-	info.NilPtrValue = reflect.Zero(reflect.PtrTo(rt))
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
 	info.PointerPreferred = pointerPreferred

@@ -189,7 +189,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		switch bz[0] {
 		case 0x00:
 			n += 1
-			rv.Set(info.NilPtrValue)
+			rv.Set(reflect.Zero(rv.Type()))
 			return
 		case 0x01:
 			n += 1

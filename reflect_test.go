@@ -95,6 +95,13 @@ type PointersStruct struct {
 	TimePt    *time.Time
 }
 
+// NOTE: See registered fuzz funcs for *byte, **byte, and ***byte.
+type NestedPointersStruct struct {
+	Ptr1 *byte
+	Ptr2 **byte
+	Ptr3 ***byte
+}
+
 type ComplexSt struct {
 	PrField PrimitivesStruct
 	ArField ArraysStruct
@@ -145,11 +152,12 @@ type EmbeddedSt5 struct {
 }
 
 var structTypes = []interface{}{
-	//(*PrimitivesStruct)(nil),
+	(*PrimitivesStruct)(nil),
 	(*ShortArraysStruct)(nil),
 	(*ArraysStruct)(nil),
 	(*SlicesStruct)(nil),
 	(*PointersStruct)(nil),
+	(*NestedPointersStruct)(nil),
 	(*ComplexSt)(nil),
 	(*EmbeddedSt1)(nil),
 	(*EmbeddedSt2)(nil),
@@ -252,53 +260,7 @@ func _testCodecBinary(t *testing.T, rt reflect.Type) {
 	ptr2 := rv2.Interface()
 	rnd := rand.New(rand.NewSource(10))
 	f.RandSource(rnd)
-	f.Funcs(
-		func(bz *[]byte, c fuzz.Continue) {
-			// Prefer nil instead of empty, for deep equality.
-			// (go-wire decoder will always prefer nil).
-			c.Fuzz(bz)
-			if len(*bz) == 0 {
-				*bz = nil
-			}
-		},
-		func(tyme *time.Time, c fuzz.Continue) {
-			// Set time.Unix(_,_) to wipe .wal
-			switch 0 { // c.Intn(4) {
-			case 0:
-				ns := c.Int63n(10)
-				*tyme = time.Unix(0, ns)
-			case 1:
-				ns := c.Int63n(10)
-				*tyme = time.Unix(0, ns)
-				break
-				/*
-					ns := c.Int63n(1e10)
-					*tyme = time.Unix(0, ns)
-				*/
-			case 2:
-				ns := c.Int63n(10)
-				*tyme = time.Unix(0, ns)
-				break
-				/*
-					const maxSeconds = 4611686018 // (1<<63 - 1) / 1e9
-					s := c.Int63n(maxSeconds)
-					ns := c.Int63n(1e10)
-					*tyme = time.Unix(s, ns)
-				*/
-			case 3:
-				ns := c.Int63n(10)
-				*tyme = time.Unix(0, ns)
-				break
-				/*
-					s := c.Int63n(10)
-					ns := c.Int63n(1e10)
-					*tyme = time.Unix(s, ns)
-				*/
-			}
-			// Strip timezone and monotonic for deep equality.
-			*tyme = tyme.UTC().Truncate(time.Millisecond)
-		},
-	)
+	f.Funcs(fuzzFuncs...)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -336,66 +298,82 @@ func TestCodecBinaryInterface(t *testing.T) {
 	// XXX
 }
 
-/*
-func TestBinary(t *testing.T) {
-
-	for i, testCase := range testCases {
-
-		t.Log(fmt.Sprintf("Running test case %v", i))
-
-		// Construct an object
-		o := testCase.Constructor()
-
-		// Write the object
-		data, err := wire.MarshalBinary(o)
-		assert.Nil(t, err)
-		t.Logf("Binary: %X", data)
-
-		instance, instancePtr := testCase.Instantiator()
-
-		// Read onto a struct
-		err = wire.UnmarshalBinary(data, instance)
-		if err != nil {
-			t.Fatalf("Failed to read into instance: %v", err)
-		}
-
-		// Validate object
-		testCase.Validator(instance, t)
-
-		// Read onto a pointer
-		err = wire.UnmarshalBinary(data, instancePtr)
-		if err != nil {
-			t.Fatalf("Failed to read into instance: %v", err)
-		}
-		if instance != instancePtr {
-			t.Errorf("Expected pointer to pass through")
-		}
-
-		// Validate object
-		testCase.Validator(reflect.ValueOf(instance).Elem().Interface(), t)
-
-		// Read with len(data)-1 limit should fail.
-		// TODO
-		/*
-			instance, _ = testCase.Instantiator()
-			err = wire.UnmarshalBinary(data, instance)
-			if err != wire.ErrBinaryReadOverflow {
-				t.Fatalf("Expected ErrBinaryReadOverflow")
-			}
-
-			// Read with len(data) limit should succeed.
-			instance, _ = testCase.Instantiator()
-			err = wire.UnmarshalBinary(data, instance)
-			if err != nil {
-				t.Fatalf("Failed to read instance with sufficient limit: %v n: %v len(data): %v type: %v",
-					(err).Error(), _, len(data), reflect.TypeOf(instance))
-			}
-		* /
-	}
-
-}
-*/
+//----------------------------------------
 
 func spw(o interface{}) string {
 	return spew.Sprintf("%#v", o)
+}
+
+var fuzzFuncs = []interface{}{
+	func(bz *[]byte, c fuzz.Continue) {
+		// Prefer nil instead of empty, for deep equality.
+		// (go-wire decoder will always prefer nil).
+		c.Fuzz(bz)
+		if len(*bz) == 0 {
+			*bz = nil
+		}
+	},
+	func(tyme *time.Time, c fuzz.Continue) {
+		// Set time.Unix(_,_) to wipe .wal
+		switch c.Intn(4) {
+		case 0:
+			ns := c.Int63n(10)
+			*tyme = time.Unix(0, ns)
+		case 1:
+			ns := c.Int63n(10)
+			*tyme = time.Unix(0, ns)
+			break
+			/*
+				ns := c.Int63n(1e10)
+				*tyme = time.Unix(0, ns)
+			*/
+		case 2:
+			ns := c.Int63n(10)
+			*tyme = time.Unix(0, ns)
+			break
+			/*
+				const maxSeconds = 4611686018 // (1<<63 - 1) / 1e9
+				s := c.Int63n(maxSeconds)
+				ns := c.Int63n(1e10)
+				*tyme = time.Unix(s, ns)
+			*/
+		case 3:
+			ns := c.Int63n(10)
+			*tyme = time.Unix(0, ns)
+			break
+			/*
+				s := c.Int63n(10)
+				ns := c.Int63n(1e10)
+				*tyme = time.Unix(s, ns)
+			*/
+		}
+		// Strip timezone and monotonic for deep equality.
+		*tyme = tyme.UTC().Truncate(time.Millisecond)
+	},
+
+	// For testing nested pointers...
+	func(ptr **byte, c fuzz.Continue) {
+		if c.Intn(5) == 0 {
+			*ptr = nil
+			return
+		}
+		*ptr = new(byte)
+	},
+	func(ptr ***byte, c fuzz.Continue) {
+		if c.Intn(5) == 0 {
+			*ptr = nil
+			return
+		}
+		*ptr = new(*byte)
+		**ptr = new(byte)
+	},
+	func(ptr ****byte, c fuzz.Continue) {
+		if c.Intn(5) == 0 {
+			*ptr = nil
+			return
+		}
+		*ptr = new(**byte)
+		**ptr = new(*byte)
+		***ptr = new(byte)
+	},
 }
