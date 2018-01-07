@@ -34,7 +34,7 @@ func (cdc *Codec) setTypeInfo_wlock(info *TypeInfo) {
 func (cdc *Codec) setTypeInfo(info *TypeInfo) {
 
 	if info.Type.Kind() == reflect.Ptr {
-		panic("unexpected pointer type")
+		panic(fmt.Sprintf("unexpected pointer type"))
 	}
 	if _, ok := cdc.typeInfos[info.Type]; ok {
 		panic(fmt.Sprintf("TypeInfo already exists for %v", info.Type))
@@ -64,37 +64,15 @@ func (cdc *Codec) getTypeInfo_wlock(rt reflect.Type) (info *TypeInfo, err error)
 
 	info, ok := cdc.typeInfos[rt]
 	if !ok {
-		info, err = cdc.newAutoTypeInfo(rt)
-		if err != nil {
+		if rt.Kind() == reflect.Interface {
+			err = fmt.Errorf("Unregistered interface %v", rt)
 			return
 		}
+
+		info = cdc.newTypeInfoUnregistered(rt)
 		cdc.setTypeInfo(info)
 	}
 	return info, nil
-}
-
-// Constructs a *TypeInfo automatically, not from registration.
-func (cdc *Codec) newAutoTypeInfo(rt reflect.Type) (info *TypeInfo, err error) {
-	if rt.Kind() == reflect.Ptr {
-		panic("unexpected pointer type") // should not happen.
-	}
-	if rt.Kind() == reflect.Interface {
-		err = fmt.Errorf("Unregistered interface %v", rt)
-		return
-	}
-
-	info = new(TypeInfo)
-	info.Type = rt
-	info.PointerPreferred = false
-	info.Registered = false
-	// info.Name =
-	// info.Prefix, info.Disamb =
-	info.Fields = cdc.parseFieldInfos(rt)
-	info.ZeroValue = reflect.Zero(rt)
-	info.ZeroProto = reflect.Zero(rt).Interface()
-	// info.InterfaceOptions =
-	// info.ConcreteOptions =
-	return
 }
 
 func (cdc *Codec) getTypeInfoFromPrefix_rlock(pb PrefixBytes) (info *TypeInfo, err error) {
@@ -187,4 +165,76 @@ func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, opts 
 	}
 
 	return
+}
+
+// Constructs a *TypeInfo automatically, not from registration.
+func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
+	if rt.Kind() == reflect.Ptr {
+		panic("unexpected pointer type") // should not happen.
+	}
+	if rt.Kind() == reflect.Interface {
+		panic("unexpected interface type") // should not happen.
+	}
+
+	var info = new(TypeInfo)
+	info.Type = rt
+	info.PtrToType = reflect.PtrTo(rt)
+	info.NilPtrValue = reflect.Zero(reflect.PtrTo(rt))
+	info.ZeroValue = reflect.Zero(rt)
+	info.ZeroProto = reflect.Zero(rt).Interface()
+	info.PointerPreferred = false
+	info.Registered = false
+	// info.Name =
+	// info.Prefix, info.Disamb =
+	info.Fields = cdc.parseFieldInfos(rt)
+	// info.InterfaceOptions =
+	// info.ConcreteOptions =
+	return info
+}
+
+func (cdc *Codec) newTypeInfoFromInterfaceType(rt reflect.Type, opts *InterfaceOptions) *TypeInfo {
+	if rt.Kind() != reflect.Interface {
+		panic(fmt.Sprintf("expected interface type, got %v", rt))
+	}
+
+	var info = new(TypeInfo)
+	info.Type = rt
+	info.PtrToType = reflect.PtrTo(rt)
+	info.NilPtrValue = reflect.Zero(reflect.PtrTo(rt))
+	info.ZeroValue = reflect.Zero(rt)
+	info.ZeroProto = reflect.Zero(rt).Interface()
+	// info.PointerPreferred =
+	// info.Registered =
+	// info.Name =
+	// info.Prefix, info.Disamb =
+	// info.Fields =
+	if opts != nil {
+		info.InterfaceOptions = *opts
+	}
+	// info.ConcreteOptions =
+	return info
+}
+
+func (cdc *Codec) newTypeInfoFromConcreteType(rt reflect.Type, pointerPreferred bool, name string, opts *ConcreteOptions) *TypeInfo {
+	if rt.Kind() == reflect.Interface ||
+		rt.Kind() == reflect.Ptr {
+		panic(fmt.Sprintf("expected non-interface non-pointer concrete type, got %v", rt))
+	}
+
+	var info = new(TypeInfo)
+	info.Type = rt
+	info.PtrToType = reflect.PtrTo(rt)
+	info.NilPtrValue = reflect.Zero(reflect.PtrTo(rt))
+	info.ZeroValue = reflect.Zero(rt)
+	info.ZeroProto = reflect.Zero(rt).Interface()
+	info.PointerPreferred = pointerPreferred
+	info.Registered = true
+	info.Name = name
+	info.Prefix, info.Disamb = nameToPrefix(name)
+	info.Fields = cdc.parseFieldInfos(rt)
+	// info.InterfaceOptions =
+	if opts != nil {
+		info.ConcreteOptions = *opts
+	}
+	return info
 }

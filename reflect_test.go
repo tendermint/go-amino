@@ -1,12 +1,13 @@
 package wire
 
 import (
-	"fmt"
 	"math/rand"
 	"reflect"
 	"runtime/debug"
 	"testing"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 
 	fuzz "github.com/google/gofuzz"
 )
@@ -19,14 +20,14 @@ type PrimitivesStruct struct {
 	Int16   int16
 	Int32   int32
 	Int64   int64
-	Varint  int64 `wire:binvarint`
+	Varint  int64 `binary:"varint"`
 	Int     int
 	Byte    byte
 	Uint8   uint8
 	Uint16  uint16
 	Uint32  uint32
 	Uint64  uint64
-	Uvarint uint64 `wire:binvaruint`
+	Uvarint uint64 `binary:"varint"`
 	Uint    uint
 	String  string
 	Bytes   []byte
@@ -34,7 +35,7 @@ type PrimitivesStruct struct {
 }
 
 type ShortArraysStruct struct {
-	TimeAr [4]time.Time
+	TimeAr [0]time.Time
 }
 
 type ArraysStruct struct {
@@ -42,14 +43,14 @@ type ArraysStruct struct {
 	Int16Ar   [4]int16
 	Int32Ar   [4]int32
 	Int64Ar   [4]int64
-	VarintAr  [4]int64 `wire:binvarint`
+	VarintAr  [4]int64 `binary:"varint"`
 	IntAr     [4]int
 	ByteAr    [4]byte
 	Uint8Ar   [4]uint8
 	Uint16Ar  [4]uint16
 	Uint32Ar  [4]uint32
 	Uint64Ar  [4]uint64
-	UvarintAr [4]uint64 `wire:binvaruint`
+	UvarintAr [4]uint64 `binary:"varint"`
 	UintAr    [4]int
 	StringAr  [4]string
 	BytesAr   [4][]byte
@@ -61,14 +62,14 @@ type SlicesStruct struct {
 	Int16Sl   []int16
 	Int32Sl   []int32
 	Int64Sl   []int64
-	VarintSl  []int64 `wire:binvarint`
+	VarintSl  []int64 `binary:"varint"`
 	IntSl     []int
 	ByteSl    []byte
 	Uint8Sl   []uint8
 	Uint16Sl  []uint16
 	Uint32Sl  []uint32
 	Uint64Sl  []uint64
-	UvarintSl []uint64 `wire:binvaruint`
+	UvarintSl []uint64 `binary:"varint"`
 	UintSl    []int
 	StringSl  []string
 	BytesSl   [][]byte
@@ -80,14 +81,14 @@ type PointersStruct struct {
 	Int16Pt   *int16
 	Int32Pt   *int32
 	Int64Pt   *int64
-	VarintPt  *int64 `wire:binvarint`
+	VarintPt  *int64 `binary:"varint"`
 	IntPt     *int
 	BytePt    *byte
 	Uint8Pt   *uint8
 	Uint16Pt  *uint16
 	Uint32Pt  *uint32
 	Uint64Pt  *uint64
-	UvarintPt *uint64 `wire:binvaruint`
+	UvarintPt *uint64 `binary:"varint"`
 	UintPt    *int
 	StringPt  *string
 	BytesPt   *[]byte
@@ -302,15 +303,13 @@ func _testCodecBinary(t *testing.T, rt reflect.Type) {
 	defer func() {
 		if r := recover(); r != nil {
 			t.Fatalf("panic'd:\nreason: %v\n%s\nerr: %v\nbz: %X\nrv: %#v\nrv2: %#v\nptr: %v\nptr2: %v\n",
-				r, debug.Stack(), err, bz, rv, rv2, ptr, ptr2,
+				r, debug.Stack(), err, bz, rv, rv2, spw(ptr), spw(ptr2),
 			)
 		}
 	}()
 
-	for i := 0; i < 1e1; i++ {
-		fmt.Println("FUZZ ROUND ", i)
+	for i := 0; i < 1e4; i++ {
 		f.Fuzz(ptr)
-		// fmt.Printf("Fuzzed: %#v\n", ptr)
 
 		// Reset, which makes debugging decoding easier.
 		rv2 = reflect.New(rt)
@@ -318,17 +317,17 @@ func _testCodecBinary(t *testing.T, rt reflect.Type) {
 
 		bz, err = cdc.MarshalBinary(ptr)
 		if err != nil {
-			t.Fatalf("failed to marshal %#v to bytes: %v\n", ptr, err)
+			t.Fatalf("failed to marshal %v to bytes: %v\n", spw(ptr), err)
 		}
 
 		err = cdc.UnmarshalBinary(bz, ptr2)
 		if err != nil {
-			t.Fatalf("failed to unmarshal bytes %X: %v\nptr: %#v\n", bz, err, ptr)
+			t.Fatalf("failed to unmarshal bytes %X: %v\nptr: %v\n", bz, err, spw(ptr))
 		}
 
 		if !reflect.DeepEqual(ptr, ptr2) {
-			t.Fatalf("end to end failed.\nstart: %#v\nend: %#v\nbytes: %X\n",
-				ptr, ptr2, bz)
+			t.Fatalf("end to end failed.\nstart: %v\nend: %v\nbytes: %X\n",
+				spw(ptr), spw(ptr2), bz)
 		}
 	}
 }
@@ -396,3 +395,7 @@ func TestBinary(t *testing.T) {
 
 }
 */
+
+func spw(o interface{}) string {
+	return spew.Sprintf("%#v", o)
+}

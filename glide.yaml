@@ -5,6 +5,7 @@ import:
 - package: github.com/tendermint/tmlibs
   subpackages:
   - common
+- package: github.com/davecgh/go-spew
 - package: golang.org/x/crypto
   subpackages:
   - ripemd160

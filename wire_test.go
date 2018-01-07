@@ -19,7 +19,7 @@ func TestMarshalGlobal(t *testing.T) {
 	s := SimpleStruct{
 		String: "hello",
 		Bytes:  []byte("goodbye"),
-		Time:   time.Now().Truncate(time.Millisecond),
+		Time:   time.Now().UTC().Truncate(time.Millisecond), // strip monotonic and timezone.
 	}
 
 	b, err := wire.MarshalBinary(s)

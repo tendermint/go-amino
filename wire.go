@@ -2,7 +2,7 @@ package wire
 
 import (
 	"bytes"
-	"errors"
+	"fmt"
 	"reflect"
 )
 
@@ -39,10 +39,24 @@ func RegisterConcrete(o interface{}, name string, opts *ConcreteOptions) {
 //----------------------------------------
 // *Codec methods
 
+// For consistency, MarshalBinary will first dereference pointers
+// before encoding.  MarshalBinary will panic if o is a nil-pointer,
+// or if o is invalid.
 func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
+
+	// Dereference pointer.
+	var rv = reflect.ValueOf(o)
+	for rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
+		if !rv.IsValid() {
+			// NOTE: You can still do so by calling
+			// `.MarshalBinary(struct{ *SomeType })` or so on.
+			panic("MarshalBinary cannot marshal a nil pointer.")
+		}
+	}
+
 	w := new(bytes.Buffer)
-	rv := reflect.ValueOf(o)
-	rt := reflect.TypeOf(o)
+	rt := rv.Type()
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return nil, err
@@ -54,6 +68,7 @@ func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
 	return w.Bytes(), nil
 }
 
+// UnmarshalBinary will panic if ptr is a nil-pointer.
 func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
 	rv, rt := reflect.ValueOf(ptr), reflect.TypeOf(ptr)
 	if rv.Kind() != reflect.Ptr {
@@ -69,7 +84,7 @@ func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
 		return err
 	}
 	if n != len(bz) {
-		return errors.New("Unmarshal didn't read all bytes")
+		return fmt.Errorf("Unmarshal didn't read all bytes. Expected to read %v, only read %v", len(bz), n)
 	}
 	return nil
 }

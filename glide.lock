@@ -1,8 +1,12 @@
-hash: 648733726c48446a7f6a520129e1afaaae8897bd099d40d1cc27feded6bd9ed6
-updated: 2018-01-04T20:29:16.752630314-08:00
+hash: 6ead5ba8b5146b5d721429af80bd85b111f3898a3e1b4e794c7788b8ca673076
+updated: 2018-01-07T02:51:11.930851611-08:00
 imports:
 - name: github.com/clipperhouse/typewriter
   version: c1a48da378ebb7db1db9f35981b5cc24bf2e5b85
+- name: github.com/davecgh/go-spew
+  version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
+  subpackages:
+  - spew
 - name: github.com/go-kit/kit
   version: e2b298466b32c7cd5579a9b9b07e968fc9d9452c
   subpackages:
@@ -40,10 +44,6 @@ imports:
   - go/ast/astutil
   - imports
 testImports:
-- name: github.com/davecgh/go-spew
-  version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
-  subpackages:
-  - spew
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
