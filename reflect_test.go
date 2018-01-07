@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	fuzz "github.com/google/gofuzz"
 )
@@ -194,43 +196,32 @@ var defTypes = []interface{}{
 }
 
 //----------------------------------------
-// Interface+Concrete types
+// Register types
 
-type SimpleInterface interface {
-	AssureSimpleInterface()
+type Interface1 interface {
+	AssertInterface1()
 }
 
-type SimpleConcrete1 struct {
-	// empty
+type Interface2 interface {
+	AssertInterface2()
 }
 
-func (_ SimpleConcrete1) AssureSimpleInterface() {}
+type Concrete1 struct{}
 
-type SimpleConcrete2 struct {
-	PrimitivesStruct
-}
+func (_ Concrete1) AssertInterface1() {}
+func (_ Concrete1) AssertInterface2() {}
 
-func (_ SimpleConcrete2) AssureSimpleInterface() {}
+type Concrete2 struct{}
 
-type SimpleConcrete3 struct {
-	PrimitivesStruct
-}
+func (_ Concrete2) AssertInterface1() {}
+func (_ Concrete2) AssertInterface2() {}
 
-func (_ *SimpleConcrete3) AssureSimpleInterface() {}
+type Concrete3 struct{}
 
-type SimpleConcrete4 struct {
-	*PrimitivesStruct
-}
-
-func (_ *SimpleConcrete4) AssureSimpleInterface() {}
-
-type SimpleConcrete5 struct {
-	// empty
-}
-
-func (_ *SimpleConcrete5) AssureSimpleInterface() {}
+func (_ Concrete3) AssertInterface1() {}
 
 //-------------------------------------
+// Non-interface tests
 
 func TestCodecBinaryStruct(t *testing.T) {
 	for _, ptr := range structTypes {
@@ -278,27 +269,79 @@ func _testCodecBinary(t *testing.T, rt reflect.Type) {
 		ptr2 = rv2.Interface()
 
 		bz, err = cdc.MarshalBinary(ptr)
-		if err != nil {
-			t.Fatalf("failed to marshal %v to bytes: %v\n", spw(ptr), err)
-		}
+		require.Nil(t, err,
+			"failed to marshal %v to bytes: %v\n",
+			spw(ptr), err)
 
 		err = cdc.UnmarshalBinary(bz, ptr2)
-		if err != nil {
-			t.Fatalf("failed to unmarshal bytes %X: %v\nptr: %v\n", bz, err, spw(ptr))
-		}
+		require.Nil(t, err,
+			"failed to unmarshal bytes %X: %v\nptr: %v\n",
+			bz, err, spw(ptr))
 
-		if !reflect.DeepEqual(ptr, ptr2) {
-			t.Fatalf("end to end failed.\nstart: %v\nend: %v\nbytes: %X\n",
-				spw(ptr), spw(ptr2), bz)
-		}
+		require.Equal(t, ptr, ptr2,
+			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\n",
+			spw(ptr), spw(ptr2), bz)
 	}
 }
 
-func TestCodecBinaryInterface(t *testing.T) {
-	// XXX
+//----------------------------------------
+// Register tests
+
+func TestCodecBinaryRegister1(t *testing.T) {
+
+	cdc := NewCodec()
+	//cdc.RegisterInterface((*Interface1)(nil), nil)
+	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
+
+	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
+	assert.NotNil(t, err,
+		"expected error due to unregistered interface")
+	assert.Empty(t, bz)
+}
+
+func TestCodecBinaryRegister2(t *testing.T) {
+
+	cdc := NewCodec()
+	cdc.RegisterInterface((*Interface1)(nil), nil)
+	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil) // [12 B5 86 E3]
+
+	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
+	assert.Nil(t, err,
+		"correctly registered, should not have errored")
+	assert.Equal(t, bz, []byte{0x12, 0xb5, 0x86, 0xe3},
+		"prefix bytes did not match")
+}
+
+func TestCodecBinaryRegister3(t *testing.T) {
+
+	cdc := NewCodec()
+	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
+	cdc.RegisterInterface((*Interface1)(nil), nil)
+
+	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
+	assert.Nil(t, err,
+		"correctly registered, should not have errored")
+	assert.Equal(t, bz, []byte{0x12, 0xb5, 0x86, 0xe3},
+		"prefix bytes did not match")
+}
+
+func TestCodecBinaryRegister4(t *testing.T) {
+
+	cdc := NewCodec()
+	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
+	cdc.RegisterInterface((*Interface1)(nil), &InterfaceOptions{
+		AlwaysDisambiguate: true,
+	})
+
+	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
+	assert.Nil(t, err,
+		"correctly registered, should not have errored")
+	assert.Equal(t, bz, []byte{0x0, 0xda, 0xb8, 0x33, 0x12, 0xb5, 0x86, 0xe3},
+		"prefix bytes did not match")
 }
 
 //----------------------------------------
+// Misc.
 
 func spw(o interface{}) string {
 	return spew.Sprintf("%#v", o)

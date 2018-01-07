@@ -776,7 +776,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv r
 
 	// Write the disambiguation bytes if needed.
 	if info.AlwaysDisambiguate {
-		_, err = w.Write(cinfo.Disamb[:])
+		_, err = w.Write(append([]byte{0x00}, cinfo.Disamb[:]...))
 		if err != nil {
 			return
 		}
