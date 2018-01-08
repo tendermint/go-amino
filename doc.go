@@ -15,7 +15,7 @@ We shall call these the concrete types.
 
 3) Register the receiving structure as well as each of the concrete types.
 Typically do this in the init function so that it gets run before other functions are invoked
-    
+
 
   func init() {
     wire.RegisterInterface(
@@ -33,12 +33,12 @@ Typically do this in the init function so that it gets run before other function
 
   type bcResponse struct {
     Status int
-    Message string 
+    Message string
   }
 
   type bcResponse struct {
     Status int
-    Message string 
+    Message string
   }
 
 
