@@ -288,45 +288,38 @@ func _testCodecBinary(t *testing.T, rt reflect.Type) {
 // Register tests
 
 func TestCodecBinaryRegister1(t *testing.T) {
-
 	cdc := NewCodec()
 	//cdc.RegisterInterface((*Interface1)(nil), nil)
 	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
 
 	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
-	assert.NotNil(t, err,
-		"expected error due to unregistered interface")
+	assert.NotNil(t, err, "unregistered interface")
 	assert.Empty(t, bz)
 }
 
 func TestCodecBinaryRegister2(t *testing.T) {
-
 	cdc := NewCodec()
 	cdc.RegisterInterface((*Interface1)(nil), nil)
-	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil) // [12 B5 86 E3]
+	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
 
 	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
-	assert.Nil(t, err,
-		"correctly registered, should not have errored")
-	assert.Equal(t, bz, []byte{0x12, 0xb5, 0x86, 0xe3},
+	assert.Nil(t, err, "correctly registered")
+	assert.Equal(t, []byte{0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
 func TestCodecBinaryRegister3(t *testing.T) {
-
 	cdc := NewCodec()
 	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
 	cdc.RegisterInterface((*Interface1)(nil), nil)
 
 	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
-	assert.Nil(t, err,
-		"correctly registered, should not have errored")
-	assert.Equal(t, bz, []byte{0x12, 0xb5, 0x86, 0xe3},
+	assert.Nil(t, err, "correctly registered")
+	assert.Equal(t, []byte{0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
 func TestCodecBinaryRegister4(t *testing.T) {
-
 	cdc := NewCodec()
 	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
 	cdc.RegisterInterface((*Interface1)(nil), &InterfaceOptions{
@@ -334,10 +327,50 @@ func TestCodecBinaryRegister4(t *testing.T) {
 	})
 
 	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
-	assert.Nil(t, err,
-		"correctly registered, should not have errored")
-	assert.Equal(t, bz, []byte{0x0, 0xda, 0xb8, 0x33, 0x12, 0xb5, 0x86, 0xe3},
+	assert.Nil(t, err, "correctly registered")
+	assert.Equal(t, []byte{0x0, 0x12, 0xb5, 0x86, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
+}
+
+func TestCodecBinaryRegister5(t *testing.T) {
+	cdc := NewCodec()
+	//cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
+	cdc.RegisterInterface((*Interface1)(nil), nil)
+
+	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
+	assert.NotNil(t, err, "concrete type not registered")
+	assert.Empty(t, bz)
+}
+
+func TestCodecBinaryRegister6(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterInterface((*Interface1)(nil), nil)
+	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
+
+	assert.Panics(t, func() {
+		cdc.RegisterConcrete((*Concrete2)(nil), "Concrete1", nil)
+	}, "duplicate concrete name")
+}
+
+func TestCodecBinaryRegister7(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterInterface((*Interface1)(nil), nil)
+	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
+	cdc.RegisterConcrete((*Concrete2)(nil), "Concrete2", nil)
+
+	{ // test Concrete1, no conflict.
+		bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
+		assert.Nil(t, err, "correctly registered")
+		assert.Equal(t, []byte{0xe3, 0xda, 0xb8, 0x33}, bz,
+			"disfix bytes did not match")
+	}
+
+	{ // test Concrete2, no conflict
+		bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete2{}})
+		assert.Nil(t, err, "correctly registered")
+		assert.Equal(t, []byte{0x6a, 0x9, 0xca, 0x1}, bz,
+			"disfix bytes did not match")
+	}
 }
 
 //----------------------------------------

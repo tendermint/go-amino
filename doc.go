@@ -70,23 +70,23 @@ of the concrete type.
 
 Computing prefix bytes
 
-To compute the prefix bytes, we take `hash := sha256(concreteTypeName)`,
+To compute the disambiguation bytes, we take `hash := sha256(concreteTypeName)`,
 and drop the leading 0x00 bytes.
 
  > hash := sha256("com.tendermint.consensus/MyConcreteName")
- > hex.EncodeBytes(hash) // 0x{00 00 BB 9C 83 DD 00 A8 FC 54 4C 03 ...} (example)
+ > hex.EncodeBytes(hash) // 0x{00 00 A8 FC 54 00 00 00 BB 9C 83 DD ...} (example)
 
 In the example above, hash has two leading 0x00 bytes, so we drop them.
 
- > rest = dropLeadingZeroBytes(hash) // 0x{BB 9C 83 DD 00 A8 FC 54 4C 03 ...}
- > prefix = rest[0:4]
- > rest = dropLeadingZeroBytes(rest[4:])
+ > rest = dropLeadingZeroBytes(hash) // 0x{A8 FC 54 00 00 BB 9C 83 DD ...}
  > disamb = rest[0:3]
+ > rest = dropLeadingZeroBytes(rest[3:])
+ > prefix = rest[0:4]
 
-The first 4 bytes are called the "name bytes" (in square brackets).
-The next 3 bytes are called the "disambiguation bytes" (in angle brackets).
+The first 3 bytes are called the "disambiguation bytes" (in angle brackets).
+The next 4 bytes are called the "prefix bytes" (in square brackets).
 
- > [0xBB 0x9C 9x83 9xDD] <0xA8 0xFC 0x54> ...
+ > <0xA8 0xFC 0x54> [0xBB 0x9C 9x83 9xDD]
 
 */
 package wire

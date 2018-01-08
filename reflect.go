@@ -15,142 +15,18 @@ import (
 	"time"
 )
 
-const (
-	PrefixBytesLen = 4
-	DisambBytesLen = 3
-	DisfixBytesLen = PrefixBytesLen + DisambBytesLen
-	printLog       = false
-)
-
-type PrefixBytes [PrefixBytesLen]byte
-type DisambBytes [DisambBytesLen]byte
-type DisfixBytes [DisfixBytesLen]byte // Disamb+Prefix
-
-type TypeInfo struct {
-	Type        reflect.Type // Interface type.
-	PtrToType   reflect.Type
-	NilPtrValue reflect.Value
-	ZeroValue   reflect.Value
-	ZeroProto   interface{}
-	InterfaceInfo
-	ConcreteInfo
-}
-
-type InterfaceInfo struct {
-	InterfaceOptions
-}
-
-type InterfaceOptions struct {
-	Priority           []string // Disamb priority.
-	AlwaysDisambiguate bool     // If true, include disamb for all types.
-}
-
-type ConcreteInfo struct {
-	PointerPreferred bool        // Deserialize to pointer type if possible.
-	Registered       bool        // Manually regsitered.
-	Name             string      // Ignored if !Registered.
-	Prefix           PrefixBytes // Ignored if !Registered.
-	Disamb           DisambBytes // Ignored if !Registered.
-	Fields           []FieldInfo // If a struct.
-	ZeroProto        interface{} // Prototype zero value object.
-	ConcreteOptions
-}
-
-type ConcreteOptions struct {
-}
-
-type FieldInfo struct {
-	Type         reflect.Type // Struct field type
-	Index        int          // Struct field index
-	FieldOptions              // Encoding options
-}
-
-type FieldOptions struct {
-	JSONName      string // (JSON) field name
-	JSONOmitEmpty bool   // (JSON) omitempty
-	BinVarint     bool   // (Binary) Use length-prefixed encoding for (u)int64.
-	Unsafe        bool   // e.g. if this field is a float.
-}
-
-// This function should be used to register all interfaces that will be
-// encoded/decoded by go-wire.
-// Usage:
-// `wire.RegisterInterface((*MyInterface1)(nil), nil)`
-func (cdc *Codec) RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
-
-	// Get reflect.Type from ptr.
-	rt := getTypeFromPointer(ptr)
-	if rt.Kind() != reflect.Interface {
-		panic(fmt.Sprintf("RegisterInterface expects an interface, got %v", rt))
-	}
-
-	// Construct InterfaceInfo
-	var info = cdc.newTypeInfoFromInterfaceType(rt, opts)
-
-	// XXX
-	// For each registered concrete type crt:
-	//   If crt (pointer if pointer-preferred) implements interface:
-	//     If crt doesn't exist in prio list:
-	//       If crt prefix bytes conflicts with any InterfaceType.Impls:
-	//         return error.
-	//     Add crt to InterfaceType.Impls
-
-	// Finally, register.
-	cdc.setTypeInfo_wlock(info)
-}
-
-// This function should be used to register concrete types that will appear in
-// interface fields/elements to be encoded/decoded by go-wire.
-// Usage:
-// `wire.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)`
-func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOptions) {
-
-	var pointerPreferred bool
-
-	// Get reflect.Type.
-	rt := reflect.TypeOf(o)
-	if rt.Kind() == reflect.Interface {
-		panic(fmt.Sprintf("expected a non-interface: %v", rt))
-	}
-	if rt.Kind() == reflect.Ptr {
-		rt = rt.Elem()
-		if rt.Kind() == reflect.Ptr {
-			// We can encode/decode pointer-pointers, but not register them.
-			panic(fmt.Sprintf("registering pointer-pointers not yet supported: *%v", rt))
-		}
-		if rt.Kind() == reflect.Interface {
-			panic(fmt.Sprintf("registering interface-pointers not yet supported: *%v", rt))
-		}
-		pointerPreferred = true
-	}
-
-	// Construct ConcreteInfo
-	var info = cdc.newTypeInfoFromConcreteType(rt, pointerPreferred, name, opts)
-
-	// XXX
-	// For each registered interface:
-	//   If crt (pointer if pointer-preferred) implements interface:
-	//     If crt doesn't exist in prio list:
-	//       If crt prefix bytes conflicts with any InterfaceType.Impls:
-	//         return error.
-	//     Add crt to InterfaceType.Impls
-
-	// Actually register the interface.
-	cdc.setTypeInfo_wlock(info)
-}
-
 //----------------------------------------
 // constants
 
 var timeType = reflect.TypeOf(time.Time{})
 
 const RFC3339Millis = "2006-01-02T15:04:05.000Z" // forced microseconds
+const printLog = false
 
 //----------------------------------------
 // cdc.decodeReflectBinary
 
 // CONTRACT: rv.CanAddr() is true.
-// CONTRACT: caller holds cdc.mtx.
 func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
@@ -402,7 +278,6 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 }
 
 // CONTRACT: rv.CanAddr() is true.
-// CONTRACT: caller holds cdc.mtx.
 func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
@@ -461,7 +336,6 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, info *TypeInfo, rv ref
 }
 
 // CONTRACT: rv.CanAddr() is true.
-// CONTRACT: caller holds cdc.mtx.
 func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
@@ -498,7 +372,6 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 }
 
 // CONTRACT: rv.CanAddr() is true.
-// CONTRACT: caller holds cdc.mtx.
 func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
@@ -559,7 +432,6 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 }
 
 // CONTRACT: rv.CanAddr() is true.
-// CONTRACT: caller holds cdc.mtx.
 func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
@@ -600,7 +472,6 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 // This is the main entrypoint for encoding all types.  This function calls
 // encodeReflectBinary*, but those functions should only call this one.
 // (This is necessary because the prefix bytes are only written here).
-// CONTRACT: caller holds cdc.mtx.
 func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	if printLog {
@@ -734,7 +605,6 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	return
 }
 
-// CONTRACT: caller holds cdc.mtx.
 func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	if rv.IsNil() {
@@ -786,7 +656,6 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv r
 	return
 }
 
-// CONTRACT: caller holds cdc.mtx.
 func (cdc *Codec) encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	ert := info.Type.Elem()
 	length := info.Type.Len()
@@ -822,7 +691,6 @@ func (cdc *Codec) encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv refle
 	}
 }
 
-// CONTRACT: caller holds cdc.mtx.
 func (cdc *Codec) encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	ert := info.Type.Elem()
 
@@ -858,7 +726,6 @@ func (cdc *Codec) encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv refle
 	}
 }
 
-// CONTRACT: caller holds cdc.mtx.
 func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	switch info.Type {
@@ -906,23 +773,33 @@ func checkUnsafe(field FieldInfo) {
 	}
 }
 
-func nameToPrefix(name string) (pb PrefixBytes, db DisambBytes) {
+func nameToDisamb(name string) (db DisambBytes) {
+	db, _ = nameToDisfix(name)
+	return
+}
+
+func nameToPrefix(name string) (pb PrefixBytes) {
+	_, pb = nameToDisfix(name)
+	return
+}
+
+func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
 	hasher := sha256.New()
 	hasher.Write([]byte(name))
 	bz := hasher.Sum(nil)
 	for bz[0] == 0x00 {
 		bz = bz[1:]
 	}
-	copy(pb[:], bz[0:4])
-	bz = bz[4:]
+	copy(db[:], bz[0:3])
+	bz = bz[3:]
 	for bz[0] == 0x00 {
 		bz = bz[1:]
 	}
-	copy(db[:], bz[0:3])
+	copy(pb[:], bz[0:4])
 	return
 }
 
-func toDisfix(pb PrefixBytes, db DisambBytes) (df DisfixBytes) {
+func toDisfix(db DisambBytes, pb PrefixBytes) (df DisfixBytes) {
 	copy(df[0:3], db[0:3])
 	copy(df[3:7], pb[0:4])
 	return
