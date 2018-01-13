@@ -1,10 +1,10 @@
-hash: 6ead5ba8b5146b5d721429af80bd85b111f3898a3e1b4e794c7788b8ca673076
-updated: 2018-01-07T02:51:11.930851611-08:00
+hash: d4d1460634eea340561d13f4a6835d62b8f0073ca8048fcb717cf786eadd74a4
+updated: 2018-01-13T00:12:52.345951722-08:00
 imports:
 - name: github.com/clipperhouse/typewriter
   version: c1a48da378ebb7db1db9f35981b5cc24bf2e5b85
 - name: github.com/davecgh/go-spew
-  version: 6d212800a42e8ab5c146b8ace3490ee17e5225f9
+  version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
   subpackages:
   - spew
 - name: github.com/go-kit/kit
@@ -30,7 +30,7 @@ imports:
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/tendermint/tmlibs
-  version: b31397aff5f43216ba831338f7dcdee8a53cf433
+  version: 633caa227c1334c64ea265f498a2193111bd9c73
   subpackages:
   - common
   - log
@@ -39,7 +39,7 @@ imports:
   subpackages:
   - ripemd160
 - name: golang.org/x/tools
-  version: b451b9aaee4dcf75f9f28cddb69b9d0ed17a9752
+  version: fbec762f837dc349b73d1eaa820552e2ad177942
   subpackages:
   - go/ast/astutil
   - imports
@@ -49,7 +49,7 @@ testImports:
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
-  version: 69483b4bd14f5845b5a1e55bca19e954e827f1d0
+  version: 2aa2c176b9dab406a6970f6a55f513e8a8c8b18f
   subpackages:
   - assert
   - require

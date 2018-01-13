@@ -3,6 +3,7 @@ import:
 - package: github.com/clipperhouse/typewriter
 - package: github.com/pkg/errors
 - package: github.com/tendermint/tmlibs
+  version: 633caa227c1334c64ea265f498a2193111bd9c73
   subpackages:
   - common
 - package: github.com/davecgh/go-spew
