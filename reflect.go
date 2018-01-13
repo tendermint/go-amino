@@ -1,1052 +1,854 @@
 package wire
 
+// XXX Add JSON again.
+// XXX Check for custom marshal/unmarshal functions.
+// XXX Scan the codebase for unwraps and double check that they implement above.
+
 import (
-	"encoding/hex"
-	"encoding/json"
+	"bytes"
+	"crypto/sha256"
 	"errors"
+	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"io"
 	"reflect"
-	"strings"
-	"sync"
 	"time"
-
-	cmn "github.com/tendermint/tmlibs/common"
 )
 
-type TypeInfo struct {
-	Type reflect.Type // The type
+//----------------------------------------
+// constants
 
-	// If Type is kind reflect.Interface, is registered
-	IsRegisteredInterface bool
-	ByteToType            map[byte]reflect.Type
-	TypeToByte            map[reflect.Type]byte
+var timeType = reflect.TypeOf(time.Time{})
 
-	// If Type is kind reflect.Struct
-	Fields []StructFieldInfo
-	Unwrap bool // if struct has only one field and its an anonymous interface
-}
+const RFC3339Millis = "2006-01-02T15:04:05.000Z" // forced microseconds
+const printLog = false
 
-type Options struct {
-	JSONName      string      // (JSON) Corresponding JSON field name. (override with `json=""`)
-	JSONOmitEmpty bool        // (JSON) Omit field if value is empty
-	Varint        bool        // (Binary) Use length-prefixed encoding for (u)int64
-	Unsafe        bool        // (JSON/Binary) Explicitly enable support for floats or maps
-	ZeroValue     interface{} // Prototype zero object
-}
+//----------------------------------------
+// cdc.decodeReflectBinary
 
-func getOptionsFromField(field reflect.StructField) (skip bool, opts Options) {
-	jsonTag := field.Tag.Get("json")
-	binTag := field.Tag.Get("binary")
-	wireTag := field.Tag.Get("wire")
-	if jsonTag == "-" {
-		skip = true
-		return
-	}
-	jsonTagParts := strings.Split(jsonTag, ",")
-	if jsonTagParts[0] == "" {
-		opts.JSONName = field.Name
-	} else {
-		opts.JSONName = jsonTagParts[0]
-	}
-	if len(jsonTagParts) > 1 {
-		if jsonTagParts[1] == "omitempty" {
-			opts.JSONOmitEmpty = true
-		}
-	}
-	if binTag == "varint" { // TODO: extend
-		opts.Varint = true
-	}
-	if wireTag == "unsafe" {
-		opts.Unsafe = true
-	}
-	opts.ZeroValue = reflect.Zero(field.Type).Interface()
-	return
-}
-
-type StructFieldInfo struct {
-	Index   int          // Struct field index
-	Type    reflect.Type // Struct field type
-	Options              // Encoding options
-}
-
-func (info StructFieldInfo) unpack() (int, reflect.Type, Options) {
-	return info.Index, info.Type, info.Options
-}
-
-// e.g. If o is struct{Foo}{}, return is the Foo reflection type.
-func GetTypeFromStructDeclaration(o interface{}) reflect.Type {
-	rt := reflect.TypeOf(o)
-	if rt.NumField() != 1 {
-		cmn.PanicSanity("Unexpected number of fields in struct-wrapped declaration of type")
-	}
-	return rt.Field(0).Type
-}
-
-// Predeclaration of common types
-var (
-	timeType = GetTypeFromStructDeclaration(struct{ time.Time }{})
-)
-
-const (
-	RFC3339Millis = "2006-01-02T15:04:05.000Z" // forced microseconds
-)
-
-// NOTE: do not access typeInfos directly, but call GetTypeInfo()
-var typeInfosMtx sync.RWMutex
-var typeInfos = map[reflect.Type]*TypeInfo{}
-
-func GetTypeInfo(rt reflect.Type) *TypeInfo {
-	typeInfosMtx.RLock()
-	info := typeInfos[rt]
-	typeInfosMtx.RUnlock()
-	if info == nil {
-		info = MakeTypeInfo(rt)
-		typeInfosMtx.Lock()
-		typeInfos[rt] = info
-		typeInfosMtx.Unlock()
-	}
-	return info
-}
-
-// For use with the RegisterInterface declaration
-type ConcreteType struct {
-	O    interface{}
-	Byte byte
-}
-
-// This function should be used to register the receiving interface that will
-// be used to decode an underlying concrete type. The interface MUST be embedded
-// in a struct, and the interface MUST be the only field and it MUST be exported.
-// For example:
-//      RegisterInterface(struct{ Animal }{}, ConcreteType{&foo, 0x01})
-func RegisterInterface(o interface{}, ctypes ...ConcreteType) *TypeInfo {
-	it := GetTypeFromStructDeclaration(o)
-	if it.Kind() != reflect.Interface {
-		cmn.PanicSanity("RegisterInterface expects an interface")
-	}
-	toType := make(map[byte]reflect.Type, 0)
-	toByte := make(map[reflect.Type]byte, 0)
-	for _, ctype := range ctypes {
-		crt := reflect.TypeOf(ctype.O)
-		typeByte := ctype.Byte
-		if typeByte == 0x00 {
-			cmn.PanicSanity(cmn.Fmt("Byte of 0x00 is reserved for nil (%v)", ctype))
-		}
-		if toType[typeByte] != nil {
-			cmn.PanicSanity(cmn.Fmt("Duplicate Byte for type %v and %v", ctype, toType[typeByte]))
-		}
-		toType[typeByte] = crt
-		toByte[crt] = typeByte
-	}
-	typeInfo := &TypeInfo{
-		Type: it,
-		IsRegisteredInterface: true,
-		ByteToType:            toType,
-		TypeToByte:            toByte,
-	}
-	typeInfos[it] = typeInfo
-	return typeInfo
-}
-
-func MakeTypeInfo(rt reflect.Type) *TypeInfo {
-	info := &TypeInfo{Type: rt}
-
-	// If struct, register field name options
-	if rt.Kind() == reflect.Struct {
-		numFields := rt.NumField()
-		structFields := []StructFieldInfo{}
-		for i := 0; i < numFields; i++ {
-			field := rt.Field(i)
-			if field.PkgPath != "" {
-				continue
-			}
-			skip, opts := getOptionsFromField(field)
-			if skip {
-				continue
-			}
-			structFields = append(structFields, StructFieldInfo{
-				Index:   i,
-				Type:    field.Type,
-				Options: opts,
-			})
-		}
-		info.Fields = structFields
-
-		// Maybe type is a wrapper.
-		if len(structFields) == 1 {
-			jsonName := rt.Field(structFields[0].Index).Tag.Get("json")
-			if jsonName == "unwrap" {
-				info.Unwrap = true
-			}
-		}
+// CONTRACT: rv.CanAddr() is true.
+func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+	if !rv.CanAddr() {
+		panic("rv not addressable")
 	}
 
-	return info
-}
-
-// Contract: Caller must ensure that rt is supported
-// (e.g. is recursively composed of supported native types, and structs and slices.)
-func readReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, r io.Reader, lmt int, n *int, err *error) {
-
-	// Get typeInfo
-	typeInfo := GetTypeInfo(rt)
-
-	if rt.Kind() == reflect.Interface {
-		if !typeInfo.IsRegisteredInterface {
-			// There's no way we can read such a thing.
-			*err = errors.New(cmn.Fmt("Cannot read unregistered interface type %v", rt))
-			return
-		}
-		typeByte := ReadByte(r, n, err)
-		if *err != nil {
-			return
-		}
-		if typeByte == 0x00 {
-			return // nil
-		}
-		crt, ok := typeInfo.ByteToType[typeByte]
-		if !ok {
-			*err = errors.New(cmn.Fmt("Unexpected type byte %X for type %v", typeByte, rt))
-			return
-		}
-		if crt.Kind() == reflect.Ptr {
-			crt = crt.Elem()
-			crv := reflect.New(crt)
-			readReflectBinary(crv.Elem(), crt, opts, r, lmt, n, err)
-			rv.Set(crv) // NOTE: orig rv is ignored.
-		} else {
-			crv := reflect.New(crt).Elem()
-			readReflectBinary(crv, crt, opts, r, lmt, n, err)
-			rv.Set(crv) // NOTE: orig rv is ignored.
-		}
-		return
+	if printLog {
+		spew.Printf("(d) decodeReflectBinary(bz: %X, info: %v, rv: %#v (%v), opts: %v)\n",
+			bz, info, rv.Interface(), rv.Type(), opts)
+		defer func() {
+			fmt.Printf("(d) -> n: %v, err: %v\n", n, err)
+		}()
 	}
 
-	if rt.Kind() == reflect.Ptr {
-		typeByte := ReadByte(r, n, err)
-		if *err != nil {
+	var _n int
+
+	if info.Registered {
+		if len(bz) < PrefixBytesLen {
+			err = errors.New("EOF skipping prefix bytes.")
 			return
 		}
-		if typeByte == 0x00 {
-			return // nil
-		} else if typeByte != 0x01 {
-			*err = errors.New(cmn.Fmt("Unexpected type byte %X for ptr of untyped thing", typeByte))
-			return
-		}
-		// Create new if rv is nil.
-		if rv.IsNil() {
-			newRv := reflect.New(rt.Elem())
-			rv.Set(newRv)
-			rv = newRv
-		}
-		// Dereference pointer
-		rv, rt = rv.Elem(), rt.Elem()
-		typeInfo = GetTypeInfo(rt)
-		// continue...
+		bz = bz[PrefixBytesLen:]
+		n += PrefixBytesLen
 	}
 
-	switch rt.Kind() {
-	case reflect.Array:
-		elemRt := rt.Elem()
-		length := rt.Len()
-		if elemRt.Kind() == reflect.Uint8 {
-			// Special case: Bytearrays
-			buf := make([]byte, length)
-			ReadFull(buf, r, n, err)
-			if *err != nil {
-				return
-			}
-			//log.Info("Read bytearray", "bytes", buf, "n", *n)
-			reflect.Copy(rv, reflect.ValueOf(buf))
-		} else {
-			for i := 0; i < length; i++ {
-				elemRv := rv.Index(i)
-				readReflectBinary(elemRv, elemRt, opts, r, lmt, n, err)
-				if *err != nil {
-					return
-				}
-				if lmt != 0 && lmt < *n {
-					*err = ErrBinaryReadOverflow
-					return
-				}
-			}
-			//log.Info("Read x-array", "x", elemRt, "length", length, "n", *n)
-		}
-
-	case reflect.Slice:
-		elemRt := rt.Elem()
-		if elemRt.Kind() == reflect.Uint8 {
-			// Special case: Byteslices
-			byteslice := ReadByteSlice(r, lmt, n, err)
-			//log.Info("Read byteslice", "bytes", byteslice, "n", *n)
-			rv.Set(reflect.ValueOf(byteslice))
-		} else {
-			var sliceRv reflect.Value
-			// Read length
-			length := ReadVarint(r, n, err)
-			//log.Info("Read slice", "length", length, "n", *n)
-			sliceRv = reflect.MakeSlice(rt, 0, 0)
-			// read one ReadSliceChunkSize at a time and append
-			for i := 0; i*ReadSliceChunkSize < length; i++ {
-				l := cmn.MinInt(ReadSliceChunkSize, length-i*ReadSliceChunkSize)
-				tmpSliceRv := reflect.MakeSlice(rt, l, l)
-				for j := 0; j < l; j++ {
-					elemRv := tmpSliceRv.Index(j)
-					readReflectBinary(elemRv, elemRt, opts, r, lmt, n, err)
-					if *err != nil {
-						return
-					}
-					if lmt != 0 && lmt < *n {
-						*err = ErrBinaryReadOverflow
-						return
-					}
-				}
-				sliceRv = reflect.AppendSlice(sliceRv, tmpSliceRv)
-			}
-
-			rv.Set(sliceRv)
-		}
-
-	case reflect.Struct:
-		if rt == timeType {
-			// Special case: time.Time
-			t := ReadTime(r, n, err)
-			//log.Info("Read time", "t", t, "n", *n)
-			rv.Set(reflect.ValueOf(t))
-		} else {
-			for _, fieldInfo := range typeInfo.Fields {
-				fieldIdx, fieldType, opts := fieldInfo.unpack()
-				fieldRv := rv.Field(fieldIdx)
-				readReflectBinary(fieldRv, fieldType, opts, r, lmt, n, err)
-			}
-		}
-
-	case reflect.String:
-		str := ReadString(r, lmt, n, err)
-		//log.Info("Read string", "str", str, "n", *n)
-		rv.SetString(str)
-
-	case reflect.Int64:
-		if opts.Varint {
-			num := ReadVarint(r, n, err)
-			//log.Info("Read num", "num", num, "n", *n)
-			rv.SetInt(int64(num))
-		} else {
-			num := ReadInt64(r, n, err)
-			//log.Info("Read num", "num", num, "n", *n)
-			rv.SetInt(int64(num))
-		}
-
-	case reflect.Int32:
-		num := ReadUint32(r, n, err)
-		//log.Info("Read num", "num", num, "n", *n)
-		rv.SetInt(int64(num))
-
-	case reflect.Int16:
-		num := ReadUint16(r, n, err)
-		//log.Info("Read num", "num", num, "n", *n)
-		rv.SetInt(int64(num))
-
-	case reflect.Int8:
-		num := ReadUint8(r, n, err)
-		//log.Info("Read num", "num", num, "n", *n)
-		rv.SetInt(int64(num))
-
-	case reflect.Int:
-		num := ReadVarint(r, n, err)
-		//log.Info("Read num", "num", num, "n", *n)
-		rv.SetInt(int64(num))
-
-	case reflect.Uint64:
-		if opts.Varint {
-			num := ReadVarint(r, n, err)
-			//log.Info("Read num", "num", num, "n", *n)
-			rv.SetUint(uint64(num))
-		} else {
-			num := ReadUint64(r, n, err)
-			//log.Info("Read num", "num", num, "n", *n)
-			rv.SetUint(uint64(num))
-		}
-
-	case reflect.Uint32:
-		num := ReadUint32(r, n, err)
-		//log.Info("Read num", "num", num, "n", *n)
-		rv.SetUint(uint64(num))
-
-	case reflect.Uint16:
-		num := ReadUint16(r, n, err)
-		//log.Info("Read num", "num", num, "n", *n)
-		rv.SetUint(uint64(num))
-
-	case reflect.Uint8:
-		num := ReadUint8(r, n, err)
-		//log.Info("Read num", "num", num, "n", *n)
-		rv.SetUint(uint64(num))
-
-	case reflect.Uint:
-		num := ReadVarint(r, n, err)
-		//log.Info("Read num", "num", num, "n", *n)
-		rv.SetUint(uint64(num))
-
-	case reflect.Bool:
-		num := ReadUint8(r, n, err)
-		//log.Info("Read bool", "bool", num, "n", *n)
-		rv.SetBool(num > 0)
-
-	case reflect.Float64:
-		if !opts.Unsafe {
-			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
-			return
-		}
-		num := ReadFloat64(r, n, err)
-		//log.Info("Read num", "num", num, "n", *n)
-		rv.SetFloat(float64(num))
-
-	case reflect.Float32:
-		if !opts.Unsafe {
-			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
-			return
-		}
-		num := ReadFloat32(r, n, err)
-		//log.Info("Read num", "num", num, "n", *n)
-		rv.SetFloat(float64(num))
-
-	default:
-		cmn.PanicSanity(cmn.Fmt("Unknown field type %v", rt.Kind()))
-	}
-}
-
-// rv: the reflection value of the thing to write
-// rt: the type of rv as declared in the container, not necessarily rv.Type().
-func writeReflectBinary(rv reflect.Value, rt reflect.Type, opts Options, w io.Writer, n *int, err *error) {
-
-	// Get typeInfo
-	typeInfo := GetTypeInfo(rt)
-
-	if rt.Kind() == reflect.Interface {
-		if rv.IsNil() {
-			WriteByte(0x00, w, n, err)
-			return
-		}
-		crv := rv.Elem()  // concrete reflection value
-		crt := crv.Type() // concrete reflection type
-		if typeInfo.IsRegisteredInterface {
-			// See if the crt is registered.
-			// If so, we're more restrictive.
-			typeByte, ok := typeInfo.TypeToByte[crt]
-			if !ok {
-				switch crt.Kind() {
-				case reflect.Ptr:
-					*err = errors.New(cmn.Fmt("Unexpected pointer type %v for registered interface %v. "+
-						"Was it registered as a value receiver rather than as a pointer receiver?", crt, rt.Name()))
-				case reflect.Struct:
-					*err = errors.New(cmn.Fmt("Unexpected struct type %v for registered interface %v. "+
-						"Was it registered as a pointer receiver rather than as a value receiver?", crt, rt.Name()))
-				default:
-					*err = errors.New(cmn.Fmt("Unexpected type %v for registered interface %v. "+
-						"If this is intentional, please register it.", crt, rt.Name()))
-				}
-				return
-			}
-			if crt.Kind() == reflect.Ptr {
-				crv, crt = crv.Elem(), crt.Elem()
-				if !crv.IsValid() {
-					*err = errors.New(cmn.Fmt("Unexpected nil-pointer of type %v for registered interface %v. "+
-						"For compatibility with other languages, nil-pointer interface values are forbidden.", crt, rt.Name()))
-					return
-				}
-			}
-			WriteByte(typeByte, w, n, err)
-			writeReflectBinary(crv, crt, opts, w, n, err)
-		} else {
-			// We support writing unregistered interfaces for convenience.
-			writeReflectBinary(crv, crt, opts, w, n, err)
-		}
-		return
+	// SANITY CHECK
+	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
+		panic("should not happen")
 	}
 
-	if rt.Kind() == reflect.Ptr {
-		// Dereference pointer
-		rv, rt = rv.Elem(), rt.Elem()
-		typeInfo = GetTypeInfo(rt)
-		if !rv.IsValid() {
-			WriteByte(0x00, w, n, err)
-			return
-		} else {
-			WriteByte(0x01, w, n, err)
-			// continue...
-		}
-	}
-
-	// All other types
-	switch rt.Kind() {
-	case reflect.Array:
-		elemRt := rt.Elem()
-		length := rt.Len()
-		if elemRt.Kind() == reflect.Uint8 {
-			// Special case: Bytearrays
-			if rv.CanAddr() {
-				byteslice := rv.Slice(0, length).Bytes()
-				WriteTo(byteslice, w, n, err)
-
-			} else {
-				buf := make([]byte, length)
-				reflect.Copy(reflect.ValueOf(buf), rv) // XXX: looks expensive!
-				WriteTo(buf, w, n, err)
-			}
-		} else {
-			// Write elems
-			for i := 0; i < length; i++ {
-				elemRv := rv.Index(i)
-				writeReflectBinary(elemRv, elemRt, opts, w, n, err)
-			}
-		}
-
-	case reflect.Slice:
-		elemRt := rt.Elem()
-		if elemRt.Kind() == reflect.Uint8 {
-			// Special case: Byteslices
-			byteslice := rv.Bytes()
-			WriteByteSlice(byteslice, w, n, err)
-		} else {
-			// Write length
-			length := rv.Len()
-			WriteVarint(length, w, n, err)
-			// Write elems
-			for i := 0; i < length; i++ {
-				elemRv := rv.Index(i)
-				writeReflectBinary(elemRv, elemRt, opts, w, n, err)
-			}
-		}
-
-	case reflect.Struct:
-		if rt == timeType {
-			// Special case: time.Time
-			WriteTime(rv.Interface().(time.Time), w, n, err)
-		} else {
-			for _, fieldInfo := range typeInfo.Fields {
-				fieldIdx, fieldType, opts := fieldInfo.unpack()
-				fieldRv := rv.Field(fieldIdx)
-				writeReflectBinary(fieldRv, fieldType, opts, w, n, err)
-			}
-		}
-
-	case reflect.String:
-		WriteString(rv.String(), w, n, err)
-
-	case reflect.Int64:
-		if opts.Varint {
-			WriteVarint(int(rv.Int()), w, n, err)
-		} else {
-			WriteInt64(rv.Int(), w, n, err)
-		}
-
-	case reflect.Int32:
-		WriteInt32(int32(rv.Int()), w, n, err)
-
-	case reflect.Int16:
-		WriteInt16(int16(rv.Int()), w, n, err)
-
-	case reflect.Int8:
-		WriteInt8(int8(rv.Int()), w, n, err)
-
-	case reflect.Int:
-		WriteVarint(int(rv.Int()), w, n, err)
-
-	case reflect.Uint64:
-		if opts.Varint {
-			WriteUvarint(uint(rv.Uint()), w, n, err)
-		} else {
-			WriteUint64(rv.Uint(), w, n, err)
-		}
-
-	case reflect.Uint32:
-		WriteUint32(uint32(rv.Uint()), w, n, err)
-
-	case reflect.Uint16:
-		WriteUint16(uint16(rv.Uint()), w, n, err)
-
-	case reflect.Uint8:
-		WriteUint8(uint8(rv.Uint()), w, n, err)
-
-	case reflect.Uint:
-		WriteUvarint(uint(rv.Uint()), w, n, err)
-
-	case reflect.Bool:
-		if rv.Bool() {
-			WriteUint8(uint8(1), w, n, err)
-		} else {
-			WriteUint8(uint8(0), w, n, err)
-		}
-
-	case reflect.Float64:
-		if !opts.Unsafe {
-			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
+	// Handle pointer types.
+	if rv.Kind() == reflect.Ptr {
+		if len(bz) == 0 {
+			err = errors.New("EOF reading pointer type")
 			return
 		}
-		WriteFloat64(rv.Float(), w, n, err)
-
-	case reflect.Float32:
-		if !opts.Unsafe {
-			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
+		switch bz[0] {
+		case 0x00:
+			n += 1
+			rv.Set(reflect.Zero(rv.Type()))
 			return
-		}
-		WriteFloat32(float32(rv.Float()), w, n, err)
-
-	default:
-		cmn.PanicSanity(cmn.Fmt("Unknown field type %v", rt.Kind()))
-	}
-}
-
-//-----------------------------------------------------------------------------
-
-func readByteJSON(o interface{}) (typeByte byte, rest interface{}, err error) {
-	oSlice, ok := o.([]interface{})
-	if !ok {
-		err = errors.New(cmn.Fmt("Expected type [Byte,?] but got type %v", reflect.TypeOf(o)))
-		return
-	}
-	if len(oSlice) != 2 {
-		err = errors.New(cmn.Fmt("Expected [Byte,?] len 2 but got len %v", len(oSlice)))
-		return
-	}
-	typeByte_, ok := oSlice[0].(float64)
-	typeByte = byte(typeByte_)
-	rest = oSlice[1]
-	return
-}
-
-// Contract: Caller must ensure that rt is supported
-// (e.g. is recursively composed of supported native types, and structs and slices.)
-// rv and rt refer to the object we're unmarhsaling into, whereas o is the result of naiive json unmarshal (map[string]interface{})
-func readReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, o interface{}, err *error) {
-
-	// Get typeInfo
-	typeInfo := GetTypeInfo(rt)
-
-	if rt.Kind() == reflect.Interface {
-		if !typeInfo.IsRegisteredInterface {
-			// There's no way we can read such a thing.
-			*err = errors.New(cmn.Fmt("Cannot read unregistered interface type %v", rt))
-			return
-		}
-		if o == nil {
-			return // nil
-		}
-		typeByte, rest, err_ := readByteJSON(o)
-		if err_ != nil {
-			*err = err_
-			return
-		}
-		crt, ok := typeInfo.ByteToType[typeByte]
-		if !ok {
-			*err = errors.New(cmn.Fmt("Byte %X not registered for interface %v", typeByte, rt))
-			return
-		}
-		if crt.Kind() == reflect.Ptr {
-			crt = crt.Elem()
-			crv := reflect.New(crt)
-			readReflectJSON(crv.Elem(), crt, opts, rest, err)
-			rv.Set(crv) // NOTE: orig rv is ignored.
-		} else {
-			crv := reflect.New(crt).Elem()
-			readReflectJSON(crv, crt, opts, rest, err)
-			rv.Set(crv) // NOTE: orig rv is ignored.
-		}
-		return
-	}
-
-	if rt.Kind() == reflect.Ptr {
-		if o == nil {
-			return // nil
-		}
-		// Create new struct if rv is nil.
-		if rv.IsNil() {
-			newRv := reflect.New(rt.Elem())
-			rv.Set(newRv)
-			rv = newRv
-		}
-		// Dereference pointer
-		rv, rt = rv.Elem(), rt.Elem()
-		typeInfo = GetTypeInfo(rt)
-		// continue...
-	}
-
-	switch rt.Kind() {
-	case reflect.Array:
-		elemRt := rt.Elem()
-		length := rt.Len()
-		if elemRt.Kind() == reflect.Uint8 {
-			// Special case: Bytearrays
-			oString, ok := o.(string)
-			if !ok {
-				*err = errors.New(cmn.Fmt("Expected string but got type %v", reflect.TypeOf(o)))
-				return
-			}
-			buf, err_ := hex.DecodeString(oString)
-			if err_ != nil {
-				*err = err_
-				return
-			}
-			if len(buf) != length {
-				*err = errors.New(cmn.Fmt("Expected bytearray of length %v but got %v", length, len(buf)))
-				return
-			}
-			//log.Info("Read bytearray", "bytes", buf)
-			reflect.Copy(rv, reflect.ValueOf(buf))
-		} else {
-			oSlice, ok := o.([]interface{})
-			if !ok {
-				*err = errors.New(cmn.Fmt("Expected array of %v but got type %v", rt, reflect.TypeOf(o)))
-				return
-			}
-			if len(oSlice) != length {
-				*err = errors.New(cmn.Fmt("Expected array of length %v but got %v", length, len(oSlice)))
-				return
-			}
-			for i := 0; i < length; i++ {
-				elemRv := rv.Index(i)
-				readReflectJSON(elemRv, elemRt, opts, oSlice[i], err)
-			}
-			//log.Info("Read x-array", "x", elemRt, "length", length)
-		}
-
-	case reflect.Slice:
-		elemRt := rt.Elem()
-		if elemRt.Kind() == reflect.Uint8 {
-			// Special case: Byteslices
-			oString, ok := o.(string)
-			if !ok {
-				*err = errors.New(cmn.Fmt("Expected string but got type %v", reflect.TypeOf(o)))
-				return
-			}
-			byteslice, err_ := hex.DecodeString(oString)
-			if err_ != nil {
-				*err = err_
-				return
-			}
-			//log.Info("Read byteslice", "bytes", byteslice)
-			rv.Set(reflect.ValueOf(byteslice))
-		} else {
-			// Read length
-			oSlice, ok := o.([]interface{})
-			if !ok {
-				*err = errors.New(cmn.Fmt("Expected array of %v but got type %v", rt, reflect.TypeOf(o)))
-				return
-			}
-			length := len(oSlice)
-			//log.Info("Read slice", "length", length)
-			sliceRv := reflect.MakeSlice(rt, length, length)
-			// Read elems
-			for i := 0; i < length; i++ {
-				elemRv := sliceRv.Index(i)
-				readReflectJSON(elemRv, elemRt, opts, oSlice[i], err)
-			}
-			rv.Set(sliceRv)
-		}
-
-	case reflect.Struct:
-		if rt == timeType {
-			// Special case: time.Time
-			str, ok := o.(string)
-			if !ok {
-				*err = errors.New(cmn.Fmt("Expected string but got type %v", reflect.TypeOf(o)))
-				return
-			}
-			// try three ways, seconds, milliseconds, or microseconds...
-			t, err_ := time.Parse(time.RFC3339Nano, str)
-			if err_ != nil {
-				*err = err_
-				return
-			}
-			rv.Set(reflect.ValueOf(t))
-		} else {
-			if typeInfo.Unwrap {
-				fieldIdx, fieldType, opts := typeInfo.Fields[0].unpack()
-				fieldRv := rv.Field(fieldIdx)
-				readReflectJSON(fieldRv, fieldType, opts, o, err)
-			} else {
-				oMap, ok := o.(map[string]interface{})
-				if !ok {
-					*err = errors.New(cmn.Fmt("Expected map but got type %v", reflect.TypeOf(o)))
-					return
-				}
-				// TODO: ensure that all fields are set?
-				// TODO: disallow unknown oMap fields?
-				for _, fieldInfo := range typeInfo.Fields {
-					fieldIdx, fieldType, opts := fieldInfo.unpack()
-					value, ok := oMap[opts.JSONName]
-					if !ok {
-						continue // Skip missing fields.
-					}
-					fieldRv := rv.Field(fieldIdx)
-					readReflectJSON(fieldRv, fieldType, opts, value, err)
-				}
-			}
-		}
-
-	case reflect.String:
-		str, ok := o.(string)
-		if !ok {
-			*err = errors.New(cmn.Fmt("Expected string but got type %v", reflect.TypeOf(o)))
-			return
-		}
-		//log.Info("Read string", "str", str)
-		rv.SetString(str)
-
-	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int:
-		num, ok := o.(float64)
-		if !ok {
-			*err = errors.New(cmn.Fmt("Expected numeric but got type %v", reflect.TypeOf(o)))
-			return
-		}
-		//log.Info("Read num", "num", num)
-		rv.SetInt(int64(num))
-
-	case reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
-		num, ok := o.(float64)
-		if !ok {
-			*err = errors.New(cmn.Fmt("Expected numeric but got type %v", reflect.TypeOf(o)))
-			return
-		}
-		if num < 0 {
-			*err = errors.New(cmn.Fmt("Expected unsigned numeric but got %v", num))
-			return
-		}
-		//log.Info("Read num", "num", num)
-		rv.SetUint(uint64(num))
-
-	case reflect.Float64, reflect.Float32:
-		if !opts.Unsafe {
-			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
-			return
-		}
-		num, ok := o.(float64)
-		if !ok {
-			*err = errors.New(cmn.Fmt("Expected numeric but got type %v", reflect.TypeOf(o)))
-			return
-		}
-		//log.Info("Read num", "num", num)
-		rv.SetFloat(num)
-
-	case reflect.Bool:
-		bl, ok := o.(bool)
-		if !ok {
-			*err = errors.New(cmn.Fmt("Expected boolean but got type %v", reflect.TypeOf(o)))
-			return
-		}
-		//log.Info("Read boolean", "boolean", bl)
-		rv.SetBool(bl)
-
-	default:
-		cmn.PanicSanity(cmn.Fmt("Unknown field type %v", rt.Kind()))
-	}
-}
-
-func writeReflectJSON(rv reflect.Value, rt reflect.Type, opts Options, w io.Writer, n *int, err *error) {
-	//log.Info(cmn.Fmt("writeReflectJSON(%v, %v, %v, %v, %v)", rv, rt, w, n, err))
-
-	// Get typeInfo
-	typeInfo := GetTypeInfo(rt)
-
-	if rt.Kind() == reflect.Interface {
-		if rv.IsNil() {
-			WriteTo([]byte("null"), w, n, err)
-			return
-		}
-		crv := rv.Elem()  // concrete reflection value
-		crt := crv.Type() // concrete reflection type
-		if typeInfo.IsRegisteredInterface {
-			// See if the crt is registered.
-			// If so, we're more restrictive.
-			typeByte, ok := typeInfo.TypeToByte[crt]
-			if !ok {
-				switch crt.Kind() {
-				case reflect.Ptr:
-					*err = errors.New(cmn.Fmt("Unexpected pointer type %v for registered interface %v. "+
-						"Was it registered as a value receiver rather than as a pointer receiver?", crt, rt.Name()))
-				case reflect.Struct:
-					*err = errors.New(cmn.Fmt("Unexpected struct type %v for registered interface %v. "+
-						"Was it registered as a pointer receiver rather than as a value receiver?", crt, rt.Name()))
-				default:
-					*err = errors.New(cmn.Fmt("Unexpected type %v for registered interface %v. "+
-						"If this is intentional, please register it.", crt, rt.Name()))
-				}
-				return
-			}
-			if crt.Kind() == reflect.Ptr {
-				crv, crt = crv.Elem(), crt.Elem()
-				if !crv.IsValid() {
-					*err = errors.New(cmn.Fmt("Unexpected nil-pointer of type %v for registered interface %v. "+
-						"For compatibility with other languages, nil-pointer interface values are forbidden.", crt, rt.Name()))
-					return
-				}
-			}
-			WriteTo([]byte(cmn.Fmt("[%v,", typeByte)), w, n, err)
-			writeReflectJSON(crv, crt, opts, w, n, err)
-			WriteTo([]byte("]"), w, n, err)
-		} else {
-			// We support writing unregistered interfaces for convenience.
-			writeReflectJSON(crv, crt, opts, w, n, err)
-		}
-		return
-	}
-
-	if rt.Kind() == reflect.Ptr {
-		// Dereference pointer
-		rv, rt = rv.Elem(), rt.Elem()
-		typeInfo = GetTypeInfo(rt)
-		if !rv.IsValid() {
-			// For better compatibility with other languages,
-			// as far as tendermint/wire is concerned,
-			// pointers to nil values are the same as nil.
-			WriteTo([]byte("null"), w, n, err)
-			return
-		}
-		// continue...
-	}
-
-	// All other types
-	switch rt.Kind() {
-	case reflect.Array:
-		elemRt := rt.Elem()
-		length := rt.Len()
-		if elemRt.Kind() == reflect.Uint8 {
-			// Special case: Bytearray
-			bytearray := reflect.ValueOf(make([]byte, length))
-			reflect.Copy(bytearray, rv)
-			WriteTo([]byte(cmn.Fmt("\"%X\"", bytearray.Interface())), w, n, err)
-		} else {
-			WriteTo([]byte("["), w, n, err)
-			// Write elems
-			for i := 0; i < length; i++ {
-				elemRv := rv.Index(i)
-				writeReflectJSON(elemRv, elemRt, opts, w, n, err)
-				if i < length-1 {
-					WriteTo([]byte(","), w, n, err)
-				}
-			}
-			WriteTo([]byte("]"), w, n, err)
-		}
-
-	case reflect.Slice:
-		elemRt := rt.Elem()
-		if elemRt.Kind() == reflect.Uint8 {
-			// Special case: Byteslices
-			byteslice := rv.Bytes()
-			WriteTo([]byte(cmn.Fmt("\"%X\"", byteslice)), w, n, err)
-		} else {
-			WriteTo([]byte("["), w, n, err)
-			// Write elems
-			length := rv.Len()
-			for i := 0; i < length; i++ {
-				elemRv := rv.Index(i)
-				writeReflectJSON(elemRv, elemRt, opts, w, n, err)
-				if i < length-1 {
-					WriteTo([]byte(","), w, n, err)
-				}
-			}
-			WriteTo([]byte("]"), w, n, err)
-		}
-
-	case reflect.Struct:
-		if rt == timeType {
-			// Special case: time.Time
-			t := rv.Interface().(time.Time).UTC()
-			str := t.Format(RFC3339Millis)
-			jsonBytes, err_ := json.Marshal(str)
-			if err_ != nil {
-				*err = err_
-				return
-			}
-			WriteTo(jsonBytes, w, n, err)
-		} else {
-			if typeInfo.Unwrap {
-				fieldIdx, fieldType, opts := typeInfo.Fields[0].unpack()
-				fieldRv := rv.Field(fieldIdx)
-				writeReflectJSON(fieldRv, fieldType, opts, w, n, err)
-			} else {
-				WriteTo([]byte("{"), w, n, err)
-				wroteField := false
-				for _, fieldInfo := range typeInfo.Fields {
-					fieldIdx, fieldType, opts := fieldInfo.unpack()
-					fieldRv := rv.Field(fieldIdx)
-					if opts.JSONOmitEmpty && isEmpty(fieldType, fieldRv, opts) { // Skip zero value if omitempty
-						continue
-					}
-					if wroteField {
-						WriteTo([]byte(","), w, n, err)
-					} else {
-						wroteField = true
-					}
-					WriteTo([]byte(cmn.Fmt("\"%v\":", opts.JSONName)), w, n, err)
-					writeReflectJSON(fieldRv, fieldType, opts, w, n, err)
-				}
-				WriteTo([]byte("}"), w, n, err)
-			}
-		}
-
-	case reflect.String:
-		fallthrough
-	case reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
-		fallthrough
-	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int:
-		fallthrough
-	case reflect.Bool:
-		jsonBytes, err_ := json.Marshal(rv.Interface())
-		if err_ != nil {
-			*err = err_
-			return
-		}
-		WriteTo(jsonBytes, w, n, err)
-
-	case reflect.Float64, reflect.Float32:
-		if !opts.Unsafe {
-			*err = errors.New("Wire float* support requires `wire:\"unsafe\"`")
-			return
-		}
-		jsonBytes, err_ := json.Marshal(rv.Interface())
-		if err_ != nil {
-			*err = err_
-			return
-		}
-		WriteTo(jsonBytes, w, n, err)
-
-	default:
-		cmn.PanicSanity(cmn.Fmt("Unknown field type %v", rt.Kind()))
-	}
-
-}
-
-func isEmpty(rt reflect.Type, rv reflect.Value, opts Options) bool {
-	if rt.Comparable() {
-		// if its comparable we can check directly
-		if rv.Interface() == opts.ZeroValue {
-			return true
-		}
-		return false
-	} else {
-		// TODO: A faster alternative might be to call writeReflectJSON
-		// onto a buffer and check if its "{}" or not.
-		switch rt.Kind() {
-		case reflect.Struct:
-			// check fields
-			typeInfo := GetTypeInfo(rt)
-			for _, fieldInfo := range typeInfo.Fields {
-				fieldIdx, fieldType, opts := fieldInfo.unpack()
-				fieldRv := rv.Field(fieldIdx)
-				if !isEmpty(fieldType, fieldRv, opts) { // Skip zero value if omitempty
-					return false
-				}
-			}
-			return true
-
+		case 0x01:
+			n += 1
+			bz = bz[1:]
+			// so continue...
 		default:
-			if rv.Len() == 0 {
-				return true
+			err = fmt.Errorf("unexpected pointer byte %X", bz[0])
+			return
+		}
+
+		// Dereference-and-construct pointers all the way.
+		// This works for pointer-pointers.
+		for c := true; c; c = rv.Kind() == reflect.Ptr {
+			if rv.IsNil() {
+				newPtr := reflect.New(rv.Type().Elem())
+				rv.Set(newPtr)
 			}
-			return false
+			rv = rv.Elem()
 		}
 	}
-	return false
+
+	switch info.Type.Kind() {
+
+	//----------------------------------------
+	// Complex
+
+	case reflect.Interface:
+		_n, err = cdc.decodeReflectBinaryInterface(bz, info, rv, opts)
+		n += _n
+		return
+
+	case reflect.Array:
+		_n, err = cdc.decodeReflectBinaryArray(bz, info, rv, opts)
+		n += _n
+		return
+
+	case reflect.Slice:
+		_n, err = cdc.decodeReflectBinarySlice(bz, info, rv, opts)
+		n += _n
+		return
+
+	case reflect.Struct:
+		_n, err = cdc.decodeReflectBinaryStruct(bz, info, rv, opts)
+		n += _n
+		return
+
+	//----------------------------------------
+	// Signed
+
+	case reflect.Int64:
+		var num int64
+		if opts.BinVarint {
+			num, _n, err = DecodeVarint(bz)
+			if slide(bz, &bz, &n, _n) && err != nil {
+				return
+			}
+			rv.SetInt(num)
+		} else {
+			num, _n, err = DecodeInt64(bz)
+			if slide(bz, &bz, &n, _n) && err != nil {
+				return
+			}
+			rv.SetInt(num)
+		}
+		return
+
+	case reflect.Int32:
+		var num int32
+		num, _n, err = DecodeInt32(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		rv.SetInt(int64(num))
+		return
+
+	case reflect.Int16:
+		var num int16
+		num, _n, err = DecodeInt16(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		rv.SetInt(int64(num))
+		return
+
+	case reflect.Int8:
+		var num int8
+		num, _n, err = DecodeInt8(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		rv.SetInt(int64(num))
+		return
+
+	case reflect.Int:
+		var num int64
+		num, _n, err = DecodeVarint(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		rv.SetInt(num)
+		return
+
+	//----------------------------------------
+	// Unsigned
+
+	case reflect.Uint64:
+		var num uint64
+		if opts.BinVarint {
+			num, _n, err = DecodeUvarint(bz)
+			if slide(bz, &bz, &n, _n) && err != nil {
+				return
+			}
+			rv.SetUint(num)
+		} else {
+			num, _n, err = DecodeUint64(bz)
+			if slide(bz, &bz, &n, _n) && err != nil {
+				return
+			}
+			rv.SetUint(num)
+		}
+		return
+
+	case reflect.Uint32:
+		var num uint32
+		num, _n, err = DecodeUint32(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		rv.SetUint(uint64(num))
+		return
+
+	case reflect.Uint16:
+		var num uint16
+		num, _n, err = DecodeUint16(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		rv.SetUint(uint64(num))
+		return
+
+	case reflect.Uint8:
+		var num uint8
+		num, _n, err = DecodeUint8(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		rv.SetUint(uint64(num))
+		return
+
+	case reflect.Uint:
+		var num uint64
+		num, _n, err = DecodeUvarint(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		rv.SetUint(num)
+		return
+
+	//----------------------------------------
+	// Misc.
+
+	case reflect.Bool:
+		var b bool
+		b, _n, err = DecodeBool(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		rv.SetBool(b)
+		return
+
+	case reflect.Float64:
+		var f float64
+		if !opts.Unsafe {
+			err = errors.New("Float support requires `wire:\"unsafe\"`.")
+			return
+		}
+		f, _n, err = DecodeFloat64(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		rv.SetFloat(f)
+		return
+
+	case reflect.Float32:
+		var f float32
+		if !opts.Unsafe {
+			err = errors.New("Float support requires `wire:\"unsafe\"`.")
+			return
+		}
+		f, _n, err = DecodeFloat32(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		rv.SetFloat(float64(f))
+		return
+
+	case reflect.String:
+		var str string
+		str, _n, err = DecodeString(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		rv.SetString(str)
+		return
+
+	default:
+		panic(fmt.Sprintf("unknown field type %v", info.Type.Kind()))
+	}
+
+}
+
+// CONTRACT: rv.CanAddr() is true.
+func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+	if !rv.CanAddr() {
+		panic("rv not addressable")
+	}
+	if !rv.IsNil() {
+		// This is very tricky.
+		err = errors.New("Decoding to a non-nil interface is not supported yet")
+		return
+	}
+
+	// Read disambiguation / prefix bytes but do not consume the prefix bytes.
+	disfix, hasDisamb, prefix, hasPrefix, isNil, _n, err := decodeDisambPrefixBytes(bz)
+	if hasDisamb {
+		n += DisfixBytesLen
+	}
+	if err != nil {
+		return
+	}
+
+	// Special case for nil
+	if isNil {
+		rv.Set(iinfo.ZeroValue)
+		return
+	}
+
+	// Get concrete type info.
+	var cinfo *TypeInfo
+	if hasDisamb {
+		cinfo, err = cdc.getTypeInfoFromDisfix_rlock(disfix)
+	} else if hasPrefix {
+		cinfo, err = cdc.getTypeInfoFromPrefix_rlock(iinfo, prefix)
+	} else {
+		err = errors.New("Expected disambiguation or prefix bytes.")
+	}
+	if err != nil {
+		return
+	}
+
+	// Construct new concrete type.
+	// NOTE: rv.Set() should succeed because it was validated
+	// already during Register[Interface/Concrete].
+	var crv reflect.Value
+	if cinfo.PointerPreferred {
+		cPtrRv := reflect.New(cinfo.Type)
+		crv = cPtrRv.Elem()
+		rv.Set(cPtrRv)
+	} else {
+		crv = reflect.New(cinfo.Type).Elem()
+		rv.Set(crv)
+	}
+
+	// Read into crv.
+	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, opts)
+	slide(bz, &bz, &n, _n)
+	return
+}
+
+// CONTRACT: rv.CanAddr() is true.
+func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+	if !rv.CanAddr() {
+		panic("rv not addressable")
+	}
+	ert := info.Type.Elem()
+	length := info.Type.Len()
+	_n := 0
+
+	switch ert.Kind() {
+
+	case reflect.Uint8: // Special case: byte array
+		if len(bz) < length {
+			return 0, fmt.Errorf("Insufficient bytes to decode [%v]byte.", length)
+		}
+		reflect.Copy(rv, reflect.ValueOf(bz[0:length]))
+		n += length
+		return
+
+	default: // General case.
+		var einfo *TypeInfo
+		einfo, err = cdc.getTypeInfo_wlock(ert)
+		if err != nil {
+			return
+		}
+		for i := 0; i < length; i++ {
+			erv := rv.Index(i)
+			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, opts)
+			if slide(bz, &bz, &n, _n) && err != nil {
+				return
+			}
+		}
+		return
+	}
+}
+
+// CONTRACT: rv.CanAddr() is true.
+func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+	if !rv.CanAddr() {
+		panic("rv not addressable")
+	}
+	ert := info.Type.Elem()
+	_n := 0
+
+	switch ert.Kind() {
+
+	case reflect.Uint8: // Special case: byte slice
+		var byteslice []byte
+		byteslice, _n, err = DecodeByteSlice(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		if len(byteslice) == 0 {
+			rv.Set(reflect.ValueOf([]byte(nil)))
+		} else {
+			rv.Set(reflect.ValueOf(byteslice))
+		}
+		return
+
+	default: // General case.
+
+		// Read length.
+		var length int64
+		length, _n, err = DecodeVarint(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+
+		// Special case when length is 0.
+		if length == 0 {
+			rv.Set(info.ZeroValue)
+			return
+		}
+
+		// Read into a new slice.
+		var esrt = reflect.SliceOf(ert) // TODO could be optimized.
+		var srv = reflect.MakeSlice(esrt, int(length), int(length))
+		var einfo *TypeInfo
+		einfo, err = cdc.getTypeInfo_wlock(ert)
+		if err != nil {
+			return
+		}
+		for i := 0; i < int(length); i++ {
+			erv := srv.Index(i)
+			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, opts)
+			if slide(bz, &bz, &n, _n) && err != nil {
+				return
+			}
+		}
+
+		// TODO do we need this extra step?
+		rv.Set(srv)
+		return
+	}
+}
+
+// CONTRACT: rv.CanAddr() is true.
+func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+	if !rv.CanAddr() {
+		panic("rv not addressable")
+	}
+	_n := 0
+
+	switch info.Type {
+
+	case timeType: // Special case: time.Time
+		var t time.Time
+		t, _n, err = DecodeTime(bz)
+		if slide(bz, &bz, &n, _n) && err != nil {
+			return
+		}
+		rv.Set(reflect.ValueOf(t))
+		return
+
+	default:
+		for _, field := range info.Fields {
+			var finfo *TypeInfo
+			finfo, err = cdc.getTypeInfo_wlock(field.Type)
+			if err != nil {
+				return
+			}
+			frv := rv.Field(field.Index)
+			_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions)
+			if slide(bz, &bz, &n, _n) && err != nil {
+				return
+			}
+		}
+		return
+	}
+}
+
+//----------------------------------------
+// cdc.encodeReflectBinary
+
+// This is the main entrypoint for encoding all types.  This function calls
+// encodeReflectBinary*, but those functions should only call this one.
+// (This is necessary because the prefix bytes are only written here).
+func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+
+	if printLog {
+		spew.Printf("(e) encodeReflectBinary(info: %v, rv: %#v (%v), opts: %v)\n",
+			info, rv.Interface(), rv.Type(), opts)
+		defer func() {
+			fmt.Printf("(e) -> err: %v\n", err)
+		}()
+	}
+
+	// Write the prefix bytes if it is a registered concrete type.
+	if info.Registered {
+		_, err = w.Write(info.Prefix[:])
+		if err != nil {
+			return
+		}
+	}
+
+	// Dereference pointers all the way if any.
+	// This works for pointer-pointers.
+	var foundPointer = false
+	for rv.Kind() == reflect.Ptr {
+		foundPointer = true
+		rv = rv.Elem()
+	}
+
+	// Write pointer byte if necessary.
+	if foundPointer {
+		if rv.IsValid() {
+			_, err = w.Write([]byte{0x01})
+			// and continue...
+		} else {
+			_, err = w.Write([]byte{0x00})
+			return
+		}
+	}
+
+	// Sanity check
+	if info.Registered && foundPointer {
+		panic("should not happen")
+	}
+
+	switch info.Type.Kind() {
+
+	//----------------------------------------
+	// Complex
+
+	case reflect.Interface:
+		err = cdc.encodeReflectBinaryInterface(w, info, rv, opts)
+
+	case reflect.Array:
+		err = cdc.encodeReflectBinaryArray(w, info, rv, opts)
+
+	case reflect.Slice:
+		err = cdc.encodeReflectBinarySlice(w, info, rv, opts)
+
+	case reflect.Struct:
+		err = cdc.encodeReflectBinaryStruct(w, info, rv, opts)
+
+	//----------------------------------------
+	// Signed
+
+	case reflect.Int64:
+		if opts.BinVarint {
+			err = EncodeVarint(w, rv.Int())
+		} else {
+			err = EncodeInt64(w, rv.Int())
+		}
+
+	case reflect.Int32:
+		err = EncodeInt32(w, int32(rv.Int()))
+
+	case reflect.Int16:
+		err = EncodeInt16(w, int16(rv.Int()))
+
+	case reflect.Int8:
+		err = EncodeInt8(w, int8(rv.Int()))
+
+	case reflect.Int:
+		err = EncodeVarint(w, rv.Int())
+
+	//----------------------------------------
+	// Unsigned
+
+	case reflect.Uint64:
+		if opts.BinVarint {
+			err = EncodeUvarint(w, rv.Uint())
+		} else {
+			err = EncodeUint64(w, rv.Uint())
+		}
+
+	case reflect.Uint32:
+		err = EncodeUint32(w, uint32(rv.Uint()))
+
+	case reflect.Uint16:
+		err = EncodeUint16(w, uint16(rv.Uint()))
+
+	case reflect.Uint8:
+		err = EncodeUint8(w, uint8(rv.Uint()))
+
+	case reflect.Uint:
+		err = EncodeUvarint(w, rv.Uint())
+
+	//----------------------------------------
+	// Misc
+
+	case reflect.Bool:
+		err = EncodeBool(w, rv.Bool())
+
+	case reflect.Float64:
+		if !opts.Unsafe {
+			err = errors.New("Wire float* support requires `wire:\"unsafe\"`.")
+			return
+		}
+		err = EncodeFloat64(w, rv.Float())
+
+	case reflect.Float32:
+		if !opts.Unsafe {
+			err = errors.New("Wire float* support requires `wire:\"unsafe\"`.")
+			return
+		}
+		err = EncodeFloat32(w, float32(rv.Float()))
+
+	case reflect.String:
+		err = EncodeString(w, rv.String())
+
+	default:
+		panic(fmt.Sprintf("unknown field type %v", info.Type.Kind()))
+	}
+
+	return
+}
+
+func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+
+	if rv.IsNil() {
+		_, err = w.Write([]byte{0x00, 0x00, 0x00, 0x00})
+		return
+	}
+
+	crv := rv.Elem() // concrete reflection value
+
+	// Dereference pointer transparently.
+	// This also works for pointer-pointers.
+	// NOTE: Encoding pointer-pointers only work for no-method interfaces like
+	// `interface{}`.
+	for crv.Kind() == reflect.Ptr {
+		crv = crv.Elem()
+		if crv.Kind() == reflect.Interface {
+			err = fmt.Errorf("Unexpected interface-pointer of type *%v for registered interface %v. Not supported yet.", crv.Type(), info.Type)
+			return
+		}
+		if !crv.IsValid() {
+			err = fmt.Errorf("Illegal nil-pointer of type %v for registered interface %v. "+
+				"For compatibility with other languages, nil-pointer interface values are forbidden.", crv.Type(), info.Type)
+			return
+		}
+	}
+
+	crt := crv.Type() // non-pointer non-interface concrete type
+
+	// Get *TypeInfo for concrete type.
+	var cinfo *TypeInfo
+	cinfo, err = cdc.getTypeInfo_wlock(crt)
+	if err != nil {
+		return
+	}
+	if !cinfo.Registered {
+		err = fmt.Errorf("Cannot encode unregistered concrete type %v.", crt)
+		return
+	}
+
+	// Write the disambiguation bytes if needed.
+	var needDisamb bool = false
+	if info.AlwaysDisambiguate {
+		needDisamb = true
+	} else if len(info.Implementers[cinfo.Prefix]) > 1 {
+		needDisamb = true
+	}
+	if needDisamb {
+		_, err = w.Write(append([]byte{0x00}, cinfo.Disamb[:]...))
+		if err != nil {
+			return
+		}
+	}
+
+	err = cdc.encodeReflectBinary(w, cinfo, crv, opts)
+	return
+}
+
+func (cdc *Codec) encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	ert := info.Type.Elem()
+	length := info.Type.Len()
+
+	switch ert.Kind() {
+
+	case reflect.Uint8: // Special case: byte array
+		if rv.CanAddr() {
+			bz := rv.Slice(0, length).Bytes()
+			_, err = w.Write(bz)
+			return
+		} else {
+			buf := make([]byte, length)
+			reflect.Copy(reflect.ValueOf(buf), rv) // XXX: looks expensive!
+			_, err = w.Write(buf)
+			return
+		}
+
+	default:
+		var einfo *TypeInfo
+		einfo, err = cdc.getTypeInfo_wlock(ert)
+		if err != nil {
+			return
+		}
+		for i := 0; i < length; i++ {
+			erv := rv.Index(i)
+			err = cdc.encodeReflectBinary(w, einfo, erv, opts)
+			if err != nil {
+				return err
+			}
+		}
+		return
+	}
+}
+
+func (cdc *Codec) encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	ert := info.Type.Elem()
+
+	switch ert.Kind() {
+
+	case reflect.Uint8: // Special case: byte slice
+		byteslice := rv.Bytes()
+		err = EncodeByteSlice(w, byteslice)
+		return
+
+	default:
+		// Write length
+		length := rv.Len()
+		err = EncodeVarint(w, int64(length))
+		if err != nil {
+			return err
+		}
+
+		// Write elems
+		var einfo *TypeInfo
+		einfo, err = cdc.getTypeInfo_wlock(ert)
+		if err != nil {
+			return
+		}
+		for i := 0; i < length; i++ {
+			erv := rv.Index(i)
+			err = cdc.encodeReflectBinary(w, einfo, erv, opts)
+			if err != nil {
+				return
+			}
+		}
+		return
+	}
+}
+
+func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+
+	switch info.Type {
+
+	case timeType: // Special case: time.Time
+		err = EncodeTime(w, rv.Interface().(time.Time))
+		return
+
+	default:
+		for _, field := range info.Fields {
+			var finfo *TypeInfo
+			finfo, err = cdc.getTypeInfo_wlock(field.Type)
+			if err != nil {
+				return
+			}
+			frv := rv.Field(field.Index)
+			err = cdc.encodeReflectBinary(w, finfo, frv, field.FieldOptions)
+			if err != nil {
+				return
+			}
+		}
+		return
+	}
+
+}
+
+//----------------------------------------
+// Misc.
+
+func getTypeFromPointer(ptr interface{}) reflect.Type {
+	rt := reflect.TypeOf(ptr)
+	if rt.Kind() != reflect.Ptr {
+		panic(fmt.Sprintf("expected pointer, got %v", rt))
+	}
+	return rt.Elem()
+}
+
+func checkUnsafe(field FieldInfo) {
+	if field.Unsafe {
+		return
+	}
+	switch field.Type.Kind() {
+	case reflect.Float32, reflect.Float64:
+		panic("floating point types are unsafe for go-wire")
+	}
+}
+
+func nameToDisamb(name string) (db DisambBytes) {
+	db, _ = nameToDisfix(name)
+	return
+}
+
+func nameToPrefix(name string) (pb PrefixBytes) {
+	_, pb = nameToDisfix(name)
+	return
+}
+
+func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
+	hasher := sha256.New()
+	hasher.Write([]byte(name))
+	bz := hasher.Sum(nil)
+	for bz[0] == 0x00 {
+		bz = bz[1:]
+	}
+	copy(db[:], bz[0:3])
+	bz = bz[3:]
+	for bz[0] == 0x00 {
+		bz = bz[1:]
+	}
+	copy(pb[:], bz[0:4])
+	return
+}
+
+func toDisfix(db DisambBytes, pb PrefixBytes) (df DisfixBytes) {
+	copy(df[0:3], db[0:3])
+	copy(df[3:7], pb[0:4])
+	return
+}
+
+func decodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBytes, hasPb bool, isNil bool, n int, err error) {
+	// Validate
+	if len(bz) < 4 {
+		err = errors.New("EOF reading prefix bytes.")
+		return // hasPb = false
+	}
+	if bz[0] == 0x00 {
+		// Special case: nil
+		if bytes.Equal(bz[1:3], []byte{0x00, 0x00, 0x00}) {
+			isNil = true
+			n = 4
+			return
+		}
+		// Validate
+		if len(bz) < 8 {
+			err = errors.New("EOF reading disamb bytes.")
+			return // hasPb = false
+		}
+		copy(df[0:7], bz[1:8])
+		copy(pb[0:4], bz[4:8])
+		hasDb = true
+		hasPb = true
+		n = 8
+		return
+	} else {
+		// General case with no disambiguation
+		copy(pb[0:4], bz[0:4])
+		hasDb = false
+		hasPb = true
+		n = 4
+		return
+	}
+}
+
+// CONTRACT: by the time this is called, len(bz) >= _n
+// Returns true so you can write one-liners.
+func slide(bz []byte, bz2 *[]byte, n *int, _n int) bool {
+	*bz2 = bz[_n:]
+	*n += _n
+	return true
 }
