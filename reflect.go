@@ -278,7 +278,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -299,7 +299,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, info *TypeInfo, rv ref
 
 	// Special case for nil
 	if isNil {
-		rv.Set(info.ZeroValue)
+		rv.Set(iinfo.ZeroValue)
 		return
 	}
 
@@ -308,7 +308,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, info *TypeInfo, rv ref
 	if hasDisamb {
 		cinfo, err = cdc.getTypeInfoFromDisfix_rlock(disfix)
 	} else if hasPrefix {
-		cinfo, err = cdc.getTypeInfoFromPrefix_rlock(prefix)
+		cinfo, err = cdc.getTypeInfoFromPrefix_rlock(iinfo, prefix)
 	} else {
 		err = errors.New("Expected disambiguation or prefix bytes.")
 	}
@@ -645,7 +645,13 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv r
 	}
 
 	// Write the disambiguation bytes if needed.
+	var needDisamb bool = false
 	if info.AlwaysDisambiguate {
+		needDisamb = true
+	} else if len(info.Implementers[cinfo.Prefix]) > 1 {
+		needDisamb = true
+	}
+	if needDisamb {
 		_, err = w.Write(append([]byte{0x00}, cinfo.Disamb[:]...))
 		if err != nil {
 			return

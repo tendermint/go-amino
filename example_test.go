@@ -54,10 +54,12 @@ func Example() {
 
 	var msg2 Message
 	err = cdc.UnmarshalBinary(bz, &msg2)
+	fmt.Printf("Decoded: %v (err: %v)\n", msg2, err)
 	var bm2 = msg2.(*bcMessage)
-	fmt.Printf("Decoded successfully: %v\n", err == nil && *bm == *bm2)
+	fmt.Printf("Decoded successfully: %v\n", *bm == *bm2)
 
 	// Output:
 	// Encoded: 7406136506414243C801 (err: <nil>)
+	// Decoded: &{ABC 100} (err: <nil>)
 	// Decoded successfully: true
 }

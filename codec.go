@@ -27,8 +27,8 @@ type TypeInfo struct {
 }
 
 type InterfaceInfo struct {
-	Priority     []DisfixBytes // Disfix priority.
-	Implementers []*TypeInfo   // Mutated over time.
+	Priority     []DisfixBytes               // Disfix priority.
+	Implementers map[PrefixBytes][]*TypeInfo // Mutated over time.
 	InterfaceOptions
 }
 
@@ -67,19 +67,17 @@ type FieldOptions struct {
 // Codec
 
 type Codec struct {
-	mtx               sync.RWMutex
-	typeInfos         map[reflect.Type]*TypeInfo
-	interfaceInfos    []*TypeInfo
-	concreteInfos     []*TypeInfo
-	prefixToTypeInfos map[PrefixBytes][]*TypeInfo
-	disfixToTypeInfo  map[DisfixBytes]*TypeInfo
+	mtx              sync.RWMutex
+	typeInfos        map[reflect.Type]*TypeInfo
+	interfaceInfos   []*TypeInfo
+	concreteInfos    []*TypeInfo
+	disfixToTypeInfo map[DisfixBytes]*TypeInfo
 }
 
 func NewCodec() *Codec {
 	cdc := &Codec{
-		typeInfos:         make(map[reflect.Type]*TypeInfo),
-		prefixToTypeInfos: make(map[PrefixBytes][]*TypeInfo),
-		disfixToTypeInfo:  make(map[DisfixBytes]*TypeInfo),
+		typeInfos:        make(map[reflect.Type]*TypeInfo),
+		disfixToTypeInfo: make(map[DisfixBytes]*TypeInfo),
 	}
 	return cdc
 }
@@ -102,8 +100,8 @@ func (cdc *Codec) RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
 	// Finally, check conflicts and register.
 	cdc.mtx.Lock()
 	{
-		cdc.findImplementorsForInterface_nolock(info)
-		cdc.checkConflictsWithInterface_nolock(info)
+		cdc.collectImplementers_nolock(info)
+		cdc.checkConflictsInPrio_nolock(info)
 		cdc.setTypeInfo_nolock(info)
 	}
 	cdc.mtx.Unlock()
@@ -140,7 +138,7 @@ func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOpt
 	// Finally, check conflicts and register.
 	cdc.mtx.Lock()
 	{
-		cdc.checkConflictsWithConcrete_nolock(info)
+		cdc.addCheckConflictsWithConcrete_nolock(info)
 		cdc.setTypeInfo_nolock(info)
 	}
 	cdc.mtx.Unlock()
@@ -175,8 +173,8 @@ func (cdc *Codec) setTypeInfo_nolock(info *TypeInfo) {
 			panic(fmt.Sprintf("disfix <%X> already registered for %v", disfix, existing.Type))
 		}
 		cdc.disfixToTypeInfo[disfix] = info
-		cdc.prefixToTypeInfos[prefix] =
-			append(cdc.prefixToTypeInfos[prefix], info)
+		//cdc.prefixToTypeInfos[prefix] =
+		//	append(cdc.prefixToTypeInfos[prefix], info)
 	}
 }
 
@@ -202,17 +200,19 @@ func (cdc *Codec) getTypeInfo_wlock(rt reflect.Type) (info *TypeInfo, err error)
 	return info, nil
 }
 
-func (cdc *Codec) getTypeInfoFromPrefix_rlock(pb PrefixBytes) (info *TypeInfo, err error) {
+// iinfo: TypeInfo for the interface for which we must decode a
+// concrete type with prefix bytes pb.
+func (cdc *Codec) getTypeInfoFromPrefix_rlock(iinfo *TypeInfo, pb PrefixBytes) (info *TypeInfo, err error) {
 	cdc.mtx.RLock()
 	defer cdc.mtx.RUnlock()
 
-	infos, ok := cdc.prefixToTypeInfos[pb]
+	infos, ok := iinfo.Implementers[pb]
 	if !ok {
 		err = fmt.Errorf("unrecognized prefix bytes %X", pb)
 		return
 	}
-	if len(infos) > 0 {
-		err = fmt.Errorf("unexpectedly many infos %v. maybe use disfix", infos)
+	if len(infos) > 1 {
+		err = fmt.Errorf("Conflicting concrete types registered for %X: e.g. %v and %v.", pb)
 		return
 	}
 	info = infos[0]
@@ -331,6 +331,7 @@ func (cdc *Codec) newTypeInfoFromInterfaceType(rt reflect.Type, opts *InterfaceO
 	info.PtrToType = reflect.PtrTo(rt)
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
+	info.InterfaceInfo.Implementers = make(map[PrefixBytes][]*TypeInfo)
 	if opts != nil {
 		info.InterfaceInfo.InterfaceOptions = *opts
 		info.InterfaceInfo.Priority = make([]DisfixBytes, len(opts.Priority))
@@ -377,66 +378,38 @@ func (cdc *Codec) newTypeInfoFromConcreteType(rt reflect.Type, pointerPreferred 
 // Find all conflicting prefixes for concrete types
 // that "implement" the interface.  "Implement" in quotes because
 // we only consider the pointer, for extra safety.
-func (cdc *Codec) findImplementorsForInterface_nolock(info *TypeInfo) {
+func (cdc *Codec) collectImplementers_nolock(info *TypeInfo) {
 	for _, cinfo := range cdc.concreteInfos {
 		if cinfo.PtrToType.Implements(info.Type) {
-			info.Implementers = append(info.Implementers, cinfo)
+			info.Implementers[cinfo.Prefix] = append(
+				info.Implementers[cinfo.Prefix], cinfo)
 		}
 	}
 }
 
 // Ensure that prefix-conflicting implementing concrete types
 // are all registered in the priority list.
-func (cdc *Codec) checkConflictsWithInterface_nolock(iinfo *TypeInfo) {
+func (cdc *Codec) checkConflictsInPrio_nolock(iinfo *TypeInfo) {
 
-	// Find all conflicting prefixes.
-	var prefixes = make(map[PrefixBytes]int)
-	for _, cinfo := range iinfo.Implementers {
-		prefixes[cinfo.Prefix] += 1
-	}
-
-	// Ensure they're all in the priority list.
-	for _, cinfo := range iinfo.Implementers {
-		if num := prefixes[cinfo.Prefix]; num < 2 {
+	for _, cinfos := range iinfo.Implementers {
+		if len(cinfos) < 2 {
 			continue
 		}
-		inPrio := false
-		for _, disfix := range iinfo.InterfaceInfo.Priority {
-			if toDisfix(cinfo.Disamb, cinfo.Prefix) == disfix {
-				inPrio = true
+		for _, cinfo := range cinfos {
+			var inPrio = false
+			for _, disfix := range iinfo.InterfaceInfo.Priority {
+				if toDisfix(cinfo.Disamb, cinfo.Prefix) == disfix {
+					inPrio = true
+				}
 			}
-		}
-		if !inPrio {
-			panic(fmt.Sprintf("%v conflicts with %v other(s). Add it to the priority list for %v.", cinfo.Type, iinfo.Type))
+			if !inPrio {
+				panic(fmt.Sprintf("%v conflicts with %v other(s). Add it to the priority list for %v.", cinfo.Type, iinfo.Type))
+			}
 		}
 	}
 }
 
-func (cdc *Codec) checkConflictsInPrioForInterface_nolock(iinfo *TypeInfo) {
-	// Find all conflicting prefixes.
-	var prefixes = make(map[PrefixBytes]int)
-	for _, cinfo := range iinfo.Implementers {
-		prefixes[cinfo.Prefix] += 1
-	}
-
-	// Ensure they're all in the priority list.
-	for _, cinfo := range iinfo.Implementers {
-		if num := prefixes[cinfo.Prefix]; num < 2 {
-			continue
-		}
-		inPrio := false
-		for _, disfix := range iinfo.InterfaceInfo.Priority {
-			if toDisfix(cinfo.Disamb, cinfo.Prefix) == disfix {
-				inPrio = true
-			}
-		}
-		if !inPrio {
-			panic(fmt.Sprintf("%v conflicts with %v other(s). Add it to the priority list for %v.", cinfo.Type, iinfo.Type))
-		}
-	}
-}
-
-func (cdc *Codec) checkConflictsWithConcrete_nolock(cinfo *TypeInfo) {
+func (cdc *Codec) addCheckConflictsWithConcrete_nolock(cinfo *TypeInfo) {
 
 	// Iterate over registered interfaces that this "implements".
 	// "Implement" in quotes because we only consider the pointer, for extra
@@ -447,10 +420,11 @@ func (cdc *Codec) checkConflictsWithConcrete_nolock(cinfo *TypeInfo) {
 		}
 
 		// Add cinfo to iinfo.Implementers.
-		iinfo.Implementers = append(iinfo.Implementers, cinfo)
+		iinfo.Implementers[cinfo.Prefix] = append(
+			iinfo.Implementers[cinfo.Prefix], cinfo)
 
 		// Finally, check that all conflicts are in `.Priority`.
 		// NOTE: This could be optimized, but it's non-trivial.
-		cdc.checkConflictsWithInterface_nolock(iinfo)
+		cdc.checkConflictsInPrio_nolock(iinfo)
 	}
 }
