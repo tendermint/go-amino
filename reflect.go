@@ -789,6 +789,10 @@ func nameToPrefix(name string) (pb PrefixBytes) {
 	return
 }
 
+func NameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
+	return nameToDisfix(name)
+}
+
 func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
 	hasher := sha256.New()
 	hasher.Write([]byte(name))
