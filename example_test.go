@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package wire
+package wire_test
 
 import (
-	"testing"
+	"fmt"
 
-	"github.com/stretchr/testify/assert"
+	wire "github.com/tendermint/go-wire"
 )
 
-func TestEndToEndReflectBinary(t *testing.T) {
+func Example() {
 
-	type Receiver interface{}
+	type Message interface{}
+
 	type bcMessage struct {
 		Message string
 		Height  int
@@ -37,22 +38,28 @@ func TestEndToEndReflectBinary(t *testing.T) {
 		Peers int
 	}
 
-	var wire = NewCodec()
-	wire.RegisterInterface((*Receiver)(nil), nil)
-	wire.RegisterConcrete(&bcMessage{}, "bcMessage", nil)
-	wire.RegisterConcrete(&bcResponse{}, "bcResponse", nil)
-	wire.RegisterConcrete(&bcStatus{}, "bcStatus", nil)
+	var cdc = wire.NewCodec()
+	cdc.RegisterInterface((*Message)(nil), nil)
+	cdc.RegisterConcrete(&bcMessage{}, "bcMessage", nil)
+	cdc.RegisterConcrete(&bcResponse{}, "bcResponse", nil)
+	cdc.RegisterConcrete(&bcStatus{}, "bcStatus", nil)
 
-	bm := &bcMessage{Message: "Tendermint", Height: 100}
-	bmBytes, err := wire.MarshalBinary(bm)
-	assert.Nil(t, err)
-	t.Logf("Encoded: %x\n", bmBytes)
+	var bm = &bcMessage{Message: "ABC", Height: 100}
+	var msg = bm
 
-	var rcvr Receiver
-	err = wire.UnmarshalBinary(bmBytes, &rcvr)
-	assert.Nil(t, err)
-	bm2 := rcvr.(*bcMessage)
-	t.Logf("Decoded: %#v\n", bm2)
+	var bz []byte // the marshalled bytes.
+	var err error
+	bz, err = cdc.MarshalBinary(struct{ Message }{msg})
+	fmt.Printf("Encoded: %X (err: %v)\n", bz, err)
 
-	assert.Equal(t, bm, bm2)
+	var msg2 Message
+	err = cdc.UnmarshalBinary(bz, &msg2)
+	fmt.Printf("Decoded: %v (err: %v)\n", msg2, err)
+	var bm2 = msg2.(*bcMessage)
+	fmt.Printf("Decoded successfully: %v\n", *bm == *bm2)
+
+	// Output:
+	// Encoded: 7406136506414243C801 (err: <nil>)
+	// Decoded: &{ABC 100} (err: <nil>)
+	// Decoded successfully: true
 }
