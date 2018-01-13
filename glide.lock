@@ -1,5 +1,5 @@
-hash: d4d1460634eea340561d13f4a6835d62b8f0073ca8048fcb717cf786eadd74a4
-updated: 2018-01-13T00:12:52.345951722-08:00
+hash: 327e3d223c618e7d7fbcba6a0fe029a492b461ead12923532ceac41d89f50d4d
+updated: 2018-01-13T14:07:06.278950104-08:00
 imports:
 - name: github.com/clipperhouse/typewriter
   version: c1a48da378ebb7db1db9f35981b5cc24bf2e5b85
@@ -7,49 +7,25 @@ imports:
   version: 04cdfd42973bb9c8589fd6a731800cf222fde1a9
   subpackages:
   - spew
-- name: github.com/go-kit/kit
-  version: e2b298466b32c7cd5579a9b9b07e968fc9d9452c
-  subpackages:
-  - log
-  - log/level
-  - log/term
-- name: github.com/go-logfmt/logfmt
-  version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
-- name: github.com/go-stack/stack
-  version: 817915b46b97fd7bb80e8ab6b69f01a53ac3eebf
-- name: github.com/gogo/protobuf
-  version: 342cbe0a04158f6dcb03ca0079991a51a4248c02
-  subpackages:
-  - gogoproto
-  - proto
-  - protoc-gen-gogo/descriptor
 - name: github.com/google/gofuzz
   version: 24818f796faf91cd76ec7bddd72458fbced7a6c1
-- name: github.com/kr/logfmt
-  version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/tendermint/tmlibs
-  version: 633caa227c1334c64ea265f498a2193111bd9c73
+  version: 2bb538b150f197a04a0b969a27e9ea24d35edbc1
   subpackages:
   - common
-  - log
 - name: golang.org/x/crypto
   version: edd5e9b0879d13ee6970a50153d85b8fec9f7686
   subpackages:
   - ripemd160
-- name: golang.org/x/tools
-  version: fbec762f837dc349b73d1eaa820552e2ad177942
-  subpackages:
-  - go/ast/astutil
-  - imports
 testImports:
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
   - difflib
 - name: github.com/stretchr/testify
-  version: 2aa2c176b9dab406a6970f6a55f513e8a8c8b18f
+  version: b91bfb9ebec76498946beb6af7c0230c7cc7ba6c
   subpackages:
   - assert
   - require
