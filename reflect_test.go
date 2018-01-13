@@ -1,928 +1,455 @@
 package wire
 
 import (
-	"bytes"
-	"encoding/hex"
-	"fmt"
+	"math/rand"
 	"reflect"
+	"runtime/debug"
 	"testing"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	cmn "github.com/tendermint/tmlibs/common"
+	fuzz "github.com/google/gofuzz"
 )
 
-type SimpleStruct struct {
-	String string
-	Bytes  []byte
-	Time   time.Time
+//----------------------------------------
+// Struct types
+
+type PrimitivesStruct struct {
+	Int8    int8
+	Int16   int16
+	Int32   int32
+	Int64   int64
+	Varint  int64 `binary:"varint"`
+	Int     int
+	Byte    byte
+	Uint8   uint8
+	Uint16  uint16
+	Uint32  uint32
+	Uint64  uint64
+	Uvarint uint64 `binary:"varint"`
+	Uint    uint
+	String  string
+	Bytes   []byte
+	Time    time.Time
 }
 
-type Animal interface{}
-
-// Implements Animal
-type Cat struct {
-	SimpleStruct
+type ShortArraysStruct struct {
+	TimeAr [0]time.Time
 }
 
-// Implements Animal
-type Dog struct {
-	SimpleStruct
+type ArraysStruct struct {
+	Int8Ar    [4]int8
+	Int16Ar   [4]int16
+	Int32Ar   [4]int32
+	Int64Ar   [4]int64
+	VarintAr  [4]int64 `binary:"varint"`
+	IntAr     [4]int
+	ByteAr    [4]byte
+	Uint8Ar   [4]uint8
+	Uint16Ar  [4]uint16
+	Uint32Ar  [4]uint32
+	Uint64Ar  [4]uint64
+	UvarintAr [4]uint64 `binary:"varint"`
+	UintAr    [4]int
+	StringAr  [4]string
+	BytesAr   [4][]byte
+	TimeAr    [4]time.Time
 }
 
-// Implements Animal
-type Snake []byte
-
-// Implements Animal
-type Viper struct {
-	Bytes []byte
+type SlicesStruct struct {
+	Int8Sl    []int8
+	Int16Sl   []int16
+	Int32Sl   []int32
+	Int64Sl   []int64
+	VarintSl  []int64 `binary:"varint"`
+	IntSl     []int
+	ByteSl    []byte
+	Uint8Sl   []uint8
+	Uint16Sl  []uint16
+	Uint32Sl  []uint32
+	Uint64Sl  []uint64
+	UvarintSl []uint64 `binary:"varint"`
+	UintSl    []int
+	StringSl  []string
+	BytesSl   [][]byte
+	TimeSl    []time.Time
 }
 
-var _ = RegisterInterface(
-	struct{ Animal }{},
-	ConcreteType{Cat{}, 0x01},
-	ConcreteType{Dog{}, 0x02},
-	ConcreteType{Snake{}, 0x03},
-	ConcreteType{&Viper{}, 0x04},
-)
-
-func TestTime(t *testing.T) {
-
-	// panic trying to encode times before 1970
-	panicCases := []time.Time{
-		time.Time{},
-		time.Unix(-10, 0),
-		time.Unix(0, -10),
-	}
-	for _, c := range panicCases {
-		n, err := new(int), new(error)
-		buf := new(bytes.Buffer)
-		assert.Panics(t, func() { WriteBinary(c, buf, n, err) }, "expected WriteBinary to panic on times before 1970")
-	}
-
-	// ensure we can encode/decode a recent time
-	now := time.Now()
-	n, err := new(int), new(error)
-	buf := new(bytes.Buffer)
-	WriteBinary(now, buf, n, err)
-
-	var thisTime time.Time
-	thisTime = ReadBinary(thisTime, buf, 0, new(int), new(error)).(time.Time)
-	if !thisTime.Truncate(time.Millisecond).Equal(now.Truncate(time.Millisecond)) {
-		t.Fatalf("times dont match. got %v, expected %v", thisTime, now)
-	}
-
-	// error trying to decode bad times
-	errorCases := []struct {
-		thisTime time.Time
-		err      error
-	}{
-		{time.Time{}, ErrBinaryReadInvalidTimeNegative},
-		{time.Unix(-10, 0), ErrBinaryReadInvalidTimeNegative},
-		{time.Unix(0, -10), ErrBinaryReadInvalidTimeNegative},
-
-		{time.Unix(0, 10), ErrBinaryReadInvalidTimeSubMillisecond},
-		{time.Unix(1, 10), ErrBinaryReadInvalidTimeSubMillisecond},
-	}
-	for _, c := range errorCases {
-		n, err := new(int), new(error)
-		buf := new(bytes.Buffer)
-		timeNano := c.thisTime.UnixNano()
-		WriteInt64(timeNano, buf, n, err)
-		var thisTime time.Time
-		thisTime = ReadBinary(thisTime, buf, 0, n, err).(time.Time)
-		assert.Equal(t, *err, c.err, "expected ReadBinary to throw an error")
-		assert.Equal(t, thisTime, time.Time{}, "expected ReadBinary to return default time")
-	}
+type PointersStruct struct {
+	Int8Pt    *int8
+	Int16Pt   *int16
+	Int32Pt   *int32
+	Int64Pt   *int64
+	VarintPt  *int64 `binary:"varint"`
+	IntPt     *int
+	BytePt    *byte
+	Uint8Pt   *uint8
+	Uint16Pt  *uint16
+	Uint32Pt  *uint32
+	Uint64Pt  *uint64
+	UvarintPt *uint64 `binary:"varint"`
+	UintPt    *int
+	StringPt  *string
+	BytesPt   *[]byte
+	TimePt    *time.Time
 }
 
-func TestEncodeDecode(t *testing.T) {
-	cat := &Cat{SimpleStruct{String: "cat", Time: time.Now()}}
-
-	n, err := new(int), new(error)
-	buf := new(bytes.Buffer)
-	WriteBinary(cat, buf, n, err)
-	if *err != nil {
-		t.Fatalf("writeBinary:: failed to encode Cat: %v", *err)
-	}
-
-	cat2 := new(Cat)
-	n, err = new(int), new(error)
-	cat2 = ReadBinary(cat2, buf, 0, n, err).(*Cat)
-	if *err != nil {
-		t.Fatalf("unexpected err: %v", *err)
-	}
-
-	// NOTE: this fails because []byte{} != []byte(nil)
-	// 	assert.Equal(t, cat, cat2, "expected cats to match")
+// NOTE: See registered fuzz funcs for *byte, **byte, and ***byte.
+type NestedPointersStruct struct {
+	Ptr1 *byte
+	Ptr2 **byte
+	Ptr3 ***byte
 }
 
-func TestUnexportedEmbeddedTypes(t *testing.T) {
-	type unexportedReceiver struct {
-		animal Animal
-	}
-
-	type exportedReceiver struct {
-		Animal Animal
-	}
-
-	now := time.Now().Truncate(time.Millisecond)
-	origCat := Cat{SimpleStruct{String: "cat", Time: now}}
-	exportedCat := exportedReceiver{origCat} // this is what we encode
-	writeCat := func() *bytes.Buffer {
-		n, err := new(int), new(error)
-		buf := new(bytes.Buffer)
-		WriteBinary(exportedCat, buf, n, err)
-		if *err != nil {
-			t.Errorf("writeBinary:: failed to encode Cat: %v", *err)
-		}
-		return buf
-	}
-
-	// try to read into unexportedReceiver (should fail)
-	buf := writeCat()
-	n, err := new(int), new(error)
-	unexp := ReadBinary(unexportedReceiver{}, buf, 0, n, err).(unexportedReceiver)
-	if *err != nil {
-		t.Fatalf("unexpected err: %v", *err)
-	}
-	returnCat, ok := unexp.animal.(Cat)
-	if ok {
-		t.Fatalf("unexpectedly parsed out the Cat type")
-	}
-
-	// try to read into exportedReceiver (should pass)
-	buf = writeCat()
-	n, err = new(int), new(error)
-	exp := ReadBinary(exportedReceiver{}, buf, 0, n, err).(exportedReceiver)
-	if *err != nil {
-		t.Fatalf("unexpected err: %v", *err)
-	}
-	returnCat, ok = exp.Animal.(Cat)
-	if !ok {
-		t.Fatalf("expected to be able to parse out the Cat type; rrecv: %#v", exp.Animal)
-	}
-
-	_ = returnCat
-	// NOTE: this fails because []byte{} != []byte(nil)
-	//	assert.Equal(t, origCat, returnCat, fmt.Sprintf("cats dont match"))
-
+type ComplexSt struct {
+	PrField PrimitivesStruct
+	ArField ArraysStruct
+	SlField SlicesStruct
+	PtField PointersStruct
 }
 
-// TODO: add assertions here ...
-func TestAnimalInterface(t *testing.T) {
-	var foo Animal
-
-	// Type of pointer to Animal
-	rt := reflect.TypeOf(&foo)
-
-	// Type of Animal itself.
-	// NOTE: normally this is acquired through other means
-	// like introspecting on method signatures, or struct fields.
-	rte := rt.Elem()
-
-	// Get a new pointer to the interface
-	// NOTE: calling .Interface() is to get the actual value,
-	// instead of reflection values.
-	reflect.New(rte).Interface()
-
-	// Make a binary byteslice that represents a *snake.
-	foo = Snake([]byte("snake"))
-	snakeBytes := BinaryBytes(foo)
-	snakeReader := bytes.NewReader(snakeBytes)
-
-	// Now you can read it.
-	n, err := new(int), new(error)
-	animal := ReadBinary(foo, snakeReader, 0, n, err).(Animal)
-	assert.NotNil(t, animal)
+type EmbeddedSt1 struct {
+	PrimitivesStruct
 }
+
+type EmbeddedSt2 struct {
+	PrimitivesStruct
+	ArraysStruct
+	SlicesStruct
+	PointersStruct
+}
+
+type EmbeddedSt3 struct {
+	*PrimitivesStruct
+	*ArraysStruct
+	*SlicesStruct
+	*PointersStruct
+}
+
+type EmbeddedSt4 struct {
+	Foo1 int
+	PrimitivesStruct
+	Foo2              string
+	ArraysStructField ArraysStruct
+	Foo3              []byte
+	SlicesStruct
+	Foo4                bool
+	PointersStructField PointersStruct
+	Foo5                uint
+}
+
+type EmbeddedSt5 struct {
+	Foo1 int
+	*PrimitivesStruct
+	Foo2              string
+	ArraysStructField *ArraysStruct
+	Foo3              []byte
+	*SlicesStruct
+	Foo4                bool
+	PointersStructField *PointersStruct
+	Foo5                uint
+}
+
+var structTypes = []interface{}{
+	(*PrimitivesStruct)(nil),
+	(*ShortArraysStruct)(nil),
+	(*ArraysStruct)(nil),
+	(*SlicesStruct)(nil),
+	(*PointersStruct)(nil),
+	(*NestedPointersStruct)(nil),
+	(*ComplexSt)(nil),
+	(*EmbeddedSt1)(nil),
+	(*EmbeddedSt2)(nil),
+	(*EmbeddedSt3)(nil),
+	(*EmbeddedSt4)(nil),
+	(*EmbeddedSt5)(nil),
+}
+
+//----------------------------------------
+// Type definition types
+
+type IntDef int
+
+type IntAr [4]int
+
+type IntSl []int
+
+type ByteAr [4]byte
+
+type ByteSl []byte
+
+type PrimitivesStructSl []PrimitivesStruct
+
+type PrimitivesStructDef PrimitivesStruct
+
+var defTypes = []interface{}{
+	(*IntDef)(nil),
+	(*IntAr)(nil),
+	(*IntSl)(nil),
+	(*ByteAr)(nil),
+	(*ByteSl)(nil),
+	(*PrimitivesStructSl)(nil),
+	(*PrimitivesStructDef)(nil),
+}
+
+//----------------------------------------
+// Register types
+
+type Interface1 interface {
+	AssertInterface1()
+}
+
+type Interface2 interface {
+	AssertInterface2()
+}
+
+type Concrete1 struct{}
+
+func (_ Concrete1) AssertInterface1() {}
+func (_ Concrete1) AssertInterface2() {}
+
+type Concrete2 struct{}
+
+func (_ Concrete2) AssertInterface1() {}
+func (_ Concrete2) AssertInterface2() {}
+
+type Concrete3 struct{}
+
+func (_ Concrete3) AssertInterface1() {}
 
 //-------------------------------------
+// Non-interface tests
 
-type Constructor func() interface{}
-type Instantiator func() (o interface{}, ptr interface{})
-type Validator func(o interface{}, t *testing.T)
-
-type TestCase struct {
-	Constructor
-	Instantiator
-	Validator
-}
-
-//-------------------------------------
-
-func constructBasic() interface{} {
-	cat := Cat{
-		SimpleStruct{
-			String: "String",
-			Bytes:  []byte("Bytes"),
-			Time:   time.Unix(123, 456789999),
-		},
-	}
-	return cat
-}
-
-func instantiateBasic() (interface{}, interface{}) {
-	return Cat{}, &Cat{}
-}
-
-func validateBasic(o interface{}, t *testing.T) {
-	cat := o.(Cat)
-	if cat.String != "String" {
-		t.Errorf("Expected cat.String == 'String', got %v", cat.String)
-	}
-	if string(cat.Bytes) != "Bytes" {
-		t.Errorf("Expected cat.Bytes == 'Bytes', got %X", cat.Bytes)
-	}
-	if cat.Time.UnixNano() != 123456000000 { // Only milliseconds
-		t.Errorf("Expected cat.Time.UnixNano() == 123456000000, got %v", cat.Time.UnixNano())
+func TestCodecBinaryStruct(t *testing.T) {
+	for _, ptr := range structTypes {
+		rt := getTypeFromPointer(ptr)
+		name := rt.Name()
+		t.Run(name, func(t *testing.T) { _testCodecBinary(t, rt) })
 	}
 }
 
-//-------------------------------------
-
-type NilTestStruct struct {
-	IntPtr *int
-	CatPtr *Cat
-	Animal Animal
-}
-
-func constructNilTestStruct() interface{} {
-	return NilTestStruct{}
-}
-
-func instantiateNilTestStruct() (interface{}, interface{}) {
-	return NilTestStruct{}, &NilTestStruct{}
-}
-
-func validateNilTestStruct(o interface{}, t *testing.T) {
-	nts := o.(NilTestStruct)
-	if nts.IntPtr != nil {
-		t.Errorf("Expected nts.IntPtr to be nil, got %v", nts.IntPtr)
-	}
-	if nts.CatPtr != nil {
-		t.Errorf("Expected nts.CatPtr to be nil, got %v", nts.CatPtr)
-	}
-	if nts.Animal != nil {
-		t.Errorf("Expected nts.Animal to be nil, got %v", nts.Animal)
+func TestCodecBinaryDef(t *testing.T) {
+	for _, ptr := range defTypes {
+		rt := getTypeFromPointer(ptr)
+		name := rt.Name()
+		t.Run(name, func(t *testing.T) { _testCodecBinary(t, rt) })
 	}
 }
 
-//-------------------------------------
+func _testCodecBinary(t *testing.T, rt reflect.Type) {
 
-type ComplexStruct struct {
-	Name   string
-	Animal Animal
-}
+	err := error(nil)
+	bz := []byte{}
+	cdc := NewCodec()
+	f := fuzz.New()
+	rv := reflect.New(rt)
+	rv2 := reflect.New(rt)
+	ptr := rv.Interface()
+	ptr2 := rv2.Interface()
+	rnd := rand.New(rand.NewSource(10))
+	f.RandSource(rnd)
+	f.Funcs(fuzzFuncs...)
 
-func constructComplex() interface{} {
-	c := ComplexStruct{
-		Name:   "Complex",
-		Animal: constructBasic(),
-	}
-	return c
-}
-
-func instantiateComplex() (interface{}, interface{}) {
-	return ComplexStruct{}, &ComplexStruct{}
-}
-
-func validateComplex(o interface{}, t *testing.T) {
-	c2 := o.(ComplexStruct)
-	if cat, ok := c2.Animal.(Cat); ok {
-		validateBasic(cat, t)
-	} else {
-		t.Errorf("Expected c2.Animal to be of type cat, got %v", reflect.ValueOf(c2.Animal).Elem().Type())
-	}
-}
-
-//-------------------------------------
-
-type ComplexStruct2 struct {
-	Cat    Cat
-	Dog    *Dog
-	Snake  Snake
-	Snake2 *Snake
-	Viper  Viper
-	Viper2 *Viper
-}
-
-func constructComplex2() interface{} {
-	snake_ := Snake([]byte("hiss"))
-	snakePtr_ := &snake_
-
-	c := ComplexStruct2{
-		Cat: Cat{
-			SimpleStruct{
-				String: "String",
-				Bytes:  []byte("Bytes"),
-				Time:   time.Now(),
-			},
-		},
-		Dog: &Dog{
-			SimpleStruct{
-				String: "Woof",
-				Bytes:  []byte("Bark"),
-				Time:   time.Now(),
-			},
-		},
-		Snake:  Snake([]byte("hiss")),
-		Snake2: snakePtr_,
-		Viper:  Viper{Bytes: []byte("hizz")},
-		Viper2: &Viper{Bytes: []byte("hizz")},
-	}
-	return c
-}
-
-func instantiateComplex2() (interface{}, interface{}) {
-	return ComplexStruct2{}, &ComplexStruct2{}
-}
-
-func validateComplex2(o interface{}, t *testing.T) {
-	c2 := o.(ComplexStruct2)
-	cat := c2.Cat
-	if cat.String != "String" {
-		t.Errorf("Expected cat.String == 'String', got %v", cat.String)
-	}
-	if string(cat.Bytes) != "Bytes" {
-		t.Errorf("Expected cat.Bytes == 'Bytes', got %X", cat.Bytes)
-	}
-
-	dog := c2.Dog
-	if dog.String != "Woof" {
-		t.Errorf("Expected dog.String == 'Woof', got %v", dog.String)
-	}
-	if string(dog.Bytes) != "Bark" {
-		t.Errorf("Expected dog.Bytes == 'Bark', got %X", dog.Bytes)
-	}
-
-	snake := c2.Snake
-	if string(snake) != "hiss" {
-		t.Errorf("Expected string(snake) == 'hiss', got %v", string(snake))
-	}
-
-	snake2 := c2.Snake2
-	if string(*snake2) != "hiss" {
-		t.Errorf("Expected string(snake2) == 'hiss', got %v", string(*snake2))
-	}
-
-	viper := c2.Viper
-	if string(viper.Bytes) != "hizz" {
-		t.Errorf("Expected string(viper.Bytes) == 'hizz', got %v", string(viper.Bytes))
-	}
-
-	viper2 := c2.Viper2
-	if string(viper2.Bytes) != "hizz" {
-		t.Errorf("Expected string(viper2.Bytes) == 'hizz', got %v", string(viper2.Bytes))
-	}
-}
-
-//-------------------------------------
-
-type ComplexStructArray struct {
-	Animals []Animal
-	Bytes   [5]byte
-	Ints    [5]int
-	Array   SimpleArray
-}
-
-func constructComplexArray() interface{} {
-	c := ComplexStructArray{
-		Animals: []Animal{
-			Cat{
-				SimpleStruct{
-					String: "String",
-					Bytes:  []byte("Bytes"),
-					Time:   time.Now(),
-				},
-			},
-			Dog{
-				SimpleStruct{
-					String: "Woof",
-					Bytes:  []byte("Bark"),
-					Time:   time.Now(),
-				},
-			},
-			Snake([]byte("hiss")),
-			&Viper{
-				Bytes: []byte("hizz"),
-			},
-		},
-		Bytes: [5]byte{1, 10, 50, 100, 200},
-		Ints:  [5]int{1, 2, 3, 4, 5},
-		Array: SimpleArray([5]byte{1, 10, 50, 100, 200}),
-	}
-	return c
-}
-
-func instantiateComplexArray() (interface{}, interface{}) {
-	return ComplexStructArray{}, &ComplexStructArray{}
-}
-
-func validateComplexArray(o interface{}, t *testing.T) {
-	c2 := o.(ComplexStructArray)
-	if cat, ok := c2.Animals[0].(Cat); ok {
-		if cat.String != "String" {
-			t.Errorf("Expected cat.String == 'String', got %v", cat.String)
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("panic'd:\nreason: %v\n%s\nerr: %v\nbz: %X\nrv: %#v\nrv2: %#v\nptr: %v\nptr2: %v\n",
+				r, debug.Stack(), err, bz, rv, rv2, spw(ptr), spw(ptr2),
+			)
 		}
-		if string(cat.Bytes) != "Bytes" {
-			t.Errorf("Expected cat.Bytes == 'Bytes', got %X", cat.Bytes)
-		}
-	} else {
-		t.Errorf("Expected c2.Animals[0] to be of type cat, got %v", reflect.ValueOf(c2.Animals[0]).Elem().Type())
-	}
+	}()
 
-	if dog, ok := c2.Animals[1].(Dog); ok {
-		if dog.String != "Woof" {
-			t.Errorf("Expected dog.String == 'Woof', got %v", dog.String)
-		}
-		if string(dog.Bytes) != "Bark" {
-			t.Errorf("Expected dog.Bytes == 'Bark', got %X", dog.Bytes)
-		}
-	} else {
-		t.Errorf("Expected c2.Animals[1] to be of type dog, got %v", reflect.ValueOf(c2.Animals[1]).Elem().Type())
-	}
+	for i := 0; i < 1e4; i++ {
+		f.Fuzz(ptr)
 
-	if snake, ok := c2.Animals[2].(Snake); ok {
-		if string(snake) != "hiss" {
-			t.Errorf("Expected string(snake) == 'hiss', got %v", string(snake))
-		}
-	} else {
-		t.Errorf("Expected c2.Animals[2] to be of type Snake, got %v", reflect.ValueOf(c2.Animals[2]).Elem().Type())
-	}
+		// Reset, which makes debugging decoding easier.
+		rv2 = reflect.New(rt)
+		ptr2 = rv2.Interface()
 
-	if viper, ok := c2.Animals[3].(*Viper); ok {
-		if string(viper.Bytes) != "hizz" {
-			t.Errorf("Expected string(viper.Bytes) == 'hizz', got %v", string(viper.Bytes))
-		}
-	} else {
-		t.Errorf("Expected c2.Animals[3] to be of type *Viper, got %v", reflect.ValueOf(c2.Animals[3]).Elem().Type())
+		bz, err = cdc.MarshalBinary(ptr)
+		require.Nil(t, err,
+			"failed to marshal %v to bytes: %v\n",
+			spw(ptr), err)
+
+		err = cdc.UnmarshalBinary(bz, ptr2)
+		require.Nil(t, err,
+			"failed to unmarshal bytes %X: %v\nptr: %v\n",
+			bz, err, spw(ptr))
+
+		require.Equal(t, ptr, ptr2,
+			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\n",
+			spw(ptr), spw(ptr2), bz)
 	}
 }
 
-//-----------------------------------------------------------------------------
+//----------------------------------------
+// Register tests
 
-var testCases = []TestCase{}
+func TestCodecBinaryRegister1(t *testing.T) {
+	cdc := NewCodec()
+	//cdc.RegisterInterface((*Interface1)(nil), nil)
+	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
 
-func init() {
-	testCases = append(testCases, TestCase{constructBasic, instantiateBasic, validateBasic})
-	testCases = append(testCases, TestCase{constructComplex, instantiateComplex, validateComplex})
-	testCases = append(testCases, TestCase{constructComplex2, instantiateComplex2, validateComplex2})
-	testCases = append(testCases, TestCase{constructComplexArray, instantiateComplexArray, validateComplexArray})
-	testCases = append(testCases, TestCase{constructNilTestStruct, instantiateNilTestStruct, validateNilTestStruct})
+	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
+	assert.NotNil(t, err, "unregistered interface")
+	assert.Empty(t, bz)
 }
 
-func TestBinary(t *testing.T) {
+func TestCodecBinaryRegister2(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterInterface((*Interface1)(nil), nil)
+	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
 
-	for i, testCase := range testCases {
+	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
+	assert.Nil(t, err, "correctly registered")
+	assert.Equal(t, []byte{0xe3, 0xda, 0xb8, 0x33}, bz,
+		"prefix bytes did not match")
+}
 
-		t.Log(fmt.Sprintf("Running test case %v", i))
+func TestCodecBinaryRegister3(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
+	cdc.RegisterInterface((*Interface1)(nil), nil)
 
-		// Construct an object
-		o := testCase.Constructor()
+	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
+	assert.Nil(t, err, "correctly registered")
+	assert.Equal(t, []byte{0xe3, 0xda, 0xb8, 0x33}, bz,
+		"prefix bytes did not match")
+}
 
-		// Write the object
-		data := BinaryBytes(o)
-		t.Logf("Binary: %X", data)
+func TestCodecBinaryRegister4(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
+	cdc.RegisterInterface((*Interface1)(nil), &InterfaceOptions{
+		AlwaysDisambiguate: true,
+	})
 
-		instance, instancePtr := testCase.Instantiator()
+	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
+	assert.Nil(t, err, "correctly registered")
+	assert.Equal(t, []byte{0x0, 0x12, 0xb5, 0x86, 0xe3, 0xda, 0xb8, 0x33}, bz,
+		"prefix bytes did not match")
+}
 
-		// Read onto a struct
-		n, err := new(int), new(error)
-		res := ReadBinary(instance, bytes.NewReader(data), 0, n, err)
-		if *err != nil {
-			t.Fatalf("Failed to read into instance: %v", *err)
+func TestCodecBinaryRegister5(t *testing.T) {
+	cdc := NewCodec()
+	//cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
+	cdc.RegisterInterface((*Interface1)(nil), nil)
+
+	bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
+	assert.NotNil(t, err, "concrete type not registered")
+	assert.Empty(t, bz)
+}
+
+func TestCodecBinaryRegister6(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterInterface((*Interface1)(nil), nil)
+	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
+
+	assert.Panics(t, func() {
+		cdc.RegisterConcrete((*Concrete2)(nil), "Concrete1", nil)
+	}, "duplicate concrete name")
+}
+
+func TestCodecBinaryRegister7(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterInterface((*Interface1)(nil), nil)
+	cdc.RegisterConcrete((*Concrete1)(nil), "Concrete1", nil)
+	cdc.RegisterConcrete((*Concrete2)(nil), "Concrete2", nil)
+
+	{ // test Concrete1, no conflict.
+		bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete1{}})
+		assert.Nil(t, err, "correctly registered")
+		assert.Equal(t, []byte{0xe3, 0xda, 0xb8, 0x33}, bz,
+			"disfix bytes did not match")
+	}
+
+	{ // test Concrete2, no conflict
+		bz, err := cdc.MarshalBinary(struct{ Interface1 }{Concrete2{}})
+		assert.Nil(t, err, "correctly registered")
+		assert.Equal(t, []byte{0x6a, 0x9, 0xca, 0x1}, bz,
+			"disfix bytes did not match")
+	}
+}
+
+//----------------------------------------
+// Misc.
+
+func spw(o interface{}) string {
+	return spew.Sprintf("%#v", o)
+}
+
+var fuzzFuncs = []interface{}{
+	func(bz *[]byte, c fuzz.Continue) {
+		// Prefer nil instead of empty, for deep equality.
+		// (go-wire decoder will always prefer nil).
+		c.Fuzz(bz)
+		if len(*bz) == 0 {
+			*bz = nil
 		}
-
-		// Validate object
-		testCase.Validator(res, t)
-
-		// Read onto a pointer
-		n, err = new(int), new(error)
-		res = ReadBinaryPtr(instancePtr, bytes.NewReader(data), 0, n, err)
-		if *err != nil {
-			t.Fatalf("Failed to read into instance: %v", *err)
+	},
+	func(tyme *time.Time, c fuzz.Continue) {
+		// Set time.Unix(_,_) to wipe .wal
+		switch c.Intn(4) {
+		case 0:
+			ns := c.Int63n(10)
+			*tyme = time.Unix(0, ns)
+		case 1:
+			ns := c.Int63n(10)
+			*tyme = time.Unix(0, ns)
+			break
+			/*
+				ns := c.Int63n(1e10)
+				*tyme = time.Unix(0, ns)
+			*/
+		case 2:
+			ns := c.Int63n(10)
+			*tyme = time.Unix(0, ns)
+			break
+			/*
+				const maxSeconds = 4611686018 // (1<<63 - 1) / 1e9
+				s := c.Int63n(maxSeconds)
+				ns := c.Int63n(1e10)
+				*tyme = time.Unix(s, ns)
+			*/
+		case 3:
+			ns := c.Int63n(10)
+			*tyme = time.Unix(0, ns)
+			break
+			/*
+				s := c.Int63n(10)
+				ns := c.Int63n(1e10)
+				*tyme = time.Unix(s, ns)
+			*/
 		}
-		if res != instancePtr {
-			t.Errorf("Expected pointer to pass through")
+		// Strip timezone and monotonic for deep equality.
+		*tyme = tyme.UTC().Truncate(time.Millisecond)
+	},
+
+	// For testing nested pointers...
+	func(ptr **byte, c fuzz.Continue) {
+		if c.Intn(5) == 0 {
+			*ptr = nil
+			return
 		}
-
-		// Validate object
-		testCase.Validator(reflect.ValueOf(res).Elem().Interface(), t)
-
-		// Read with len(data)-1 limit should fail.
-		instance, _ = testCase.Instantiator()
-		n, err = new(int), new(error)
-		ReadBinary(instance, bytes.NewReader(data), len(data)-1, n, err)
-		if *err != ErrBinaryReadOverflow {
-			t.Fatalf("Expected ErrBinaryReadOverflow")
+		*ptr = new(byte)
+	},
+	func(ptr ***byte, c fuzz.Continue) {
+		if c.Intn(5) == 0 {
+			*ptr = nil
+			return
 		}
-
-		// Read with len(data) limit should succeed.
-		instance, _ = testCase.Instantiator()
-		n, err = new(int), new(error)
-		ReadBinary(instance, bytes.NewReader(data), len(data), n, err)
-		if *err != nil {
-			t.Fatalf("Failed to read instance with sufficient limit: %v n: %v len(data): %v type: %v",
-				(*err).Error(), *n, len(data), reflect.TypeOf(instance))
+		*ptr = new(*byte)
+		**ptr = new(byte)
+	},
+	func(ptr ****byte, c fuzz.Continue) {
+		if c.Intn(5) == 0 {
+			*ptr = nil
+			return
 		}
-	}
-
-}
-
-func TestJSON(t *testing.T) {
-
-	for i, testCase := range testCases {
-
-		t.Log(fmt.Sprintf("Running test case %v", i))
-
-		// Construct an object
-		o := testCase.Constructor()
-
-		// Write the object
-		data := JSONBytes(o)
-		t.Logf("JSON: %v", string(data))
-
-		instance, instancePtr := testCase.Instantiator()
-
-		// Read onto a struct
-		err := new(error)
-		res := ReadJSON(instance, data, err)
-		if *err != nil {
-			t.Fatalf("Failed to read cat: %v", *err)
-		}
-
-		// Validate object
-		testCase.Validator(res, t)
-
-		// Read onto a pointer
-		res = ReadJSON(instancePtr, data, err)
-		if *err != nil {
-			t.Fatalf("Failed to read cat: %v", *err)
-		}
-
-		if res != instancePtr {
-			t.Errorf("Expected pointer to pass through")
-		}
-
-		// Validate object
-		testCase.Validator(reflect.ValueOf(res).Elem().Interface(), t)
-	}
-
-}
-
-//------------------------------------------------------------------------------
-
-type Foo struct {
-	FieldA string `json:"fieldA"` // json field name is "fieldA"
-	FieldB string // json field name is "FieldB"
-	fieldC string // not exported, not serialized.
-	FieldD string `json:",omitempty"`  // omit if empty
-	FieldE string `json:",omitempty"`  // omit if empty (but won't be)
-	FieldF string `json:"F,omitempty"` // its name is "F", omit if empty
-	FieldG string `json:"G,omitempty"` // its name is "F", omit if empty (but won't be)
-}
-
-func TestJSONFieldNames(t *testing.T) {
-	for i := 0; i < 20; i++ { // Try to ensure deterministic success.
-		foo := Foo{
-			FieldA: "a",
-			FieldB: "b",
-			fieldC: "c",
-			FieldD: "",  // omit because empty
-			FieldE: "e", // no omit, not empty
-			FieldF: "",  // omit because empty
-			FieldG: "g", // no omit, not empty
-		}
-		stringified := string(JSONBytes(foo))
-		expected := `{"fieldA":"a","FieldB":"b","FieldE":"e","G":"g"}`
-		if stringified != expected {
-			t.Fatalf("JSONFieldNames error: expected %v, got %v",
-				expected, stringified)
-		}
-	}
-}
-
-//------------------------------------------------------------------------------
-
-func TestBadAlloc(t *testing.T) {
-	n, err := new(int), new(error)
-	instance := new([]byte)
-	data := cmn.RandBytes(100 * 1024)
-	b := new(bytes.Buffer)
-	// this slice of data claims to be much bigger than it really is
-	WriteUvarint(uint(1<<32-1), b, n, err)
-	b.Write(data)
-	ReadBinary(instance, b, 0, n, err)
-}
-
-//------------------------------------------------------------------------------
-
-type SimpleArray [5]byte
-
-func TestSimpleArray(t *testing.T) {
-	var foo SimpleArray
-
-	// Type of pointer to array
-	rt := reflect.TypeOf(&foo)
-
-	// Type of array itself.
-	// NOTE: normally this is acquired through other means
-	// like introspecting on method signatures, or struct fields.
-	rte := rt.Elem()
-
-	// Get a new pointer to the array
-	// NOTE: calling .Interface() is to get the actual value,
-	// instead of reflection values.
-	reflect.New(rte).Interface()
-
-	// Make a simple int aray
-	fooArray := SimpleArray([5]byte{1, 10, 50, 100, 200})
-	fooBytes := BinaryBytes(fooArray)
-	fooReader := bytes.NewReader(fooBytes)
-
-	// Now you can read it.
-	n, err := new(int), new(error)
-	it := ReadBinary(foo, fooReader, 0, n, err).(SimpleArray)
-
-	if !bytes.Equal(it[:], fooArray[:]) {
-		t.Errorf("Expected %v but got %v", fooArray, it)
-	}
-}
-
-//--------------------------------------------------------------------------------
-
-func TestNilPointerInterface(t *testing.T) {
-
-	type MyInterface interface{}
-	type MyConcreteStruct1 struct{}
-	type MyConcreteStruct2 struct{}
-
-	RegisterInterface(
-		struct{ MyInterface }{},
-		ConcreteType{&MyConcreteStruct1{}, 0x01},
-		ConcreteType{&MyConcreteStruct2{}, 0x02},
-	)
-
-	type MyStruct struct {
-		MyInterface
-	}
-
-	myStruct := MyStruct{(*MyConcreteStruct1)(nil)}
-	buf, n, err := new(bytes.Buffer), int(0), error(nil)
-	WriteBinary(myStruct, buf, &n, &err)
-	if err == nil {
-		t.Error("Expected error in writing nil pointer interface")
-	}
-
-	myStruct = MyStruct{&MyConcreteStruct1{}}
-	buf, n, err = new(bytes.Buffer), int(0), error(nil)
-	WriteBinary(myStruct, buf, &n, &err)
-	if err != nil {
-		t.Error("Unexpected error", err)
-	}
-
-}
-
-//--------------------------------------------------------------------------------
-
-func TestMultipleInterfaces(t *testing.T) {
-
-	type MyInterface1 interface{}
-	type MyInterface2 interface{}
-	type Struct1 struct{}
-	type Struct2 struct{}
-
-	RegisterInterface(
-		struct{ MyInterface1 }{},
-		ConcreteType{&Struct1{}, 0x01},
-		ConcreteType{&Struct2{}, 0x02},
-		ConcreteType{Struct1{}, 0x03},
-		ConcreteType{Struct2{}, 0x04},
-	)
-	RegisterInterface(
-		struct{ MyInterface2 }{},
-		ConcreteType{&Struct1{}, 0x11},
-		ConcreteType{&Struct2{}, 0x12},
-		ConcreteType{Struct1{}, 0x13},
-		ConcreteType{Struct2{}, 0x14},
-	)
-
-	type MyStruct struct {
-		F1 []MyInterface1
-		F2 []MyInterface2
-	}
-
-	myStruct := MyStruct{
-		F1: []MyInterface1{
-			nil,
-			&Struct1{},
-			&Struct2{},
-			Struct1{},
-			Struct2{},
-		},
-		F2: []MyInterface2{
-			nil,
-			&Struct1{},
-			&Struct2{},
-			Struct1{},
-			Struct2{},
-		},
-	}
-	buf, n, err := new(bytes.Buffer), int(0), error(nil)
-	WriteBinary(myStruct, buf, &n, &err)
-	if err != nil {
-		t.Error("Unexpected error", err)
-	}
-	if hexStr := hex.EncodeToString(buf.Bytes()); hexStr !=
-		"0105"+"0001020304"+"0105"+"0011121314" {
-		t.Error("Unexpected binary bytes", hexStr)
-	}
-
-	// Now, read
-
-	myStruct2 := MyStruct{}
-	ReadBinaryPtr(&myStruct2, buf, 0, &n, &err)
-	if err != nil {
-		t.Error("Unexpected error", err)
-	}
-
-	if len(myStruct2.F1) != 5 {
-		t.Error("Expected F1 to have 5 items")
-	}
-	if myStruct2.F1[0] != nil {
-		t.Error("Expected F1[0] to be nil")
-	}
-	if _, ok := (myStruct2.F1[1]).(*Struct1); !ok {
-		t.Error("Expected F1[1] to be of type *Struct1")
-	}
-	if s, _ := (myStruct2.F1[1]).(*Struct1); s == nil {
-		t.Error("Expected F1[1] to be of type *Struct1 but not nil")
-	}
-	if _, ok := (myStruct2.F1[2]).(*Struct2); !ok {
-		t.Error("Expected F1[2] to be of type *Struct2")
-	}
-	if s, _ := (myStruct2.F1[2]).(*Struct2); s == nil {
-		t.Error("Expected F1[2] to be of type *Struct2 but not nil")
-	}
-	if _, ok := (myStruct2.F1[3]).(Struct1); !ok {
-		t.Error("Expected F1[3] to be of type Struct1")
-	}
-	if _, ok := (myStruct2.F1[4]).(Struct2); !ok {
-		t.Error("Expected F1[4] to be of type Struct2")
-	}
-	if myStruct2.F2[0] != nil {
-		t.Error("Expected F2[0] to be nil")
-	}
-	if _, ok := (myStruct2.F2[1]).(*Struct1); !ok {
-		t.Error("Expected F2[1] to be of type *Struct1")
-	}
-	if s, _ := (myStruct2.F2[1]).(*Struct1); s == nil {
-		t.Error("Expected F2[1] to be of type *Struct1 but not nil")
-	}
-	if _, ok := (myStruct2.F2[2]).(*Struct2); !ok {
-		t.Error("Expected F2[2] to be of type *Struct2")
-	}
-	if s, _ := (myStruct2.F2[2]).(*Struct2); s == nil {
-		t.Error("Expected F2[2] to be of type *Struct2 but not nil")
-	}
-	if _, ok := (myStruct2.F2[3]).(Struct1); !ok {
-		t.Error("Expected F2[3] to be of type Struct1")
-	}
-	if _, ok := (myStruct2.F2[4]).(Struct2); !ok {
-		t.Error("Expected F2[4] to be of type Struct2")
-	}
-
-}
-
-//--------------------------------------------------------------------------------
-
-func TestPointers(t *testing.T) {
-
-	type Struct1 struct {
-		Foo int
-	}
-
-	type MyStruct struct {
-		F1 *Struct1
-		F2 *Struct1
-	}
-
-	myStruct := MyStruct{
-		F1: nil,
-		F2: &Struct1{8},
-	}
-	buf, n, err := new(bytes.Buffer), int(0), error(nil)
-	WriteBinary(myStruct, buf, &n, &err)
-	if err != nil {
-		t.Error("Unexpected error", err)
-	}
-	if hexStr := hex.EncodeToString(buf.Bytes()); hexStr !=
-		"00"+"010108" {
-		t.Error("Unexpected binary bytes", hexStr)
-	}
-
-	// Now, read
-
-	myStruct2 := MyStruct{}
-	ReadBinaryPtr(&myStruct2, buf, 0, &n, &err)
-	if err != nil {
-		t.Error("Unexpected error", err)
-	}
-
-	if myStruct2.F1 != nil {
-		t.Error("Expected F1 to be nil")
-	}
-	if myStruct2.F2.Foo != 8 {
-		t.Error("Expected F2.Foo to be 8")
-	}
-
-}
-
-//--------------------------------------------------------------------------------
-
-func TestUnsafe(t *testing.T) {
-
-	type Struct1 struct {
-		Foo float64
-	}
-
-	type Struct2 struct {
-		Foo float64 `wire:"unsafe"`
-	}
-
-	myStruct := Struct1{5.32}
-	myStruct2 := Struct2{5.32}
-	buf, n, err := new(bytes.Buffer), int(0), error(nil)
-	WriteBinary(myStruct, buf, &n, &err)
-	if err == nil {
-		t.Error("Expected error due to float without `unsafe`")
-	}
-
-	buf, n, err = new(bytes.Buffer), int(0), error(nil)
-	WriteBinary(myStruct2, buf, &n, &err)
-	if err != nil {
-		t.Error("Unexpected error", err)
-	}
-
-	var s Struct2
-	n, err = int(0), error(nil)
-	ReadBinaryPtr(&s, buf, 0, &n, &err)
-	if err != nil {
-		t.Error("Unexpected error", err)
-	}
-
-	if s.Foo != myStruct2.Foo {
-		t.Error("Expected float values to be the same. Got", s.Foo, "expected", myStruct2.Foo)
-	}
-
-}
-
-//--------------------------------------------------------------------------------
-
-func TestUnwrap(t *testing.T) {
-
-	type Result interface{}
-	type ConcreteResult struct{ A int }
-	RegisterInterface(
-		struct{ Result }{},
-		ConcreteType{&ConcreteResult{}, 0x01},
-	)
-
-	type Struct1 struct {
-		Result Result `json:"unwrap"`
-		other  string // this should be ignored, it is unexported
-		Other  string `json:"-"` // this should also be ignored
-	}
-
-	myStruct := Struct1{Result: &ConcreteResult{5}}
-	buf, n, err := new(bytes.Buffer), int(0), error(nil)
-	WriteJSON(myStruct, buf, &n, &err)
-	if err != nil {
-		t.Error("Unexpected error", err)
-	}
-	jsonBytes := buf.Bytes()
-	if string(jsonBytes) != `[1,{"A":5}]` {
-		t.Error("Unexpected jsonBytes", string(jsonBytes))
-	}
-
-	var s Struct1
-	err = error(nil)
-	ReadJSON(&s, jsonBytes, &err)
-	if err != nil {
-		t.Error("Unexpected error", err)
-	}
-
-	sConcrete, ok := s.Result.(*ConcreteResult)
-	if !ok {
-		t.Error("Expected struct result to be of type ConcreteResult. Got", reflect.TypeOf(s.Result))
-	}
-
-	got := sConcrete.A
-	expected := myStruct.Result.(*ConcreteResult).A
-	if got != expected {
-		t.Error("Expected values to match. Got", got, "expected", expected)
-	}
-
+		*ptr = new(**byte)
+		**ptr = new(*byte)
+		***ptr = new(byte)
+	},
 }

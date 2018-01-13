@@ -2,185 +2,105 @@ package wire
 
 import (
 	"bytes"
-	"encoding/json"
-	"errors"
-	"io"
+	"fmt"
 	"reflect"
-
-	cmn "github.com/tendermint/tmlibs/common"
 )
 
-var (
-	ErrBinaryReadOverflow                  = errors.New("Error: binary read overflow")
-	ErrBinaryReadInvalidLength             = errors.New("Error: binary read invalid length")
-	ErrBinaryReadInvalidTimeNegative       = errors.New("Error: binary read invalid time - negative")
-	ErrBinaryReadInvalidTimeSubMillisecond = errors.New("Error: binary read invalid time - sub millisecond")
-	ErrBinaryWriteOverflow                 = errors.New("Error: binary write overflow")
-)
+//----------------------------------------
+// Global entrypoint
 
-const (
-	ReadSliceChunkSize = 1024
-)
+var gCodec = NewCodec()
 
-func Marshal(o interface{}) ([]byte, error) {
-	w, n, err := new(bytes.Buffer), new(int), new(error)
-	WriteBinary(o, w, n, err)
-	if *err != nil {
-		return nil, *err
+func MarshalBinary(o interface{}) ([]byte, error) {
+	return gCodec.MarshalBinary(o)
+}
+func UnmarshalBinary(bz []byte, ptr interface{}) error {
+	return gCodec.UnmarshalBinary(bz, ptr)
+}
+func UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) error {
+	return gCodec.UnmarshalBinaryLengthPrefixed(bz, ptr)
+}
+func MarshalJSON(o interface{}) ([]byte, error) {
+	return gCodec.MarshalJSON(o)
+}
+func UnmarshalJSON(bz []byte, ptr interface{}) error {
+	return gCodec.UnmarshalJSON(bz, ptr)
+}
+func UnmarshalJSONLengthPrefixed(bz []byte, ptr interface{}) error {
+	return gCodec.UnmarshalJSONLengthPrefixed(bz, ptr)
+}
+func RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
+	gCodec.RegisterInterface(ptr, opts)
+}
+func RegisterConcrete(o interface{}, name string, opts *ConcreteOptions) {
+	gCodec.RegisterConcrete(o, name, opts)
+}
+
+//----------------------------------------
+// *Codec methods
+
+// For consistency, MarshalBinary will first dereference pointers
+// before encoding.  MarshalBinary will panic if o is a nil-pointer,
+// or if o is invalid.
+func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
+
+	// Dereference pointer.
+	var rv = reflect.ValueOf(o)
+	for rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
+		if !rv.IsValid() {
+			// NOTE: You can still do so by calling
+			// `.MarshalBinary(struct{ *SomeType })` or so on.
+			panic("MarshalBinary cannot marshal a nil pointer.")
+		}
+	}
+
+	w := new(bytes.Buffer)
+	rt := rv.Type()
+	info, err := cdc.getTypeInfo_wlock(rt)
+	if err != nil {
+		return nil, err
+	}
+	err = cdc.encodeReflectBinary(w, info, rv, FieldOptions{})
+	if err != nil {
+		return nil, err
 	}
 	return w.Bytes(), nil
 }
 
-func Unmarshal(d []byte, ptr interface{}) error {
-	r, n, err := bytes.NewBuffer(d), new(int), new(error)
-	ReadBinaryPtr(ptr, r, len(d), n, err)
-	return *err
+// UnmarshalBinary will panic if ptr is a nil-pointer.
+func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
+	rv, rt := reflect.ValueOf(ptr), reflect.TypeOf(ptr)
+	if rv.Kind() != reflect.Ptr {
+		panic("Unmarshal expects a pointer")
+	}
+	rv, rt = rv.Elem(), rt.Elem()
+	info, err := cdc.getTypeInfo_wlock(rt)
+	if err != nil {
+		return err
+	}
+	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{})
+	if err != nil {
+		return err
+	}
+	if n != len(bz) {
+		return fmt.Errorf("Unmarshal didn't read all bytes. Expected to read %v, only read %v", len(bz), n)
+	}
+	return nil
 }
 
-func ReadBinary(o interface{}, r io.Reader, lmt int, n *int, err *error) (res interface{}) {
-	rv, rt := reflect.ValueOf(o), reflect.TypeOf(o)
-	if rv.Kind() == reflect.Ptr {
-		if rv.IsNil() {
-			// This allows ReadBinary() to return a nil pointer,
-			// if the value read is nil.
-			rvPtr := reflect.New(rt)
-			ReadBinaryPtr(rvPtr.Interface(), r, lmt, n, err)
-			res = rvPtr.Elem().Interface()
-		} else {
-			readReflectBinary(rv, rt, Options{}, r, lmt, n, err)
-			res = o
-		}
-	} else {
-		ptrRv := reflect.New(rt)
-		readReflectBinary(ptrRv.Elem(), rt, Options{}, r, lmt, n, err)
-		res = ptrRv.Elem().Interface()
-	}
-	if lmt != 0 && lmt < *n && *err == nil {
-		*err = ErrBinaryReadOverflow
-	}
-	return res
+func (cdc *Codec) UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) error {
+	panic("not implemented yet") // XXX
 }
 
-func ReadBinaryPtr(o interface{}, r io.Reader, lmt int, n *int, err *error) (res interface{}) {
-	rv, rt := reflect.ValueOf(o), reflect.TypeOf(o)
-	if rv.Kind() == reflect.Ptr {
-		readReflectBinary(rv.Elem(), rt.Elem(), Options{}, r, lmt, n, err)
-	} else {
-		cmn.PanicSanity("ReadBinaryPtr expects o to be a pointer")
-	}
-	res = o
-	if lmt != 0 && lmt < *n && *err == nil {
-		*err = ErrBinaryReadOverflow
-	}
-	return res
+func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
+	panic("not implemented yet") // XXX
 }
 
-func ReadBinaryPtrLengthPrefixed(o interface{}, r io.Reader, lmt int, n *int, err *error) (res interface{}) {
-	length := ReadVarint(r, n, err)
-	nSave := *n
-	res = ReadBinaryPtr(o, r, lmt, n, err)
-	nRes := *n - nSave
-	if nRes != length && *err == nil {
-		*err = errors.New(cmn.Fmt("Error: binary ready wrong length prefix. Declared:%v vs actual:%v", length, nRes))
-	}
-	return res
+func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
+	panic("not implemented yet") // XXX
 }
 
-// WriteBinary is the binary encoder. Its arguments are the subject to be
-// encoded, the writer that'll receive the encoded bytes, as well as a
-// receiver to store the bytes written and any error encountered.
-func WriteBinary(o interface{}, w io.Writer, n *int, err *error) {
-	rv := reflect.ValueOf(o)
-	rt := reflect.TypeOf(o)
-	writeReflectBinary(rv, rt, Options{}, w, n, err)
-}
-
-func WriteBinaryLengthPrefixed(o interface{}, w io.Writer, n *int, err *error) {
-	var bufN int
-	var buf = new(bytes.Buffer)
-	WriteBinary(o, buf, &bufN, err)
-	WriteVarint(buf.Len(), w, n, err)
-	WriteTo(buf.Bytes(), w, n, err)
-}
-
-func ReadJSON(o interface{}, bytes []byte, err *error) interface{} {
-	var object interface{}
-	*err = json.Unmarshal(bytes, &object)
-	if *err != nil {
-		return o
-	}
-
-	return ReadJSONObject(o, object, err)
-}
-
-func ReadJSONPtr(o interface{}, bytes []byte, err *error) interface{} {
-	var object interface{}
-	*err = json.Unmarshal(bytes, &object)
-	if *err != nil {
-		return o
-	}
-
-	return ReadJSONObjectPtr(o, object, err)
-}
-
-// o is the ultimate destination, object is the result of json unmarshal
-func ReadJSONObject(o interface{}, object interface{}, err *error) interface{} {
-	rv, rt := reflect.ValueOf(o), reflect.TypeOf(o)
-	if rv.Kind() == reflect.Ptr {
-		if rv.IsNil() {
-			// This allows ReadJSONObject() to return a nil pointer
-			// if the value read is nil.
-			rvPtr := reflect.New(rt)
-			ReadJSONObjectPtr(rvPtr.Interface(), object, err)
-			return rvPtr.Elem().Interface()
-		} else {
-			readReflectJSON(rv, rt, Options{}, object, err)
-			return o
-		}
-	} else {
-		ptrRv := reflect.New(rt)
-		readReflectJSON(ptrRv.Elem(), rt, Options{}, object, err)
-		return ptrRv.Elem().Interface()
-	}
-}
-
-func ReadJSONObjectPtr(o interface{}, object interface{}, err *error) interface{} {
-	rv, rt := reflect.ValueOf(o), reflect.TypeOf(o)
-	if rv.Kind() == reflect.Ptr {
-		readReflectJSON(rv.Elem(), rt.Elem(), Options{}, object, err)
-	} else {
-		cmn.PanicSanity("ReadJSON(Object)Ptr expects o to be a pointer")
-	}
-	return o
-}
-
-func WriteJSON(o interface{}, w io.Writer, n *int, err *error) {
-	rv := reflect.ValueOf(o)
-	rt := reflect.TypeOf(o)
-	if rv.Kind() == reflect.Ptr {
-		rv, rt = rv.Elem(), rt.Elem()
-	}
-	writeReflectJSON(rv, rt, Options{}, w, n, err)
-}
-
-// Write all of bz to w
-// Increment n and set err accordingly.
-func WriteTo(bz []byte, w io.Writer, n *int, err *error) {
-	if *err != nil {
-		return
-	}
-	n_, err_ := w.Write(bz)
-	*n += n_
-	*err = err_
-}
-
-// Read len(buf) from r
-// Increment n and set err accordingly.
-func ReadFull(buf []byte, r io.Reader, n *int, err *error) {
-	if *err != nil {
-		return
-	}
-	n_, err_ := io.ReadFull(r, buf)
-	*n += n_
-	*err = err_
+func (cdc *Codec) UnmarshalJSONLengthPrefixed(bz []byte, ptr interface{}) error {
+	panic("not implemented yet") // XXX
 }
