@@ -65,26 +65,43 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) erro
 	panic("not implemented yet") // XXX
 }
 
-// XXX This is a stub.
 func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
-	bz, err := cdc.MarshalBinary(o)
+	w := new(bytes.Buffer)
+	rv := reflect.ValueOf(o)
+	if rv.Kind() == reflect.Invalid {
+		return []byte("null"), nil
+	}
+	rt := rv.Type()
+	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return nil, err
 	}
-	// ¯\_(ツ)_/¯
-	return []byte(`"` + hex.EncodeToString(bz) + `"`), nil
+	if err := cdc.encodeReflectJSON(w, info, rv, FieldOptions{}); err != nil {
+		return nil, err
+	}
+	return w.Bytes(), nil
 }
 
-// XXX This is a stub.
-func (cdc *Codec) UnmarshalJSON(jsonBz []byte, ptr interface{}) error {
-	if jsonBz[0] != '"' || jsonBz[len(jsonBz)-1] != '"' {
-		return errors.New("Unexpected json bytes, expected an opaque hex-string as a stub.")
+func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
+	rv, rt := reflect.ValueOf(ptr), reflect.TypeOf(ptr)
+	if rv.Kind() != reflect.Ptr {
+		return errors.New("UnmarshalJSON expects a pointer")
 	}
-	bz, err := hex.DecodeString(string(jsonBz[1 : len(jsonBz)-1]))
+
+	// If the type implements json.Unmarshaler, just
+	// automatically respect that and skip to it.
+	if rv.Type().Implements(unmarshalerType) {
+		return rv.Interface().(json.Unmarshaler).UnmarshalJSON(bz)
+	}
+
+	rv, rt = rv.Elem(), rt.Elem()
+	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return err
 	}
-	// ¯\_(ツ)_/¯
-	err = cdc.UnmarshalBinary(bz, ptr)
-	return err
+	return cdc.decodeReflectJSON(bz, info, rv, FieldOptions{})
+}
+
+func (cdc *Codec) UnmarshalJSONLengthPrefixed(bz []byte, ptr interface{}) error {
+	panic("not implemented yet") // XXX
 }
