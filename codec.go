@@ -32,6 +32,12 @@ type InterfaceInfo struct {
 	InterfaceOptions
 }
 
+func (ti *TypeInfo) disfix() DisfixBytes {
+	prefix := ti.Prefix
+	disamb := ti.Disamb
+	return toDisfix(disamb, prefix)
+}
+
 type InterfaceOptions struct {
 	Priority           []string // Disamb priority.
 	AlwaysDisambiguate bool     // If true, include disamb for all types.
@@ -212,7 +218,7 @@ func (cdc *Codec) getTypeInfoFromPrefix_rlock(iinfo *TypeInfo, pb PrefixBytes) (
 		return
 	}
 	if len(infos) > 1 {
-		err = fmt.Errorf("Conflicting concrete types registered for %X: e.g. %v and %v.", pb)
+		err = fmt.Errorf("Conflicting concrete types registered for %X", pb)
 		return
 	}
 	info = infos[0]
@@ -403,7 +409,7 @@ func (cdc *Codec) checkConflictsInPrio_nolock(iinfo *TypeInfo) {
 				}
 			}
 			if !inPrio {
-				panic(fmt.Sprintf("%v conflicts with %v other(s). Add it to the priority list for %v.", cinfo.Type, iinfo.Type))
+				panic(fmt.Sprintf("%v conflicts with %v other(s). Add it to the priority list", cinfo.Type, iinfo.Type))
 			}
 		}
 	}

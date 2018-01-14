@@ -92,15 +92,3 @@ func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
 func (cdc *Codec) UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) error {
 	panic("not implemented yet") // XXX
 }
-
-func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
-	panic("not implemented yet") // XXX
-}
-
-func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
-	panic("not implemented yet") // XXX
-}
-
-func (cdc *Codec) UnmarshalJSONLengthPrefixed(bz []byte, ptr interface{}) error {
-	panic("not implemented yet") // XXX
-}
