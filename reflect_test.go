@@ -419,32 +419,17 @@ var fuzzFuncs = []interface{}{
 			ns := c.Int63n(10)
 			*tyme = time.Unix(0, ns)
 		case 1:
-			ns := c.Int63n(10)
+			ns := c.Int63n(1e10)
 			*tyme = time.Unix(0, ns)
-			break
-			/*
-				ns := c.Int63n(1e10)
-				*tyme = time.Unix(0, ns)
-			*/
 		case 2:
-			ns := c.Int63n(10)
-			*tyme = time.Unix(0, ns)
-			break
-			/*
-				const maxSeconds = 4611686018 // (1<<63 - 1) / 1e9
-				s := c.Int63n(maxSeconds)
-				ns := c.Int63n(1e10)
-				*tyme = time.Unix(s, ns)
-			*/
+			const maxSeconds = 4611686018 // (1<<63 - 1) / 1e9
+			s := c.Int63n(maxSeconds)
+			ns := c.Int63n(1e10)
+			*tyme = time.Unix(s, ns)
 		case 3:
-			ns := c.Int63n(10)
-			*tyme = time.Unix(0, ns)
-			break
-			/*
-				s := c.Int63n(10)
-				ns := c.Int63n(1e10)
-				*tyme = time.Unix(s, ns)
-			*/
+			s := c.Int63n(10)
+			ns := c.Int63n(1e10)
+			*tyme = time.Unix(s, ns)
 		}
 		// Strip timezone and monotonic for deep equality.
 		*tyme = tyme.UTC().Truncate(time.Millisecond)

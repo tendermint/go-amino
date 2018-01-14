@@ -57,26 +57,26 @@ func EncodeByte(w io.Writer, b byte) (err error) {
 }
 
 func EncodeUint8(w io.Writer, i uint8) (err error) {
-	return EncodeByte(w, byte(i))
+	return EncodeByte(w, i)
 }
 
 func EncodeUint16(w io.Writer, i uint16) (err error) {
 	var buf [2]byte
-	binary.BigEndian.PutUint16(buf[:], uint16(i))
+	binary.BigEndian.PutUint16(buf[:], i)
 	_, err = w.Write(buf[:])
 	return
 }
 
 func EncodeUint32(w io.Writer, i uint32) (err error) {
 	var buf [4]byte
-	binary.BigEndian.PutUint32(buf[:], uint32(i))
+	binary.BigEndian.PutUint32(buf[:], i)
 	_, err = w.Write(buf[:])
 	return
 }
 
 func EncodeUint64(w io.Writer, i uint64) (err error) {
 	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], uint64(i))
+	binary.BigEndian.PutUint64(buf[:], i)
 	_, err = w.Write(buf[:])
 	return
 }
