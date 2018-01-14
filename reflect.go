@@ -9,10 +9,11 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
 	"io"
 	"reflect"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 //----------------------------------------
@@ -289,7 +290,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	}
 
 	// Read disambiguation / prefix bytes but do not consume the prefix bytes.
-	disfix, hasDisamb, prefix, hasPrefix, isNil, _n, err := decodeDisambPrefixBytes(bz)
+	disfix, hasDisamb, prefix, hasPrefix, isNil, _, err := decodeDisambPrefixBytes(bz)
 	if hasDisamb {
 		n += DisfixBytesLen
 	}
@@ -320,18 +321,26 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	// NOTE: rv.Set() should succeed because it was validated
 	// already during Register[Interface/Concrete].
 	var crv reflect.Value
+	var rvSet reflect.Value
 	if cinfo.PointerPreferred {
 		cPtrRv := reflect.New(cinfo.Type)
 		crv = cPtrRv.Elem()
-		rv.Set(cPtrRv)
+		rvSet = cPtrRv
 	} else {
 		crv = reflect.New(cinfo.Type).Elem()
-		rv.Set(crv)
+		rvSet = crv
 	}
 
 	// Read into crv.
+	var _n int
 	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, opts)
 	slide(bz, &bz, &n, _n)
+
+	// We need to set here, for when !PointerPreferred and the type
+	// is say, an array of bytes (e.g. [32]byte), then we must call
+	// rv.Set() *after* the value was acquired.
+	// NOTE: run this even if err != nil, to help debug.
+	rv.Set(rvSet)
 	return
 }
 

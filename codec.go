@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 	"strings"
@@ -98,13 +99,17 @@ func (cdc *Codec) RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
 	var info = cdc.newTypeInfoFromInterfaceType(rt, opts)
 
 	// Finally, check conflicts and register.
-	cdc.mtx.Lock()
-	{
+	func() {
+		cdc.mtx.Lock()
+		defer cdc.mtx.Unlock()
+
 		cdc.collectImplementers_nolock(info)
-		cdc.checkConflictsInPrio_nolock(info)
+		err := cdc.checkConflictsInPrio_nolock(info)
+		if err != nil {
+			panic(err)
+		}
 		cdc.setTypeInfo_nolock(info)
-	}
-	cdc.mtx.Unlock()
+	}()
 }
 
 // This function should be used to register concrete types that will appear in
@@ -136,20 +141,22 @@ func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOpt
 	var info = cdc.newTypeInfoFromConcreteType(rt, pointerPreferred, name, opts)
 
 	// Finally, check conflicts and register.
-	cdc.mtx.Lock()
-	{
+	func() {
+		cdc.mtx.Lock()
+		defer cdc.mtx.Unlock()
+
 		cdc.addCheckConflictsWithConcrete_nolock(info)
 		cdc.setTypeInfo_nolock(info)
-	}
-	cdc.mtx.Unlock()
+	}()
 }
 
 //----------------------------------------
 
 func (cdc *Codec) setTypeInfo_wlock(info *TypeInfo) {
 	cdc.mtx.Lock()
+	defer cdc.mtx.Unlock()
+
 	cdc.setTypeInfo_nolock(info)
-	cdc.mtx.Unlock()
 }
 
 func (cdc *Codec) setTypeInfo_nolock(info *TypeInfo) {
@@ -389,7 +396,8 @@ func (cdc *Codec) collectImplementers_nolock(info *TypeInfo) {
 
 // Ensure that prefix-conflicting implementing concrete types
 // are all registered in the priority list.
-func (cdc *Codec) checkConflictsInPrio_nolock(iinfo *TypeInfo) {
+// Returns an error if a disamb conflict is found.
+func (cdc *Codec) checkConflictsInPrio_nolock(iinfo *TypeInfo) error {
 
 	for _, cinfos := range iinfo.Implementers {
 		if len(cinfos) < 2 {
@@ -403,10 +411,11 @@ func (cdc *Codec) checkConflictsInPrio_nolock(iinfo *TypeInfo) {
 				}
 			}
 			if !inPrio {
-				panic(fmt.Sprintf("%v conflicts with %v other(s). Add it to the priority list for %v.", cinfo.Type, iinfo.Type))
+				return fmt.Errorf("%v conflicts with %v other(s). Add it to the priority list for %v.", cinfo.Type, iinfo.Type)
 			}
 		}
 	}
+	return nil
 }
 
 func (cdc *Codec) addCheckConflictsWithConcrete_nolock(cinfo *TypeInfo) {
@@ -420,11 +429,52 @@ func (cdc *Codec) addCheckConflictsWithConcrete_nolock(cinfo *TypeInfo) {
 		}
 
 		// Add cinfo to iinfo.Implementers.
-		iinfo.Implementers[cinfo.Prefix] = append(
-			iinfo.Implementers[cinfo.Prefix], cinfo)
+		var origImpls = iinfo.Implementers[cinfo.Prefix]
+		iinfo.Implementers[cinfo.Prefix] = append(origImpls, cinfo)
 
 		// Finally, check that all conflicts are in `.Priority`.
 		// NOTE: This could be optimized, but it's non-trivial.
-		cdc.checkConflictsInPrio_nolock(iinfo)
+		err := cdc.checkConflictsInPrio_nolock(iinfo)
+		if err != nil {
+			// Return to previous state.
+			iinfo.Implementers[cinfo.Prefix] = origImpls
+			panic(err)
+		}
 	}
+}
+
+//----------------------------------------
+// .String()
+
+func (ti TypeInfo) String() string {
+	buf := new(bytes.Buffer)
+	buf.Write([]byte("TypeInfo{"))
+	buf.Write([]byte(fmt.Sprintf("Type:%v,", ti.Type)))
+	if ti.Type.Kind() == reflect.Interface {
+		buf.Write([]byte(fmt.Sprintf("Priority:%v,", ti.Priority)))
+		buf.Write([]byte("Implementers:{"))
+		for pb, cinfos := range ti.Implementers {
+			buf.Write([]byte(fmt.Sprintf("\"%X\":", pb)))
+			buf.Write([]byte(fmt.Sprintf("%v,", cinfos)))
+		}
+		buf.Write([]byte("}"))
+		buf.Write([]byte(fmt.Sprintf("Priority:%v,", ti.InterfaceOptions.Priority)))
+		buf.Write([]byte(fmt.Sprintf("AlwaysDisambiguate:%v,", ti.InterfaceOptions.AlwaysDisambiguate)))
+	}
+	if ti.Type.Kind() != reflect.Interface {
+		if ti.ConcreteInfo.Registered {
+			buf.Write([]byte("Registered:true,"))
+			buf.Write([]byte(fmt.Sprintf("PointerPreferred:%v,", ti.PointerPreferred)))
+			buf.Write([]byte(fmt.Sprintf("Name:\"%v\",", ti.Name)))
+			buf.Write([]byte(fmt.Sprintf("Prefix:\"%X\",", ti.Prefix)))
+			buf.Write([]byte(fmt.Sprintf("Disamb:\"%X\",", ti.Disamb)))
+		} else {
+			buf.Write([]byte("Registered:false,"))
+		}
+		if ti.Type.Kind() == reflect.Struct {
+			buf.Write([]byte(fmt.Sprintf("Fields:%v,", ti.Fields)))
+		}
+	}
+	buf.Write([]byte("}"))
+	return buf.String()
 }
