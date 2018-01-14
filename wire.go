@@ -94,7 +94,21 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) erro
 }
 
 func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
-	panic("not implemented yet") // XXX
+	w := new(bytes.Buffer)
+	rv := reflect.ValueOf(o)
+	if rv.Kind() == reflect.Invalid {
+		return []byte("null"), nil
+	}
+	rt := rv.Type()
+	info, err := cdc.getTypeInfo_wlock(rt)
+	if err != nil {
+		return nil, err
+	}
+	if err := cdc.encodeReflectJSON(w, info, rv, FieldOptions{}); err != nil {
+		return nil, err
+	}
+	return w.Bytes(), nil
+
 }
 
 func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {

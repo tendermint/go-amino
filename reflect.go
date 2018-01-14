@@ -614,11 +614,9 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-
-	if rv.IsNil() {
-		_, err = w.Write([]byte{0x00, 0x00, 0x00, 0x00})
-		return
+func deref(rv reflect.Value, info *TypeInfo) (reflect.Value, error) {
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		return rv, nil
 	}
 
 	crv := rv.Elem() // concrete reflection value
@@ -630,27 +628,39 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv r
 	for crv.Kind() == reflect.Ptr {
 		crv = crv.Elem()
 		if crv.Kind() == reflect.Interface {
-			err = fmt.Errorf("Unexpected interface-pointer of type *%v for registered interface %v. Not supported yet.", crv.Type(), info.Type)
-			return
+			err := fmt.Errorf("Unexpected interface-pointer of type *%v for registered interface %v. Not supported yet.", crv.Type(), info.Type)
+			return crv, err
 		}
 		if !crv.IsValid() {
-			err = fmt.Errorf("Illegal nil-pointer of type %v for registered interface %v. "+
+			err := fmt.Errorf("Illegal nil-pointer of type %v for registered interface %v. "+
 				"For compatibility with other languages, nil-pointer interface values are forbidden.", crv.Type(), info.Type)
-			return
+			return crv, err
 		}
 	}
+	return crv, nil
+}
 
+func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
+
+	if rv.IsNil() {
+		_, err := w.Write([]byte{0x00, 0x00, 0x00, 0x00})
+		return err
+	}
+
+	crv, err := deref(rv, info)
+	if err != nil {
+		return err
+	}
 	crt := crv.Type() // non-pointer non-interface concrete type
 
 	// Get *TypeInfo for concrete type.
 	var cinfo *TypeInfo
 	cinfo, err = cdc.getTypeInfo_wlock(crt)
 	if err != nil {
-		return
+		return err
 	}
 	if !cinfo.Registered {
-		err = fmt.Errorf("Cannot encode unregistered concrete type %v.", crt)
-		return
+		return fmt.Errorf("Cannot encode unregistered concrete type %v.", crt)
 	}
 
 	// Write the disambiguation bytes if needed.
@@ -661,14 +671,11 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv r
 		needDisamb = true
 	}
 	if needDisamb {
-		_, err = w.Write(append([]byte{0x00}, cinfo.Disamb[:]...))
-		if err != nil {
-			return
+		if _, err = w.Write(append([]byte{0x00}, cinfo.Disamb[:]...)); err != nil {
+			return err
 		}
 	}
-
-	err = cdc.encodeReflectBinary(w, cinfo, crv, opts)
-	return
+	return cdc.encodeReflectBinary(w, cinfo, crv, opts)
 }
 
 func (cdc *Codec) encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
