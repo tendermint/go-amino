@@ -83,7 +83,7 @@ func DecodeUint8(bz []byte) (i uint8, n int, err error) {
 		err = errors.New("eof decoding uint8")
 		return
 	}
-	i = uint8(bz[0])
+	i = bz[0]
 	n = size
 	return
 }
@@ -156,7 +156,7 @@ func DecodeFloat32(bz []byte) (f float32, n int, err error) {
 		err = errors.New("eof decoding float32")
 		return
 	}
-	i := uint32(binary.BigEndian.Uint32(bz[:size]))
+	i := binary.BigEndian.Uint32(bz[:size])
 	f = math.Float32frombits(i)
 	n = size
 	return
@@ -169,7 +169,7 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 		err = errors.New("eof decoding float64")
 		return
 	}
-	i := uint64(binary.BigEndian.Uint64(bz[:size]))
+	i := binary.BigEndian.Uint64(bz[:size])
 	f = math.Float64frombits(i)
 	n = size
 	return

@@ -152,13 +152,6 @@ func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOpt
 
 //----------------------------------------
 
-func (cdc *Codec) setTypeInfo_wlock(info *TypeInfo) {
-	cdc.mtx.Lock()
-	defer cdc.mtx.Unlock()
-
-	cdc.setTypeInfo_nolock(info)
-}
-
 func (cdc *Codec) setTypeInfo_nolock(info *TypeInfo) {
 
 	if info.Type.Kind() == reflect.Ptr {
@@ -219,7 +212,7 @@ func (cdc *Codec) getTypeInfoFromPrefix_rlock(iinfo *TypeInfo, pb PrefixBytes) (
 		return
 	}
 	if len(infos) > 1 {
-		err = fmt.Errorf("Conflicting concrete types registered for %X: e.g. %v and %v.", pb)
+		err = fmt.Errorf("Conflicting concrete types registered for %X: e.g. %v and %v.", pb, infos[0].Type, infos[1].Type)
 		return
 	}
 	info = infos[0]
@@ -411,7 +404,8 @@ func (cdc *Codec) checkConflictsInPrio_nolock(iinfo *TypeInfo) error {
 				}
 			}
 			if !inPrio {
-				return fmt.Errorf("%v conflicts with %v other(s). Add it to the priority list for %v.", cinfo.Type, iinfo.Type)
+				return fmt.Errorf("%v conflicts with %v other(s). Add it to the priority list for %v.",
+					cinfo.Type, len(cinfos), iinfo.Type)
 			}
 		}
 	}

@@ -351,7 +351,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 	}
 	ert := info.Type.Elem()
 	length := info.Type.Len()
-	_n := 0
+	_n := 0 // nolint: ineffassign
 
 	switch ert.Kind() {
 
@@ -386,7 +386,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 		panic("rv not addressable")
 	}
 	ert := info.Type.Elem()
-	_n := 0
+	_n := 0 // nolint: ineffassign
 
 	switch ert.Kind() {
 
@@ -445,7 +445,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
-	_n := 0
+	_n := 0 // nolint: ineffassign
 
 	switch info.Type {
 
