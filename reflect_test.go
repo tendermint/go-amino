@@ -216,7 +216,7 @@ type Concrete2 struct{}
 func (_ Concrete2) AssertInterface1() {}
 func (_ Concrete2) AssertInterface2() {}
 
-type Concrete3 struct{}
+type Concrete3 [4]byte
 
 func (_ Concrete3) AssertInterface1() {}
 
@@ -371,6 +371,29 @@ func TestCodecBinaryRegister7(t *testing.T) {
 		assert.Equal(t, []byte{0x6a, 0x9, 0xca, 0x1}, bz,
 			"disfix bytes did not match")
 	}
+}
+
+func TestCodecBinaryRegister8(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterInterface((*Interface1)(nil), nil)
+	cdc.RegisterConcrete(Concrete3{}, "Concrete3", nil)
+
+	assert.Panics(t, func() {
+		cdc.RegisterConcrete(Concrete2{}, "Concrete3", nil)
+	}, "duplicate concrete name")
+
+	var c3 Concrete3
+	copy(c3[:], []byte("0123"))
+
+	bz, err := cdc.MarshalBinary(struct{ Interface1 }{c3})
+	assert.Nil(t, err)
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x01, 0x30, 0x31, 0x32, 0x33}, bz,
+		"Concrete3 not correctly serialized")
+
+	var i1 Interface1
+	err = cdc.UnmarshalBinary(bz, &i1)
+	assert.Nil(t, err)
+	assert.Equal(t, c3, i1)
 }
 
 //----------------------------------------
