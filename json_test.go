@@ -10,8 +10,10 @@ import (
 
 func TestMarshalJSON(t *testing.T) {
 	// Register the concrete types first.
-	// wire.RegisterConcrete(&Transport{}, "our/transport", nil)
+	wire.RegisterConcrete(&Transport{}, "our/transport", nil)
 	wire.RegisterInterface((*Vehicle)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
+	wire.RegisterInterface((*Asset)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
+	// wire.RegisterConcrete((*interface{})(nil), "interface", nil)
 	wire.RegisterConcrete(Car(""), "car", nil)   // &wire.ConcreteOptions{Disamb: []byte{0xC, 0xA}})
 	wire.RegisterConcrete(Boat(""), "boat", nil) // &wire.ConcreteOptions{Disamb: []byte{0xB, 0x0, 0xA}})
 
@@ -33,14 +35,30 @@ func TestMarshalJSON(t *testing.T) {
 			`{"Foo":11,"nm":"ap","bz":{"A":"foo"}}`, "",
 		},
 		{
+			struct{}{}, `{}`, "",
+		},
+		{
+			struct{ A int }{A: 10}, `{"A":10}`, "",
+		},
+		{
+			Transport{},
+			// TODO: Modify me when we've figured out disambiguation for JSON
+			`{"Vehicle":{"_df":"00000000000000","_v":null},"Capacity":0}`, "",
+		},
+		{
 			Transport{Vehicle: Car("Bugatti")},
 			// TODO: Modify me when we've figured out disambiguation for JSON
-			`{"Vehicle":{"_df":"00000000000001","_data":"Bugatti"},"Capacity":0}`, "",
+			`{"Vehicle":{"_df":"00000000000001","_v":"Bugatti"},"Capacity":0}`, "",
+		},
+		{
+			BalanceSheet{Assets: []Asset{Car("Corolla"), insurancePlan(1e7)}},
+			// TODO: Modify me when we've figured out disambiguation for JSON
+			`{"assets":[{"_df":"00000000000001","_v":"Corolla"},{"_df":"00000000000003":"_v":10000000}]}`, "",
 		},
 		{
 			Transport{Vehicle: Boat("Poseidon"), Capacity: 1789},
 			// TODO: Modify me when we've figured out disambiguation for JSON
-			`{"Vehicle":{"_df":"00000000000002","_data":"Poseidon"},"Capacity":1789}`, "",
+			`{"Vehicle":{"_df":"00000000000002","_v":"Poseidon"},"Capacity":1789}`, "",
 		},
 		{
 			withCustomMarshaler{A: &aPointerField{Foo: intPtr(12)}, F: customJSONMarshaler(10)},
@@ -51,6 +69,9 @@ func TestMarshalJSON(t *testing.T) {
 			`"Tendermint"`, "",
 		},
 		{strings.Contains, "", "unsupported type"},
+
+		// We don't yet support interface pointer registration i.e. `*interface{}`
+		{interfacePtr("a"), "", "Unregistered interface interface {}"},
 	}
 
 	for i, tt := range cases {
@@ -123,10 +144,29 @@ type Vehicle interface {
 	Move() error
 }
 
+type Asset interface {
+	Value() float64
+}
+
+func (c Car) Value() float64 {
+	return 60000.0
+}
+
+type BalanceSheet struct {
+	Assets []Asset `json:"assets"`
+}
+
 type Car string
 type Boat string
 type Plane int
+type insurancePlan float64
+
+func (ip insurancePlan) Value() float64 { return float64(ip) }
 
 func (c Car) Move() error   { return nil }
 func (b Boat) Move() error  { return nil }
 func (p Plane) Move() error { return nil }
+
+func interfacePtr(v interface{}) *interface{} {
+	return &v
+}
