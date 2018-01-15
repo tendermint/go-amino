@@ -14,31 +14,36 @@ import (
 //----------------------------------------
 // cdc.encodeReflectJSON
 
-func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
-	switch rv.Kind() {
-	case reflect.Invalid:
-		_, err := w.Write(bytesNull)
-		return err
-
-	case reflect.Ptr:
-		// Dereference pointers all the way if any.
-		// This works for pointer-pointers.
-		var foundPointer = false
-		for rv.Kind() == reflect.Ptr {
-			foundPointer = true
-			rv = rv.Elem()
-		}
-
-		if foundPointer {
-			if !rv.IsValid() {
-				_, err := w.Write(bytesNull)
-				return err
-			}
-		}
+func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	if info.Registered {
+		// Write the disfix
+		disfix := toDisfix(info.Disamb, info.Prefix)
+		fmt.Fprintf(w, `{"_df":"%X","_v":`, disfix)
 	}
 
-	if info == nil {
-		return invokeStdlibJSONMarshal(w, rv.Interface())
+	if err = cdc._encodeReflectJSON(w, info, rv, opts); err != nil {
+		return
+	}
+	if info.Registered {
+		_, err = w.Write(bytesCloseBrace)
+	}
+	return err
+}
+
+func (cdc *Codec) _encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	// Dereference pointers all the way if any.
+	// This works for pointer-pointers.
+	var foundPointer = false
+	for rv.Kind() == reflect.Ptr {
+		foundPointer = true
+		rv = rv.Elem()
+	}
+
+	if foundPointer {
+		if !rv.IsValid() {
+			_, err = w.Write(bytesNull)
+			return
+		}
 	}
 
 	switch info.Type.Kind() {
@@ -108,60 +113,42 @@ func (cdc *Codec) encodeReflectJSONArrayOrSlice(w io.Writer, info *TypeInfo, rv 
 	return err
 }
 
+func safeElem(v reflect.Value) reflect.Value {
+	// As per https://golang.org/pkg/reflect/#Value.Elem
+	// Elem can only be invoked on an interface or a pointer.
+	if v.Kind() == reflect.Interface || v.Kind() == reflect.Ptr {
+		return v.Elem()
+	}
+	return v
+}
+
 func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
-	crv, err := deref(rv, info)
+	if safeIsNil(rv) {
+		_, err := w.Write(bytesNull)
+		return err
+	}
+
+	// Concrete reflect value
+	crv := safeElem(rv)
+
+	crv, err := deref(crv, info)
 	if err != nil {
 		return err
 	}
 	crt := crv.Type()
-	dv := reflect.ValueOf(crv.Interface())
 
 	// Get *TypeInfo for concrete type.
 	cinfo, err := cdc.getTypeInfo_wlock(crt)
 	if err != nil {
-		// Well, if the concrete type is an interface
-		// though we now should just JSON.Marshal it.
-		switch crt.Kind() {
-		case reflect.Interface:
-			return invokeStdlibJSONMarshal(w, rv.Interface())
-		default:
-			return err
-		}
-	}
-
-	// Write the disambiguation bytes if needed.
-	var needDisamb bool = false
-	if cinfo.AlwaysDisambiguate {
-		needDisamb = true
-	} else if len(cinfo.Implementers[cinfo.Prefix]) > 1 {
-		needDisamb = true
-	}
-	if !needDisamb {
-		return cdc.encodeReflectJSON(w, cinfo, dv, opts)
-	}
-
-	// Otherwise, let's encode the disambiguation bytes
-	// TODO: (@jaekwon, @odeke-em): Fix all this magic, it is unclear what disambiguation
-	// is meant to do and even how to retrieve the appropriate disambiguation
-	// bytes.
-	prefixKey := nameToPrefix(rv.Type().Name())
-	impl := info.Implementers[prefixKey]
-	impl = info.Implementers[info.Prefix]
-	var disfix DisfixBytes
-	if len(impl) > 0 {
-		for _, ti := range impl {
-			if ti.Type.Name() == crt.Name() {
-				disfix = toDisfix(ti.Disamb, ti.Prefix)
-				break
-			}
-		}
-	}
-	fmt.Fprintf(w, `{"_df":"%x","_v":`, disfix)
-	if err := cdc.encodeReflectJSON(w, cinfo, dv, opts); err != nil {
 		return err
 	}
-	_, err = w.Write(bytesCloseBrace)
-	return err
+	if !cinfo.Registered && false { // Hmm, primitive types would be a pain to complain about.
+		return fmt.Errorf("Cannot encode unregistered concrete type %v.", crt)
+	}
+	return cdc.encodeReflectJSON(w, cinfo, crv, opts)
+}
+
+func isPrimitiveGoKind(kind reflect.Kind) bool {
 }
 
 func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
@@ -262,6 +249,20 @@ func allBlankBytes(b []byte) bool {
 		bytes.Equal(b, bytesFalse)
 }
 
+// safeIsNil safely invokes reflect.Value.IsNil only on
+// * reflect.Interface, reflect.Ptr, reflect.Map, reflect.Slice,
+// * reflect.Array, reflect.Ptr, reflect.Func
+// otherwise it returns false
+func safeIsNil(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Interface, reflect.Chan, reflect.Map, reflect.Slice,
+		reflect.Array, reflect.Ptr, reflect.Func:
+		return v.IsNil()
+	default:
+		return false
+	}
+}
+
 func isBlank(v reflect.Value) bool {
 	switch v.Kind() {
 	case reflect.Interface, reflect.Chan, reflect.Map, reflect.Slice,
@@ -282,4 +283,10 @@ func isBlankInterface(v interface{}) bool {
 		// Not much we can do
 		return false
 	}
+}
+
+//----------------------------------------
+// cdc.decodeReflectJSON
+
+func (cdc *Codec) decodeReflectJSON(blob []byte, out interface{}) {
 }
