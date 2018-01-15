@@ -614,17 +614,12 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	return
 }
 
-func deref(rv reflect.Value, info *TypeInfo) (reflect.Value, error) {
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
-		return rv, nil
-	}
-
-	crv := rv.Elem() // concrete reflection value
-
+func deref(crv reflect.Value, info *TypeInfo) (reflect.Value, error) {
 	// Dereference pointer transparently.
 	// This also works for pointer-pointers.
 	// NOTE: Encoding pointer-pointers only work for no-method interfaces like
 	// `interface{}`.
+	// TODO: Fix up the errors
 	for crv.Kind() == reflect.Ptr {
 		crv = crv.Elem()
 		if crv.Kind() == reflect.Interface {
