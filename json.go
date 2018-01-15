@@ -14,20 +14,31 @@ import (
 //----------------------------------------
 // cdc.encodeReflectJSON
 
-func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-	// Dereference pointers all the way if any.
-	// This works for pointer-pointers.
-	var foundPointer = false
-	for rv.Kind() == reflect.Ptr {
-		foundPointer = true
-		rv = rv.Elem()
+func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
+	switch rv.Kind() {
+	case reflect.Invalid:
+		_, err := w.Write(bytesNull)
+		return err
+
+	case reflect.Ptr:
+		// Dereference pointers all the way if any.
+		// This works for pointer-pointers.
+		var foundPointer = false
+		for rv.Kind() == reflect.Ptr {
+			foundPointer = true
+			rv = rv.Elem()
+		}
+
+		if foundPointer {
+			if !rv.IsValid() {
+				_, err := w.Write(bytesNull)
+				return err
+			}
+		}
 	}
 
-	if foundPointer {
-		if !rv.IsValid() {
-			_, err = w.Write(bytesNull)
-			return err
-		}
+	if info == nil {
+		return invokeStdlibJSONMarshal(w, rv.Interface())
 	}
 
 	switch info.Type.Kind() {
@@ -38,7 +49,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		return cdc.encodeReflectJSONInterface(w, info, rv, opts)
 
 	case reflect.Array, reflect.Slice:
-		return cdc.encodeReflectJSONSliceOrArray(w, info, rv, opts)
+		return cdc.encodeReflectJSONArrayOrSlice(w, info, rv, opts)
 
 	case reflect.Struct:
 		return cdc.encodeReflectJSONStruct(w, info, rv, opts)
@@ -47,19 +58,23 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		return errJSONMarshalMap
 
 	default: // All others
-		// Note: Please don't stream out the output because that adds a newline
-		// using json.NewEncoder(w).Encode(data)
-		// as per https://golang.org/pkg/encoding/json/#Encoder.Encode
-		blob, err := json.Marshal(rv.Interface())
-		if err != nil {
-			return err
-		}
-		_, err = w.Write(blob)
-		return err
+		return invokeStdlibJSONMarshal(w, rv.Interface())
 	}
 }
 
-func (cdc *Codec) encodeReflectJSONSliceOrArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
+func invokeStdlibJSONMarshal(w io.Writer, v interface{}) error {
+	// Note: Please don't stream out the output because that adds a newline
+	// using json.NewEncoder(w).Encode(data)
+	// as per https://golang.org/pkg/encoding/json/#Encoder.Encode
+	blob, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(blob)
+	return err
+}
+
+func (cdc *Codec) encodeReflectJSONArrayOrSlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
 	length := rv.Len()
 	if length == 0 {
 		_, err := w.Write(bytesOpenCloseLBraces)
@@ -80,14 +95,10 @@ func (cdc *Codec) encodeReflectJSONSliceOrArray(w io.Writer, info *TypeInfo, rv 
 		einfo, _ := cdc.getTypeInfo_wlock(ecrt)
 
 		elemsBuf := new(bytes.Buffer)
-		if err := cdc.encodeReflectJSON(elemsBuf, einfo, erv, opts); err != nil {
+		if err := cdc.encodeReflectJSONInterface(elemsBuf, einfo, erv, opts); err != nil {
 			return err
 		}
-
 		eBlob := elemsBuf.Bytes()
-		// Re-use the valuesBuf
-		elemsBuf.Reset()
-
 		kvBytes = append(kvBytes, eBlob)
 	}
 	if _, err := w.Write(bytes.Join(kvBytes, bytesComma)); err != nil {
@@ -102,28 +113,51 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, info *TypeInfo, rv ref
 	if err != nil {
 		return err
 	}
-	crt := crv.Type() // non-pointer non-interface concrete type
+	crt := crv.Type()
+	dv := reflect.ValueOf(crv.Interface())
 
 	// Get *TypeInfo for concrete type.
 	cinfo, err := cdc.getTypeInfo_wlock(crt)
 	if err != nil {
-		return err
+		// Well, if the concrete type is an interface
+		// though we now should just JSON.Marshal it.
+		switch crt.Kind() {
+		case reflect.Interface:
+			return invokeStdlibJSONMarshal(w, rv.Interface())
+		default:
+			return err
+		}
 	}
 
 	// Write the disambiguation bytes if needed.
 	var needDisamb bool = false
-	if info.AlwaysDisambiguate {
+	if cinfo.AlwaysDisambiguate {
 		needDisamb = true
-	} else if len(info.Implementers[cinfo.Prefix]) > 1 {
+	} else if len(cinfo.Implementers[cinfo.Prefix]) > 1 {
 		needDisamb = true
 	}
 	if !needDisamb {
-		return cdc.encodeReflectJSON(w, cinfo, crv, opts)
+		return cdc.encodeReflectJSON(w, cinfo, dv, opts)
 	}
 
 	// Otherwise, let's encode the disambiguation bytes
-	fmt.Fprintf(w, `{"_df":"%x","_v":`, cinfo.Disamb)
-	if err := cdc.encodeReflectJSON(w, cinfo, crv, opts); err != nil {
+	// TODO: (@jaekwon, @odeke-em): Fix all this magic, it is unclear what disambiguation
+	// is meant to do and even how to retrieve the appropriate disambiguation
+	// bytes.
+	prefixKey := nameToPrefix(rv.Type().Name())
+	impl := info.Implementers[prefixKey]
+	impl = info.Implementers[info.Prefix]
+	var disfix DisfixBytes
+	if len(impl) > 0 {
+		for _, ti := range impl {
+			if ti.Type.Name() == crt.Name() {
+				disfix = toDisfix(ti.Disamb, ti.Prefix)
+				break
+			}
+		}
+	}
+	fmt.Fprintf(w, `{"_df":"%x","_v":`, disfix)
+	if err := cdc.encodeReflectJSON(w, cinfo, dv, opts); err != nil {
 		return err
 	}
 	_, err = w.Write(bytesCloseBrace)
@@ -137,7 +171,6 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 		_, err := w.Write(bytesOpenCloseBraces)
 		return err
 	}
-	valuesBuf := new(bytes.Buffer)
 	bytesKVPairs := make([][]byte, 0, nf)
 	for i := 0; i < nf; i++ {
 		typField := typ.Field(i)
@@ -153,13 +186,12 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 		if err != nil {
 			return err
 		}
+		valuesBuf := new(bytes.Buffer)
 		if err := cdc.encodeReflectJSONInterface(valuesBuf, info, valField, opts); err != nil {
 			return err
 		}
 
 		valueBlob := valuesBuf.Bytes()
-		// Re-use the valuesBuf
-		valuesBuf.Reset()
 		if omitEmpty && allBlankBytes(valueBlob) {
 			continue
 		}
@@ -232,7 +264,8 @@ func allBlankBytes(b []byte) bool {
 
 func isBlank(v reflect.Value) bool {
 	switch v.Kind() {
-	case reflect.Chan, reflect.Map, reflect.Slice, reflect.Array, reflect.Ptr, reflect.Func:
+	case reflect.Interface, reflect.Chan, reflect.Map, reflect.Slice,
+		reflect.Array, reflect.Ptr, reflect.Func:
 		return v.IsNil()
 	default:
 		return isBlankInterface(v.Interface())
