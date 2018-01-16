@@ -2,13 +2,15 @@ package wire_test
 
 import (
 	"encoding/json"
+	"os"
+	"reflect"
 	"strings"
 	"testing"
 
 	"github.com/tendermint/go-wire"
 )
 
-func TestMarshalJSON(t *testing.T) {
+func TestMain(m *testing.M) {
 	// Register the concrete types first.
 	wire.RegisterConcrete(&Transport{}, "our/transport", nil)
 	wire.RegisterInterface((*Vehicle)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
@@ -17,6 +19,10 @@ func TestMarshalJSON(t *testing.T) {
 	wire.RegisterConcrete(Car(""), "car", nil)   // &wire.ConcreteOptions{Disamb: []byte{0xC, 0xA}})
 	wire.RegisterConcrete(Boat(""), "boat", nil) // &wire.ConcreteOptions{Disamb: []byte{0xB, 0x0, 0xA}})
 
+	os.Exit(m.Run())
+}
+
+func TestMarshalJSON(t *testing.T) {
 	cases := []struct {
 		in      interface{}
 		want    string
@@ -89,6 +95,61 @@ func TestMarshalJSON(t *testing.T) {
 			continue
 		}
 		if g, w := string(blob), tt.want; g != w {
+			t.Errorf("#%d:\ngot:\n\t%s\nwant:\n\t%s", i, g, w)
+		}
+	}
+}
+
+func TestUnmarshalJSON(t *testing.T) {
+	cases := []struct {
+		blob    string
+		in      interface{}
+		want    interface{}
+		wantErr string
+	}{
+		{
+			"null", 2, nil, "expects a pointer",
+		},
+		{
+			"null", new(int), new(int), "",
+		},
+		{
+			"2", new(int), intPtr(2), "",
+		},
+		{
+			`{"2": 2}`, new(map[string]int), nil, "maps are not supported",
+		},
+		{
+			`{"2": 2}`, new(map[string]int), nil, "maps are not supported",
+		},
+		{
+			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":null,"Capacity":0}}`, new(Transport), new(Transport), "",
+		},
+		{
+			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":{"_df":"2B2961A431B23C","_v":"Bugatti"},"Capacity":0}}`,
+			new(Transport),
+			&Transport{
+				Vehicle:  Car("Bugatti"),
+				Capacity: 0,
+			}, "",
+		},
+	}
+
+	for i, tt := range cases {
+		err := wire.UnmarshalJSON([]byte(tt.blob), tt.in)
+		if tt.wantErr != "" {
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("#%d:\ngot:\n\t%q\nwant non-nil error containing\n\t%q", i,
+					err, tt.wantErr)
+			}
+			continue
+		}
+
+		if err != nil {
+			t.Errorf("#%d: unexpected error: %v", i, err)
+			continue
+		}
+		if g, w := tt.in, tt.want; !reflect.DeepEqual(g, w) {
 			t.Errorf("#%d:\ngot:\n\t%s\nwant:\n\t%s", i, g, w)
 		}
 	}

@@ -2,6 +2,7 @@ package wire
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"reflect"
 )
@@ -112,7 +113,16 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 }
 
 func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
-	panic("not implemented yet") // XXX
+	rv, rt := reflect.ValueOf(ptr), reflect.TypeOf(ptr)
+	if rv.Kind() != reflect.Ptr {
+		return errors.New("UnmarshalJSON expects a pointer")
+	}
+	rv, rt = rv.Elem(), rt.Elem()
+	info, err := cdc.getTypeInfo_wlock(rt)
+	if err != nil {
+		return err
+	}
+	return cdc.decodeReflectJSON(bz, info, rv, FieldOptions{})
 }
 
 func (cdc *Codec) UnmarshalJSONLengthPrefixed(bz []byte, ptr interface{}) error {
