@@ -2,7 +2,6 @@ package wire
 
 import (
 	"bytes"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"reflect"
