@@ -1,6 +1,7 @@
 package wire_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"reflect"
@@ -15,9 +16,9 @@ func TestMain(m *testing.M) {
 	wire.RegisterConcrete(&Transport{}, "our/transport", nil)
 	wire.RegisterInterface((*Vehicle)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
 	wire.RegisterInterface((*Asset)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
-	// wire.RegisterConcrete((*interface{})(nil), "interface", nil)
-	wire.RegisterConcrete(Car(""), "car", nil)   // &wire.ConcreteOptions{Disamb: []byte{0xC, 0xA}})
-	wire.RegisterConcrete(Boat(""), "boat", nil) // &wire.ConcreteOptions{Disamb: []byte{0xB, 0x0, 0xA}})
+	wire.RegisterConcrete(Car(""), "car", nil)
+	wire.RegisterConcrete(Boat(""), "boat", nil)
+	wire.RegisterConcrete(Plane{}, "plane", nil)
 
 	os.Exit(m.Run())
 }
@@ -34,7 +35,7 @@ func TestMarshalJSON(t *testing.T) {
 		{&oneExportedField{}, `{"A":""}`, ""},
 		{&oneExportedField{A: "Z"}, `{"A":"Z"}`, ""},
 		{[]string{"a", "bc"}, `["a","bc"]`, ""},
-		{[]interface{}{"a", "bc", 10, 10.93, 1e3}, `["a","bc",10,10.93,1000]`, ""},
+		{[]interface{}{"a", "bc", 10, 10.93, 1e3}, ``, "Unregistered"},
 		{aPointerField{Foo: new(int), Name: "name"}, `{"Foo":0,"nm":"name"}`, ""},
 		{
 			aPointerFieldAndEmbeddedField{intPtr(11), "ap", nil, &oneExportedField{A: "foo"}},
@@ -48,23 +49,22 @@ func TestMarshalJSON(t *testing.T) {
 		},
 		{
 			Transport{},
-			// TODO: Modify me when we've figured out disambiguation for JSON
-			`{"Vehicle":{"_df":"00000000000000","_v":null},"Capacity":0}`, "",
+			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":null,"Capacity":0}}`, "",
 		},
 		{
 			Transport{Vehicle: Car("Bugatti")},
 			// TODO: Modify me when we've figured out disambiguation for JSON
-			`{"Vehicle":{"_df":"00000000000001","_v":"Bugatti"},"Capacity":0}`, "",
+			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":{"_df":"2B2961A431B23C","_v":"Bugatti"},"Capacity":0}}`, "",
 		},
 		{
 			BalanceSheet{Assets: []Asset{Car("Corolla"), insurancePlan(1e7)}},
 			// TODO: Modify me when we've figured out disambiguation for JSON
-			`{"assets":[{"_df":"00000000000001","_v":"Corolla"},{"_df":"00000000000003":"_v":10000000}]}`, "",
+			`{"assets":[{"_df":"2B2961A431B23C","_v":"Corolla"},10000000]}`, "",
 		},
 		{
 			Transport{Vehicle: Boat("Poseidon"), Capacity: 1789},
 			// TODO: Modify me when we've figured out disambiguation for JSON
-			`{"Vehicle":{"_df":"00000000000002","_v":"Poseidon"},"Capacity":1789}`, "",
+			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":{"_df":"25CDB46D8D2115","_v":"Poseidon"},"Capacity":1789}}`, "",
 		},
 		{
 			withCustomMarshaler{A: &aPointerField{Foo: intPtr(12)}, F: customJSONMarshaler(10)},
@@ -91,7 +91,7 @@ func TestMarshalJSON(t *testing.T) {
 		}
 
 		if err != nil {
-			t.Errorf("#%d: unexpected error: %v", i, err)
+			t.Errorf("#%d: unexpected error: %v\nblob: %v", i, err, tt.in)
 			continue
 		}
 		if g, w := string(blob), tt.want; g != w {
@@ -120,18 +120,39 @@ func TestUnmarshalJSON(t *testing.T) {
 			`{"2": 2}`, new(map[string]int), nil, "maps are not supported",
 		},
 		{
-			`{"2": 2}`, new(map[string]int), nil, "maps are not supported",
+			`{"null"}`, new(int), nil, "invalid character",
 		},
 		{
 			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":null,"Capacity":0}}`, new(Transport), new(Transport), "",
 		},
 		{
-			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":{"_df":"2B2961A431B23C","_v":"Bugatti"},"Capacity":0}}`,
+			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":{"_df":"2B2961A431B23C","_v":"Bugatti"},"Capacity":10}}`,
 			new(Transport),
 			&Transport{
 				Vehicle:  Car("Bugatti"),
-				Capacity: 0,
+				Capacity: 10,
 			}, "",
+		},
+		{
+			`{"_df":"2B2961A431B23C","_v":"Bugatti"}`, new(Car), func() *Car { c := Car("Bugatti"); return &c }(), "",
+		},
+		{
+			`[1, 2, 3]`, new([]int), func() interface{} {
+				v := []int{1, 2, 3}
+				return &v
+			}(), "",
+		},
+		{
+			`["1", "2", "3"]`, new([]string), func() interface{} {
+				v := []string{"1", "2", "3"}
+				return &v
+			}(), "",
+		},
+		{
+			`[1, "2", ["foo", "bar"]]`, new([]interface{}), nil, "Unregistered",
+		},
+		{
+			`2.34`, floatPtr(2.34), nil, "float* support requires",
 		},
 	}
 
@@ -146,17 +167,97 @@ func TestUnmarshalJSON(t *testing.T) {
 		}
 
 		if err != nil {
-			t.Errorf("#%d: unexpected error: %v", i, err)
+			t.Errorf("#%d: unexpected error: %v\nblob: %q", i, err, tt.blob)
 			continue
 		}
 		if g, w := tt.in, tt.want; !reflect.DeepEqual(g, w) {
-			t.Errorf("#%d:\ngot:\n\t%s\nwant:\n\t%s", i, g, w)
+			gb, _ := json.MarshalIndent(g, "", "  ")
+			wb, _ := json.MarshalIndent(w, "", "  ")
+			t.Errorf("#%d:\ngot:\n\t%#v\n(%s)\n\nwant:\n\t%#v\n(%s)", i, g, gb, w, wb)
+		}
+	}
+}
+
+func TestJSONCodecRoundTrip(t *testing.T) {
+	type allInclusive struct {
+		Tr      Transport `json:"trx"`
+		Vehicle Vehicle   `json:"v,omitempty"`
+		Comment string
+		Data    []byte
+	}
+
+	cases := []struct {
+		in      interface{}
+		want    interface{}
+		out     interface{}
+		wantErr string
+	}{
+		0: {
+			in: &allInclusive{
+				Tr: Transport{
+					Vehicle: Boat("Oracle"),
+				},
+				Comment: "To the Cosmos! баллинг в космос",
+				Data:    []byte("祝你好运"),
+			},
+			out: new(allInclusive),
+			want: &allInclusive{
+				Tr: Transport{
+					Vehicle: Boat("Oracle"),
+				},
+				Comment: "To the Cosmos! баллинг в космос",
+				Data:    []byte("祝你好运"),
+			},
+		},
+
+		1: {
+			in:   Transport{Vehicle: Plane{Name: "G6", MaxAltitude: 51e3}, Capacity: 18},
+			out:  new(Transport),
+			want: &Transport{Vehicle: Plane{Name: "G6", MaxAltitude: 51e3}, Capacity: 18},
+		},
+	}
+
+	for i, tt := range cases {
+		mBlob, err := wire.MarshalJSON(tt.in)
+		if tt.wantErr != "" {
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("#%d:\ngot:\n\t%q\nwant non-nil error containing\n\t%q", i,
+					err, tt.wantErr)
+			}
+			continue
+		}
+
+		if err != nil {
+			t.Errorf("#%d: unexpected error after MarshalJSON: %v", i, err)
+			continue
+		}
+
+		if err := wire.UnmarshalJSON(mBlob, tt.out); err != nil {
+			t.Errorf("#%d: unexpected error after UnmarshalJSON: %v\nmBlob: %s", i, err, mBlob)
+			continue
+		}
+
+		// Now check that the input is exactly equal to the output
+		uBlob, err := wire.MarshalJSON(tt.out)
+		if err := wire.UnmarshalJSON(mBlob, tt.out); err != nil {
+			t.Errorf("#%d: unexpected error after second MmarshalJSON: %v", i, err)
+			continue
+		}
+		if !reflect.DeepEqual(tt.want, tt.out) {
+			t.Errorf("#%d: After roundtrip UnmarshalJSON\ngot: \t%v\nwant:\t%v", i, tt.out, tt.want)
+		}
+		if !bytes.Equal(mBlob, uBlob) {
+			t.Errorf("#%d: After roundtrip MarshalJSON\ngot: \t%s\nwant:\t%s", i, uBlob, mBlob)
 		}
 	}
 }
 
 func intPtr(i int) *int {
 	return &i
+}
+
+func floatPtr(f float64) *float64 {
+	return &f
 }
 
 type noFields struct{}
@@ -219,8 +320,11 @@ type BalanceSheet struct {
 
 type Car string
 type Boat string
-type Plane int
-type insurancePlan float64
+type Plane struct {
+	Name        string
+	MaxAltitude int64
+}
+type insurancePlan int
 
 func (ip insurancePlan) Value() float64 { return float64(ip) }
 
