@@ -2,6 +2,8 @@ package wire
 
 import (
 	"bytes"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"reflect"
 )
@@ -25,9 +27,6 @@ func MarshalJSON(o interface{}) ([]byte, error) {
 }
 func UnmarshalJSON(bz []byte, ptr interface{}) error {
 	return gCodec.UnmarshalJSON(bz, ptr)
-}
-func UnmarshalJSONLengthPrefixed(bz []byte, ptr interface{}) error {
-	return gCodec.UnmarshalJSONLengthPrefixed(bz, ptr)
 }
 func RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
 	gCodec.RegisterInterface(ptr, opts)
@@ -93,14 +92,26 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) erro
 	panic("not implemented yet") // XXX
 }
 
+// XXX This is a stub.
 func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
-	panic("not implemented yet") // XXX
+	bz, err := cdc.MarshalBinary(o)
+	if err != nil {
+		return nil, err
+	}
+	// ¯\_(ツ)_/¯
+	return []byte(`"` + hex.EncodeToString(bz) + `"`), nil
 }
 
-func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
-	panic("not implemented yet") // XXX
-}
-
-func (cdc *Codec) UnmarshalJSONLengthPrefixed(bz []byte, ptr interface{}) error {
-	panic("not implemented yet") // XXX
+// XXX This is a stub.
+func (cdc *Codec) UnmarshalJSON(jsonBz []byte, ptr interface{}) error {
+	if jsonBz[0] != '"' || jsonBz[len(jsonBz)-1] != '"' {
+		return errors.New("Unexpected json bytes, expected an opaque hex-string as a stub.")
+	}
+	bz, err := hex.DecodeString(string(jsonBz[1 : len(jsonBz)-1]))
+	if err != nil {
+		return err
+	}
+	// ¯\_(ツ)_/¯
+	err = cdc.UnmarshalBinary(bz, ptr)
+	return err
 }
