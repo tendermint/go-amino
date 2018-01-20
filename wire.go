@@ -107,7 +107,7 @@ func (cdc *Codec) UnmarshalJSON(jsonBz []byte, ptr interface{}) error {
 	if jsonBz[0] != '"' || jsonBz[len(jsonBz)-1] != '"' {
 		return errors.New("Unexpected json bytes, expected an opaque hex-string as a stub.")
 	}
-	bz, err := hex.DecodeString(string(jsonBz))
+	bz, err := hex.DecodeString(string(jsonBz[1 : len(jsonBz)-1]))
 	if err != nil {
 		return err
 	}
