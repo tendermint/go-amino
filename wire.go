@@ -2,6 +2,7 @@ package wire
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -64,13 +65,25 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) erro
 	panic("not implemented yet") // XXX
 }
 
+var (
+	marshalerType   = reflect.TypeOf(new(json.Marshaler)).Elem()
+	unmarshalerType = reflect.TypeOf(new(json.Unmarshaler)).Elem()
+)
+
 func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
-	w := new(bytes.Buffer)
 	rv := reflect.ValueOf(o)
 	if rv.Kind() == reflect.Invalid {
 		return []byte("null"), nil
 	}
 	rt := rv.Type()
+
+	// If the type implements json.Marshaler, just
+	// automatically respect that and skip to it.
+	if rv.Type().Implements(marshalerType) {
+		return rv.Interface().(json.Marshaler).MarshalJSON()
+	}
+
+	w := new(bytes.Buffer)
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return nil, err

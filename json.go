@@ -38,6 +38,8 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	return err
 }
 
+// _encodeReflectJSON is a helper method invoked by encodeReflection where
+// the latter method is for the disambiguation and the top-level error handling.
 func (cdc *Codec) _encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	var foundPointer = false
 	// Dereference pointers all the way if any.
@@ -143,6 +145,17 @@ func safeElem(v reflect.Value) reflect.Value {
 }
 
 func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
+	// If the type implements json.Marshaler, just
+	// automatically respect that and skip to it.
+	if rv.Type().Implements(marshalerType) {
+		blob, err := rv.Interface().(json.Marshaler).MarshalJSON()
+		if err != nil {
+			return err
+		}
+		_, err = w.Write(blob)
+		return err
+	}
+
 	if safeIsNil(rv) {
 		_, err := w.Write(bytesNull)
 		return err
@@ -482,10 +495,20 @@ func invokeStdlibJSONUnmarshal(bz []byte, info *TypeInfo, rv reflect.Value, opts
 	return nil
 }
 
+func itsPtrImplements(v reflect.Value, check reflect.Type) bool {
+	return v.Kind() != reflect.Ptr && reflect.PtrTo(v.Type()).Implements(check)
+}
+
 // *** Decoding/UnmarshalJSON ***
 func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
+	}
+
+	// If the type implements json.Unmarshaler, just
+	// automatically respect that and skip to it.
+	if ok, err := processIfUnmarshaler(bz, rv); ok || err != nil {
+		return err
 	}
 
 	// Special case for nil
@@ -520,6 +543,7 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv refle
 	}
 
 	crv, rvSet := constructConcreteType(cinfo)
+
 	// Read into crv.
 	if err := cdc.decodeReflectJSON(bz, cinfo, crv, opts); err != nil {
 		return err
@@ -586,11 +610,33 @@ func (cdc *Codec) decodeReflectJSONArrayOrSlice(bz []byte, info *TypeInfo, rv re
 	return nil
 }
 
+// processIfUnmarshaler checks if the type or its pointer
+// to implements json.Unmarshaler and if so, invokes it.
+func processIfUnmarshaler(bz []byte, rv reflect.Value) (unmarshalable bool, err error) {
+	if rv.Type().Implements(unmarshalerType) {
+		return true, rv.Interface().(json.Unmarshaler).UnmarshalJSON(bz)
+	} else if itsPtrImplements(rv, unmarshalerType) {
+		// Otherwise check if its pointer implements it
+		rvPtr := rv.Addr()
+		if err := rvPtr.Interface().(json.Unmarshaler).UnmarshalJSON(bz); err != nil {
+			return true, err
+		}
+		rv.Set(rvPtr.Elem())
+		return true, nil
+	}
+
+	return false, nil
+}
+
 func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
 	typ := rv.Type()
 	nf := typ.NumField()
 	if nf == 0 {
 		return nil
+	}
+
+	if ok, err := processIfUnmarshaler(bz, rv); ok || err != nil {
+		return err
 	}
 
 	// Map all the fields(keys) to their blobs/bytes.

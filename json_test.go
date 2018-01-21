@@ -24,6 +24,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestMarshalJSON(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in      interface{}
 		want    string
@@ -78,6 +79,14 @@ func TestMarshalJSON(t *testing.T) {
 
 		// We don't yet support interface pointer registration i.e. `*interface{}`
 		{interfacePtr("a"), "", "Unregistered interface interface {}"},
+
+		{&fp{"Foo", 10}, "<FP-MARSHALJSON>", ""},
+		{(*fp)(nil), "<FP-MARSHALJSON>", ""},
+		{struct {
+			FP      *fp
+			Package string
+		}{FP: &fp{"Foo", 10}, Package: "bytes"},
+			`{"FP":<FP-MARSHALJSON>,"Package":"bytes"}`, ""},
 	}
 
 	for i, tt := range cases {
@@ -100,7 +109,30 @@ func TestMarshalJSON(t *testing.T) {
 	}
 }
 
+type fp struct {
+	Name    string
+	Version int
+}
+
+func (f *fp) MarshalJSON() ([]byte, error) {
+	return []byte("<FP-MARSHALJSON>"), nil
+}
+
+func (f *fp) UnmarshalJSON(blob []byte) error {
+	f.Name = string(blob)
+	return nil
+}
+
+var _ json.Marshaler = (*fp)(nil)
+var _ json.Unmarshaler = (*fp)(nil)
+
+type innerFP struct {
+	PC uint64
+	FP *fp
+}
+
 func TestUnmarshalJSON(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		blob    string
 		in      interface{}
@@ -154,6 +186,11 @@ func TestUnmarshalJSON(t *testing.T) {
 		{
 			`2.34`, floatPtr(2.34), nil, "float* support requires",
 		},
+
+		{"<FooBar>", new(fp), &fp{"<FooBar>", 0}, ""},
+		{"10", new(fp), &fp{Name: "10"}, ""},
+		{`{"PC":125,"FP":"10"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name:`"10"`}}, ""},
+		{`{"PC":125,"FP":"<FP-FOO>"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name:`"<FP-FOO>"`}}, ""},
 	}
 
 	for i, tt := range cases {
