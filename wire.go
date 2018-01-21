@@ -9,33 +9,6 @@ import (
 )
 
 //----------------------------------------
-// Global entrypoint
-
-var gCodec = NewCodec()
-
-func MarshalBinary(o interface{}) ([]byte, error) {
-	return gCodec.MarshalBinary(o)
-}
-func UnmarshalBinary(bz []byte, ptr interface{}) error {
-	return gCodec.UnmarshalBinary(bz, ptr)
-}
-func UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) error {
-	return gCodec.UnmarshalBinaryLengthPrefixed(bz, ptr)
-}
-func MarshalJSON(o interface{}) ([]byte, error) {
-	return gCodec.MarshalJSON(o)
-}
-func UnmarshalJSON(bz []byte, ptr interface{}) error {
-	return gCodec.UnmarshalJSON(bz, ptr)
-}
-func RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
-	gCodec.RegisterInterface(ptr, opts)
-}
-func RegisterConcrete(o interface{}, name string, opts *ConcreteOptions) {
-	gCodec.RegisterConcrete(o, name, opts)
-}
-
-//----------------------------------------
 // *Codec methods
 
 // For consistency, MarshalBinary will first dereference pointers
