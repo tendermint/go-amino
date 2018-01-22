@@ -291,8 +291,8 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 
 	// Read disambiguation / prefix bytes but do not consume the prefix bytes.
 	disfix, hasDisamb, prefix, hasPrefix, isNil, _, err := decodeDisambPrefixBytes(bz)
-	if hasDisamb {
-		n += DisfixBytesLen
+	if isNil || hasDisamb {
+		n += 1 + DisambBytesLen
 	}
 	if err != nil {
 		return
@@ -832,7 +832,7 @@ func decodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBy
 	}
 	if bz[0] == 0x00 {
 		// Special case: nil
-		if bytes.Equal(bz[1:3], []byte{0x00, 0x00, 0x00}) {
+		if bytes.Equal(bz[1:4], []byte{0x00, 0x00, 0x00}) {
 			isNil = true
 			n = 4
 			return
