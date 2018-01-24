@@ -804,18 +804,27 @@ func NameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
 	return nameToDisfix(name)
 }
 
+func trimNullBytesPrefix(bz []byte) {
+	i := 0
+	for i < len(bz) {
+		if bz[i] != 0x00 {
+			break
+		}
+		i++
+	}
+	if i >= 1 {
+		bz = bz[i:]
+	}
+}
+
 func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
 	hasher := sha256.New()
 	hasher.Write([]byte(name))
 	bz := hasher.Sum(nil)
-	for bz[0] == 0x00 {
-		bz = bz[1:]
-	}
+	trimNullBytesPrefix(bz)
 	copy(db[:], bz[0:3])
 	bz = bz[3:]
-	for bz[0] == 0x00 {
-		bz = bz[1:]
-	}
+	trimNullBytesPrefix(bz)
 	copy(pb[:], bz[0:4])
 	return
 }
