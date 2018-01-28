@@ -1,9 +1,107 @@
 # Wire encoding for Golang
 
-This software implements Go bindings for the Wire encoding protocol.
-The goal of the Wire encoding protocol is to be a simple language-agnostic encoding protocol for rapid prototyping of blockchain applications.
+This software implements Go bindings for the Wire encoding protocol.  The goal
+of the Wire encoding protocol is to be a simple language-agnostic encoding
+protocol for rapid prototyping of blockchain applications.
 
 This package also includes a compatible (and slower) JSON codec.
+
+## Interfaces and concrete types
+
+Wire is an encoding library that can handle interfaces (like protobuf "oneof")
+well.  This is achieved by prefixing bytes before each "concrete type".
+
+A concrete type is some non-interface value (generally a struct) which
+implements the interface to be (de)serialized. Not all structures need to be
+registered as concrete types -- only when they will be stored in interface type
+fields (or interface type slices) do they need to be registered.
+
+### Registering types
+
+All interfaces and the concrete types that implement them must be registered.
+
+```golang
+wire.RegisterInterface((*MyInterface1)(nil), nil)
+wire.RegisterInterface((*MyInterface2)(nil), nil)
+wire.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)
+wire.RegisterConcrete(MyStruct2{}, "com.tendermint/MyStruct2", nil)
+wire.RegisterConcrete(&MyStruct3{}, "anythingcangoinhereifitsunique", nil)
+```
+
+Notice that an interface is represented by a nil pointer.
+
+Structures that must be deserialized as pointer values must be registered with
+a pointer value as well.  It's OK to (de)serialize such structures in
+non-pointer (value) form, but when deserializing such structures into an
+interface field, they will always be deserialized as pointers.
+
+### How it works
+
+All registered concrete types are encoded with leading 4 bytes (called "prefix
+bytes"), even when it's not held in an interface field/element.  In this way,
+Wire ensures that concrete types (almost) always have the same canonical
+representation.  The first byte of the prefix bytes must not be a zero byte, so
+there are 2^(8x4)-2^(8x3) possible values.
+
+When there are 4096 types registered at once, the probability of there being a
+conflict is ~ 0.2%. See https://instacalc.com/51189 for estimation.  This is
+assuming that all registered concrete types have unique natural names (e.g.
+prefixed by a unique entity name such as "com.tendermint/", and not
+"mined/grinded" to produce a particular sequence of "prefix bytes").
+
+TODO Update instacalc.com link with 255/256 since 0x00 is an escape.
+
+Do not mine/grind to produce a particular sequence of prefix bytes, and avoid
+using dependencies that do so.
+
+Since 4 bytes are not sufficient to ensure no conflicts, sometimes it is
+necessary to prepend more than the 4 prefix bytes for disambiguation.  Like the
+prefix bytes, the disambiguation bytes are also computed from the registered
+name of the concrete type.  There are 3 disambiguation bytes, and in binary
+form they always precede the prefix bytes.  The first byte of the
+disambiguation bytes must not be a zero byte, so there are 2^(8x3)-2^(8x2)
+possible values.
+
+```
+// Sample Wire encoded binary bytes with 4 prefix bytes.
+> [0xBB 0x9C 0x83 0xDD] [...]
+
+// Sample Wire encoded binary bytes with 3 disambiguation bytes and 4
+// prefix bytes.
+> 0x00 <0xA8 0xFC 0x54> [0xBB 0x9C 0x83 0xDD] [...]
+```
+
+The prefix bytes never start with a zero byte, so the disambiguation bytes are
+escaped with 0x00.
+
+Notice that the 4 prefix bytes always immediately precede the binary encoding
+of the concrete type.
+
+### Computing prefix bytes
+
+To compute the disambiguation bytes, we take `hash := sha256(concreteTypeName)`,
+and drop the leading 0x00 bytes.
+
+```
+> hash := sha256("com.tendermint.consensus/MyConcreteName")
+> hex.EncodeBytes(hash) // 0x{00 00 A8 FC 54 00 00 00 BB 9C 83 DD ...} (example)
+```
+
+In the example above, hash has two leading 0x00 bytes, so we drop them.
+
+```
+> rest = dropLeadingZeroBytes(hash) // 0x{A8 FC 54 00 00 BB 9C 83 DD ...}
+> disamb = rest[0:3]
+> rest = dropLeadingZeroBytes(rest[3:])
+> prefix = rest[0:4]
+```
+
+The first 3 bytes are called the "disambiguation bytes" (in angle brackets).
+The next 4 bytes are called the "prefix bytes" (in square brackets).
+
+```
+> <0xA8 0xFC 0x54> [0xBB 0x9C 9x83 9xDD]
+```
 
 ### Supported types
 
@@ -26,177 +124,18 @@ If you need to encode/decode maps of arbitrary key-value pairs, encode an array 
 
 **Enums**: Enum types are not supported in all languages, and they're simple enough to model as integers anyways.
 
-### A struct example
+## Forward and Backward compatibility
 
-Struct types can be automatically encoded with reflection.  Unlike json-encoding, no field
-name or type information is encoded.  Field values are simply encoded in order.
+TODO
 
-```go
-package main
+## Wire vs JSON
 
-import (
-  "bytes"
-  "fmt"
-  "math"
-  "github.com/tendermint/go-wire"
-)
+TODO
 
-type Foo struct {
-  MyString       string
-  MyUint32       uint32
-  myPrivateBytes []byte
-}
+## Wire vs Protobuf
 
-func main() {
+TODO
 
-  foo := Foo{"my string", math.MaxUint32, []byte("my private bytes")}
+## Wire in other langauges
 
-  buf, n, err := new(bytes.Buffer), int(0), error(nil)
-  wire.WriteBinary(foo, buf, &n, &err)
-
-  fmt.Printf("%X\n", buf.Bytes())
-}
-```
-
-The above example prints:
-
-```
-01096D7920737472696E67FFFFFFFF, where
-
-0109                            is the varint encoding of the length of string "my string"
-    6D7920737472696E67          is the bytes of string "my string"
-                      FFFFFFFF  is the bytes for math.MaxUint32, a uint32
-```
-
-Note that the unexported "myPrivateBytes" isn't encoded.
-
-### An interface example
-
-Here's an example with interfaces.
-
-```go
-package main
-
-import (
-  "bytes"
-  "fmt"
-  "github.com/tendermint/go-wire"
-)
-
-type Animal interface{}
-type Dog struct{ Name string }
-type Cat struct{ Name string }
-type Cow struct{ Name string }
-
-var _ = wire.RegisterInterface(
-  struct{ Animal }{},
-  wire.ConcreteType{Dog{}, 0x01}, // type-byte of 0x01 for Dogs
-  wire.ConcreteType{Cat{}, 0x02}, // type-byte of 0x02 for Cats
-  wire.ConcreteType{Cow{}, 0x03}, // type-byte of 0x03 for Cows
-)
-
-func main() {
-
-  animals := []Animal{
-    Dog{"Snoopy"},
-    Cow{"Daisy"},
-  }
-
-  buf, n, err := new(bytes.Buffer), int(0), error(nil)
-  wire.WriteBinary(animals, buf, &n, &err)
-
-  fmt.Printf("%X\n", buf.Bytes())
-}
-```
-
-The above example prints:
-
-```
-0102010106536E6F6F70790301054461697379, where
-
-0102                                    is the varint encoding of the length of the array
-    01                                  is the type-byte for a Dog
-      0106                              is the varint encoding of the length of the Dog's name
-          536E6F6F7079                  is the Dog's name "Snoopy"
-                      03                is the type-byte for a Cow
-                        0105            is the varint encoding of the length of the Cow's name
-                            4461697379  is the Cow's name "Daisy"
-```
-
-### A pointer example
-
-Here's an example with pointers (and interfaces too).
-
-```go
-package main
-
-import (
-	"bytes"
-	"fmt"
-	"github.com/tendermint/go-wire"
-)
-
-type Animal interface{}
-type Dog struct{ Name string }
-type Cat struct{ Name string }
-type Cow struct{ Name string }
-
-var _ = wire.RegisterInterface(
-	struct{ Animal }{},
-	wire.ConcreteType{Dog{}, 0x01},  // type-byte of 0x01 for Dogs
-	wire.ConcreteType{&Dog{}, 0x02}, // type-byte of 0x02 for Dog pointers
-)
-
-type MyStruct struct {
-	Field1 Animal
-	Field2 *Dog
-	Field3 *Dog
-}
-
-func main() {
-
-	myStruct := MyStruct{
-		Field1: &Dog{"Snoopy"},
-		Field2: &Dog{"Smappy"},
-		Field3: (*Dog)(nil),
-	}
-
-	buf, n, err := new(bytes.Buffer), int(0), error(nil)
-	wire.WriteBinary(myStruct, buf, &n, &err)
-
-	fmt.Printf("%X\n", buf.Bytes())
-}
-```
-
-The above example prints:
-
-```
-020106536E6F6F7079010106536D6170707900, where
-
-02                                      is the type-byte for a Dog pointer for Field1
-  0106                                  is the varint encoding of the length of the Dog's name
-      536E6F6F7079                      is the Dog's name "Snoopy"
-                  01                    is a byte indicating a non-null pointer for Field2
-                    0106                is the varint encoding of the length of the Dog's name
-                        536D61707079    is the Dog's name "Smappy"
-                                    00  is a byte indicating a null pointer for Field3
-```
-
-Notice that in Field1, that the value is non-null is implied in the type-byte of 0x02.
-While Golang lets you have nil-pointers as interface values, this is a Golang-specific feature that is absent in other OOP languages
-such as Java.  So, Go-Wire does not support nil-pointers for interface values.  The following example would return an error:
-
-```go
-myStruct := MyStruct{
-  Field1: (*Dog)(nil),    // Error!
-  Field2: &Dog{"Smappy"}, // Ok!
-  Field3: (*Dog)(nil),    // Ok!
-}
-
-buf, n, err := new(bytes.Buffer), int(0), error(nil)
-wire.WriteBinary(myStruct, buf, &n, &err)
-fmt.Println(err)
-
-// Unexpected nil-pointer of type main.Dog for registered interface Animal.
-// For compatibility with other languages, nil-pointer interface values are forbidden.
-```
+Coming soon...
