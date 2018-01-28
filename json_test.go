@@ -7,18 +7,22 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/tendermint/go-wire"
 )
 
+var cdc = wire.NewCodec()
+
 func TestMain(m *testing.M) {
 	// Register the concrete types first.
-	wire.RegisterConcrete(&Transport{}, "our/transport", nil)
-	wire.RegisterInterface((*Vehicle)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
-	wire.RegisterInterface((*Asset)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
-	wire.RegisterConcrete(Car(""), "car", nil)
-	wire.RegisterConcrete(Boat(""), "boat", nil)
-	wire.RegisterConcrete(Plane{}, "plane", nil)
+	cdc.RegisterConcrete(&Transport{}, "our/transport", nil)
+	cdc.RegisterInterface((*Vehicle)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
+	cdc.RegisterInterface((*Asset)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
+	cdc.RegisterConcrete(Car(""), "car", nil)
+	cdc.RegisterConcrete(Boat(""), "boat", nil)
+	cdc.RegisterConcrete(Plane{}, "plane", nil)
 
 	os.Exit(m.Run())
 }
@@ -34,6 +38,8 @@ func TestMarshalJSON(t *testing.T) {
 		{&noExportedFields{a: 10, b: "foo"}, "{}", ""},
 		{nil, "null", ""},
 		{&oneExportedField{}, `{"A":""}`, ""},
+		{Vehicle(Car("Tesla")), `{"_df":"2B2961A431B23C","_v":"Tesla"}`, ""},
+		{Car("Tesla"), `{"_df":"2B2961A431B23C","_v":"Tesla"}`, ""},
 		{&oneExportedField{A: "Z"}, `{"A":"Z"}`, ""},
 		{[]string{"a", "bc"}, `["a","bc"]`, ""},
 		{[]interface{}{"a", "bc", 10, 10.93, 1e3}, ``, "Unregistered"},
@@ -42,6 +48,16 @@ func TestMarshalJSON(t *testing.T) {
 			aPointerFieldAndEmbeddedField{intPtr(11), "ap", nil, &oneExportedField{A: "foo"}},
 			`{"Foo":11,"nm":"ap","bz":{"A":"foo"}}`, "",
 		},
+
+		{
+			doublyEmbedded{
+				Inner: &aPointerFieldAndEmbeddedField{
+					intPtr(11), "ap", nil, &oneExportedField{A: "foo"},
+				},
+			},
+			`{"Inner":{"Foo":11,"nm":"ap","bz":{"A":"foo"}},"year":0}`, "",
+		},
+
 		{
 			struct{}{}, `{}`, "",
 		},
@@ -75,7 +91,7 @@ func TestMarshalJSON(t *testing.T) {
 			func() json.Marshaler { v := customJSONMarshaler(10); return &v }(),
 			`"Tendermint"`, "",
 		},
-		{strings.Contains, "", "unsupported type"},
+		{strings.Contains, "", "unsupported"},
 
 		// We don't yet support interface pointer registration i.e. `*interface{}`
 		{interfacePtr("a"), "", "Unregistered interface interface {}"},
@@ -90,7 +106,7 @@ func TestMarshalJSON(t *testing.T) {
 	}
 
 	for i, tt := range cases {
-		blob, err := wire.MarshalJSON(tt.in)
+		blob, err := cdc.MarshalJSON(tt.in)
 		if tt.wantErr != "" {
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Errorf("#%d:\ngot:\n\t%q\nwant non-nil error containing\n\t%q", i,
@@ -107,6 +123,30 @@ func TestMarshalJSON(t *testing.T) {
 			t.Errorf("#%d:\ngot:\n\t%s\nwant:\n\t%s", i, g, w)
 		}
 	}
+}
+
+func TestMarshalJSONWithMonotonicTime(t *testing.T) {
+	var cdc = wire.NewCodec()
+
+	type SimpleStruct struct {
+		String string
+		Bytes  []byte
+		Time   time.Time
+	}
+
+	s := SimpleStruct{
+		String: "hello",
+		Bytes:  []byte("goodbye"),
+		Time:   time.Now().UTC().Truncate(time.Millisecond), // strip monotonic and timezone.
+	}
+
+	b, err := cdc.MarshalJSON(s)
+	assert.Nil(t, err)
+
+	var s2 SimpleStruct
+	err = cdc.UnmarshalJSON(b, &s2)
+	assert.Nil(t, err)
+	assert.Equal(t, s, s2)
 }
 
 type fp struct {
@@ -149,7 +189,7 @@ func TestUnmarshalJSON(t *testing.T) {
 			"2", new(int), intPtr(2), "",
 		},
 		{
-			`{"2": 2}`, new(map[string]int), nil, "maps are not supported",
+			`{"2": 2}`, new(map[string]int), nil, "unsupported",
 		},
 		{
 			`{"null"}`, new(int), nil, "invalid character",
@@ -189,12 +229,12 @@ func TestUnmarshalJSON(t *testing.T) {
 
 		{"<FooBar>", new(fp), &fp{"<FooBar>", 0}, ""},
 		{"10", new(fp), &fp{Name: "10"}, ""},
-		{`{"PC":125,"FP":"10"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name:`"10"`}}, ""},
-		{`{"PC":125,"FP":"<FP-FOO>"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name:`"<FP-FOO>"`}}, ""},
+		{`{"PC":125,"FP":"10"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `"10"`}}, ""},
+		{`{"PC":125,"FP":"<FP-FOO>"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `"<FP-FOO>"`}}, ""},
 	}
 
 	for i, tt := range cases {
-		err := wire.UnmarshalJSON([]byte(tt.blob), tt.in)
+		err := cdc.UnmarshalJSON([]byte(tt.blob), tt.in)
 		if tt.wantErr != "" {
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Errorf("#%d:\ngot:\n\t%q\nwant non-nil error containing\n\t%q", i,
@@ -204,7 +244,7 @@ func TestUnmarshalJSON(t *testing.T) {
 		}
 
 		if err != nil {
-			t.Errorf("#%d: unexpected error: %v\nblob: %q", i, err, tt.blob)
+			t.Errorf("#%d: unexpected error: %v\nblob: %s\nin: %+v\n", i, err, tt.blob, tt.in)
 			continue
 		}
 		if g, w := tt.in, tt.want; !reflect.DeepEqual(g, w) {
@@ -255,7 +295,7 @@ func TestJSONCodecRoundTrip(t *testing.T) {
 	}
 
 	for i, tt := range cases {
-		mBlob, err := wire.MarshalJSON(tt.in)
+		mBlob, err := cdc.MarshalJSON(tt.in)
 		if tt.wantErr != "" {
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Errorf("#%d:\ngot:\n\t%q\nwant non-nil error containing\n\t%q", i,
@@ -269,14 +309,14 @@ func TestJSONCodecRoundTrip(t *testing.T) {
 			continue
 		}
 
-		if err := wire.UnmarshalJSON(mBlob, tt.out); err != nil {
+		if err := cdc.UnmarshalJSON(mBlob, tt.out); err != nil {
 			t.Errorf("#%d: unexpected error after UnmarshalJSON: %v\nmBlob: %s", i, err, mBlob)
 			continue
 		}
 
 		// Now check that the input is exactly equal to the output
-		uBlob, err := wire.MarshalJSON(tt.out)
-		if err := wire.UnmarshalJSON(mBlob, tt.out); err != nil {
+		uBlob, err := cdc.MarshalJSON(tt.out)
+		if err := cdc.UnmarshalJSON(mBlob, tt.out); err != nil {
 			t.Errorf("#%d: unexpected error after second MmarshalJSON: %v", i, err)
 			continue
 		}
@@ -312,6 +352,11 @@ type oneExportedField struct {
 type aPointerField struct {
 	Foo  *int
 	Name string `json:"nm,omitempty"`
+}
+
+type doublyEmbedded struct {
+	Inner *aPointerFieldAndEmbeddedField
+	Year  int64 `json:"year"`
 }
 
 type aPointerFieldAndEmbeddedField struct {

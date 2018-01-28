@@ -77,11 +77,15 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 	}
 	rt := rv.Type()
 
-	// If the type implements json.Marshaler, just
-	// automatically respect that and skip to it.
-	if rv.Type().Implements(marshalerType) {
-		return rv.Interface().(json.Marshaler).MarshalJSON()
-	}
+	// Note that we can't yet skip directly
+	// to checking if a type implements
+	// json.Marshaler because in some cases
+	// var s GenericInterface = t1(v1)
+	// var t GenericInterface = t2(v1)
+	// but we need to be able to encode
+	// both s and t disambiguated, so:
+	//    {"_df":<disfix>, "_v":<data>}
+	// for the above case.
 
 	w := new(bytes.Buffer)
 	info, err := cdc.getTypeInfo_wlock(rt)
@@ -95,25 +99,23 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 }
 
 func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
-	rv, rt := reflect.ValueOf(ptr), reflect.TypeOf(ptr)
+	rv := reflect.ValueOf(ptr)
 	if rv.Kind() != reflect.Ptr {
 		return errors.New("UnmarshalJSON expects a pointer")
 	}
 
 	// If the type implements json.Unmarshaler, just
 	// automatically respect that and skip to it.
-	if rv.Type().Implements(unmarshalerType) {
-		return rv.Interface().(json.Unmarshaler).UnmarshalJSON(bz)
-	}
+	// if rv.Type().Implements(unmarshalerType) {
+	// 	return rv.Interface().(json.Unmarshaler).UnmarshalJSON(bz)
+	// }
 
-	rv, rt = rv.Elem(), rt.Elem()
+	// 1. Dereference until we find the first addressable type.
+	rv = rv.Elem()
+	rt := rv.Type()
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return err
 	}
 	return cdc.decodeReflectJSON(bz, info, rv, FieldOptions{})
-}
-
-func (cdc *Codec) UnmarshalJSONLengthPrefixed(bz []byte, ptr interface{}) error {
-	panic("not implemented yet") // XXX
 }

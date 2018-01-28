@@ -311,12 +311,8 @@ func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 	info.PtrToType = reflect.PtrTo(rt)
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
-	// info.InterfaceInfo =
 	info.ConcreteInfo.PointerPreferred = false
 	info.ConcreteInfo.Registered = false
-	// info.ConcreteInfo.Name =
-	// info.ConcreteInfo.Prefix =
-	// info.ConcreteInfo.Disamb =
 	info.ConcreteInfo.Fields = cdc.parseFieldInfos(rt)
 	return info
 }

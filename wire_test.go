@@ -33,29 +33,3 @@ func TestMarshalBinary(t *testing.T) {
 	assert.Equal(t, s, s2)
 
 }
-
-func TestMarshalJSON(t *testing.T) {
-
-	var cdc = wire.NewCodec()
-
-	type SimpleStruct struct {
-		String string
-		Bytes  []byte
-		Time   time.Time
-	}
-
-	s := SimpleStruct{
-		String: "hello",
-		Bytes:  []byte("goodbye"),
-		Time:   time.Now().UTC().Truncate(time.Millisecond), // strip monotonic and timezone.
-	}
-
-	b, err := cdc.MarshalJSON(s)
-	assert.Nil(t, err)
-
-	var s2 SimpleStruct
-	err = cdc.UnmarshalJSON(b, &s2)
-	assert.Nil(t, err)
-	assert.Equal(t, s, s2)
-
-}
