@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.0 (Jan 28, 2018)
+
+BREAKING CHANGE:
+ - New Disamb/Prefix system
+ - Marshal/Unmarshal Binary/JSON
+ - JSON is a shim but PR incoming
+
 ## 0.7.2 (Dec 5, 2017)
 
 IMPROVEMENTS:
