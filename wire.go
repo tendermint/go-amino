@@ -2,7 +2,7 @@ package wire
 
 import (
 	"bytes"
-	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -65,26 +65,57 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) erro
 	panic("not implemented yet") // XXX
 }
 
-// XXX This is a stub.
+var (
+	marshalerType   = reflect.TypeOf(new(json.Marshaler)).Elem()
+	unmarshalerType = reflect.TypeOf(new(json.Unmarshaler)).Elem()
+)
+
 func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
-	bz, err := cdc.MarshalBinary(o)
+	rv := reflect.ValueOf(o)
+	if rv.Kind() == reflect.Invalid {
+		return []byte("null"), nil
+	}
+	rt := rv.Type()
+
+	// Note that we can't yet skip directly
+	// to checking if a type implements
+	// json.Marshaler because in some cases
+	// var s GenericInterface = t1(v1)
+	// var t GenericInterface = t2(v1)
+	// but we need to be able to encode
+	// both s and t disambiguated, so:
+	//    {"_df":<disfix>, "_v":<data>}
+	// for the above case.
+
+	w := new(bytes.Buffer)
+	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return nil, err
 	}
-	// ¯\_(ツ)_/¯
-	return []byte(`"` + hex.EncodeToString(bz) + `"`), nil
+	if err := cdc.encodeReflectJSON(w, info, rv, FieldOptions{}); err != nil {
+		return nil, err
+	}
+	return w.Bytes(), nil
 }
 
-// XXX This is a stub.
-func (cdc *Codec) UnmarshalJSON(jsonBz []byte, ptr interface{}) error {
-	if jsonBz[0] != '"' || jsonBz[len(jsonBz)-1] != '"' {
-		return errors.New("Unexpected json bytes, expected an opaque hex-string as a stub.")
+func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
+	rv := reflect.ValueOf(ptr)
+	if rv.Kind() != reflect.Ptr {
+		return errors.New("UnmarshalJSON expects a pointer")
 	}
-	bz, err := hex.DecodeString(string(jsonBz[1 : len(jsonBz)-1]))
+
+	// If the type implements json.Unmarshaler, just
+	// automatically respect that and skip to it.
+	// if rv.Type().Implements(unmarshalerType) {
+	// 	return rv.Interface().(json.Unmarshaler).UnmarshalJSON(bz)
+	// }
+
+	// 1. Dereference until we find the first addressable type.
+	rv = rv.Elem()
+	rt := rv.Type()
+	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return err
 	}
-	// ¯\_(ツ)_/¯
-	err = cdc.UnmarshalBinary(bz, ptr)
-	return err
+	return cdc.decodeReflectJSON(bz, info, rv, FieldOptions{})
 }
