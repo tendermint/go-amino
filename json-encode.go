@@ -16,7 +16,8 @@ import (
 
 // *** Encoding/MarshalJSON ***
 func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
-	disambiguate := rv.Kind() != reflect.Interface && (info.Registered || info.AlwaysDisambiguate)
+
+	var disambiguate = info.Registered
 	if disambiguate {
 		// Write the disfix
 		disfix := toDisfix(info.Disamb, info.Prefix)
@@ -135,50 +136,44 @@ func (cdc *Codec) encodeReflectJSONArrayOrSlice(w io.Writer, info *TypeInfo, rv 
 	return err
 }
 
-func safeElem(v reflect.Value) reflect.Value {
-	// As per https://golang.org/pkg/reflect/#Value.Elem
-	// Elem can only be invoked on an interface or a pointer.
-	if v.Kind() == reflect.Interface || v.Kind() == reflect.Ptr {
-		return v.Elem()
-	}
-	return v
-}
-
-func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
+func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	if safeIsNil(rv) {
-		_, err := w.Write(bytesNull)
+		_, err = w.Write(bytesNull)
 		return err
 	}
 
 	// If the type implements json.Marshaler, just
 	// automatically respect that and skip to it.
 	if rv.Type().Implements(marshalerType) {
-		blob, err := rv.Interface().(json.Marshaler).MarshalJSON()
+		var blob []byte
+		blob, err = rv.Interface().(json.Marshaler).MarshalJSON()
 		if err != nil {
-			return err
+			return
 		}
 		_, err = w.Write(blob)
-		return err
+		return
 	}
 
-	// Concrete reflect value
-	crv := safeElem(rv)
-
-	crv, err := deref(crv, info)
+	// Get concrete non-pointer reflect value & type.
+	var crv = rv.Elem()
+	crv, err = derefForInterface(crv, iinfo)
 	if err != nil {
-		return err
+		return
 	}
-	crt := crv.Type()
+	var crt = crv.Type()
 
 	// Retrieve *TypeInfo for concrete type.
-	cinfo, err := cdc.getTypeInfo_wlock(crt)
+	var cinfo *TypeInfo
+	cinfo, err = cdc.getTypeInfo_wlock(crt)
 	if err != nil {
-		return err
+		return
 	}
 	if !cinfo.Registered && false { // Hmm, primitive types would be a pain to complain about.
-		return fmt.Errorf("Cannot encode unregistered concrete type %v.", crt)
+		err = fmt.Errorf("Cannot encode unregistered concrete type %v.", crt)
+		return
 	}
-	return cdc.encodeReflectJSON(w, cinfo, crv, opts)
+	err = cdc.encodeReflectJSON(w, cinfo, crv, opts)
+	return
 }
 
 func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {

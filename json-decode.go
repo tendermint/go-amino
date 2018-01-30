@@ -12,65 +12,52 @@ import (
 //----------------------------------------
 // cdc.decodeReflectJSON
 
-// CONTRACT: rv is addressable as per https://golang.org/pkg/reflect/#Value.CanAddr
-func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
-	// By this point, we MUST be dealing with an addressable value.
+// CONTRACT: rv.CanAddr() is true.
+func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	if !rv.CanAddr() {
-		panic("value is not addressable")
+		panic("rv not addressable")
 	}
-
-	// SANITY CHECK
 	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
 		panic("should not happen")
 	}
 
-	disambiguate := rv.Kind() != reflect.Interface && (info.Registered || info.AlwaysDisambiguate)
-	if !disambiguate { // No need for diambiguation, decode as is.
-		return cdc._decodeReflectJSON(bz, info, rv, opts)
+	// No need for disambiguation, decode as is.
+	if !info.Registered {
+		err = cdc._decodeReflectJSON(bz, info, rv, opts)
+		return
 	}
 
-	// Otherwise disambiguation time
-	disfix, restBlob, err := parseDisfixAndData(bz)
+	// Otherwise, disambiguation time.
+	disfix, bz, err := decodeDisfixJSON(bz)
 	if err != nil {
-		return err
+		return
 	}
-	info, err = cdc.getTypeInfoFromDisfix_rlock(disfix)
+	cinfo, err := cdc.getTypeInfoFromDisfix_rlock(disfix)
 	if err != nil {
-		return err
+		return
 	}
 
-	bz = restBlob
 	// And we need to construct the concrete type
 	// that'll then be set into the interface field.
-	crv, _ := constructConcreteType(info)
-	if err := cdc._decodeReflectJSON(bz, info, crv, opts); err != nil {
-		return err
+	var crv, _ = constructConcreteType(cinfo)
+	if err = cdc._decodeReflectJSON(bz, info, crv, opts); err != nil {
+		rv.Set(crv) // Helps with debugging
+		return
 	}
-	rv.Set(crv)
-	return nil
-}
 
-// constructConcreteType creates the concrete value as
-// well as the corresponding settable value for it.
-func constructConcreteType(cinfo *TypeInfo) (crv, rvSet reflect.Value) {
-	// Construct new concrete type.
-	// NOTE: rv.Set() should succeed because it was validated
-	// already during Register[Interface/Concrete].
-	if cinfo.PointerPreferred {
-		cPtrRv := reflect.New(cinfo.Type)
-		crv = cPtrRv.Elem()
-	} else {
-		crv = reflect.New(cinfo.Type).Elem()
-		rvSet = crv
-	}
-	return crv, rvSet
+	// We need to set here, for when !PointerPreferred and the type
+	// is say, an array of bytes (e.g. [32]byte), then we must call
+	// rv.Set() *after* the value was acquired.
+	rv.Set(crv)
+	return
 }
 
 func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
+
 	// If the type implements json.Unmarshaler, just
 	// automatically respect that and skip to it.
-	if ok, err := processIfUnmarshaler(bz, rv); ok || err != nil {
-		return err
+	if rv.Addr().Type().Implements(unmarshalerType) {
+		return rv.Addr().Interface().(json.Unmarshaler).UnmarshalJSON(bz)
 	}
 
 	// Special case for nil for either interface, pointer, slice
@@ -139,6 +126,7 @@ func invokeStdlibJSONUnmarshal(bz []byte, info *TypeInfo, rv reflect.Value, opts
 	return nil
 }
 
+// CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
@@ -146,7 +134,7 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv refle
 
 	// Always drill down and grab its concrete
 	// type information through disambiguation.
-	disfix, restBlob, err := parseDisfixAndData(bz)
+	disfix, bz, err := decodeDisfixJSON(bz)
 	if err != nil {
 		return err
 	}
@@ -155,7 +143,6 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv refle
 	if err != nil {
 		return err
 	}
-	bz = restBlob
 
 	// Create the concrete type since we are dealing with an
 	// interface that we have just disambiguated from above.
@@ -170,7 +157,12 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv refle
 	return nil
 }
 
+// CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) decodeReflectJSONArrayOrSlice(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
+	if !rv.CanAddr() {
+		panic("rv not addressable")
+	}
+
 	bz = bytes.TrimSpace(bz)
 	if nilBytes(bz) {
 		return nil
@@ -210,44 +202,10 @@ func (cdc *Codec) decodeReflectJSONArrayOrSlice(bz []byte, info *TypeInfo, rv re
 	return nil
 }
 
-func safeNil(rv reflect.Value) bool {
-	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
-		return rv.IsNil()
-	default:
-		return false
-	}
-}
-
-// processIfUnmarshaler checks if the type or its pointer
-// to implements json.Unmarshaler and if so, invokes it.
-func processIfUnmarshaler(bz []byte, rv reflect.Value) (unmarshalable bool, err error) {
-	if rv.Type().Implements(unmarshalerType) {
-		if safeNil(rv) {
-			return false, nil
-		}
-		return true, rv.Interface().(json.Unmarshaler).UnmarshalJSON(bz)
-	} else if itsPtrImplements(rv, unmarshalerType) {
-		rvPtr := rv.Addr()
-		// Otherwise check if its pointer implements it
-		if err := rvPtr.Interface().(json.Unmarshaler).UnmarshalJSON(bz); err != nil {
-			return true, err
-		}
-		rv.Set(rvPtr.Elem())
-		return true, nil
-	}
-
-	return false, nil
-}
-
 func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
 	nf := len(info.Fields)
 	if nf == 0 {
 		return nil
-	}
-
-	if ok, err := processIfUnmarshaler(bz, rv); ok || err != nil {
-		return err
 	}
 
 	// Map all the fields(keys) to their blobs/bytes.
@@ -335,16 +293,16 @@ func (dfr *disfixRepr) UnmarshalJSON(b []byte) error {
 
 var blankDisfix DisfixBytes
 
-// parseDisfixAndData helps unravel the disfix and
+// decodeDisfixJSON helps unravel the disfix and
 // the stored data, which are expected in the form:
 // {
 //    "_df": "XXXXXXXXXXXXXXXXX",
 //    "_v":  {}
 // }
-func parseDisfixAndData(bz []byte) (disfix DisfixBytes, dataBytes []byte, err error) {
+func decodeDisfixJSON(bz []byte) (disfix DisfixBytes, dataBytes []byte, err error) {
 	bz = bytes.TrimSpace(bz)
 	if len(bz) < DisfixBytesLen {
-		return disfix, bz, errors.New("parseDisfixAndData: EOF skipping prefix bytes.")
+		return disfix, bz, errors.New("decodeDisfixJSON: EOF skipping prefix bytes.")
 	}
 	dfr := new(disfixRepr)
 	if err := json.Unmarshal(bz, dfr); err != nil {

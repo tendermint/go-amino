@@ -32,6 +32,9 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
+		panic("should not happen")
+	}
 
 	if printLog {
 		spew.Printf("(d) decodeReflectBinary(bz: %X, info: %v, rv: %#v (%v), opts: %v)\n",
@@ -41,8 +44,12 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		}()
 	}
 
-	var _n int
+	// TODO Read the disamb bytes here if necessary.
+	// e.g. rv isn't an interface, and
+	// info.ConcreteType.AlwaysDisambiguate.  But we don't support
+	// this yet.
 
+	// Read the prefix bytes if necessary.
 	if info.Registered {
 		if len(bz) < PrefixBytesLen {
 			err = errors.New("EOF skipping prefix bytes.")
@@ -50,11 +57,6 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		}
 		bz = bz[PrefixBytesLen:]
 		n += PrefixBytesLen
-	}
-
-	// SANITY CHECK
-	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
-		panic("should not happen")
 	}
 
 	// Handle pointer types.
@@ -88,6 +90,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		}
 	}
 
+	var _n int
 	switch info.Type.Kind() {
 
 	//----------------------------------------
@@ -317,29 +320,21 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
-	// Construct new concrete type.
-	// NOTE: rv.Set() should succeed because it was validated
-	// already during Register[Interface/Concrete].
-	var crv reflect.Value
-	var rvSet reflect.Value
-	if cinfo.PointerPreferred {
-		cPtrRv := reflect.New(cinfo.Type)
-		crv = cPtrRv.Elem()
-		rvSet = cPtrRv
-	} else {
-		crv = reflect.New(cinfo.Type).Elem()
-		rvSet = crv
-	}
-
-	// Read into crv.
+	// And we need to construct the concrete type
+	// that'll then be set into the interface field.
+	var crv, rvSet = constructConcreteType(cinfo)
 	var _n int
 	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, opts)
-	slide(bz, &bz, &n, _n)
+	if slide(bz, &bz, &n, _n) && err != nil {
+		rv.Set(rvSet) // Helps with debugging
+		return
+	}
 
 	// We need to set here, for when !PointerPreferred and the type
 	// is say, an array of bytes (e.g. [32]byte), then we must call
 	// rv.Set() *after* the value was acquired.
-	// NOTE: run this even if err != nil, to help debug.
+	// NOTE: rv.Set() should succeed because it was validated
+	// already during Register[Interface/Concrete].
 	rv.Set(rvSet)
 	return
 }
@@ -614,63 +609,48 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	return
 }
 
-func deref(crv reflect.Value, info *TypeInfo) (reflect.Value, error) {
-	// Dereference pointer transparently.
-	// This also works for pointer-pointers.
-	// NOTE: Encoding pointer-pointers only work for no-method interfaces like
-	// `interface{}`.
-	// TODO: Fix up the errors
-	for crv.Kind() == reflect.Ptr {
-		crv = crv.Elem()
-		if crv.Kind() == reflect.Interface {
-			err := fmt.Errorf("Unexpected interface-pointer of type *%v for registered interface %v. Not supported yet.", crv.Type(), info.Type)
-			return crv, err
-		}
-		if !crv.IsValid() {
-			err := fmt.Errorf("Illegal nil-pointer of type %v for registered interface %v. "+
-				"For compatibility with other languages, nil-pointer interface values are forbidden.", crv.Type(), info.Type)
-			return crv, err
-		}
-	}
-	return crv, nil
-}
-
-func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
+func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	if rv.IsNil() {
-		_, err := w.Write([]byte{0x00, 0x00, 0x00, 0x00})
-		return err
+		_, err = w.Write([]byte{0x00, 0x00, 0x00, 0x00})
+		return
 	}
 
-	crv, err := deref(rv, info)
+	// Get concrete non-pointer reflect value & type.
+	var crv = rv.Elem()
+	crv, err = derefForInterface(crv, iinfo)
 	if err != nil {
-		return err
+		return
 	}
-	crt := crv.Type() // non-pointer non-interface concrete type
+	var crt = crv.Type()
 
 	// Get *TypeInfo for concrete type.
 	var cinfo *TypeInfo
 	cinfo, err = cdc.getTypeInfo_wlock(crt)
 	if err != nil {
-		return err
+		return
 	}
 	if !cinfo.Registered {
-		return fmt.Errorf("Cannot encode unregistered concrete type %v.", crt)
+		err = fmt.Errorf("Cannot encode unregistered concrete type %v.", crt)
+		return
 	}
 
 	// Write the disambiguation bytes if needed.
 	var needDisamb bool = false
-	if info.AlwaysDisambiguate {
+	if iinfo.AlwaysDisambiguate {
 		needDisamb = true
-	} else if len(info.Implementers[cinfo.Prefix]) > 1 {
+	} else if len(iinfo.Implementers[cinfo.Prefix]) > 1 {
 		needDisamb = true
 	}
 	if needDisamb {
-		if _, err = w.Write(append([]byte{0x00}, cinfo.Disamb[:]...)); err != nil {
-			return err
+		_, err = w.Write(append([]byte{0x00}, cinfo.Disamb[:]...))
+		if err != nil {
+			return
 		}
 	}
-	return cdc.encodeReflectBinary(w, cinfo, crv, opts)
+
+	err = cdc.encodeReflectBinary(w, cinfo, crv, opts)
+	return
 }
 
 func (cdc *Codec) encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
@@ -804,27 +784,18 @@ func NameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
 	return nameToDisfix(name)
 }
 
-func trimNullBytesPrefix(bz []byte) {
-	i := 0
-	for i < len(bz) {
-		if bz[i] != 0x00 {
-			break
-		}
-		i++
-	}
-	if i >= 1 {
-		bz = bz[i:]
-	}
-}
-
 func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
 	hasher := sha256.New()
 	hasher.Write([]byte(name))
 	bz := hasher.Sum(nil)
-	trimNullBytesPrefix(bz)
+	for bz[0] == 0x00 {
+		bz = bz[1:]
+	}
 	copy(db[:], bz[0:3])
 	bz = bz[3:]
-	trimNullBytesPrefix(bz)
+	for bz[0] == 0x00 {
+		bz = bz[1:]
+	}
 	copy(pb[:], bz[0:4])
 	return
 }
@@ -875,4 +846,43 @@ func slide(bz []byte, bz2 *[]byte, n *int, _n int) bool {
 	*bz2 = bz[_n:]
 	*n += _n
 	return true
+}
+
+// Dereference pointer transparently for interface iinfo.
+// This also works for pointer-pointers.
+func derefForInterface(crv reflect.Value, iinfo *TypeInfo) (reflect.Value, error) {
+	if iinfo.Type.Kind() != reflect.Interface {
+		panic("derefForInterface() expects interface type info")
+	}
+	// NOTE: Encoding pointer-pointers only work for no-method interfaces like
+	// `interface{}`.
+	for crv.Kind() == reflect.Ptr {
+		crv = crv.Elem()
+		if crv.Kind() == reflect.Interface {
+			err := fmt.Errorf("Unexpected interface-pointer of type *%v for registered interface %v. Not supported yet.", crv.Type(), iinfo.Type)
+			return crv, err
+		}
+		if !crv.IsValid() {
+			err := fmt.Errorf("Illegal nil-pointer of type %v for registered interface %v. "+
+				"For compatibility with other languages, nil-pointer interface values are forbidden.", crv.Type(), iinfo.Type)
+			return crv, err
+		}
+	}
+	return crv, nil
+}
+
+// constructConcreteType creates the concrete value as
+// well as the corresponding settable value for it.
+// Return irvSet which should be set on caller's interface rv.
+func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
+	// Construct new concrete type.
+	if cinfo.PointerPreferred {
+		cPtrRv := reflect.New(cinfo.Type)
+		crv = cPtrRv.Elem()
+		irvSet = cPtrRv
+	} else {
+		crv = reflect.New(cinfo.Type).Elem()
+		irvSet = crv
+	}
+	return
 }
