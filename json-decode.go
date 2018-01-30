@@ -24,8 +24,8 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		panic("should not happen")
 	}
 
-	disambiguate := rv.Kind() != reflect.Interface && (info.Registered || info.AlwaysDisambiguate)
-	if !disambiguate { // No need for diambiguation, decode as is.
+	// No need for diambiguation, decode as is.
+	if !info.Registered {
 		return cdc._decodeReflectJSON(bz, info, rv, opts)
 	}
 
