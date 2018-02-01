@@ -32,6 +32,9 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
+		panic("should not happen")
+	}
 
 	if printLog {
 		spew.Printf("(d) decodeReflectBinary(bz: %X, info: %v, rv: %#v (%v), opts: %v)\n",
@@ -41,8 +44,12 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		}()
 	}
 
-	var _n int
+	// TODO Read the disamb bytes here if necessary.
+	// e.g. rv isn't an interface, and
+	// info.ConcreteType.AlwaysDisambiguate.  But we don't support
+	// this yet.
 
+	// Read the prefix bytes if necessary.
 	if info.Registered {
 		if len(bz) < PrefixBytesLen {
 			err = errors.New("EOF skipping prefix bytes.")
@@ -50,11 +57,6 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		}
 		bz = bz[PrefixBytesLen:]
 		n += PrefixBytesLen
-	}
-
-	// SANITY CHECK
-	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
-		panic("should not happen")
 	}
 
 	// Handle pointer types.
@@ -88,6 +90,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		}
 	}
 
+	var _n int
 	switch info.Type.Kind() {
 
 	//----------------------------------------
@@ -317,29 +320,21 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
-	// Construct new concrete type.
-	// NOTE: rv.Set() should succeed because it was validated
-	// already during Register[Interface/Concrete].
-	var crv reflect.Value
-	var rvSet reflect.Value
-	if cinfo.PointerPreferred {
-		cPtrRv := reflect.New(cinfo.Type)
-		crv = cPtrRv.Elem()
-		rvSet = cPtrRv
-	} else {
-		crv = reflect.New(cinfo.Type).Elem()
-		rvSet = crv
-	}
-
-	// Read into crv.
+	// And we need to construct the concrete type
+	// that'll then be set into the interface field.
+	var crv, rvSet = constructConcreteType(cinfo)
 	var _n int
 	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, opts)
-	slide(bz, &bz, &n, _n)
+	if slide(bz, &bz, &n, _n) && err != nil {
+		rv.Set(rvSet) // Helps with debugging
+		return
+	}
 
 	// We need to set here, for when !PointerPreferred and the type
 	// is say, an array of bytes (e.g. [32]byte), then we must call
 	// rv.Set() *after* the value was acquired.
-	// NOTE: run this even if err != nil, to help debug.
+	// NOTE: rv.Set() should succeed because it was validated
+	// already during Register[Interface/Concrete].
 	rv.Set(rvSet)
 	return
 }
@@ -874,4 +869,20 @@ func derefForInterface(crv reflect.Value, iinfo *TypeInfo) (reflect.Value, error
 		}
 	}
 	return crv, nil
+}
+
+// constructConcreteType creates the concrete value as
+// well as the corresponding settable value for it.
+// Return irvSet which should be set on caller's interface rv.
+func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
+	// Construct new concrete type.
+	if cinfo.PointerPreferred {
+		cPtrRv := reflect.New(cinfo.Type)
+		crv = cPtrRv.Elem()
+		irvSet = cPtrRv
+	} else {
+		crv = reflect.New(cinfo.Type).Elem()
+		irvSet = crv
+	}
+	return
 }
