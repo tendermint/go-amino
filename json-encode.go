@@ -16,7 +16,8 @@ import (
 
 // *** Encoding/MarshalJSON ***
 func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
-	disambiguate := rv.Kind() != reflect.Interface && (info.Registered || info.AlwaysDisambiguate)
+
+	var disambiguate = info.Registered
 	if disambiguate {
 		// Write the disfix
 		disfix := toDisfix(info.Disamb, info.Prefix)
