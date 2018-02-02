@@ -1,25 +1,13 @@
-hash: e52278e16c45cec6b1f9bc1dc90603e819dd9f310978ad204c2570a0b46ffbb4
-updated: 2018-02-02T23:06:33.83311916-05:00
+hash: eeba4a21993fd859a68b015a9fdd23ab372615270860989c8fe07db10904469c
+updated: 2018-02-02T23:39:32.85627932-05:00
 imports:
-- name: github.com/clipperhouse/typewriter
-  version: c1a48da378ebb7db1db9f35981b5cc24bf2e5b85
 - name: github.com/davecgh/go-spew
   version: 346938d642f2ec3594ed81d874461961cd0faa76
   subpackages:
   - spew
+testImports:
 - name: github.com/google/gofuzz
   version: 24818f796faf91cd76ec7bddd72458fbced7a6c1
-- name: github.com/pkg/errors
-  version: 645ef00459ed84a119197bfb8d8205042c6df63d
-- name: github.com/tendermint/tmlibs
-  version: 690d6c60701758ab757d11ef674906f64e6b618d
-  subpackages:
-  - common
-- name: golang.org/x/crypto
-  version: edd5e9b0879d13ee6970a50153d85b8fec9f7686
-  subpackages:
-  - ripemd160
-testImports:
 - name: github.com/pmezard/go-difflib
   version: d8ed2627bdf02c080bf22230dbb337003b7aba2d
   subpackages:
