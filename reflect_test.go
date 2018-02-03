@@ -220,6 +220,29 @@ type Concrete3 [4]byte
 
 func (_ Concrete3) AssertInterface1() {}
 
+type interfaceFields struct {
+	F1 Interface1
+	F2 Interface1
+}
+
+func (_ *interfaceFields) AssertInterface1() {}
+
+func TestCodecBinaryRoundTripOnStructFieldNilInterface(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterInterface((*Interface1)(nil), nil)
+	cdc.RegisterConcrete((*interfaceFields)(nil), "interfaceFields", nil)
+
+	i1 := &interfaceFields{F1: new(interfaceFields), F2: nil}
+	bz, err := cdc.MarshalBinary(struct { Interface1 } {i1})
+	assert.Nil(t, err, "unexpected error")
+
+	i2 := new(interfaceFields)
+	err = cdc.UnmarshalBinary(bz, i2)
+
+	assert.Nil(t, err, "unexpected error")
+	require.Equal(t, i1, i2, "i1 and i2 should be the same after decoding")
+}
+
 //-------------------------------------
 // Non-interface tests
 
