@@ -18,6 +18,10 @@ type PrefixBytes [PrefixBytesLen]byte
 type DisambBytes [DisambBytesLen]byte
 type DisfixBytes [DisfixBytesLen]byte // Disamb+Prefix
 
+func (pb PrefixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(pb[:], bz) }
+func (db DisambBytes) EqualBytes(bz []byte) bool { return bytes.Equal(db[:], bz) }
+func (df DisfixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(df[:], bz) }
+
 type TypeInfo struct {
 	Type      reflect.Type // Interface type.
 	PtrToType reflect.Type

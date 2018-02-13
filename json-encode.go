@@ -265,8 +265,17 @@ func jsonFieldKey(f reflect.StructField) (string, bool) {
 	return head, omitEmpty
 }
 
+// XXX remove?
+func trimWhitespace(bz []byte) []byte {
+	for i, b := range bz {
+		if b == ' ' || b == '\n' || b == '\t' || b == '\r' {
+			continue
+		}
+	}
+}
+
 func nilBytes(b []byte) bool {
-	return len(b) == 0 || bytes.Equal(b, bytesNull)
+	return bytes.Equal(b, bytesNull)
 }
 
 func allBlankBytes(b []byte) bool {
