@@ -1,14 +1,13 @@
 package wire
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"reflect"
-	"strings"
-	"unicode"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 //----------------------------------------
@@ -28,7 +27,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	if info.Registered {
 		// Part 1:
 		disfix := toDisfix(info.Disamb, info.Prefix)
-		err = writeStr(w, _fmt(`{%s:"%X",%s:`, disfixKeyQuoted, disfix, dataKeyQuoted))
+		err = writeStr(w, _fmt(`{"_df":"%X","_v":`, disfix))
 		if err != nil {
 			return
 		}
@@ -104,7 +103,7 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 
 	// Special case when rv is nil, just write "null".
 	if rv.IsNil() {
-		err = writeStr(`null`)
+		err = writeStr(w, `null`)
 		return
 	}
 
@@ -161,7 +160,7 @@ func (cdc *Codec) encodeReflectJSONArrayOrSlice(w io.Writer, info *TypeInfo, rv 
 	case reflect.Uint8: // Special case: byte array
 		bz := []byte(nil)
 		if rv.CanAddr() {
-			origBytes = rv.Slice(0, length).Bytes()
+			origBytes := rv.Slice(0, length).Bytes()
 			jsonBytes := []byte(nil)
 			jsonBytes, err = json.Marshal(origBytes) // base64 encode
 			if err != nil {
@@ -195,6 +194,7 @@ func (cdc *Codec) encodeReflectJSONArrayOrSlice(w io.Writer, info *TypeInfo, rv 
 				}
 			}
 		}
+		return
 	}
 }
 
@@ -266,10 +266,10 @@ func invokeStdlibJSONMarshal(w io.Writer, v interface{}) error {
 }
 
 func writeStr(w io.Writer, s string) (err error) {
-	err = w.Write([]byte(s))
+	_, err = w.Write([]byte(s))
 	return
 }
 
-func _fmt(s string, args ...string) string {
+func _fmt(s string, args ...interface{}) string {
 	return fmt.Sprintf(s, args...)
 }

@@ -5,7 +5,6 @@ package wire
 // XXX Scan the codebase for unwraps and double check that they implement above.
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -29,7 +28,7 @@ const printLog = false
 
 // This is the main entrypoint for decoding all types from binary form.  This
 // function calls decodeReflectBinary*, and generally those functions should
-// only call this one, for the prefix bytes are interpreted here when needed.
+// only call this one, for the prefix bytes are consumed here when present.
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
@@ -54,7 +53,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 
 	if !info.Registered {
 		// No need for disambiguation, decode as is.
-		err = cdc._decodeReflectBinary(bz, info, rv, opts)
+		n, err = cdc._decodeReflectBinary(bz, info, rv, opts)
 		return
 	}
 
@@ -65,17 +64,19 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		err = errors.New("EOF skipping prefix bytes.")
 		return
 	}
-	if !info.PrefixBytes.EqualBytes(bz) {
+	if !info.Prefix.EqualBytes(bz) {
 		panic("should not happen")
 	}
 	bz = bz[PrefixBytesLen:]
 	n += PrefixBytesLen
 
-	err = cdc._decodeReflectBinary(bz, info, rv, opts)
+	_n := 0
+	_n, err = cdc._decodeReflectBinary(bz, info, rv, opts)
+	slide(&bz, &n, _n)
 	return
 }
 
-// CONTRACT: any immediate disamb/prefix bytes have been stripped.
+// CONTRACT: any immediate disamb/prefix bytes have been consumed/stripped.
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 
@@ -352,7 +353,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	var crv, irvSet = constructConcreteType(cinfo)
 
 	// Decode into the concrete type.
-	var _n int
+	_n := 0
 	_n, err = cdc._decodeReflectBinary(bz, cinfo, crv, opts)
 	if slide(&bz, &n, _n) && err != nil {
 		rv.Set(irvSet) // Helps with debugging
@@ -437,7 +438,8 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 		}
 
 		// Read length.
-		var length int
+		var length = int(0)
+		length64 := int64(0)
 		length64, _n, err = DecodeVarint(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
