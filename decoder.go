@@ -182,11 +182,11 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 // TODO return errro if behavior is undefined.
 func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 	s, _n, err := DecodeInt64(bz)
-	if slide(bz, &bz, &n, _n) && err != nil {
+	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
 	ns, _n, err := DecodeInt32(bz)
-	if slide(bz, &bz, &n, _n) && err != nil {
+	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
 	if ns < 0 || 999999999 < ns {
@@ -203,7 +203,7 @@ func DecodeByteSlice(bz []byte) (bz2 []byte, n int, err error) {
 	var count int64
 	var _n int
 	count, _n, err = DecodeVarint(bz)
-	if slide(bz, &bz, &n, _n) && err != nil {
+	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
 	if len(bz) < int(count) {

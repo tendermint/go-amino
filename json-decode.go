@@ -1,13 +1,13 @@
 package wire
 
 import (
-	"bytes"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 //----------------------------------------
@@ -24,9 +24,9 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 
 	if printLog {
 		spew.Printf("(d) decodeReflectJSON(bz: %X, info: %v, rv: %#v (%v), opts: %v)\n",
-			bzOrg, info, rv.Interface(), rv.Type(), opts)
+			bz, info, rv.Interface(), rv.Type(), opts)
 		defer func() {
-			fmt.Printf("(d) -> n: %v, err: %v\n", n, err)
+			fmt.Printf("(d) -> err: %v\n", err)
 		}()
 	}
 
@@ -43,7 +43,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	if err != nil {
 		return
 	}
-	if !info.PrefixBytes.EqualBytes(disfix[:]) {
+	if !info.Prefix.EqualBytes(disfix[:]) {
 		panic("should not happen")
 	}
 
@@ -64,11 +64,6 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 		}
 	}
 
-	// If the type implements json.Unmarshaller...
-	if rv.Addr().Type().Implements(unmarshalerType) {
-		return rv.Addr().Interface().(json.Unmarshaler).UnmarshalJSON(bz)
-	}
-
 	// Dereference-and-construct pointers all the way.
 	// This works for pointer-pointers.
 	for rv.Kind() == reflect.Ptr {
@@ -77,6 +72,11 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 			rv.Set(newPtr)
 		}
 		rv = rv.Elem()
+	}
+
+	// If a pointer to the dereferenced type implements json.Unmarshaller...
+	if rv.Addr().Type().Implements(unmarshalerType) {
+		return rv.Addr().Interface().(json.Unmarshaler).UnmarshalJSON(bz)
 	}
 
 	switch ikind := info.Type.Kind(); ikind {
@@ -129,7 +129,7 @@ func invokeStdlibJSONUnmarshal(bz []byte, info *TypeInfo, rv reflect.Value, opts
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
+func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -143,7 +143,7 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv refle
 	// Consume disambiguation / prefix info.
 	disfix, bz, err := decodeDisfixJSON(bz)
 	if err != nil {
-		return err
+		return
 	}
 
 	// NOTE: Unlike decodeReflectBinaryInterface, we already dealt with nil in _decodeReflectJSON.
@@ -154,14 +154,15 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv refle
 	var cinfo *TypeInfo
 	cinfo, err = cdc.getTypeInfoFromDisfix_rlock(disfix)
 	if err != nil {
-		return err
+		return
 	}
 
 	// Construct the concrete type.
 	var crv, irvSet = constructConcreteType(cinfo)
 
 	// Decode into the concrete type.
-	if err = cdc._decodeReflectJSON(bz, cinfo, crv, opts); err != nil {
+	err = cdc._decodeReflectJSON(bz, cinfo, crv, opts)
+	if err != nil {
 		rv.Set(irvSet) // Helps with debugging
 		return
 	}
@@ -288,16 +289,15 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 	// NOTE: In decodeReflectBinaryStruct, we don't need to do this,
 	// since fields are encoded in order.
 	var rawMap = make(map[string]json.RawMessage)
-	if err := json.Unmarshal(bz, &rawMap); err != nil {
-		return err
+	err = json.Unmarshal(bz, &rawMap)
+	if err != nil {
+		return
 	}
 
 	for _, field := range info.Fields {
 
 		// Get value from rawMap.
-		var valueBytes json.RawMessage
-		var ok bool
-		valueBytes, ok = rawMap[field.JSONName]
+		var valueBytes, ok = rawMap[field.JSONName]
 		if !ok {
 			// TODO: Since the Go stdlib's JSON codec allows case-insensitive
 			// keys perhaps we need to also do case-insensitive lookups here.
@@ -345,7 +345,8 @@ type disfixWrapper struct {
 // }
 func decodeDisfixJSON(bz []byte) (df DisfixBytes, data []byte, err error) {
 	dfw := new(disfixWrapper)
-	if err := json.Unmarshal(bz, dfw); err != nil {
+	err = json.Unmarshal(bz, dfw)
+	if err != nil {
 		err = fmt.Errorf("Cannot parse disfix JSON wrapper: %v", err)
 		return
 	}
