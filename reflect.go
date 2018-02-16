@@ -27,6 +27,9 @@ const printLog = false
 //----------------------------------------
 // cdc.decodeReflectBinary
 
+// This is the main entrypoint for decoding all types from binary form.  This
+// function calls decodeReflectBinary*, and generally those functions should
+// only call this one, for the prefix bytes are interpreted here when needed.
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
@@ -507,9 +510,9 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 //----------------------------------------
 // cdc.encodeReflectBinary
 
-// This is the main entrypoint for encoding all types.  This function calls
-// encodeReflectBinary*, but those functions should only call this one.
-// (This is necessary because the prefix bytes are only written here).
+// This is the main entrypoint for encoding all types in binary form.  This
+// function calls encodeReflectBinary*, and generally those functions should
+// only call this one, for the prefix bytes are only written here.
 func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	if printLog {
@@ -636,8 +639,11 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	case reflect.String:
 		err = EncodeString(w, rv.String())
 
+	//----------------------------------------
+	// Default
+
 	default:
-		panic(fmt.Sprintf("unknown field type %v", info.Type.Kind()))
+		panic(fmt.Sprintf("unsupported type %v", info.Type.Kind()))
 	}
 
 	return
@@ -694,16 +700,15 @@ func (cdc *Codec) encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv refle
 	switch ert.Kind() {
 
 	case reflect.Uint8: // Special case: byte array
+		bz := []byte(nil)
 		if rv.CanAddr() {
-			bz := rv.Slice(0, length).Bytes()
-			_, err = w.Write(bz)
-			return
+			bz = rv.Slice(0, length).Bytes()
 		} else {
-			buf := make([]byte, length)
-			reflect.Copy(reflect.ValueOf(buf), rv) // XXX: looks expensive!
-			_, err = w.Write(buf)
-			return
+			bz = make([]byte, length)
+			reflect.Copy(reflect.ValueOf(bz), rv) // XXX: looks expensive!
 		}
+		_, err = w.Write(bz)
+		return
 
 	default:
 		var einfo *TypeInfo
@@ -715,7 +720,7 @@ func (cdc *Codec) encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv refle
 			erv := rv.Index(i)
 			err = cdc.encodeReflectBinary(w, einfo, erv, opts)
 			if err != nil {
-				return err
+				return
 			}
 		}
 		return
@@ -767,12 +772,14 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 
 	default:
 		for _, field := range info.Fields {
+			// Get field value and info.
+			var frv = rv.Field(field.Index)
 			var finfo *TypeInfo
 			finfo, err = cdc.getTypeInfo_wlock(field.Type)
 			if err != nil {
 				return
 			}
-			frv := rv.Field(field.Index)
+			// Write field value.
 			err = cdc.encodeReflectBinary(w, finfo, frv, field.FieldOptions)
 			if err != nil {
 				return

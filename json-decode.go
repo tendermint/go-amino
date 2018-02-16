@@ -185,7 +185,16 @@ func (cdc *Codec) decodeReflectJSONArray(bz []byte, info *TypeInfo, rv reflect.V
 	switch ert.Kind() {
 
 	case reflect.Uint8: // Special case: byte array
-		err = json.Unmarshal(bz, rv)
+		var buf []byte
+		err = json.Unmarshal(bz, &buf)
+		if err != nil {
+			return
+		}
+		if len(buf) != length {
+			err = fmt.Errorf("decodeReflectJSONArray: byte-length mismatch, got %v want %v",
+				len(buf), length)
+		}
+		reflect.Copy(rv, reflect.ValueOf(buf))
 		return
 
 	default: // General case.
@@ -228,7 +237,7 @@ func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.V
 	switch ert.Kind() {
 
 	case reflect.Uint8: // Special case: byte slice
-		err = json.Unmarshal(bz, rv)
+		err = json.Unmarshal(bz, rv.Addr().Interface())
 		if err != nil {
 			return
 		}
@@ -369,4 +378,8 @@ func decodeDisfixJSON(bz []byte) (df DisfixBytes, data []byte, err error) {
 	// Get data.
 	data = dfw.Data
 	return
+}
+
+func nilBytes(b []byte) bool {
+	return bytes.Equal(b, []byte(`nil`))
 }
