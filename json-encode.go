@@ -207,7 +207,7 @@ func (cdc *Codec) encodeReflectJSONArrayOrSlice(w io.Writer, info *TypeInfo, rv 
 	}
 }
 
-func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflect.Value, _ FieldOptions) (err error) {
 
 	// Part 1.
 	err = writeStr(w, `{`)
@@ -219,13 +219,29 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 		err = writeStr(w, `}`)
 	}()
 
-	for i, field := range info.Fields {
+	var writeComma = false
+	for _, field := range info.Fields {
 		// Get field value and info.
 		var frv = rv.Field(field.Index)
 		var finfo *TypeInfo
 		finfo, err = cdc.getTypeInfo_wlock(field.Type)
 		if err != nil {
 			return
+		}
+		var fopts = field.FieldOptions
+		// If frv is empty and omitempty...
+		if field.JSONOmitEmpty && isEmpty(frv, field.ZeroValue) {
+			continue
+		}
+
+		// Now we know we're going to write something.
+		// Add a comma if we need to.
+		if writeComma {
+			err = writeStr(w, `,`)
+			if err != nil {
+				return
+			}
+			writeComma = false
 		}
 		// Write field JSON name.
 		err = invokeStdlibJSONMarshal(w, field.JSONName)
@@ -238,17 +254,11 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 			return
 		}
 		// Write field value.
-		err = cdc.encodeReflectJSON(w, finfo, frv, field.FieldOptions)
+		err = cdc.encodeReflectJSON(w, finfo, frv, fopts)
 		if err != nil {
 			return
 		}
-		// Add a comma if it isn't the last item.
-		if i != len(info.Fields)-1 {
-			err = writeStr(w, `,`)
-			if err != nil {
-				return
-			}
-		}
+		writeComma = true
 	}
 	return
 
@@ -286,4 +296,19 @@ func writeStr(w io.Writer, s string) (err error) {
 
 func _fmt(s string, args ...interface{}) string {
 	return fmt.Sprintf(s, args...)
+}
+
+// For json:",omitempty".
+// Returns true for zero values, but also non-nil zero-length slices.
+func isEmpty(rv reflect.Value, zrv reflect.Value) bool {
+	if reflect.DeepEqual(rv, zrv) {
+		return true
+	}
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array:
+		if rv.Len() == 0 {
+			return true
+		}
+	}
+	return false
 }

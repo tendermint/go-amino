@@ -132,6 +132,7 @@ func invokeStdlibJSONUnmarshal(bz []byte, info *TypeInfo, rv reflect.Value, opts
 	if rv.Kind() != reflect.Ptr {
 		rrv = reflect.New(rv.Type())
 	}
+
 	if err := json.Unmarshal(bz, rrv.Interface()); err != nil {
 		return err
 	}
@@ -298,7 +299,8 @@ func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.V
 		var srv = reflect.MakeSlice(esrt, length, length)
 		for i := 0; i < length; i++ {
 			erv := srv.Index(i)
-			err = cdc.decodeReflectJSON(bz, einfo, erv, opts)
+			ebz := rawSlice[i]
+			err = cdc.decodeReflectJSON(ebz, einfo, erv, opts)
 			if err != nil {
 				return
 			}

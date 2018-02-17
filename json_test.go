@@ -175,6 +175,41 @@ type innerFP struct {
 	FP *fp
 }
 
+func TestUnmarshalJSONMap(t *testing.T) {
+	binBytes := []byte(`dontcare`)
+	jsonBytes := []byte(`{"2": 2}`)
+	obj := new(map[string]int)
+	cdc := wire.NewCodec()
+	// Binary doesn't support decoding to a map...
+	assert.Panics(t, func() {
+		err := cdc.UnmarshalBinary(binBytes, &obj)
+		assert.Fail(t, "should have paniced but got err: %v", err)
+	})
+	assert.Panics(t, func() {
+		err := cdc.UnmarshalBinary(binBytes, obj)
+		assert.Fail(t, "should have paniced but got err: %v", err)
+	})
+	// ... nor encoding it.
+	assert.Panics(t, func() {
+		bz, err := cdc.MarshalBinary(obj)
+		assert.Fail(t, "should have paniced but got bz: %X err: %v", bz, err)
+	})
+	// JSON doesn't support decoding to a map...
+	assert.Panics(t, func() {
+		err := cdc.UnmarshalJSON(jsonBytes, &obj)
+		assert.Fail(t, "should have paniced but got err: %v", err)
+	})
+	assert.Panics(t, func() {
+		err := cdc.UnmarshalJSON(jsonBytes, obj)
+		assert.Fail(t, "should have paniced but got err: %v", err)
+	})
+	// ... nor encoding it.
+	assert.Panics(t, func() {
+		bz, err := cdc.MarshalJSON(obj)
+		assert.Fail(t, "should have paniced but got bz: %X err: %v", bz, err)
+	})
+}
+
 func TestUnmarshalJSON(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
@@ -191,9 +226,6 @@ func TestUnmarshalJSON(t *testing.T) {
 		},
 		{
 			"2", new(int), intPtr(2), "",
-		},
-		{
-			`{"2": 2}`, new(map[string]int), nil, "unsupported",
 		},
 		{
 			`{"null"}`, new(int), nil, "invalid character",

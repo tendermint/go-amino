@@ -60,9 +60,10 @@ type ConcreteOptions struct {
 }
 
 type FieldInfo struct {
-	Type         reflect.Type // Struct field type
-	Index        int          // Struct field index
-	FieldOptions              // Encoding options
+	Type         reflect.Type  // Struct field type
+	Index        int           // Struct field index
+	ZeroValue    reflect.Value // Could be nil pointer unlike TypeInfo.ZeroValue.
+	FieldOptions               // Encoding options
 }
 
 type FieldOptions struct {
@@ -255,6 +256,7 @@ func (cdc *Codec) parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
 		fieldInfo := FieldInfo{
 			Index:        i,
 			Type:         field.Type,
+			ZeroValue:    reflect.Zero(field.Type),
 			FieldOptions: opts,
 		}
 		checkUnsafe(fieldInfo)
