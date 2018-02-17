@@ -53,8 +53,15 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		}
 	}
 
-	// If a pointer to the dereferenced type implements json.Marshaller...
-	if rv.Addr().Type().Implements(marshalerType) {
+	// Handle override if json.Marshaler is implemented.
+	if rv.CanAddr() { // Try pointer first.
+		if rv.Addr().Type().Implements(marshalerType) {
+			err = invokeMarshalJSON(w, rv.Addr())
+			if err != nil {
+				return
+			}
+		}
+	} else if rv.Type().Implements(marshalerType) {
 		err = invokeMarshalJSON(w, rv)
 		if err != nil {
 			return
