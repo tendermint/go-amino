@@ -3,6 +3,7 @@ package wire_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -143,8 +144,11 @@ func TestMarshalJSONWithMonotonicTime(t *testing.T) {
 	b, err := cdc.MarshalJSON(s)
 	assert.Nil(t, err)
 
+	fmt.Println("b", string(b))
+
 	var s2 SimpleStruct
 	err = cdc.UnmarshalJSON(b, &s2)
+	fmt.Println("err", err)
 	assert.Nil(t, err)
 	assert.Equal(t, s, s2)
 }
@@ -317,7 +321,7 @@ func TestJSONCodecRoundTrip(t *testing.T) {
 		// Now check that the input is exactly equal to the output
 		uBlob, err := cdc.MarshalJSON(tt.out)
 		if err := cdc.UnmarshalJSON(mBlob, tt.out); err != nil {
-			t.Errorf("#%d: unexpected error after second MmarshalJSON: %v", i, err)
+			t.Errorf("#%d: unexpected error after second MarshalJSON: %v", i, err)
 			continue
 		}
 		if !reflect.DeepEqual(tt.want, tt.out) {

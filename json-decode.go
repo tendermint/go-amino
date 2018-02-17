@@ -24,7 +24,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	}
 
 	if printLog {
-		spew.Printf("(d) decodeReflectJSON(bz: %X, info: %v, rv: %#v (%v), opts: %v)\n",
+		spew.Printf("(d) decodeReflectJSON(bz: %s, info: %v, rv: %#v (%v), opts: %v)\n",
 			bz, info, rv.Interface(), rv.Type(), opts)
 		defer func() {
 			fmt.Printf("(d) -> err: %v\n", err)
@@ -44,7 +44,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	if err != nil {
 		return
 	}
-	if !info.Prefix.EqualBytes(disfix[:]) {
+	if !info.GetDisfix().EqualBytes(disfix[:]) {
 		panic("should not happen")
 	}
 
@@ -55,9 +55,9 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
 
-	// Special case for nil for either interface, pointer, slice
+	// Special case for null for either interface, pointer, slice
 	// NOTE: This doesn't match the binary implementation completely.
-	if nilBytes(bz) {
+	if nullBytes(bz) {
 		switch rv.Kind() {
 		case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Array:
 			rv.Set(info.ZeroValue)
@@ -98,18 +98,28 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 		return cdc.decodeReflectJSONStruct(bz, info, rv, opts)
 
 	//----------------------------------------
+	// Signed, Unsigned
+
+	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int,
+		reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
+		return invokeStdlibJSONUnmarshal(bz, info, rv, opts)
+
+	//----------------------------------------
+	// Misc
 
 	case reflect.Float32, reflect.Float64:
 		if !opts.Unsafe {
 			return errors.New("Wire.JSON float* support requires `wire:\"unsafe\"`.")
 		}
+		fallthrough
+	case reflect.Bool, reflect.String:
 		return invokeStdlibJSONUnmarshal(bz, info, rv, opts)
 
-	case reflect.Map, reflect.Func, reflect.Chan: // We explicitly don't support maps, funcs or channels
-		return fmt.Errorf("unsupported kind: %s", ikind)
+	//----------------------------------------
+	// Default
 
-	default: // All others
-		return invokeStdlibJSONUnmarshal(bz, info, rv, opts)
+	default:
+		panic(fmt.Sprintf("unsupported type %v", info.Type.Kind()))
 	}
 }
 
@@ -138,6 +148,8 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv refle
 		// JAE: Heed this note, this is very tricky.
 		// I forget why.
 		err = errors.New("Decoding to a non-nil interface is not supported yet")
+		fmt.Println("!!", string(bz), rv)
+		panic("??")
 		return
 	}
 
@@ -323,6 +335,7 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 
 		// Get field rv and info.
 		var frv = rv.Field(field.Index)
+		fmt.Println(">>", field, frv)
 		var finfo *TypeInfo
 		finfo, err = cdc.getTypeInfo_wlock(field.Type)
 		if err != nil {
@@ -354,6 +367,10 @@ type disfixWrapper struct {
 //    "_v":  {}
 // }
 func decodeDisfixJSON(bz []byte) (df DisfixBytes, data []byte, err error) {
+	fmt.Printf("!!! %s\n", bz)
+	if string(bz) == "null" {
+		panic("yay")
+	}
 	dfw := new(disfixWrapper)
 	err = json.Unmarshal(bz, dfw)
 	if err != nil {
@@ -381,6 +398,6 @@ func decodeDisfixJSON(bz []byte) (df DisfixBytes, data []byte, err error) {
 	return
 }
 
-func nilBytes(b []byte) bool {
-	return bytes.Equal(b, []byte(`nil`))
+func nullBytes(b []byte) bool {
+	return bytes.Equal(b, []byte(`null`))
 }

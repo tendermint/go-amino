@@ -46,10 +46,14 @@ type ConcreteInfo struct {
 	PointerPreferred bool        // Deserialize to pointer type if possible.
 	Registered       bool        // Manually regsitered.
 	Name             string      // Ignored if !Registered.
-	Prefix           PrefixBytes // Ignored if !Registered.
 	Disamb           DisambBytes // Ignored if !Registered.
+	Prefix           PrefixBytes // Ignored if !Registered.
 	Fields           []FieldInfo // If a struct.
 	ConcreteOptions
+}
+
+func (cinfo ConcreteInfo) GetDisfix() DisfixBytes {
+	return toDisfix(cinfo.Disamb, cinfo.Prefix)
 }
 
 type ConcreteOptions struct {
@@ -170,9 +174,7 @@ func (cdc *Codec) setTypeInfo_nolock(info *TypeInfo) {
 		cdc.interfaceInfos = append(cdc.interfaceInfos, info)
 	} else if info.Registered {
 		cdc.concreteInfos = append(cdc.concreteInfos, info)
-		prefix := info.Prefix
-		disamb := info.Disamb
-		disfix := toDisfix(disamb, prefix)
+		disfix := info.GetDisfix()
 		if existing, ok := cdc.disfixToTypeInfo[disfix]; ok {
 			panic(fmt.Sprintf("disfix <%X> already registered for %v", disfix, existing.Type))
 		}
@@ -345,8 +347,8 @@ func (cdc *Codec) newTypeInfoFromInterfaceType(rt reflect.Type, opts *InterfaceO
 	// info.ConcreteInfo.PointerPreferred =
 	// info.ConcreteInfo.Registered =
 	// info.ConcreteInfo.Name =
-	// info.ConcreteInfo.Prefix
 	// info.ConcreteInfo.Disamb =
+	// info.ConcreteInfo.Prefix
 	// info.ConcreteInfo.Fields =
 	return info
 }
@@ -399,7 +401,7 @@ func (cdc *Codec) checkConflictsInPrio_nolock(iinfo *TypeInfo) error {
 		for _, cinfo := range cinfos {
 			var inPrio = false
 			for _, disfix := range iinfo.InterfaceInfo.Priority {
-				if toDisfix(cinfo.Disamb, cinfo.Prefix) == disfix {
+				if cinfo.GetDisfix() == disfix {
 					inPrio = true
 				}
 			}
@@ -460,8 +462,8 @@ func (ti TypeInfo) String() string {
 			buf.Write([]byte("Registered:true,"))
 			buf.Write([]byte(fmt.Sprintf("PointerPreferred:%v,", ti.PointerPreferred)))
 			buf.Write([]byte(fmt.Sprintf("Name:\"%v\",", ti.Name)))
-			buf.Write([]byte(fmt.Sprintf("Prefix:\"%X\",", ti.Prefix)))
 			buf.Write([]byte(fmt.Sprintf("Disamb:\"%X\",", ti.Disamb)))
+			buf.Write([]byte(fmt.Sprintf("Prefix:\"%X\",", ti.Prefix)))
 		} else {
 			buf.Write([]byte("Registered:false,"))
 		}

@@ -57,15 +57,11 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	if rv.CanAddr() { // Try pointer first.
 		if rv.Addr().Type().Implements(marshalerType) {
 			err = invokeMarshalJSON(w, rv.Addr())
-			if err != nil {
-				return
-			}
+			return
 		}
 	} else if rv.Type().Implements(marshalerType) {
 		err = invokeMarshalJSON(w, rv)
-		if err != nil {
-			return
-		}
+		return
 	}
 
 	switch info.Type.Kind() {
@@ -92,10 +88,12 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	//----------------------------------------
 	// Misc
 
-	case reflect.Bool, reflect.Float64, reflect.Float32, reflect.String:
+	case reflect.Float64, reflect.Float32:
 		if !opts.Unsafe {
 			return errors.New("Wire.JSON float* support requires `wire:\"unsafe\"`.")
 		}
+		fallthrough
+	case reflect.Bool, reflect.String:
 		return invokeStdlibJSONMarshal(w, rv.Interface())
 
 	//----------------------------------------
@@ -152,36 +150,35 @@ func (cdc *Codec) encodeReflectJSONArrayOrSlice(w io.Writer, info *TypeInfo, rv 
 		return
 	}
 
-	// Open square bracket.
-	err = writeStr(w, `[`)
-	if err != nil {
-		return
-	}
-	// Close square bracket.
-	defer func() {
-		err = writeStr(w, `]`)
-	}()
-
 	switch ert.Kind() {
 
 	case reflect.Uint8: // Special case: byte array
+		// Write bytes in base64.
+		// NOTE: Base64 encoding preserves the exact original number of bytes.
+		// Get readable slice of bytes.
 		bz := []byte(nil)
 		if rv.CanAddr() {
-			origBytes := rv.Slice(0, length).Bytes()
-			jsonBytes := []byte(nil)
-			jsonBytes, err = json.Marshal(origBytes) // base64 encode
-			if err != nil {
-				return
-			}
-			bz = jsonBytes
+			bz = rv.Slice(0, length).Bytes()
 		} else {
 			bz = make([]byte, length)
 			reflect.Copy(reflect.ValueOf(bz), rv) // XXX: looks expensive!
 		}
-		_, err = w.Write(bz)
+		jsonBytes := []byte(nil)
+		jsonBytes, err = json.Marshal(bz) // base64 encode
+		if err != nil {
+			return
+		}
+		_, err = w.Write(jsonBytes)
 		return
 
 	default:
+		// Open square bracket.
+		err = writeStr(w, `[`)
+		if err != nil {
+			return
+		}
+
+		// Write elements with comma.
 		var einfo *TypeInfo
 		einfo, err = cdc.getTypeInfo_wlock(ert)
 		if err != nil {
@@ -201,16 +198,26 @@ func (cdc *Codec) encodeReflectJSONArrayOrSlice(w io.Writer, info *TypeInfo, rv 
 				}
 			}
 		}
+
+		// Close square bracket.
+		defer func() {
+			err = writeStr(w, `]`)
+		}()
 		return
 	}
 }
 
 func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
+	// Part 1.
 	err = writeStr(w, `{`)
 	if err != nil {
 		return
 	}
+	// Part 2.
+	defer func() {
+		err = writeStr(w, `}`)
+	}()
 
 	for i, field := range info.Fields {
 		// Get field value and info.
