@@ -60,7 +60,7 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 	if nullBytes(bz) {
 		switch rv.Kind() {
 		case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Array:
-			rv.Set(info.ZeroValue)
+			rv.Set(reflect.Zero(rv.Type()))
 			return nil
 		}
 	}
@@ -140,17 +140,23 @@ func invokeStdlibJSONUnmarshal(bz []byte, info *TypeInfo, rv reflect.Value, opts
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+
+	/*
+		We don't make use of user-provided interface values because there are a
+		lot of edge cases.
+
+		* What if the type is mismatched?
+		* What if the JSON field entry is missing?
+		* Circular references?
+	*/
 	if !rv.IsNil() {
-		// JAE: Heed this note, this is very tricky.
-		// I forget why.
-		err = errors.New("Decoding to a non-nil interface is not supported yet")
-		fmt.Println("!!", string(bz), rv)
-		panic("??")
-		return
+		// We don't strictly need to set it nil, but lets keep it here for a
+		// while in case we forget, for defensive purposes.
+		rv.Set(iinfo.ZeroValue)
 	}
 
 	// Consume disambiguation / prefix info.
@@ -158,6 +164,9 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv refle
 	if err != nil {
 		return
 	}
+
+	// XXX: Check disfix against interface to make sure that it actually
+	// matches, and return an error if it doesn't.
 
 	// NOTE: Unlike decodeReflectBinaryInterface, we already dealt with nil in _decodeReflectJSON.
 	// NOTE: We also "consumed" the disfix wrapper by replacing `bz` above.
@@ -318,28 +327,28 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 
 	for _, field := range info.Fields {
 
-		// Get value from rawMap.
-		var valueBytes, ok = rawMap[field.JSONName]
-		if !ok {
-			// TODO: Since the Go stdlib's JSON codec allows case-insensitive
-			// keys perhaps we need to also do case-insensitive lookups here.
-			// So "Vanilla" and "vanilla" would both match to the same field.
-			// It is actually a security flaw with encoding/json library
-			//  See https://github.com/golang/go/issues/14750
-			// but perhaps we are aiming for as much compatibility here.
-			continue
-		}
-		if valueBytes == nil {
-			continue
-		}
-
 		// Get field rv and info.
 		var frv = rv.Field(field.Index)
-		fmt.Println(">>", field, frv)
 		var finfo *TypeInfo
 		finfo, err = cdc.getTypeInfo_wlock(field.Type)
 		if err != nil {
 			return
+		}
+
+		// Get value from rawMap.
+		var valueBytes = rawMap[field.JSONName]
+		if len(valueBytes) == 0 {
+			// TODO: Since the Go stdlib's JSON codec allows case-insensitive
+			// keys perhaps we need to also do case-insensitive lookups here.
+			// So "Vanilla" and "vanilla" would both match to the same field.
+			// It is actually a security flaw with encoding/json library
+			// - See https://github.com/golang/go/issues/14750
+			// but perhaps we are aiming for as much compatibility here.
+			// JAE: I vote we depart from encoding/json, than carry a vuln.
+
+			// Set nil/zero on frv.
+			frv.Set(reflect.Zero(frv.Type()))
+			continue
 		}
 
 		// Decode into field rv.
@@ -367,7 +376,6 @@ type disfixWrapper struct {
 //    "_v":  {}
 // }
 func decodeDisfixJSON(bz []byte) (df DisfixBytes, data []byte, err error) {
-	fmt.Printf("!!! %s\n", bz)
 	if string(bz) == "null" {
 		panic("yay")
 	}
