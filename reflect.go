@@ -445,6 +445,10 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 			return
 		}
 		length = int(length64)
+		if length < 0 {
+			err = errors.New("Invalid negative slice length")
+			return
+		}
 
 		// Special case when length is 0.
 		// NOTE: We prefer nil slices.
@@ -886,6 +890,9 @@ func decodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBy
 // CONTRACT: by the time this is called, len(bz) >= _n
 // Returns true so you can write one-liners.
 func slide(bz *[]byte, n *int, _n int) bool {
+	if _n < 0 || _n > len(*bz) {
+		panic(fmt.Sprintf("impossible slide: len:%v _n:%v", len(*bz), _n))
+	}
 	*bz = (*bz)[_n:]
 	*n += _n
 	return true
