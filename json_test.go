@@ -3,7 +3,6 @@ package wire_test
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -142,11 +141,8 @@ func TestMarshalJSONWithMonotonicTime(t *testing.T) {
 	b, err := cdc.MarshalJSON(s)
 	assert.Nil(t, err)
 
-	fmt.Println("b", string(b))
-
 	var s2 SimpleStruct
 	err = cdc.UnmarshalJSON(b, &s2)
-	fmt.Println("err", err)
 	assert.Nil(t, err)
 	assert.Equal(t, s, s2)
 }
