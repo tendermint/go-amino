@@ -299,13 +299,13 @@ func _fmt(s string, args ...interface{}) string {
 }
 
 // For json:",omitempty".
-// Returns true for zero values, but also non-nil zero-length slices.
+// Returns true for zero values, but also non-nil zero-length slices and strings.
 func isEmpty(rv reflect.Value, zrv reflect.Value) bool {
 	if reflect.DeepEqual(rv, zrv) {
 		return true
 	}
 	switch rv.Kind() {
-	case reflect.Slice, reflect.Array:
+	case reflect.Slice, reflect.Array, reflect.String:
 		if rv.Len() == 0 {
 			return true
 		}

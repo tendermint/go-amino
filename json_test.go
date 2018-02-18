@@ -22,6 +22,7 @@ func TestMain(m *testing.M) {
 	cdc.RegisterInterface((*Vehicle)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
 	cdc.RegisterInterface((*Asset)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
 	cdc.RegisterConcrete(Car(""), "car", nil)
+	cdc.RegisterConcrete(insurancePlan(0), "insuranceplan", nil)
 	cdc.RegisterConcrete(Boat(""), "boat", nil)
 	cdc.RegisterConcrete(Plane{}, "plane", nil)
 
@@ -71,17 +72,14 @@ func TestMarshalJSON(t *testing.T) {
 		},
 		{
 			Transport{Vehicle: Car("Bugatti")},
-			// TODO: Modify me when we've figured out disambiguation for JSON
 			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":{"_df":"2B2961A431B23C","_v":"Bugatti"},"Capacity":0}}`, "",
 		},
 		{
 			BalanceSheet{Assets: []Asset{Car("Corolla"), insurancePlan(1e7)}},
-			// TODO: Modify me when we've figured out disambiguation for JSON
-			`{"assets":[{"_df":"2B2961A431B23C","_v":"Corolla"},10000000]}`, "",
+			`{"assets":[{"_df":"2B2961A431B23C","_v":"Corolla"},{"_df":"7DF0BC76182A1F","_v":10000000}]}`, "",
 		},
 		{
 			Transport{Vehicle: Boat("Poseidon"), Capacity: 1789},
-			// TODO: Modify me when we've figured out disambiguation for JSON
 			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":{"_df":"25CDB46D8D2115","_v":"Poseidon"},"Capacity":1789}}`, "",
 		},
 		{
@@ -92,13 +90,12 @@ func TestMarshalJSON(t *testing.T) {
 			func() json.Marshaler { v := customJSONMarshaler(10); return &v }(),
 			`"Tendermint"`, "",
 		},
-		{strings.Contains, "", "unsupported"},
 
 		// We don't yet support interface pointer registration i.e. `*interface{}`
 		{interfacePtr("a"), "", "Unregistered interface interface {}"},
 
 		{&fp{"Foo", 10}, "<FP-MARSHALJSON>", ""},
-		{(*fp)(nil), "<FP-MARSHALJSON>", ""},
+		{(*fp)(nil), "null", ""},
 		{struct {
 			FP      *fp
 			Package string
@@ -107,6 +104,7 @@ func TestMarshalJSON(t *testing.T) {
 	}
 
 	for i, tt := range cases {
+		t.Logf("Trying case #%v", i)
 		blob, err := cdc.MarshalJSON(tt.in)
 		if tt.wantErr != "" {
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
@@ -175,7 +173,7 @@ type innerFP struct {
 	FP *fp
 }
 
-func TestUnmarshalJSONMap(t *testing.T) {
+func TestUnmarshalMap(t *testing.T) {
 	binBytes := []byte(`dontcare`)
 	jsonBytes := []byte(`{"2": 2}`)
 	obj := new(map[string]int)
@@ -195,6 +193,41 @@ func TestUnmarshalJSONMap(t *testing.T) {
 		assert.Fail(t, "should have paniced but got bz: %X err: %v", bz, err)
 	})
 	// JSON doesn't support decoding to a map...
+	assert.Panics(t, func() {
+		err := cdc.UnmarshalJSON(jsonBytes, &obj)
+		assert.Fail(t, "should have paniced but got err: %v", err)
+	})
+	assert.Panics(t, func() {
+		err := cdc.UnmarshalJSON(jsonBytes, obj)
+		assert.Fail(t, "should have paniced but got err: %v", err)
+	})
+	// ... nor encoding it.
+	assert.Panics(t, func() {
+		bz, err := cdc.MarshalJSON(obj)
+		assert.Fail(t, "should have paniced but got bz: %X err: %v", bz, err)
+	})
+}
+
+func TestUnmarshalFunc(t *testing.T) {
+	binBytes := []byte(`dontcare`)
+	jsonBytes := []byte(`"dontcare"`)
+	obj := func() {}
+	cdc := wire.NewCodec()
+	// Binary doesn't support decoding to a func...
+	assert.Panics(t, func() {
+		err := cdc.UnmarshalBinary(binBytes, &obj)
+		assert.Fail(t, "should have paniced but got err: %v", err)
+	})
+	assert.Panics(t, func() {
+		err := cdc.UnmarshalBinary(binBytes, obj)
+		assert.Fail(t, "should have paniced but got err: %v", err)
+	})
+	// ... nor encoding it.
+	assert.Panics(t, func() {
+		bz, err := cdc.MarshalBinary(obj)
+		assert.Fail(t, "should have paniced but got bz: %X err: %v", bz, err)
+	})
+	// JSON doesn't support decoding to a func...
 	assert.Panics(t, func() {
 		err := cdc.UnmarshalJSON(jsonBytes, &obj)
 		assert.Fail(t, "should have paniced but got err: %v", err)

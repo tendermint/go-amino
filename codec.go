@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"unicode"
 )
 
 const (
@@ -246,8 +247,8 @@ func (cdc *Codec) parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
 	infos = make([]FieldInfo, 0, rt.NumField())
 	for i := 0; i < rt.NumField(); i++ {
 		field := rt.Field(i)
-		if field.PkgPath != "" {
-			continue // field is private
+		if !isExported(field) {
+			continue // field is unexported
 		}
 		skip, opts := cdc.parseFieldOptions(field)
 		if skip {
@@ -475,4 +476,27 @@ func (ti TypeInfo) String() string {
 	}
 	buf.Write([]byte("}"))
 	return buf.String()
+}
+
+//----------------------------------------
+// Misc.
+
+func isExported(field reflect.StructField) bool {
+	// Test 1:
+	if field.PkgPath != "" {
+		return false
+	}
+	// Test 2:
+	var first rune
+	for _, c := range field.Name {
+		first = c
+		break
+	}
+	// TODO: JAE: I'm not sure that the unicode spec
+	// is the correct spec to use, so this might be wrong.
+	if !unicode.IsUpper(first) {
+		return false
+	}
+	// Ok, it's exported.
+	return true
 }
