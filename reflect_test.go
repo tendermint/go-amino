@@ -223,23 +223,25 @@ func (_ Concrete3) AssertInterface1() {}
 //-------------------------------------
 // Non-interface tests
 
-func TestCodecBinaryStruct(t *testing.T) {
+func TestCodecStruct(t *testing.T) {
 	for _, ptr := range structTypes {
 		rt := getTypeFromPointer(ptr)
 		name := rt.Name()
-		t.Run(name, func(t *testing.T) { _testCodecBinary(t, rt) })
+		t.Run(name+":binary", func(t *testing.T) { _testCodec(t, rt, "binary") })
+		t.Run(name+":json", func(t *testing.T) { _testCodec(t, rt, "json") })
 	}
 }
 
-func TestCodecBinaryDef(t *testing.T) {
+func TestCodecDef(t *testing.T) {
 	for _, ptr := range defTypes {
 		rt := getTypeFromPointer(ptr)
 		name := rt.Name()
-		t.Run(name, func(t *testing.T) { _testCodecBinary(t, rt) })
+		t.Run(name+":binary", func(t *testing.T) { _testCodec(t, rt, "binary") })
+		t.Run(name+":json", func(t *testing.T) { _testCodec(t, rt, "json") })
 	}
 }
 
-func _testCodecBinary(t *testing.T, rt reflect.Type) {
+func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 
 	err := error(nil)
 	bz := []byte{}
@@ -268,20 +270,34 @@ func _testCodecBinary(t *testing.T, rt reflect.Type) {
 		rv2 = reflect.New(rt)
 		ptr2 = rv2.Interface()
 
-		bz, err = cdc.MarshalBinary(ptr)
+		switch codecType {
+		case "binary":
+			bz, err = cdc.MarshalBinary(ptr)
+		case "json":
+			bz, err = cdc.MarshalJSON(ptr)
+		default:
+			panic("should not happen")
+		}
 		require.Nil(t, err,
 			"failed to marshal %v to bytes: %v\n",
 			spw(ptr), err)
 
-		err = cdc.UnmarshalBinary(bz, ptr2)
+		switch codecType {
+		case "binary":
+			err = cdc.UnmarshalBinary(bz, ptr2)
+		case "json":
+			err = cdc.UnmarshalJSON(bz, ptr2)
+		default:
+			panic("should not happen")
+		}
 		require.Nil(t, err,
 			"failed to unmarshal bytes %X: %v\nptr: %v\n",
 			bz, err, spw(ptr))
-
 		require.Equal(t, ptr, ptr2,
-			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\n",
-			spw(ptr), spw(ptr2), bz)
+			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
+			spw(ptr), spw(ptr2), bz, bz)
 	}
+
 }
 
 //----------------------------------------
@@ -388,10 +404,35 @@ func TestCodecBinaryRegister8(t *testing.T) {
 	bz, err := cdc.MarshalBinary(struct{ Interface1 }{c3})
 	assert.Nil(t, err)
 	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x01, 0x30, 0x31, 0x32, 0x33}, bz,
-		"Concrete3 not correctly serialized")
+		"Concrete3 incorrectly serialized")
 
 	var i1 Interface1
 	err = cdc.UnmarshalBinary(bz, &i1)
+	assert.Nil(t, err)
+	assert.Equal(t, c3, i1)
+}
+
+func TestCodecJSONRegister8(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterInterface((*Interface1)(nil), nil)
+	cdc.RegisterConcrete(Concrete3{}, "Concrete3", nil)
+
+	assert.Panics(t, func() {
+		cdc.RegisterConcrete(Concrete2{}, "Concrete3", nil)
+	}, "duplicate concrete name")
+
+	var c3 Concrete3
+	copy(c3[:], []byte("0123"))
+
+	// NOTE: We don't wrap c3...
+	// But that's OK, JSON still writes the disfix bytes by default.
+	bz, err := cdc.MarshalJSON(c3)
+	assert.Nil(t, err)
+	assert.Equal(t, []byte(`{"_df":"43FAF453372101","_v":"MDEyMw=="}`),
+		bz, "Concrete3 incorrectly serialized")
+
+	var i1 Interface1
+	err = cdc.UnmarshalJSON(bz, &i1)
 	assert.Nil(t, err)
 	assert.Equal(t, c3, i1)
 }
@@ -411,6 +452,18 @@ var fuzzFuncs = []interface{}{
 		if len(*bz) == 0 {
 			*bz = nil
 		}
+	},
+	func(bz **[]byte, c fuzz.Continue) {
+		// Prefer nil instead of empty, for deep equality.
+		// (go-wire decoder will always prefer nil).
+		c.Fuzz(bz)
+		if *bz == nil {
+			return
+		}
+		if len(**bz) == 0 {
+			*bz = nil
+		}
+		return
 	},
 	func(tyme *time.Time, c fuzz.Continue) {
 		// Set time.Unix(_,_) to wipe .wal
