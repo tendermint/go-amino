@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 //----------------------------------------
@@ -21,63 +23,61 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		panic("should not happen")
 	}
 
-	// No need for disambiguation, decode as is.
+	if printLog {
+		spew.Printf("(d) decodeReflectJSON(bz: %s, info: %v, rv: %#v (%v), opts: %v)\n",
+			bz, info, rv.Interface(), rv.Type(), opts)
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
+	}
+
 	if !info.Registered {
+		// No need for disambiguation, decode as is.
 		err = cdc._decodeReflectJSON(bz, info, rv, opts)
 		return
 	}
 
-	// Otherwise, disambiguation time.
+	// It's a registered concrete type.
+	// Implies that info holds the info we need.
+	// Just strip the disfix bytes after checking it.
 	disfix, bz, err := decodeDisfixJSON(bz)
 	if err != nil {
 		return
 	}
-	cinfo, err := cdc.getTypeInfoFromDisfix_rlock(disfix)
-	if err != nil {
-		return
+	if !info.GetDisfix().EqualBytes(disfix[:]) {
+		panic("should not happen")
 	}
 
-	// And we need to construct the concrete type
-	// that'll then be set into the interface field.
-	var crv, _ = constructConcreteType(cinfo)
-	if err = cdc._decodeReflectJSON(bz, info, crv, opts); err != nil {
-		rv.Set(crv) // Helps with debugging
-		return
-	}
-
-	// We need to set here, for when !PointerPreferred and the type
-	// is say, an array of bytes (e.g. [32]byte), then we must call
-	// rv.Set() *after* the value was acquired.
-	rv.Set(crv)
+	err = cdc._decodeReflectJSON(bz, info, rv, opts)
 	return
 }
 
+// CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
 
-	// If the type implements json.Unmarshaler, just
-	// automatically respect that and skip to it.
-	if rv.Addr().Type().Implements(unmarshalerType) {
-		return rv.Addr().Interface().(json.Unmarshaler).UnmarshalJSON(bz)
-	}
-
-	// Special case for nil for either interface, pointer, slice
-	if nilBytes(bz) {
+	// Special case for null for either interface, pointer, slice
+	// NOTE: This doesn't match the binary implementation completely.
+	if nullBytes(bz) {
 		switch rv.Kind() {
-		case reflect.Interface, reflect.Ptr, reflect.Slice, reflect.Array:
-			rv.Set(info.ZeroValue)
+		case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Array:
+			rv.Set(reflect.Zero(rv.Type()))
 			return nil
 		}
 	}
 
-	// Ensure that any pointer field that's
-	// nil is constructed, but also dereference
-	// until the non-pointer type.
+	// Dereference-and-construct pointers all the way.
+	// This works for pointer-pointers.
 	for rv.Kind() == reflect.Ptr {
 		if rv.IsNil() {
 			newPtr := reflect.New(rv.Type().Elem())
 			rv.Set(newPtr)
 		}
 		rv = rv.Elem()
+	}
+
+	// If a pointer to the dereferenced type implements json.Unmarshaller...
+	if rv.Addr().Type().Implements(unmarshalerType) {
+		return rv.Addr().Interface().(json.Unmarshaler).UnmarshalJSON(bz)
 	}
 
 	switch ikind := info.Type.Kind(); ikind {
@@ -88,25 +88,38 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 	case reflect.Interface:
 		return cdc.decodeReflectJSONInterface(bz, info, rv, opts)
 
-	case reflect.Array, reflect.Slice:
-		return cdc.decodeReflectJSONArrayOrSlice(bz, info, rv, opts)
+	case reflect.Array:
+		return cdc.decodeReflectJSONArray(bz, info, rv, opts)
+
+	case reflect.Slice:
+		return cdc.decodeReflectJSONSlice(bz, info, rv, opts)
 
 	case reflect.Struct:
 		return cdc.decodeReflectJSONStruct(bz, info, rv, opts)
 
 	//----------------------------------------
+	// Signed, Unsigned
+
+	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int,
+		reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
+		return invokeStdlibJSONUnmarshal(bz, info, rv, opts)
+
+	//----------------------------------------
+	// Misc
 
 	case reflect.Float32, reflect.Float64:
 		if !opts.Unsafe {
 			return errors.New("Wire.JSON float* support requires `wire:\"unsafe\"`.")
 		}
+		fallthrough
+	case reflect.Bool, reflect.String:
 		return invokeStdlibJSONUnmarshal(bz, info, rv, opts)
 
-	case reflect.Map, reflect.Func, reflect.Chan: // We explicitly don't support maps, funcs or channels
-		return fmt.Errorf("unsupported kind: %s", ikind)
+	//----------------------------------------
+	// Default
 
-	default: // All others
-		return invokeStdlibJSONUnmarshal(bz, info, rv, opts)
+	default:
+		panic(fmt.Sprintf("unsupported type %v", info.Type.Kind()))
 	}
 }
 
@@ -119,6 +132,7 @@ func invokeStdlibJSONUnmarshal(bz []byte, info *TypeInfo, rv reflect.Value, opts
 	if rv.Kind() != reflect.Ptr {
 		rrv = reflect.New(rv.Type())
 	}
+
 	if err := json.Unmarshal(bz, rrv.Interface()); err != nil {
 		return err
 	}
@@ -127,171 +141,235 @@ func invokeStdlibJSONUnmarshal(bz []byte, info *TypeInfo, rv reflect.Value, opts
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONInterface(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
+func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
 
-	// Always drill down and grab its concrete
-	// type information through disambiguation.
+	/*
+		We don't make use of user-provided interface values because there are a
+		lot of edge cases.
+
+		* What if the type is mismatched?
+		* What if the JSON field entry is missing?
+		* Circular references?
+	*/
+	if !rv.IsNil() {
+		// We don't strictly need to set it nil, but lets keep it here for a
+		// while in case we forget, for defensive purposes.
+		rv.Set(iinfo.ZeroValue)
+	}
+
+	// Consume disambiguation / prefix info.
 	disfix, bz, err := decodeDisfixJSON(bz)
 	if err != nil {
-		return err
+		return
 	}
 
-	info, err = cdc.getTypeInfoFromDisfix_rlock(disfix)
+	// XXX: Check disfix against interface to make sure that it actually
+	// matches, and return an error if it doesn't.
+
+	// NOTE: Unlike decodeReflectBinaryInterface, we already dealt with nil in _decodeReflectJSON.
+	// NOTE: We also "consumed" the disfix wrapper by replacing `bz` above.
+
+	// Get concrete type info.
+	// NOTE: Unlike decodeReflectBinaryInterface, always disfix.
+	var cinfo *TypeInfo
+	cinfo, err = cdc.getTypeInfoFromDisfix_rlock(disfix)
 	if err != nil {
-		return err
+		return
 	}
 
-	// Create the concrete type since we are dealing with an
-	// interface that we have just disambiguated from above.
-	cPtr := reflect.New(info.Type)
-	crv := cPtr.Elem()
-	if err := cdc._decodeReflectJSON(bz, info, crv, opts); err != nil {
-		return err
+	// Construct the concrete type.
+	var crv, irvSet = constructConcreteType(cinfo)
+
+	// Decode into the concrete type.
+	err = cdc._decodeReflectJSON(bz, cinfo, crv, opts)
+	if err != nil {
+		rv.Set(irvSet) // Helps with debugging
+		return
 	}
 
-	// Now the interface has a concrete type set to it!
-	rv.Set(crv)
-	return nil
+	// We need to set here, for when !PointerPreferred and the type
+	// is say, an array of bytes (e.g. [32]byte), then we must call
+	// rv.Set() *after* the value was acquired.
+	rv.Set(irvSet)
+	return
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONArrayOrSlice(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
+func (cdc *Codec) decodeReflectJSONArray(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	if !rv.CanAddr() {
+		panic("rv not addressable")
+	}
+	ert := info.Type.Elem()
+	length := info.Type.Len()
+
+	switch ert.Kind() {
+
+	case reflect.Uint8: // Special case: byte array
+		var buf []byte
+		err = json.Unmarshal(bz, &buf)
+		if err != nil {
+			return
+		}
+		if len(buf) != length {
+			err = fmt.Errorf("decodeReflectJSONArray: byte-length mismatch, got %v want %v",
+				len(buf), length)
+		}
+		reflect.Copy(rv, reflect.ValueOf(buf))
+		return
+
+	default: // General case.
+		var einfo *TypeInfo
+		einfo, err = cdc.getTypeInfo_wlock(ert)
+		if err != nil {
+			return
+		}
+
+		// Read into rawSlice.
+		var rawSlice []json.RawMessage
+		if err = json.Unmarshal(bz, &rawSlice); err != nil {
+			return
+		}
+		if len(rawSlice) != length {
+			err = fmt.Errorf("decodeReflectJSONArray: length mismatch, got %v want %v", len(rawSlice), length)
+			return
+		}
+
+		// Decode each item in rawSlice.
+		for i := 0; i < length; i++ {
+			erv := rv.Index(i)
+			ebz := rawSlice[i]
+			err = cdc.decodeReflectJSON(ebz, einfo, erv, opts)
+			if err != nil {
+				return
+			}
+		}
+		return
+	}
+}
+
+// CONTRACT: rv.CanAddr() is true.
+func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	if !rv.CanAddr() {
+		panic("rv not addressable")
+	}
+	ert := info.Type.Elem()
+
+	switch ert.Kind() {
+
+	case reflect.Uint8: // Special case: byte slice
+		err = json.Unmarshal(bz, rv.Addr().Interface())
+		if err != nil {
+			return
+		}
+		if rv.Len() == 0 {
+			// Special case when length is 0.
+			// NOTE: We prefer nil slices.
+			rv.Set(info.ZeroValue)
+		} else {
+			// NOTE: Already set via json.Unmarshal() above.
+		}
+		return
+
+	default: // General case.
+		var einfo *TypeInfo
+		einfo, err = cdc.getTypeInfo_wlock(ert)
+		if err != nil {
+			return
+		}
+
+		// Read into rawSlice.
+		var rawSlice []json.RawMessage
+		if err = json.Unmarshal(bz, &rawSlice); err != nil {
+			return
+		}
+
+		// Special case when length is 0.
+		// NOTE: We prefer nil slices.
+		var length = len(rawSlice)
+		if length == 0 {
+			rv.Set(info.ZeroValue)
+			return
+		}
+
+		// Read into a new slice.
+		var esrt = reflect.SliceOf(ert) // TODO could be optimized.
+		var srv = reflect.MakeSlice(esrt, length, length)
+		for i := 0; i < length; i++ {
+			erv := srv.Index(i)
+			ebz := rawSlice[i]
+			err = cdc.decodeReflectJSON(ebz, einfo, erv, opts)
+			if err != nil {
+				return
+			}
+		}
+
+		// TODO do we need this extra step?
+		rv.Set(srv)
+		return
+	}
+}
+
+// CONTRACT: rv.CanAddr() is true.
+func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
 
-	bz = bytes.TrimSpace(bz)
-	if nilBytes(bz) {
-		return nil
-	}
-
-	innerTyp := rv.Type().Elem()
-	info, err := cdc.getTypeInfo_wlock(innerTyp)
-	if err != nil {
-		return err
-	}
-
-	// First things first, basic validation
-	if g, w := bz[0], byteOpenLBrace; g != w {
-		return fmt.Errorf("decodeReflectJSONArrayOrSlice: got %c want %c bz: %s", g, w, bz)
-	}
-	if g, w := bz[len(bz)-1], byteCloseLBrace; g != w {
-		return fmt.Errorf("decodeReflectJSONArrayOrSlice: got %c want %c bz: %s", g, w, bz)
-	}
-
-	var blobHolder []*blobSaver
-	if err := json.Unmarshal(bz, &blobHolder); err != nil {
-		return err
-	}
-	outSlice := reflect.MakeSlice(rv.Type(), 0, len(blobHolder))
-	for _, bh := range blobHolder {
-		ithElemPtr := reflect.New(innerTyp)
-		if bh == nil {
-			continue
-		}
-		ithElem := ithElemPtr.Elem()
-		if err := cdc.decodeReflectJSON(bh.blob, info, ithElem, opts); err != nil {
-			return err
-		}
-		outSlice = reflect.Append(outSlice, ithElem)
-	}
-	rv.Set(outSlice)
-	return nil
-}
-
-func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
-	nf := len(info.Fields)
-	if nf == 0 {
-		return nil
-	}
-
 	// Map all the fields(keys) to their blobs/bytes.
-	fieldsToByteValuesMap := make(map[string]*blobSaver)
-	if err := json.Unmarshal(bz, &fieldsToByteValuesMap); err != nil {
-		return err
+	// NOTE: In decodeReflectBinaryStruct, we don't need to do this,
+	// since fields are encoded in order.
+	var rawMap = make(map[string]json.RawMessage)
+	err = json.Unmarshal(bz, &rawMap)
+	if err != nil {
+		return
 	}
 
-	typ := rv.Type()
 	for _, field := range info.Fields {
-		typField := typ.Field(field.Index)
-		if !isExported(typField.Name) {
-			continue
+
+		// Get field rv and info.
+		var frv = rv.Field(field.Index)
+		var finfo *TypeInfo
+		finfo, err = cdc.getTypeInfo_wlock(field.Type)
+		if err != nil {
+			return
 		}
 
-		fieldKey := field.JSONName
-		blobSave, ok := fieldsToByteValuesMap[fieldKey]
-		if !ok {
+		// Get value from rawMap.
+		var valueBytes = rawMap[field.JSONName]
+		if len(valueBytes) == 0 {
 			// TODO: Since the Go stdlib's JSON codec allows case-insensitive
 			// keys perhaps we need to also do case-insensitive lookups here.
 			// So "Vanilla" and "vanilla" would both match to the same field.
 			// It is actually a security flaw with encoding/json library
-			//  See https://github.com/golang/go/issues/14750
+			// - See https://github.com/golang/go/issues/14750
 			// but perhaps we are aiming for as much compatibility here.
-			continue
-		}
-		if blobSave == nil {
+			// JAE: I vote we depart from encoding/json, than carry a vuln.
+
+			// Set nil/zero on frv.
+			frv.Set(reflect.Zero(frv.Type()))
 			continue
 		}
 
-		// Now let's look up this field's type information.
-		finfo, err := cdc.getTypeInfo_wlock(field.Type)
+		// Decode into field rv.
+		err = cdc.decodeReflectJSON(valueBytes, finfo, frv, opts)
 		if err != nil {
-			return err
-		}
-		valField := rv.Field(field.Index)
-		if err := cdc.decodeReflectJSON(blobSave.blob, finfo, valField, opts); err != nil {
-			return err
+			return
 		}
 	}
 
 	return nil
 }
 
-func itsPtrImplements(v reflect.Value, check reflect.Type) bool {
-	return v.Kind() != reflect.Ptr && reflect.PtrTo(v.Type()).Implements(check)
+//----------------------------------------
+// Misc.
+
+type disfixWrapper struct {
+	Disfix string          `json:"_df"`
+	Data   json.RawMessage `json:"_v"`
 }
-
-// blobSaver is a workaround to save a blob when parsing
-// unknown bytes in mixed types such as if we have
-//    `{"c": 0, "d": "foo", "e": {"k": "bar"}}`
-// in the above blob, if we want to just check the
-// keys but retain the bytes without having to first unmarshal
-// to map[string]interface{}, and then marshal back
-// in order to get the respective keys' blobs.
-type blobSaver struct {
-	blob []byte
-}
-
-func (ab *blobSaver) UnmarshalJSON(b []byte) error {
-	ab.blob = b
-	return nil
-}
-
-var _ json.Unmarshaler = (*blobSaver)(nil)
-
-type disfixRepr parseableDisfixRepr
-
-type parseableDisfixRepr struct {
-	Disfix string     `json:"_df"`
-	Data   *blobSaver `json:"_v"`
-}
-
-func (dfr *disfixRepr) UnmarshalJSON(b []byte) error {
-	// Some content might not be parseable
-	recv := new(parseableDisfixRepr)
-	if err := json.Unmarshal(b, recv); err != nil {
-		// Perhaps the type doesn't conform to `{"_df":<disfix>, "_v":<data>}`
-		// so in this case just save the data as it was sent in.
-		recv.Data = &blobSaver{blob: b}
-	}
-	*dfr = (disfixRepr)(*recv)
-	return nil
-}
-
-var blankDisfix DisfixBytes
 
 // decodeDisfixJSON helps unravel the disfix and
 // the stored data, which are expected in the form:
@@ -299,28 +377,37 @@ var blankDisfix DisfixBytes
 //    "_df": "XXXXXXXXXXXXXXXXX",
 //    "_v":  {}
 // }
-func decodeDisfixJSON(bz []byte) (disfix DisfixBytes, dataBytes []byte, err error) {
-	bz = bytes.TrimSpace(bz)
-	if len(bz) < DisfixBytesLen {
-		return disfix, bz, errors.New("decodeDisfixJSON: EOF skipping prefix bytes.")
+func decodeDisfixJSON(bz []byte) (df DisfixBytes, data []byte, err error) {
+	if string(bz) == "null" {
+		panic("yay")
 	}
-	dfr := new(disfixRepr)
-	if err := json.Unmarshal(bz, dfr); err != nil {
-		return disfix, bz, fmt.Errorf("Parsing Disfix and data: %v", err)
-	}
-	hexBytes, err := hex.DecodeString(dfr.Disfix)
+	dfw := new(disfixWrapper)
+	err = json.Unmarshal(bz, dfw)
 	if err != nil {
-		return disfix, bz, err
+		err = fmt.Errorf("Cannot parse disfix JSON wrapper: %v", err)
+		return
 	}
-	if g, w := len(hexBytes), DisfixBytesLen; g != w {
-		return disfix, bz, fmt.Errorf("Disfix length got=%d want=%d data=%s", g, w, bz)
+	dfBytes, err := hex.DecodeString(dfw.Disfix)
+	if err != nil {
+		return
 	}
-	copy(disfix[:], hexBytes)
-	if bytes.Equal(disfix[:], blankDisfix[:]) {
-		return disfix, bz, errors.New("expected a non-blank disfix")
+
+	// Get disfix.
+	if g, w := len(dfBytes), DisfixBytesLen; g != w {
+		err = fmt.Errorf("Disfix length got=%d want=%d data=%s", g, w, bz)
+		return
 	}
-	if blobSaver := dfr.Data; blobSaver != nil {
-		dataBytes = blobSaver.blob
+	copy(df[:], dfBytes)
+	if (DisfixBytes{}).EqualBytes(df[:]) {
+		err = errors.New("Unexpected zero disfix in JSON")
+		return
 	}
-	return disfix, dataBytes, err
+
+	// Get data.
+	data = dfw.Data
+	return
+}
+
+func nullBytes(b []byte) bool {
+	return bytes.Equal(b, []byte(`null`))
 }

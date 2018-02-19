@@ -57,8 +57,9 @@ func DecodeInt64(bz []byte) (i int64, n int, err error) {
 
 func DecodeVarint(bz []byte) (i int64, n int, err error) {
 	i, n = binary.Varint(bz)
-	if n == 0 {
-		err = errors.New("eof decoding varint")
+	if n < 0 {
+		n = 0
+		err = errors.New("EOF decoding varint")
 	}
 	return
 }
@@ -69,7 +70,7 @@ func DecodeVarint(bz []byte) (i int64, n int, err error) {
 func DecodeByte(bz []byte) (b byte, n int, err error) {
 	const size int = 1
 	if len(bz) < size {
-		err = errors.New("eof decoding byte")
+		err = errors.New("EOF decoding byte")
 		return
 	}
 	b = bz[0]
@@ -80,7 +81,7 @@ func DecodeByte(bz []byte) (b byte, n int, err error) {
 func DecodeUint8(bz []byte) (i uint8, n int, err error) {
 	const size int = 1
 	if len(bz) < size {
-		err = errors.New("eof decoding uint8")
+		err = errors.New("EOF decoding uint8")
 		return
 	}
 	i = bz[0]
@@ -90,7 +91,7 @@ func DecodeUint8(bz []byte) (i uint8, n int, err error) {
 func DecodeUint16(bz []byte) (i uint16, n int, err error) {
 	const size int = 2
 	if len(bz) < size {
-		err = errors.New("eof decoding uint16")
+		err = errors.New("EOF decoding uint16")
 		return
 	}
 	i = binary.BigEndian.Uint16(bz[:size])
@@ -101,7 +102,7 @@ func DecodeUint16(bz []byte) (i uint16, n int, err error) {
 func DecodeUint32(bz []byte) (i uint32, n int, err error) {
 	const size int = 4
 	if len(bz) < size {
-		err = errors.New("eof decoding uint32")
+		err = errors.New("EOF decoding uint32")
 		return
 	}
 	i = binary.BigEndian.Uint32(bz[:size])
@@ -112,7 +113,7 @@ func DecodeUint32(bz []byte) (i uint32, n int, err error) {
 func DecodeUint64(bz []byte) (i uint64, n int, err error) {
 	const size int = 8
 	if len(bz) < size {
-		err = errors.New("eof decoding uint64")
+		err = errors.New("EOF decoding uint64")
 		return
 	}
 	i = binary.BigEndian.Uint64(bz[:size])
@@ -122,8 +123,9 @@ func DecodeUint64(bz []byte) (i uint64, n int, err error) {
 
 func DecodeUvarint(bz []byte) (i uint64, n int, err error) {
 	i, n = binary.Uvarint(bz)
-	if n == 0 {
-		err = errors.New("eof decoding uvarint")
+	if n <= 0 {
+		n = 0
+		err = errors.New("EOF decoding uvarint")
 	}
 	return
 }
@@ -134,7 +136,7 @@ func DecodeUvarint(bz []byte) (i uint64, n int, err error) {
 func DecodeBool(bz []byte) (b bool, n int, err error) {
 	const size int = 1
 	if len(bz) < size {
-		err = errors.New("eof decoding bool")
+		err = errors.New("EOF decoding bool")
 		return
 	}
 	switch bz[0] {
@@ -153,7 +155,7 @@ func DecodeBool(bz []byte) (b bool, n int, err error) {
 func DecodeFloat32(bz []byte) (f float32, n int, err error) {
 	const size int = 4
 	if len(bz) < size {
-		err = errors.New("eof decoding float32")
+		err = errors.New("EOF decoding float32")
 		return
 	}
 	i := binary.BigEndian.Uint32(bz[:size])
@@ -166,7 +168,7 @@ func DecodeFloat32(bz []byte) (f float32, n int, err error) {
 func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 	const size int = 8
 	if len(bz) < size {
-		err = errors.New("eof decoding float64")
+		err = errors.New("EOF decoding float64")
 		return
 	}
 	i := binary.BigEndian.Uint64(bz[:size])
@@ -182,11 +184,11 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 // TODO return errro if behavior is undefined.
 func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 	s, _n, err := DecodeInt64(bz)
-	if slide(bz, &bz, &n, _n) && err != nil {
+	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
 	ns, _n, err := DecodeInt32(bz)
-	if slide(bz, &bz, &n, _n) && err != nil {
+	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
 	if ns < 0 || 999999999 < ns {
@@ -203,7 +205,11 @@ func DecodeByteSlice(bz []byte) (bz2 []byte, n int, err error) {
 	var count int64
 	var _n int
 	count, _n, err = DecodeVarint(bz)
-	if slide(bz, &bz, &n, _n) && err != nil {
+	if slide(&bz, &n, _n) && err != nil {
+		return
+	}
+	if int(count) < 0 {
+		err = fmt.Errorf("invalid negative length %v decoding []byte", count)
 		return
 	}
 	if len(bz) < int(count) {

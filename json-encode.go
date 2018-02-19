@@ -1,80 +1,73 @@
 package wire
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"reflect"
-	"strings"
-	"unicode"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 //----------------------------------------
 // cdc.encodeReflectJSON
 
-// *** Encoding/MarshalJSON ***
-func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
+func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
-	var disambiguate = info.Registered
-	if disambiguate {
-		// Write the disfix
+	if printLog {
+		spew.Printf("(e) encodeReflectJSON(info: %v, rv: %#v (%v), opts: %v)\n",
+			info, rv.Interface(), rv.Type(), opts)
+		defer func() {
+			fmt.Printf("(e) -> err: %v\n", err)
+		}()
+	}
+
+	// Write the disfix wrapper if it is a registered concrete type.
+	if info.Registered {
+		// Part 1:
 		disfix := toDisfix(info.Disamb, info.Prefix)
-		fmt.Fprintf(w, `{%s:"%X",%s:`, disfixKeyQuoted, disfix, dataKeyQuoted)
+		err = writeStr(w, _fmt(`{"_df":"%X","_v":`, disfix))
+		if err != nil {
+			return
+		}
+		// Part 2:
+		defer func() {
+			err = writeStr(w, `}`)
+		}()
 	}
 
-	err := cdc._encodeReflectJSON(w, info, rv, opts)
-	if err != nil {
-		return err
-	}
-
-	// And finally if disambiguating, close the the disambiguation sequence.
-	if disambiguate {
-		_, err = w.Write(bytesCloseBrace)
-	}
-	return err
-}
-
-func (cdc *Codec) _encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-	// 1. If we encounter the nil interface, encode null
-	if rv.Kind() == reflect.Invalid {
-		_, err = w.Write(bytesNull)
-		return err
-	}
-
-	// 2a. If an object implements json.Marshaler
-	// automatically respect that and skip to it.
-	// before any dereferencing.
-	if ok, err := processIfMarshaler(w, rv); ok || err != nil {
-		return err
-	}
-
-	// 2b. Otherwise, dereference pointers
-	var foundPointer = false
 	// Dereference pointers all the way if any.
 	// This works for pointer-pointers.
+	var foundPointer = false
 	for rv.Kind() == reflect.Ptr {
 		foundPointer = true
 		rv = rv.Elem()
 	}
 
+	// Write null if necessary.
 	if foundPointer {
 		if !rv.IsValid() {
-			_, err = w.Write(bytesNull)
+			err = writeStr(w, `null`)
 			return
 		}
 	}
 
-	// 2c. If the dereferenced object implements
-	// json.Marshaler automatically respect that and skip to it.
-	if ok, err := processIfMarshaler(w, rv); ok || err != nil {
-		return err
+	// Handle override if json.Marshaler is implemented.
+	if rv.CanAddr() { // Try pointer first.
+		if rv.Addr().Type().Implements(marshalerType) {
+			err = invokeMarshalJSON(w, rv.Addr())
+			return
+		}
+	} else if rv.Type().Implements(marshalerType) {
+		err = invokeMarshalJSON(w, rv)
+		return
 	}
 
 	switch info.Type.Kind() {
+
 	//----------------------------------------
-	// Complex types
+	// Complex
 
 	case reflect.Interface:
 		return cdc.encodeReflectJSONInterface(w, info, rv, opts)
@@ -85,72 +78,37 @@ func (cdc *Codec) _encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Val
 	case reflect.Struct:
 		return cdc.encodeReflectJSONStruct(w, info, rv, opts)
 
-	case reflect.Map: // We explicitly don't support maps
-		return errJSONMarshalMap
+	//----------------------------------------
+	// Signed, Unsigned
 
-	case reflect.Float32, reflect.Float64:
+	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int,
+		reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
+		return invokeStdlibJSONMarshal(w, rv.Interface())
+
+	//----------------------------------------
+	// Misc
+
+	case reflect.Float64, reflect.Float32:
 		if !opts.Unsafe {
 			return errors.New("Wire.JSON float* support requires `wire:\"unsafe\"`.")
 		}
+		fallthrough
+	case reflect.Bool, reflect.String:
 		return invokeStdlibJSONMarshal(w, rv.Interface())
 
-	default: // All others
-		return invokeStdlibJSONMarshal(w, rv.Interface())
+	//----------------------------------------
+	// Default
+
+	default:
+		panic(fmt.Sprintf("unsupported type %v", info.Type.Kind()))
 	}
-}
-
-func (cdc *Codec) encodeReflectJSONArrayOrSlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
-	length := rv.Len()
-	if length == 0 {
-		_, err := w.Write(bytesOpenCloseLBraces)
-		return err
-	}
-
-	if _, err := w.Write(bytesOpenLBrace); err != nil {
-		return err
-	}
-
-	for i := 0; i < length; i++ {
-		erv := rv.Index(i)
-		ecrt := erv.Type() // non-pointer non-interface concrete type
-
-		// Retrieve *TypeInfo for concrete type.
-		einfo, err := cdc.getTypeInfo_wlock(ecrt)
-		if err != nil {
-			// TODO: However, we shouldn't really care for unregistered types
-			// while performing JSON encoding, hence no check for error.
-			return err
-		}
-
-		if err := cdc.encodeReflectJSON(w, einfo, erv, opts); err != nil {
-			return err
-		}
-		// And then add the comma if it isn't the last item.
-		if i != length-1 {
-			if _, err := w.Write(bytesComma); err != nil {
-				return err
-			}
-		}
-	}
-	_, err := w.Write(bytesCloseLBrace)
-	return err
 }
 
 func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-	if safeIsNil(rv) {
-		_, err = w.Write(bytesNull)
-		return err
-	}
 
-	// If the type implements json.Marshaler, just
-	// automatically respect that and skip to it.
-	if rv.Type().Implements(marshalerType) {
-		var blob []byte
-		blob, err = rv.Interface().(json.Marshaler).MarshalJSON()
-		if err != nil {
-			return
-		}
-		_, err = w.Write(blob)
+	// Special case when rv is nil, just write "null".
+	if rv.IsNil() {
+		err = writeStr(w, `null`)
 		return
 	}
 
@@ -162,190 +120,161 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 	}
 	var crt = crv.Type()
 
-	// Retrieve *TypeInfo for concrete type.
+	// Get *TypeInfo for concrete type.
 	var cinfo *TypeInfo
 	cinfo, err = cdc.getTypeInfo_wlock(crt)
 	if err != nil {
 		return
 	}
-	if !cinfo.Registered && false { // Hmm, primitive types would be a pain to complain about.
+	if !cinfo.Registered {
 		err = fmt.Errorf("Cannot encode unregistered concrete type %v.", crt)
 		return
 	}
+
+	// NOTE: In the future, we may write disambiguation bytes
+	// here, if it is only to be written for interface values.
+	// Currently, go-wire JSON *always* writes disfix bytes for
+	// all registered concrete types.
+
 	err = cdc.encodeReflectJSON(w, cinfo, crv, opts)
 	return
 }
 
-func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
-	nf := len(info.Fields)
-	if nf == 0 {
-		_, err := w.Write(bytesOpenCloseBraces)
-		return err
+func (cdc *Codec) encodeReflectJSONArrayOrSlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	ert := info.Type.Elem()
+	length := rv.Len()
+
+	// Special case when length is 0, just write "null".
+	if length == 0 {
+		err = writeStr(w, `null`)
+		return
 	}
-	typ := rv.Type()
-	bytesKVPairs := make([][]byte, 0, nf)
-	for _, field := range info.Fields {
-		typField := typ.Field(field.Index)
-		if !isExported(typField.Name) {
-			continue
+
+	switch ert.Kind() {
+
+	case reflect.Uint8: // Special case: byte array
+		// Write bytes in base64.
+		// NOTE: Base64 encoding preserves the exact original number of bytes.
+		// Get readable slice of bytes.
+		bz := []byte(nil)
+		if rv.CanAddr() {
+			bz = rv.Slice(0, length).Bytes()
+		} else {
+			bz = make([]byte, length)
+			reflect.Copy(reflect.ValueOf(bz), rv) // XXX: looks expensive!
 		}
-		valField := rv.Field(field.Index)
-		fieldKey, omitEmpty := jsonFieldKey(typField)
-		if omitEmpty && isBlank(valField) {
-			continue
-		}
-		info, err := cdc.getTypeInfo_wlock(field.Type)
+		jsonBytes := []byte(nil)
+		jsonBytes, err = json.Marshal(bz) // base64 encode
 		if err != nil {
-			return err
+			return
 		}
-		valuesBuf := new(bytes.Buffer)
-		if err := cdc.encodeReflectJSON(valuesBuf, info, valField, opts); err != nil {
-			return err
+		_, err = w.Write(jsonBytes)
+		return
+
+	default:
+		// Open square bracket.
+		err = writeStr(w, `[`)
+		if err != nil {
+			return
 		}
 
-		valueBlob := valuesBuf.Bytes()
-		if omitEmpty && allBlankBytes(valueBlob) {
+		// Write elements with comma.
+		var einfo *TypeInfo
+		einfo, err = cdc.getTypeInfo_wlock(ert)
+		if err != nil {
+			return
+		}
+		for i := 0; i < length; i++ {
+			erv := rv.Index(i)
+			err = cdc.encodeReflectJSON(w, einfo, erv, opts)
+			if err != nil {
+				return
+			}
+			// Add a comma if it isn't the last item.
+			if i != length-1 {
+				err = writeStr(w, `,`)
+				if err != nil {
+					return
+				}
+			}
+		}
+
+		// Close square bracket.
+		defer func() {
+			err = writeStr(w, `]`)
+		}()
+		return
+	}
+}
+
+func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflect.Value, _ FieldOptions) (err error) {
+
+	// Part 1.
+	err = writeStr(w, `{`)
+	if err != nil {
+		return
+	}
+	// Part 2.
+	defer func() {
+		err = writeStr(w, `}`)
+	}()
+
+	var writeComma = false
+	for _, field := range info.Fields {
+		// Get field value and info.
+		var frv = rv.Field(field.Index)
+		var finfo *TypeInfo
+		finfo, err = cdc.getTypeInfo_wlock(field.Type)
+		if err != nil {
+			return
+		}
+		var fopts = field.FieldOptions
+		// If frv is empty and omitempty...
+		if field.JSONOmitEmpty && isEmpty(frv, field.ZeroValue) {
 			continue
 		}
 
-		keyBlob := bytes.Join([][]byte{bytesQuote, []byte(fieldKey), bytesQuote}, bytesBlankString)
-		kvBlob := bytes.Join([][]byte{keyBlob, valueBlob}, bytesColon)
-		bytesKVPairs = append(bytesKVPairs, kvBlob)
+		// Now we know we're going to write something.
+		// Add a comma if we need to.
+		if writeComma {
+			err = writeStr(w, `,`)
+			if err != nil {
+				return
+			}
+			writeComma = false
+		}
+		// Write field JSON name.
+		err = invokeStdlibJSONMarshal(w, field.JSONName)
+		if err != nil {
+			return
+		}
+		// Write colon.
+		err = writeStr(w, `:`)
+		if err != nil {
+			return
+		}
+		// Write field value.
+		err = cdc.encodeReflectJSON(w, finfo, frv, fopts)
+		if err != nil {
+			return
+		}
+		writeComma = true
 	}
+	return
 
-	if len(bytesKVPairs) == 0 {
-		_, err := w.Write(bytesOpenCloseBraces)
-		return err
-	}
-	if _, err := w.Write(bytesOpenBrace); err != nil {
-		return err
-	}
-	joinedKVBytes := bytes.Join(bytesKVPairs, bytesComma)
-	if _, err := w.Write(joinedKVBytes); err != nil {
-		return err
-	}
-	_, err := w.Write(bytesCloseBrace)
-	return err
 }
 
-func isExported(nm string) bool {
-	return len(nm) > 0 && unicode.IsUpper(rune(nm[0]))
-}
+//----------------------------------------
+// Misc.
 
-var (
-	bytesNull             = []byte("null")
-	bytesColon            = []byte(":")
-	bytesComma            = []byte(",")
-	bytesOpenBrace        = []byte("{")
-	bytesCloseBrace       = []byte("}")
-	byteOpenLBrace        = byte('[')
-	bytesOpenLBrace       = []byte{byteOpenLBrace}
-	byteCloseLBrace       = byte(']')
-	bytesCloseLBrace      = []byte{byteCloseLBrace}
-	bytesQuote            = []byte("\"")
-	bytesBlankString      = []byte("")
-	bytesOpenCloseBraces  = []byte("{}")
-	bytesOpenCloseLBraces = []byte("[]")
-	bytesZero             = []byte("0")
-	bytesFalse            = []byte("false")
-)
-
-func jsonFieldKey(f reflect.StructField) (string, bool) {
-	jsonTagName, ok := f.Tag.Lookup("json")
-	if !ok {
-		return f.Name, false
-	}
-	// Otherwise we need to figure out which name to use.
-	splits := strings.Split(jsonTagName, ",")
-	omitEmpty := strings.Contains(jsonTagName, ",omitempty")
-	head := splits[0]
-	if head == "" {
-		head = f.Name
-	}
-	return head, omitEmpty
-}
-
-func nilBytes(b []byte) bool {
-	return len(b) == 0 || bytes.Equal(b, bytesNull)
-}
-
-func allBlankBytes(b []byte) bool {
-	return len(b) == 0 ||
-		bytes.Equal(b, nil) ||
-		bytes.Equal(b, bytesBlankString) ||
-		bytes.Equal(b, bytesZero) ||
-		bytes.Equal(b, bytesFalse)
-}
-
-// safeIsNil safely invokes reflect.Value.IsNil only on
-// * reflect.Interface, reflect.Ptr, reflect.Map, reflect.Slice,
-// * reflect.Array, reflect.Ptr, reflect.Func
-// otherwise it returns false
-func safeIsNil(v reflect.Value) bool {
-	switch v.Kind() {
-	case reflect.Interface, reflect.Chan, reflect.Map, reflect.Slice,
-		reflect.Array, reflect.Ptr, reflect.Func:
-		return v.IsNil()
-	default:
-		return false
-	}
-}
-
-func isBlank(v reflect.Value) bool {
-	switch v.Kind() {
-	case reflect.Interface, reflect.Chan, reflect.Map, reflect.Slice,
-		reflect.Array, reflect.Ptr, reflect.Func:
-		return v.IsNil()
-	default:
-		return isBlankInterface(v.Interface())
-	}
-}
-
-func isBlankInterface(v interface{}) bool {
-	switch v {
-	case 0, "", false, nil:
-		// Obviously these work for only untyped constants but
-		// nonetheless an attempt at finding zero values
-		return true
-	default:
-		// Not much we can do
-		return false
-	}
-}
-
-var (
-	errJSONMarshalMap     = errors.New("maps are not supported")
-	errExpectingOpenBrace = errors.New("expecting '{'")
-)
-
-const (
-	disfixKeyQuoted = `"_df"`
-	dataKeyQuoted   = `"_v"`
-)
-
-func invokeJSONMarshaler(w io.Writer, rv reflect.Value) error {
+// CONTRACT: rv implements json.Marshaler.
+func invokeMarshalJSON(w io.Writer, rv reflect.Value) error {
 	blob, err := rv.Interface().(json.Marshaler).MarshalJSON()
 	if err != nil {
 		return err
 	}
 	_, err = w.Write(blob)
 	return err
-}
-
-// processIfMarshaler checks if the type or its pointer
-// to implements json.Marshaler and if so, invokes it.
-func processIfMarshaler(w io.Writer, rv reflect.Value) (marshalable bool, err error) {
-	if rv.Type().Implements(marshalerType) {
-		return true, invokeJSONMarshaler(w, rv)
-	}
-
-	// Otherwise if its pointer implements
-	// json.Marshaler, try that too.
-	if itsPtrImplements(rv, marshalerType) {
-		return true, invokeJSONMarshaler(w, rv.Addr())
-	}
-
-	return false, nil
 }
 
 func invokeStdlibJSONMarshal(w io.Writer, v interface{}) error {
@@ -358,4 +287,28 @@ func invokeStdlibJSONMarshal(w io.Writer, v interface{}) error {
 	}
 	_, err = w.Write(blob)
 	return err
+}
+
+func writeStr(w io.Writer, s string) (err error) {
+	_, err = w.Write([]byte(s))
+	return
+}
+
+func _fmt(s string, args ...interface{}) string {
+	return fmt.Sprintf(s, args...)
+}
+
+// For json:",omitempty".
+// Returns true for zero values, but also non-nil zero-length slices and strings.
+func isEmpty(rv reflect.Value, zrv reflect.Value) bool {
+	if reflect.DeepEqual(rv, zrv) {
+		return true
+	}
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array, reflect.String:
+		if rv.Len() == 0 {
+			return true
+		}
+	}
+	return false
 }

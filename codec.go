@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"unicode"
 )
 
 const (
@@ -17,6 +18,10 @@ const (
 type PrefixBytes [PrefixBytesLen]byte
 type DisambBytes [DisambBytesLen]byte
 type DisfixBytes [DisfixBytesLen]byte // Disamb+Prefix
+
+func (pb PrefixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(pb[:], bz) }
+func (db DisambBytes) EqualBytes(bz []byte) bool { return bytes.Equal(db[:], bz) }
+func (df DisfixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(df[:], bz) }
 
 type TypeInfo struct {
 	Type      reflect.Type // Interface type.
@@ -42,19 +47,24 @@ type ConcreteInfo struct {
 	PointerPreferred bool        // Deserialize to pointer type if possible.
 	Registered       bool        // Manually regsitered.
 	Name             string      // Ignored if !Registered.
-	Prefix           PrefixBytes // Ignored if !Registered.
 	Disamb           DisambBytes // Ignored if !Registered.
+	Prefix           PrefixBytes // Ignored if !Registered.
 	Fields           []FieldInfo // If a struct.
 	ConcreteOptions
+}
+
+func (cinfo ConcreteInfo) GetDisfix() DisfixBytes {
+	return toDisfix(cinfo.Disamb, cinfo.Prefix)
 }
 
 type ConcreteOptions struct {
 }
 
 type FieldInfo struct {
-	Type         reflect.Type // Struct field type
-	Index        int          // Struct field index
-	FieldOptions              // Encoding options
+	Type         reflect.Type  // Struct field type
+	Index        int           // Struct field index
+	ZeroValue    reflect.Value // Could be nil pointer unlike TypeInfo.ZeroValue.
+	FieldOptions               // Encoding options
 }
 
 type FieldOptions struct {
@@ -166,9 +176,7 @@ func (cdc *Codec) setTypeInfo_nolock(info *TypeInfo) {
 		cdc.interfaceInfos = append(cdc.interfaceInfos, info)
 	} else if info.Registered {
 		cdc.concreteInfos = append(cdc.concreteInfos, info)
-		prefix := info.Prefix
-		disamb := info.Disamb
-		disfix := toDisfix(disamb, prefix)
+		disfix := info.GetDisfix()
 		if existing, ok := cdc.disfixToTypeInfo[disfix]; ok {
 			panic(fmt.Sprintf("disfix <%X> already registered for %v", disfix, existing.Type))
 		}
@@ -239,8 +247,8 @@ func (cdc *Codec) parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
 	infos = make([]FieldInfo, 0, rt.NumField())
 	for i := 0; i < rt.NumField(); i++ {
 		field := rt.Field(i)
-		if field.PkgPath != "" {
-			continue // field is private
+		if !isExported(field) {
+			continue // field is unexported
 		}
 		skip, opts := cdc.parseFieldOptions(field)
 		if skip {
@@ -249,6 +257,7 @@ func (cdc *Codec) parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
 		fieldInfo := FieldInfo{
 			Index:        i,
 			Type:         field.Type,
+			ZeroValue:    reflect.Zero(field.Type),
 			FieldOptions: opts,
 		}
 		checkUnsafe(fieldInfo)
@@ -341,8 +350,8 @@ func (cdc *Codec) newTypeInfoFromInterfaceType(rt reflect.Type, opts *InterfaceO
 	// info.ConcreteInfo.PointerPreferred =
 	// info.ConcreteInfo.Registered =
 	// info.ConcreteInfo.Name =
-	// info.ConcreteInfo.Prefix
 	// info.ConcreteInfo.Disamb =
+	// info.ConcreteInfo.Prefix
 	// info.ConcreteInfo.Fields =
 	return info
 }
@@ -395,7 +404,7 @@ func (cdc *Codec) checkConflictsInPrio_nolock(iinfo *TypeInfo) error {
 		for _, cinfo := range cinfos {
 			var inPrio = false
 			for _, disfix := range iinfo.InterfaceInfo.Priority {
-				if toDisfix(cinfo.Disamb, cinfo.Prefix) == disfix {
+				if cinfo.GetDisfix() == disfix {
 					inPrio = true
 				}
 			}
@@ -456,8 +465,8 @@ func (ti TypeInfo) String() string {
 			buf.Write([]byte("Registered:true,"))
 			buf.Write([]byte(fmt.Sprintf("PointerPreferred:%v,", ti.PointerPreferred)))
 			buf.Write([]byte(fmt.Sprintf("Name:\"%v\",", ti.Name)))
-			buf.Write([]byte(fmt.Sprintf("Prefix:\"%X\",", ti.Prefix)))
 			buf.Write([]byte(fmt.Sprintf("Disamb:\"%X\",", ti.Disamb)))
+			buf.Write([]byte(fmt.Sprintf("Prefix:\"%X\",", ti.Prefix)))
 		} else {
 			buf.Write([]byte("Registered:false,"))
 		}
@@ -467,4 +476,27 @@ func (ti TypeInfo) String() string {
 	}
 	buf.Write([]byte("}"))
 	return buf.String()
+}
+
+//----------------------------------------
+// Misc.
+
+func isExported(field reflect.StructField) bool {
+	// Test 1:
+	if field.PkgPath != "" {
+		return false
+	}
+	// Test 2:
+	var first rune
+	for _, c := range field.Name {
+		first = c
+		break
+	}
+	// TODO: JAE: I'm not sure that the unicode spec
+	// is the correct spec to use, so this might be wrong.
+	if !unicode.IsUpper(first) {
+		return false
+	}
+	// Ok, it's exported.
+	return true
 }
