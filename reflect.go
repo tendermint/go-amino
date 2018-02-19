@@ -5,7 +5,6 @@ package wire
 // XXX Scan the codebase for unwraps and double check that they implement above.
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -27,10 +26,16 @@ const printLog = false
 //----------------------------------------
 // cdc.decodeReflectBinary
 
+// This is the main entrypoint for decoding all types from binary form.  This
+// function calls decodeReflectBinary*, and generally those functions should
+// only call this one, for the prefix bytes are consumed here when present.
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
+	}
+	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
+		panic("should not happen")
 	}
 
 	if printLog {
@@ -41,23 +46,44 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		}()
 	}
 
-	var _n int
+	// TODO Read the disamb bytes here if necessary.
+	// e.g. rv isn't an interface, and
+	// info.ConcreteType.AlwaysDisambiguate.  But we don't support
+	// this yet.
 
-	if info.Registered {
-		if len(bz) < PrefixBytesLen {
-			err = errors.New("EOF skipping prefix bytes.")
-			return
-		}
-		bz = bz[PrefixBytesLen:]
-		n += PrefixBytesLen
+	if !info.Registered {
+		// No need for disambiguation, decode as is.
+		n, err = cdc._decodeReflectBinary(bz, info, rv, opts)
+		return
 	}
 
-	// SANITY CHECK
-	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
+	// It's a registered concrete type.
+	// Implies that info holds the info we need.
+	// Just strip the prefix bytes after checking it.
+	if len(bz) < PrefixBytesLen {
+		err = errors.New("EOF skipping prefix bytes.")
+		return
+	}
+	if !info.Prefix.EqualBytes(bz) {
 		panic("should not happen")
 	}
+	bz = bz[PrefixBytesLen:]
+	n += PrefixBytesLen
 
-	// Handle pointer types.
+	_n := 0
+	_n, err = cdc._decodeReflectBinary(bz, info, rv, opts)
+	slide(&bz, &n, _n)
+	return
+}
+
+// CONTRACT: any immediate disamb/prefix bytes have been consumed/stripped.
+// CONTRACT: rv.CanAddr() is true.
+func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+
+	// TODO consider the binary equivalent of json.Unmarshaller.
+
+	// If a pointer, handle pointer byte.
+	// 0x00 means nil, 0x01 means not nil.
 	if rv.Kind() == reflect.Ptr {
 		if len(bz) == 0 {
 			err = errors.New("EOF reading pointer type")
@@ -76,18 +102,19 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 			err = fmt.Errorf("unexpected pointer byte %X", bz[0])
 			return
 		}
-
-		// Dereference-and-construct pointers all the way.
-		// This works for pointer-pointers.
-		for c := true; c; c = rv.Kind() == reflect.Ptr {
-			if rv.IsNil() {
-				newPtr := reflect.New(rv.Type().Elem())
-				rv.Set(newPtr)
-			}
-			rv = rv.Elem()
-		}
 	}
 
+	// Dereference-and-construct pointers all the way.
+	// This works for pointer-pointers.
+	for rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			newPtr := reflect.New(rv.Type().Elem())
+			rv.Set(newPtr)
+		}
+		rv = rv.Elem()
+	}
+
+	var _n int
 	switch info.Type.Kind() {
 
 	//----------------------------------------
@@ -120,13 +147,13 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		var num int64
 		if opts.BinVarint {
 			num, _n, err = DecodeVarint(bz)
-			if slide(bz, &bz, &n, _n) && err != nil {
+			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
 			rv.SetInt(num)
 		} else {
 			num, _n, err = DecodeInt64(bz)
-			if slide(bz, &bz, &n, _n) && err != nil {
+			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
 			rv.SetInt(num)
@@ -136,7 +163,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	case reflect.Int32:
 		var num int32
 		num, _n, err = DecodeInt32(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		rv.SetInt(int64(num))
@@ -145,7 +172,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	case reflect.Int16:
 		var num int16
 		num, _n, err = DecodeInt16(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		rv.SetInt(int64(num))
@@ -154,7 +181,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	case reflect.Int8:
 		var num int8
 		num, _n, err = DecodeInt8(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		rv.SetInt(int64(num))
@@ -163,7 +190,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	case reflect.Int:
 		var num int64
 		num, _n, err = DecodeVarint(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		rv.SetInt(num)
@@ -176,13 +203,13 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		var num uint64
 		if opts.BinVarint {
 			num, _n, err = DecodeUvarint(bz)
-			if slide(bz, &bz, &n, _n) && err != nil {
+			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
 			rv.SetUint(num)
 		} else {
 			num, _n, err = DecodeUint64(bz)
-			if slide(bz, &bz, &n, _n) && err != nil {
+			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
 			rv.SetUint(num)
@@ -192,7 +219,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	case reflect.Uint32:
 		var num uint32
 		num, _n, err = DecodeUint32(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		rv.SetUint(uint64(num))
@@ -201,7 +228,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	case reflect.Uint16:
 		var num uint16
 		num, _n, err = DecodeUint16(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		rv.SetUint(uint64(num))
@@ -210,7 +237,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	case reflect.Uint8:
 		var num uint8
 		num, _n, err = DecodeUint8(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		rv.SetUint(uint64(num))
@@ -219,7 +246,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	case reflect.Uint:
 		var num uint64
 		num, _n, err = DecodeUvarint(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		rv.SetUint(num)
@@ -231,7 +258,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	case reflect.Bool:
 		var b bool
 		b, _n, err = DecodeBool(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		rv.SetBool(b)
@@ -244,7 +271,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 			return
 		}
 		f, _n, err = DecodeFloat64(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		rv.SetFloat(f)
@@ -257,7 +284,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 			return
 		}
 		f, _n, err = DecodeFloat32(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		rv.SetFloat(float64(f))
@@ -266,7 +293,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	case reflect.String:
 		var str string
 		str, _n, err = DecodeString(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		rv.SetString(str)
@@ -284,24 +311,29 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		panic("rv not addressable")
 	}
 	if !rv.IsNil() {
-		// This is very tricky.
+		// JAE: Heed this note, this is very tricky.
 		err = errors.New("Decoding to a non-nil interface is not supported yet")
 		return
 	}
 
-	// Read disambiguation / prefix bytes but do not consume the prefix bytes.
+	// Peek disambiguation / prefix info.
 	disfix, hasDisamb, prefix, hasPrefix, isNil, _, err := decodeDisambPrefixBytes(bz)
-	if isNil || hasDisamb {
-		n += 1 + DisambBytesLen
-	}
 	if err != nil {
 		return
 	}
 
-	// Special case for nil
+	// Special case for nil.
 	if isNil {
+		n += 1 + DisambBytesLen // Consume 0x{00 00 00 00}
 		rv.Set(iinfo.ZeroValue)
 		return
+	}
+
+	// Consume disamb (if any) and prefix bytes.
+	if hasDisamb {
+		slide(&bz, &n, 1+DisfixBytesLen)
+	} else {
+		slide(&bz, &n, PrefixBytesLen)
 	}
 
 	// Get concrete type info.
@@ -317,30 +349,23 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
-	// Construct new concrete type.
-	// NOTE: rv.Set() should succeed because it was validated
-	// already during Register[Interface/Concrete].
-	var crv reflect.Value
-	var rvSet reflect.Value
-	if cinfo.PointerPreferred {
-		cPtrRv := reflect.New(cinfo.Type)
-		crv = cPtrRv.Elem()
-		rvSet = cPtrRv
-	} else {
-		crv = reflect.New(cinfo.Type).Elem()
-		rvSet = crv
-	}
+	// Construct the concrete type.
+	var crv, irvSet = constructConcreteType(cinfo)
 
-	// Read into crv.
-	var _n int
-	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, opts)
-	slide(bz, &bz, &n, _n)
+	// Decode into the concrete type.
+	_n := 0
+	_n, err = cdc._decodeReflectBinary(bz, cinfo, crv, opts)
+	if slide(&bz, &n, _n) && err != nil {
+		rv.Set(irvSet) // Helps with debugging
+		return
+	}
 
 	// We need to set here, for when !PointerPreferred and the type
 	// is say, an array of bytes (e.g. [32]byte), then we must call
 	// rv.Set() *after* the value was acquired.
-	// NOTE: run this even if err != nil, to help debug.
-	rv.Set(rvSet)
+	// NOTE: rv.Set() should succeed because it was validated
+	// already during Register[Interface/Concrete].
+	rv.Set(irvSet)
 	return
 }
 
@@ -351,7 +376,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 	}
 	ert := info.Type.Elem()
 	length := info.Type.Len()
-	_n := 0 // nolint: ineffassign
+	_n := 0
 
 	switch ert.Kind() {
 
@@ -372,7 +397,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 		for i := 0; i < length; i++ {
 			erv := rv.Index(i)
 			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, opts)
-			if slide(bz, &bz, &n, _n) && err != nil {
+			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
 		}
@@ -393,26 +418,40 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	case reflect.Uint8: // Special case: byte slice
 		var byteslice []byte
 		byteslice, _n, err = DecodeByteSlice(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		if len(byteslice) == 0 {
-			rv.Set(reflect.ValueOf([]byte(nil)))
+			// Special case when length is 0.
+			// NOTE: We prefer nil slices.
+			rv.Set(info.ZeroValue)
 		} else {
 			rv.Set(reflect.ValueOf(byteslice))
 		}
 		return
 
 	default: // General case.
+		var einfo *TypeInfo
+		einfo, err = cdc.getTypeInfo_wlock(ert)
+		if err != nil {
+			return
+		}
 
 		// Read length.
-		var length int64
-		length, _n, err = DecodeVarint(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		var length = int(0)
+		length64 := int64(0)
+		length64, _n, err = DecodeVarint(bz)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+		length = int(length64)
+		if length < 0 {
+			err = errors.New("Invalid negative slice length")
 			return
 		}
 
 		// Special case when length is 0.
+		// NOTE: We prefer nil slices.
 		if length == 0 {
 			rv.Set(info.ZeroValue)
 			return
@@ -420,16 +459,11 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 
 		// Read into a new slice.
 		var esrt = reflect.SliceOf(ert) // TODO could be optimized.
-		var srv = reflect.MakeSlice(esrt, int(length), int(length))
-		var einfo *TypeInfo
-		einfo, err = cdc.getTypeInfo_wlock(ert)
-		if err != nil {
-			return
-		}
-		for i := 0; i < int(length); i++ {
+		var srv = reflect.MakeSlice(esrt, length, length)
+		for i := 0; i < length; i++ {
 			erv := srv.Index(i)
 			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, opts)
-			if slide(bz, &bz, &n, _n) && err != nil {
+			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
 		}
@@ -441,7 +475,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, _ FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -452,7 +486,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	case timeType: // Special case: time.Time
 		var t time.Time
 		t, _n, err = DecodeTime(bz)
-		if slide(bz, &bz, &n, _n) && err != nil {
+		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		rv.Set(reflect.ValueOf(t))
@@ -460,14 +494,18 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 
 	default:
 		for _, field := range info.Fields {
+
+			// Get field rv and info.
+			var frv = rv.Field(field.Index)
 			var finfo *TypeInfo
 			finfo, err = cdc.getTypeInfo_wlock(field.Type)
 			if err != nil {
 				return
 			}
-			frv := rv.Field(field.Index)
+
+			// Decode into field rv.
 			_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions)
-			if slide(bz, &bz, &n, _n) && err != nil {
+			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
 		}
@@ -478,9 +516,9 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 //----------------------------------------
 // cdc.encodeReflectBinary
 
-// This is the main entrypoint for encoding all types.  This function calls
-// encodeReflectBinary*, but those functions should only call this one.
-// (This is necessary because the prefix bytes are only written here).
+// This is the main entrypoint for encoding all types in binary form.  This
+// function calls encodeReflectBinary*, and generally those functions should
+// only call this one, for the prefix bytes are only written here.
 func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	if printLog {
@@ -607,40 +645,30 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	case reflect.String:
 		err = EncodeString(w, rv.String())
 
+	//----------------------------------------
+	// Default
+
 	default:
-		panic(fmt.Sprintf("unknown field type %v", info.Type.Kind()))
+		panic(fmt.Sprintf("unsupported type %v", info.Type.Kind()))
 	}
 
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	if rv.IsNil() {
 		_, err = w.Write([]byte{0x00, 0x00, 0x00, 0x00})
 		return
 	}
 
-	crv := rv.Elem() // concrete reflection value
-
-	// Dereference pointer transparently.
-	// This also works for pointer-pointers.
-	// NOTE: Encoding pointer-pointers only work for no-method interfaces like
-	// `interface{}`.
-	for crv.Kind() == reflect.Ptr {
-		crv = crv.Elem()
-		if crv.Kind() == reflect.Interface {
-			err = fmt.Errorf("Unexpected interface-pointer of type *%v for registered interface %v. Not supported yet.", crv.Type(), info.Type)
-			return
-		}
-		if !crv.IsValid() {
-			err = fmt.Errorf("Illegal nil-pointer of type %v for registered interface %v. "+
-				"For compatibility with other languages, nil-pointer interface values are forbidden.", crv.Type(), info.Type)
-			return
-		}
+	// Get concrete non-pointer reflect value & type.
+	var crv = rv.Elem()
+	crv, err = derefForInterface(crv, iinfo)
+	if err != nil {
+		return
 	}
-
-	crt := crv.Type() // non-pointer non-interface concrete type
+	var crt = crv.Type()
 
 	// Get *TypeInfo for concrete type.
 	var cinfo *TypeInfo
@@ -655,9 +683,9 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, info *TypeInfo, rv r
 
 	// Write the disambiguation bytes if needed.
 	var needDisamb bool = false
-	if info.AlwaysDisambiguate {
+	if iinfo.AlwaysDisambiguate {
 		needDisamb = true
-	} else if len(info.Implementers[cinfo.Prefix]) > 1 {
+	} else if len(iinfo.Implementers[cinfo.Prefix]) > 1 {
 		needDisamb = true
 	}
 	if needDisamb {
@@ -678,16 +706,15 @@ func (cdc *Codec) encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv refle
 	switch ert.Kind() {
 
 	case reflect.Uint8: // Special case: byte array
+		bz := []byte(nil)
 		if rv.CanAddr() {
-			bz := rv.Slice(0, length).Bytes()
-			_, err = w.Write(bz)
-			return
+			bz = rv.Slice(0, length).Bytes()
 		} else {
-			buf := make([]byte, length)
-			reflect.Copy(reflect.ValueOf(buf), rv) // XXX: looks expensive!
-			_, err = w.Write(buf)
-			return
+			bz = make([]byte, length)
+			reflect.Copy(reflect.ValueOf(bz), rv) // XXX: looks expensive!
 		}
+		_, err = w.Write(bz)
+		return
 
 	default:
 		var einfo *TypeInfo
@@ -699,7 +726,7 @@ func (cdc *Codec) encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv refle
 			erv := rv.Index(i)
 			err = cdc.encodeReflectBinary(w, einfo, erv, opts)
 			if err != nil {
-				return err
+				return
 			}
 		}
 		return
@@ -751,12 +778,14 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 
 	default:
 		for _, field := range info.Fields {
+			// Get field value and info.
+			var frv = rv.Field(field.Index)
 			var finfo *TypeInfo
 			finfo, err = cdc.getTypeInfo_wlock(field.Type)
 			if err != nil {
 				return
 			}
-			frv := rv.Field(field.Index)
+			// Write field value.
 			err = cdc.encodeReflectBinary(w, finfo, frv, field.FieldOptions)
 			if err != nil {
 				return
@@ -832,7 +861,7 @@ func decodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBy
 	}
 	if bz[0] == 0x00 {
 		// Special case: nil
-		if bytes.Equal(bz[1:4], []byte{0x00, 0x00, 0x00}) {
+		if (DisambBytes{}).EqualBytes(bz[1:4]) {
 			isNil = true
 			n = 4
 			return
@@ -860,8 +889,50 @@ func decodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBy
 
 // CONTRACT: by the time this is called, len(bz) >= _n
 // Returns true so you can write one-liners.
-func slide(bz []byte, bz2 *[]byte, n *int, _n int) bool {
-	*bz2 = bz[_n:]
+func slide(bz *[]byte, n *int, _n int) bool {
+	if _n < 0 || _n > len(*bz) {
+		panic(fmt.Sprintf("impossible slide: len:%v _n:%v", len(*bz), _n))
+	}
+	*bz = (*bz)[_n:]
 	*n += _n
 	return true
+}
+
+// Dereference pointer transparently for interface iinfo.
+// This also works for pointer-pointers.
+func derefForInterface(crv reflect.Value, iinfo *TypeInfo) (reflect.Value, error) {
+	if iinfo.Type.Kind() != reflect.Interface {
+		panic("derefForInterface() expects interface type info")
+	}
+	// NOTE: Encoding pointer-pointers only work for no-method interfaces like
+	// `interface{}`.
+	for crv.Kind() == reflect.Ptr {
+		crv = crv.Elem()
+		if crv.Kind() == reflect.Interface {
+			err := fmt.Errorf("Unexpected interface-pointer of type *%v for registered interface %v. Not supported yet.", crv.Type(), iinfo.Type)
+			return crv, err
+		}
+		if !crv.IsValid() {
+			err := fmt.Errorf("Illegal nil-pointer of type %v for registered interface %v. "+
+				"For compatibility with other languages, nil-pointer interface values are forbidden.", crv.Type(), iinfo.Type)
+			return crv, err
+		}
+	}
+	return crv, nil
+}
+
+// constructConcreteType creates the concrete value as
+// well as the corresponding settable value for it.
+// Return irvSet which should be set on caller's interface rv.
+func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
+	// Construct new concrete type.
+	if cinfo.PointerPreferred {
+		cPtrRv := reflect.New(cinfo.Type)
+		crv = cPtrRv.Elem()
+		irvSet = cPtrRv
+	} else {
+		crv = reflect.New(cinfo.Type).Elem()
+		irvSet = crv
+	}
+	return
 }
