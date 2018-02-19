@@ -2,6 +2,7 @@ package wire
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"fmt"
 	"reflect"
 	"strings"
@@ -499,4 +500,36 @@ func isExported(field reflect.StructField) bool {
 	}
 	// Ok, it's exported.
 	return true
+}
+
+func nameToDisamb(name string) (db DisambBytes) {
+	db, _ = nameToDisfix(name)
+	return
+}
+
+func nameToPrefix(name string) (pb PrefixBytes) {
+	_, pb = nameToDisfix(name)
+	return
+}
+
+func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
+	hasher := sha256.New()
+	hasher.Write([]byte(name))
+	bz := hasher.Sum(nil)
+	for bz[0] == 0x00 {
+		bz = bz[1:]
+	}
+	copy(db[:], bz[0:3])
+	bz = bz[3:]
+	for bz[0] == 0x00 {
+		bz = bz[1:]
+	}
+	copy(pb[:], bz[0:4])
+	return
+}
+
+func toDisfix(db DisambBytes, pb PrefixBytes) (df DisfixBytes) {
+	copy(df[0:3], db[0:3])
+	copy(df[3:7], pb[0:4])
+	return
 }
