@@ -134,7 +134,74 @@ TODO
 
 ## Wire vs Protobuf
 
-TODO
+From the [Protocol Buffers encoding guide](https://developers.google.com/protocol-buffers/docs/encoding):
+
+> As you know, a protocol buffer message is a series of key-value pairs. The
+> binary version of a message just uses the field's number as the key – the
+> name and declared type for each field can only be determined on the decoding
+> end by referencing the message type's definition (i.e. the .proto file).
+>
+> When a message is encoded, the keys and values are concatenated into a byte
+> stream. When the message is being decoded, the parser needs to be able to
+> skip fields that it doesn't recognize. This way, new fields can be added to a
+> message without breaking old programs that do not know about them. To this
+> end, the "key" for each pair in a wire-format message is actually two values
+> – the field number from your .proto file, plus a wire type that provides just
+> enough information to find the length of the following value.
+>
+> The available wire types are as follows:
+> 
+> Type | Meaning | Used For
+> ---- | ------- | --------
+> 0    | Varint  | int32, int64, uint32, uint64, sint32, sint64, bool, enum
+> 1    | 64-bit  | fixed64, sfixed64, double
+> 2    | Length-delimited | string, bytes, embedded messages, packed repeated fields
+> 3    | Start group | groups (deprecated)
+> 4    | End group | groups (deprecated)
+> 5    | 32-bit  | fixed32, sfixed32, float
+>
+> Each key in the streamed message is a varint with the value (field_number <<
+> 3) | wire_type – in other words, the last three bits of the number store the
+> wire type.
+
+In Wire, 
+
+Type | Used For
+---- | --------
+0    | byte
+1    | int32, uint32, float32
+2    | int64, uint64, float64
+3    | varint
+4    | struct
+5    | array/slice/string
+6    | pointer
+7    | interface
+
+A struct is encoded first by a varint representation of the number of following
+encoded struct fields, so the size of the struct is determined by summing the
+size of each component fields of that struct.  This may require recursive
+descent before ultimately being able to read the next field in the parent
+struct.
+
+As in protobuf, each struct field is keyed by a varint with the value
+`(field_number << 3) | type`, where `type` is 3 bits long. 
+
+An array/slice/string is encoded by first writing 1 byte to represent the
+element type, which is one of the above, from 0 ~ 7.  This "type byte"
+is followed by a varint representation of the number of elements in the parent
+object.
+
+Similarly, a pointer is encoded by first writing 1 byte to represent the value
+type (which is not another pointer). This is followed by 0x00 if the pointer is
+a nil pointer, otherwise 0x01.
+
+An interface is expected to be followed by an encoding of a struct, but if it
+isn't, then it is followed by the byte `0000 1XXX` where `XXX` denote the type
+3-bit sequence.  This allows for seamless upgrading of primitive concrete types
+to struct concrete types, and provides a way to determine the byte-length of
+any interface object (thus any go-wire field type can be scanned to
+completion).
+
 
 ## Wire in other langauges
 
