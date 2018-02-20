@@ -166,41 +166,34 @@ From the [Protocol Buffers encoding guide](https://developers.google.com/protoco
 
 In Wire, 
 
-Type | Used For
----- | --------
-0    | byte
-1    | int32, uint32, float32
-2    | int64, uint64, float64
-3    | varint
-4    | struct
-5    | array/slice/string
-6    | pointer
-7    | interface
+Type | Meaning | Used For
+---- | ------- | --------
+0    | Varint  | bool, byte, [u]int16, and varint-[u]int[64/32]
+1    | 64-bit  | int64, uint64, float64(unsafe)
+2    | Length-delimited | string, bytes, raw?
+3    | Start struct | conceptually, '{'
+4    | End group | conceptually, '}'
+5    | 32-bit  | int32, uint32, float32
+6    | List    | array, slice; followed by `<type3><varint-length-bytes>`
+7    | interface | followed by `<prefix>` or `<disfix>`
 
-A struct is encoded first by a varint representation of the number of following
-encoded struct fields, so the size of the struct is determined by summing the
-size of each component fields of that struct.  This may require recursive
-descent before ultimately being able to read the next field in the parent
-struct.
+Struct fields are encoded in order, and a null field is represented by the
+absence of a field in the encoding, similar to protobuf. In general, the total
+byte-size of a Wire:binary encoded struct cannot be determined until each
+field's size has determined recursively.
 
 As in protobuf, each struct field is keyed by a varint with the value
 `(field_number << 3) | type`, where `type` is 3 bits long. 
 
-An array/slice/string is encoded by first writing 1 byte to represent the
-element type, which is one of the above, from 0 ~ 7.  This "type byte"
-is followed by a varint representation of the number of elements in the parent
-object.
+A List is encoded by first writing 1 byte to represent the element type, which
+is one of the above, from 0 ~ 7.  This "element type byte" is followed by a
+varint representation of the number of elements in the parent object.
 
-Similarly, a pointer is encoded by first writing 1 byte to represent the value
-type (which is not another pointer). This is followed by 0x00 if the pointer is
-a nil pointer, otherwise 0x01.
-
-An interface is expected to be followed by an encoding of a struct, but if it
+An interface value is typically a struct, but it doesn't need to be.  If it
 isn't, then it is followed by the byte `0000 1XXX` where `XXX` denote the type
-3-bit sequence.  This allows for seamless upgrading of primitive concrete types
-to struct concrete types, and provides a way to determine the byte-length of
-any interface object (thus any go-wire field type can be scanned to
-completion).
+3-bit sequence.  This encodes non-struct interface values as if they were the
+only field of a struct.  This extra byte for non-structs is necessary to be
+able to scan and parse the structure of a Wire:binary blob.
 
 
 ## Wire in other langauges
