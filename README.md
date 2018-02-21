@@ -168,6 +168,10 @@ In Wire, a "type" can be encoded by more than 3 bits, due to the introduction
 of a "List" type, which can hold other types recursively.  So collectively,
 lets call these bits the `<type-bytes>`.
 
+In Wire, "varint" means protobuf's "signed varint", and "uvarint" means "varint".
+Unlike protobuf, numeric values in Wire are always encoded as a (signed,
+zigzag) varint.
+
 Type | Meaning | Used For
 ---- | ------- | --------
 0    | Varint  | bool, byte, [u]int16, and varint-[u]int[64/32]
@@ -176,7 +180,7 @@ Type | Meaning | Used For
 3    | Start struct | conceptually, '{'
 4    | End struct | conceptually, '}'; always a single byte, 0x04
 5    | 32-bit  | int32, uint32, float32(unsafe)
-6    | List    | array, slice; followed by 1 or more bytes encoding `<type-bytes>`, then `<varint(num-items)>`
+6    | List    | array, slice; followed by 1 or more bytes encoding `<type-bytes>`, then `<uvarint(num-items)>`
 7    | Interface | value starts with `<prefix-bytes>` or `<disfix-bytes>`
 
 Struct fields are encoded in order, and a null/empty/zero field is represented
@@ -185,15 +189,15 @@ total byte-size of a Wire:binary encoded struct cannot be determined in a
 stream until each field's size has been determined by scanning all fields and
 elements recursively.
 
-As in protobuf, each struct field is keyed by a varint with the value
+As in protobuf, each struct field is keyed by a uvarint with the value
 `(field_number << 3) | type`, where `type` is 3 bits long. 
 
 A List is encoded by first writing the type-bytes of the element type, followed
-by the varint encoding of the length of the list, followed by the encoding of
+by the uvarint encoding of the length of the list, followed by the encoding of
 each element.
 
 A list of structs with `n` elements is encoded by the byte `0x03` followed by
-the varint encoding of `n`, followed by the binary encoding of each
+the uvarint encoding of `n`, followed by the binary encoding of each
 element.  Each struct element is encoded as if followed by a `Start struct`
 field key (i.e. it is implied), and terminates with an `End struct` field key
 (specifically, the byte 0x04).
@@ -216,7 +220,7 @@ if err != nil { ... }
 // b0000 0011  0x03  "Start struct" for `List`
 // b0000 1110  0x14  field number and type for `MyList` (1, "List")
 // b0000 0011  0x03  type of element of `MyList`, a struct
-// b0000 0100  0x04  length of list, varint for 2
+// b0000 0010  0x02  length of list, uvarint for 2
 //                   "Start struct" for `Item` #0 (implied)
 // b0000 1000  0x08  field number and type for Number (1, "Varint)
 // b0000 0010  0x02  field value varint for 1
@@ -228,11 +232,11 @@ if err != nil { ... }
 // b0000 0100  0x04  "End struct" for `List`
 ```
 
-A list of list of structs with `n` elements is encoded by the bytes `0x06 0x03`
-followed by the varint encoding of `n`, followed by the binary encoding of each
-element, which starts with the varint encoding of `m` (the size of the first
-list).  Each struct element is encoded as if followed by a `Start struct` field
-key, as in the previous example.
+A list of `n` elements where the elements are list of structs is encoded by the
+bytes `0x06 0x03` followed by the uvarint encoding of `n`, followed by the
+binary encoding of each element, which starts with the uvarint encoding of `m`
+(the size of the first child list).  Each struct element is encoded as if
+followed by a `Start struct` field key, as in the previous example.
 
 ```golang
 type Item struct {
@@ -254,11 +258,11 @@ if err != nil { ... }
 // b0000 1110  0x14  field number and type for `MyLists` (1, "[]List")
 // b0000 0110  0x06  type of element of `MyLists`, a list
 // b0000 0011  0x03  type of element of `MyLists[0]`, a struct (continued type-bytes)
-// b0000 0010  0x04  length of list, varint for 1
+// b0000 0001  0x01  length of list, uvarint for 1
 //                   "Start struct" for `List` #0 (implied)
 // b0000 1110  0x14  field number and type for MyList (1, "List")
 // b0000 0011  0x03  type of list element, struct
-// b0000 0100  0x04  length of list, varint for 2
+// b0000 0010  0x02  length of list, uvarint for 2
 //                   "Start struct" for `Item` #0 (implied)
 // b0000 1000  0x08  field number and type for Number (1, "Varint)
 // b0000 0010  0x02  field value varint for 1
@@ -271,19 +275,19 @@ if err != nil { ... }
 // b0000 0100  0x04  "End struct" for `ListOfLists`
 ```
 
-Unlike fields of a struct where nil pointers are denoted by the
-absence of encoding, elements of a list are encoded without an index
-or key.  They are just encoded one after the other, with the first
-type-byte implied by the initial list "declaration" bytes.
+Unlike fields of a struct where nil pointers are denoted by the absence of
+encoding, elements of a list are encoded without an index or key.  They are
+just encoded one after the other, with the first type-byte implied by the
+initial list "declaration" bytes.
 
 To denote nil values in list elements, the element type-byte that immediately
 follows the bXXXXX110 type-byte (for nested lists) or key (for struct fields)
 list "declaration" reserves the 4th least-significant bit to denote whether
-elements are prefixed by a 0x00 byte to denote a non-nil item, or a 0x02 byte
-to denote a nil item.  Note that the byte values are strange (typically 0 is
+elements are prefixed by a 0x00 byte to denote a non-nil item, or a 0x01 byte
+to denote a nil item.  Note that the byte values are flipped (typically 0 is
 used to denote nil).  This is to open the possibility of supporting sparse
 encoding of nil lists in the future by encoding the number of nil items to skip
-as a varint.
+as a uvarint.
 
 ```golang
 type Item struct {
@@ -303,7 +307,7 @@ if err != nil { ... }
 // b0000 0011  0x03  "Start struct" for `List`
 // b0000 1110  0x14  field number and type for `MyList` (1, "List")
 // b0000 1011  0x03  type of element of `MyList`, a struct; and "nullable" elements
-// b0000 0100  0x04  length of list, varint for 2
+// b0000 0010  0x02  length of list, uvarint for 2
 // b0000 0000  0x00  byte to denote non-nil element
 //                   "Start struct" for `Item` #0 (implied)
 // b0000 1000  0x08  field number and type for Number (1, "Varint)
