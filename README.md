@@ -169,8 +169,6 @@ of a "List" type, which can hold other types recursively.  So collectively,
 lets call these bits the `<type-bytes>`.
 
 In Wire, "varint" means protobuf's "signed varint", and "uvarint" means "varint".
-Unlike protobuf, numeric values in Wire are always encoded as a (signed,
-zigzag) varint.
 
 Type | Meaning | Used For
 ---- | ------- | --------
