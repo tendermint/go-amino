@@ -9,6 +9,11 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
+const (
+	// TODO: how to make this configurable so eg. reactors can set tighter limits ?
+	maxSliceSize = 1 << 27 // 128 MB
+)
+
 //----------------------------------------
 // cdc.decodeReflectBinary
 
@@ -433,6 +438,11 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 		length = int(length64)
 		if length < 0 {
 			err = errors.New("Invalid negative slice length")
+			return
+		}
+
+		if length > maxSliceSize {
+			err = errors.New(fmt.Sprintf("length (%d) > maxSliceSize (%d)"))
 			return
 		}
 
