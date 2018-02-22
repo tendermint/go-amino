@@ -8,7 +8,7 @@ This package also includes a compatible (and slower) JSON codec.
 
 ## Interfaces and concrete types
 
-Wire is an encoding library that can handle interfaces (like protobuf "oneof")
+Wire is an encoding library that can handle interfaces (like Protobuf "oneof")
 well.  This is achieved by prefixing bytes before each "concrete type".
 
 A concrete type is some non-interface value (generally a struct) which
@@ -134,6 +134,8 @@ TODO
 
 ## Wire vs Protobuf
 
+XXX Why Protobuf isn't good enough
+
 From the [Protocol Buffers encoding guide](https://developers.google.com/protocol-buffers/docs/encoding):
 
 > As you know, a protocol buffer message is a series of key-value pairs. The
@@ -166,33 +168,34 @@ From the [Protocol Buffers encoding guide](https://developers.google.com/protoco
 
 In Wire, a "type" can be encoded by more than 3 bits, due to the introduction
 of a "List" type, which can hold other types recursively.  So collectively,
-lets call these bits the `<type-bytes>`.
+lets call these bits the `<typ3-bytes>`.
 
-In Wire, "varint" means protobuf's "signed varint", and "uvarint" means "varint".
+In Wire, "varint" means Protobuf's "signed varint", and "uvarint" means "varint".
 
-Type | Meaning | Used For
----- | ------- | --------
-0    | Varint  | bool, byte, [u]int16, and varint-[u]int[64/32]
-1    | 64-bit  | int64, uint64, float64(unsafe)
+Typ3 | Meaning          | Used For
+---- | ---------------- | --------
+0    | Varint           | bool, byte, [u]int16, and varint-[u]int[64/32]
+1    | 64-bit           | int64, uint64, float64(unsafe)
 2    | Length-delimited | string, bytes, raw?
-3    | Start struct | conceptually, '{'
-4    | End struct | conceptually, '}'; always a single byte, 0x04
-5    | 32-bit  | int32, uint32, float32(unsafe)
-6    | List    | array, slice; followed by 1 or more bytes encoding `<type-bytes>`, then `<uvarint(num-items)>`
-7    | Interface | value starts with `<prefix-bytes>` or `<disfix-bytes>`
+3    | Start struct     | conceptually, '{'
+4    | End struct       | conceptually, '}'; always a single byte, 0x04
+5    | 32-bit           | int32, uint32, float32(unsafe)
+6    | List             | array, slice; followed by element type3 byte(s), then `<uvarint(num-items)>`
+7    | Interface        | registered concrete types; followed by `<prefix-bytes>` or `<disfix-bytes>`
 
 Struct fields are encoded in order, and a null/empty/zero field is represented
-by the absence of a field in the encoding, similar to protobuf. In general, the
+by the absence of a field in the encoding, similar to Protobuf. In general, the
 total byte-size of a Wire:binary encoded struct cannot be determined in a
 stream until each field's size has been determined by scanning all fields and
 elements recursively.
 
-As in protobuf, each struct field is keyed by a uvarint with the value
+As in Protobuf, each struct field is keyed by a uvarint with the value
 `(field_number << 3) | type`, where `type` is 3 bits long. 
 
-A List is encoded by first writing the type-bytes of the element type, followed
-by the uvarint encoding of the length of the list, followed by the encoding of
-each element.
+Unlike Protobuf, Wire deprecates "repeated fields" in favor of Lists. A List is
+encoded by first writing the typ3-bytes of the element type, followed by the
+uvarint encoding of the length of the list, followed by the encoding of each
+element.
 
 A list of structs with `n` elements is encoded by the byte `0x03` followed by
 the uvarint encoding of `n`, followed by the binary encoding of each
@@ -223,7 +226,7 @@ if err != nil { ... }
 // b0000 1000  0x08  field number and type for Number (1, "Varint)
 // b0000 0010  0x02  field value varint for 1
 // b0000 0100  0x04  "End struct" for `Item` #0
-//                   "Start struct" for `Item` #0 (implied)
+//                   "Start struct" for `Item` #1 (implied)
 // b0000 1000  0x08  field number and type for Number (1, "Varint)
 // b0000 0110  0x06  field value varint for 3
 // b0000 0100  0x04  "End struct" for `Item` #1
@@ -255,31 +258,30 @@ if err != nil { ... }
 // b0000 0011  0x03  "Start struct" for `ListOfLists`
 // b0000 1110  0x14  field number and type for `MyLists` (1, "[]List")
 // b0000 0110  0x06  type of element of `MyLists`, a list
-// b0000 0011  0x03  type of element of `MyLists[0]`, a struct (continued type-bytes)
-// b0000 0001  0x01  length of list, uvarint for 1
-//                   "Start struct" for `List` #0 (implied)
-// b0000 1110  0x14  field number and type for MyList (1, "List")
 // b0000 0011  0x03  type of list element, struct
+// b0000 0001  0x01  length of list, uvarint for 1
+//                   "List" for `List` #0 (implied)
+//                   type of list element, struct (implied)
 // b0000 0010  0x02  length of list, uvarint for 2
 //                   "Start struct" for `Item` #0 (implied)
 // b0000 1000  0x08  field number and type for Number (1, "Varint)
 // b0000 0010  0x02  field value varint for 1
 // b0000 0100  0x04  "End struct" for `Item` #0
-//                   "Start struct" for `Item` #0 (implied)
+//                   "Start struct" for `Item` #1 (implied)
 // b0000 1000  0x08  field number and type for Number (1, "Varint)
 // b0000 0110  0x06  field value varint for 3
 // b0000 0100  0x04  "End struct" for `Item` #1
-// b0000 0100  0x04  "End struct" for `List` #0
+//                   "End list" for `List` #0 implied
 // b0000 0100  0x04  "End struct" for `ListOfLists`
 ```
 
 Unlike fields of a struct where nil pointers are denoted by the absence of
 encoding, elements of a list are encoded without an index or key.  They are
-just encoded one after the other, with the first type-byte implied by the
+just encoded one after the other, with the first typ3-byte implied by the
 initial list "declaration" bytes.
 
-To denote nil values in list elements, the element type-byte that immediately
-follows the bXXXXX110 type-byte (for nested lists) or key (for struct fields)
+To denote nil values in list elements, the element typ3-byte that immediately
+follows the bXXXXX110 typ3-byte (for nested lists) or key (for struct fields)
 list "declaration" reserves the 4th least-significant bit to denote whether
 elements are prefixed by a 0x00 byte to denote a non-nil item, or a 0x01 byte
 to denote a nil item.  Note that the byte values are flipped (typically 0 is
@@ -314,6 +316,9 @@ if err != nil { ... }
 // b0000 0001  0x01  byte to denote nil element
 // b0000 0100  0x04  "End struct" for `List`
 ```
+
+Finally, Protobuf's "oneof" gets a facelift.  Instead of "oneof", Wire has
+Interfaces.
 
 An interface value is typically a struct, but it doesn't need to be.  If it is
 a struct, then the prefix bytes or disfix bytes are followed by a field key.
