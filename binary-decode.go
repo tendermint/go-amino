@@ -37,24 +37,25 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	// info.ConcreteType.AlwaysDisambiguate.  But we don't support
 	// this yet.
 
-	if !info.Registered {
-		// No need for disambiguation, decode as is.
-		n, err = cdc._decodeReflectBinary(bz, info, rv, opts)
-		return
+	// Read prefix bytes and typ3 byte if registered.
+	if info.Registered {
+		// Strip the prefix bytes after checking it.
+		if len(bz) < PrefixBytesLen {
+			err = errors.New("EOF skipping prefix bytes.")
+			return
+		}
+		// Check and consume prefix bytes.
+		if !info.Prefix.EqualBytes(bz) {
+			panic("should not happen")
+		}
+		bz = bz[PrefixBytesLen:]
+		n += PrefixBytesLen
+		// Check and consume typ3 byte.
+		err = decodeTyp3sExpect(info.Type, &bz, opts)
+		if err != nil {
+			return
+		}
 	}
-
-	// It's a registered concrete type.
-	// Implies that info holds the info we need.
-	// Just strip the prefix bytes after checking it.
-	if len(bz) < PrefixBytesLen {
-		err = errors.New("EOF skipping prefix bytes.")
-		return
-	}
-	if !info.Prefix.EqualBytes(bz) {
-		panic("should not happen")
-	}
-	bz = bz[PrefixBytesLen:]
-	n += PrefixBytesLen
 
 	_n := 0
 	_n, err = cdc._decodeReflectBinary(bz, info, rv, opts)
@@ -112,13 +113,25 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 		return
 
 	case reflect.Array:
-		_n, err = cdc.decodeReflectBinaryArray(bz, info, rv, opts)
-		n += _n
+		ert := info.Type.Elem()
+		if ert == reflect.Uint8 {
+			_n, err = cdc.decodeReflectBinaryByteArray(bz, info, rv, opts)
+			n += _n
+		} else {
+			_n, err = cdc.decodeReflectBinaryArray(bz, info, rv, opts)
+			n += _n
+		}
 		return
 
 	case reflect.Slice:
-		_n, err = cdc.decodeReflectBinarySlice(bz, info, rv, opts)
-		n += _n
+		ert := info.Type.Elem()
+		if ert == reflect.Uint8 {
+			_n, err = cdc.decodeReflectBinaryByteSlice(bz, info, rv, opts)
+			n += _n
+		} else {
+			_n, err = cdc.decodeReflectBinarySlice(bz, info, rv, opts)
+			n += _n
+		}
 		return
 
 	case reflect.Struct:
@@ -322,7 +335,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		slide(&bz, &n, PrefixBytesLen)
 	}
 
-	// Get concrete type info.
+	// Get concrete type info from disfix/prefix.
 	var cinfo *TypeInfo
 	if hasDisamb {
 		cinfo, err = cdc.getTypeInfoFromDisfix_rlock(disfix)
@@ -331,6 +344,12 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	} else {
 		err = errors.New("Expected disambiguation or prefix bytes.")
 	}
+	if err != nil {
+		return
+	}
+
+	// Check and consume typ3 byte.
+	err = decodeTyp3sExpect(cinfo.Type, &bz, opts)
 	if err != nil {
 		return
 	}
@@ -356,39 +375,123 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 }
 
 // CONTRACT: rv.CanAddr() is true.
+func (cdc *Codec) decodeReflectBinaryByteArray(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+	if !rv.CanAddr() {
+		panic("rv not addressable")
+	}
+	ert := info.Type.Elem()
+	if ert.Kind() != reflect.Uint8 {
+		panic("should not happen")
+	}
+	length := info.Type.Len()
+	if len(bz) < length {
+		return 0, fmt.Errorf("Insufficient bytes to decode [%v]byte.", length)
+	}
+
+	// Read byte-length prefixed, like a byte-slice.
+	var byteslice, _n = []byte(nil), int64(0)
+	byteslice, _n, err = DecodeByteSlice(bz)
+	if slide(&bz, &n, _n) && err != nil {
+		return
+	}
+	if len(byteslice) != length {
+		err = errors.New("Mismatched byte array length: Expected %v, got %v",
+			length, len(byteslice))
+		return
+	}
+
+	// Copy read byteslice to rv array.
+	reflect.Copy(rv, reflect.ValueOf(byteslice))
+	return
+
+}
+
+// CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
 	ert := info.Type.Elem()
+	if ert.Kind() == reflect.Uint8 {
+		panic("should not happen")
+	}
 	length := info.Type.Len()
-	_n := 0
-
-	switch ert.Kind() {
-
-	case reflect.Uint8: // Special case: byte array
-		if len(bz) < length {
-			return 0, fmt.Errorf("Insufficient bytes to decode [%v]byte.", length)
-		}
-		reflect.Copy(rv, reflect.ValueOf(bz[0:length]))
-		n += length
+	einfo := *TypeInfo(nil)
+	einfo, err = cdc.getTypeInfo_wlock(ert)
+	if err != nil {
 		return
+	}
 
-	default: // General case.
-		var einfo *TypeInfo
-		einfo, err = cdc.getTypeInfo_wlock(ert)
-		if err != nil {
-			return
-		}
-		for i := 0; i < length; i++ {
-			erv := rv.Index(i)
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, opts)
+	// Check and consume typ3 byte.
+	var ptr, err = decodeTyp3Byte(ert, &bz, opts)
+	if err != nil {
+		return
+	}
+
+	// Read number of items.
+	var count int64
+	count, _n, err = DecodeVarint(bz)
+	if slide(&bz, &n, _n) && err != nil {
+		return
+	}
+	if count != int64(length) {
+		err = errors.New("Expected num items of %v, decoded %v", length, count)
+		return
+	}
+
+	// Read each item.
+	for i := 0; i < length; i++ {
+		// Maybe read nil.
+		if ptr {
+			numNil := int64(0)
+			numNil, _n, err = decodeNilBytes(bz)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
+			if numNil == 0 {
+				// Good, continue decoding item.
+			} else if numNil == 1 {
+				// Set nil/zero.
+				rv.Set(reflect.Zero(rv.Type()))
+				continue
+			} else {
+				panic("should not happen")
+			}
 		}
+		// Decode non-nil value.
+		erv, _n := rv.Index(i), int64(0)
+		_n, err = cdc.decodeReflectBinary(bz, einfo, erv, opts)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+	}
+	return
+}
+
+// CONTRACT: rv.CanAddr() is true.
+func (cdc *Codec) decodeReflectBinaryByteSlice(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+	if !rv.CanAddr() {
+		panic("rv not addressable")
+	}
+	ert := info.Type.Elem()
+	if ert.Kind() != reflect.Uint8 {
+		panic("should not happen")
+	}
+
+	// Read byte-length prefixed byte-slice.
+	var byteslice, _n = []byte(nil), int64(0)
+	byteslice, _n, err = DecodeByteSlice(bz)
+	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
+	if len(byteslice) == 0 {
+		// Special case when length is 0.
+		// NOTE: We prefer nil slices.
+		rv.Set(info.ZeroValue)
+	} else {
+		rv.Set(reflect.ValueOf(byteslice))
+	}
+	return
 }
 
 // CONTRACT: rv.CanAddr() is true.
@@ -397,67 +500,53 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 		panic("rv not addressable")
 	}
 	ert := info.Type.Elem()
-	_n := 0 // nolint: ineffassign
-
-	switch ert.Kind() {
-
-	case reflect.Uint8: // Special case: byte slice
-		var byteslice []byte
-		byteslice, _n, err = DecodeByteSlice(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		if len(byteslice) == 0 {
-			// Special case when length is 0.
-			// NOTE: We prefer nil slices.
-			rv.Set(info.ZeroValue)
-		} else {
-			rv.Set(reflect.ValueOf(byteslice))
-		}
-		return
-
-	default: // General case.
-		var einfo *TypeInfo
-		einfo, err = cdc.getTypeInfo_wlock(ert)
-		if err != nil {
-			return
-		}
-
-		// Read length.
-		var length = int(0)
-		length64 := int64(0)
-		length64, _n, err = DecodeVarint(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		length = int(length64)
-		if length < 0 {
-			err = errors.New("Invalid negative slice length")
-			return
-		}
-
-		// Special case when length is 0.
-		// NOTE: We prefer nil slices.
-		if length == 0 {
-			rv.Set(info.ZeroValue)
-			return
-		}
-
-		// Read into a new slice.
-		var esrt = reflect.SliceOf(ert) // TODO could be optimized.
-		var srv = reflect.MakeSlice(esrt, length, length)
-		for i := 0; i < length; i++ {
-			erv := srv.Index(i)
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, opts)
-			if slide(&bz, &n, _n) && err != nil {
-				return
-			}
-		}
-
-		// TODO do we need this extra step?
-		rv.Set(srv)
+	if ert.Kind() == reflect.Uint8 {
+		panic("should not happen")
+	}
+	einfo := *TypeInfo(nil)
+	einfo, err = cdc.getTypeInfo_wlock(ert)
+	if err != nil {
 		return
 	}
+
+	// Check and consume typ3 byte.
+	// XXX use ptr
+	var ptr, err = decodeTyp3Byte(ert, &bz, opts)
+	if err != nil {
+		return
+	}
+
+	// Read number of items.
+	var count, _n, err = DecodeVarint(bz)
+	if slide(&bz, &n, _n) && err != nil {
+		return
+	}
+	if count < 0 {
+		err = errors.New("Invalid negative slice length")
+		return
+	}
+
+	// Special case when length is 0.
+	// NOTE: We prefer nil slices.
+	if count == 0 {
+		rv.Set(info.ZeroValue)
+		return
+	}
+
+	// Read each item.
+	var esrt = reflect.SliceOf(ert) // TODO could be optimized.
+	var srv = reflect.MakeSlice(esrt, int(count), int(count))
+	for i := 0; i < length; i++ {
+		erv := srv.Index(i)
+		_n, err = cdc.decodeReflectBinary(bz, einfo, erv, opts)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+	}
+
+	// TODO do we need this extra step?
+	rv.Set(srv)
+	return
 }
 
 // CONTRACT: rv.CanAddr() is true.
@@ -467,9 +556,13 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	}
 	_n := 0 // nolint: ineffassign
 
+	// The "Start struct" type3 doesn't get read here.
+	// It's already implied, either by struct-key or list-element-type-byte.
+
 	switch info.Type {
 
-	case timeType: // Special case: time.Time
+	case timeType:
+		// Special case: time.Time
 		var t time.Time
 		t, _n, err = DecodeTime(bz)
 		if slide(&bz, &n, _n) && err != nil {
@@ -479,7 +572,33 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 		return
 
 	default:
+		// Read each field.
 		for _, field := range info.Fields {
+
+			// Read field key (number and type).
+			var fieldNum, typ = int64(0), typ3(0x00)
+			fieldNum, typ3s, _n, err = decodeFieldNumberAndTyp3s(bz)
+			if field.BinFieldNum < fieldNum {
+				// Set nil field value.
+				rv.Set(reflect.Zero(rv.Type()))
+				continue
+				// Do not slide, we will read it again.
+			}
+			if slide(&bz, &n, _n) && err != nil {
+				return
+			}
+			// NOTE: In the future, we'll support upgradeability.
+			// So in the future, this may not match,
+			// so we will need to remove this sanity check.
+			if field.BinFieldNum != fieldNum {
+				err = errors.New(fmt.Sprintf("Expected field number %v, got %v", field.BinFieldNum, fieldNum))
+				return
+			}
+			typ3sExpected := typeToTyp3s(field.Type, field.FieldOptions)
+			if !bytes.Equal(typ3s, typ3sExpected) {
+				err = errors.New(fmt.Sprintf("Expected field type %X, got %X", typ3sExpected, typ3s))
+				return
+			}
 
 			// Get field rv and info.
 			var frv = rv.Field(field.Index)
@@ -489,11 +608,23 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 				return
 			}
 
-			// Decode into field rv.
+			// Decode field into rv.
 			_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
+		}
+
+		// Read "End struct".
+		// NOTE: In the future, we'll need to break out of a loop
+		// when encoutering an EndStruct typ3 byte.
+		typ, _n, err = DecodeByte(bz)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+		if typ != typ3_EndStruct {
+			err = errors.New(fmt.Sprintf("Expected End struct typ3 byte, got %X", typ))
+			return
 		}
 		return
 	}
@@ -533,4 +664,25 @@ func decodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBy
 		n = 4
 		return
 	}
+}
+
+// Check and consume typ3 byte and error if it doesn't match rt.
+func decodeTyp3Byte(rt reflect.Type, bzPtr *[]byte, opts FieldOptions) (ptr bool, err error) {
+	var bz = *bzPtr
+	var typ, _n = typ3(0x00), int64(0)
+	typ, _n, err = decodeTyp(bz)
+	if slide(&bz, &n, _n) && err != nil {
+		return
+	}
+	typ3Wanted := typeToTyp3(rt, opts)
+	if typ3Wanted != typ {
+		err = errors.New(fmt.Sprintf("Typ3 bytes mismatch.  Expected %X, got %X", typ3Wanted, typ))
+		return
+	}
+	if typ&0x07 == typ3_EndStruct {
+		err = errors.New(fmt.Sprintf("Illegal End-struct typ3 byte as slice element type."))
+		return
+	}
+	ptr = bool(typ & 0x80)
+	return
 }

@@ -22,6 +22,11 @@ import (
 
 func Example() {
 
+	defer func() {
+		e := recover()
+		fmt.Println("recovered", e)
+	}()
+
 	type Message interface{}
 
 	type bcMessage struct {

@@ -255,7 +255,8 @@ func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.V
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
-	ert := info.Type.Elem()
+
+	var ert = info.Type.Elem()
 
 	switch ert.Kind() {
 

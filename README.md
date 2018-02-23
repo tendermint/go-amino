@@ -166,9 +166,8 @@ From the [Protocol Buffers encoding guide](https://developers.google.com/protoco
 > 3) | wire_type – in other words, the last three bits of the number store the
 > wire type.
 
-In Wire, a "type" can be encoded by more than 3 bits, due to the introduction
-of a "List" type, which can hold other types recursively.  So collectively,
-lets call these bits the `<typ3-bytes>`.
+In Wire, the "type" is similarly enocded by 3 bits, called the `typ3`. When it
+appears alone in a byte, it is called a `typ3 byte`.
 
 In Wire, "varint" means Protobuf's "signed varint", and "uvarint" means "varint".
 
@@ -180,8 +179,8 @@ Typ3 | Meaning          | Used For
 3    | Start struct     | conceptually, '{'
 4    | End struct       | conceptually, '}'; always a single byte, 0x04
 5    | 32-bit           | int32, uint32, float32(unsafe)
-6    | List             | array, slice; followed by element type3 byte(s), then `<uvarint(num-items)>`
-7    | Interface        | registered concrete types; followed by `<prefix-bytes>` or `<disfix-bytes>`
+6    | List             | array, slice; followed by element `<typ3-byte>`, then `<uvarint(num-items)>`
+7    | Interface        | registered concrete types; followed by `<prefix-bytes>` or `<disfix-bytes>`, then `<typ3-byte>`.
 
 Struct fields are encoded in order, and a null/empty/zero field is represented
 by the absence of a field in the encoding, similar to Protobuf. In general, the
@@ -193,7 +192,7 @@ As in Protobuf, each struct field is keyed by a uvarint with the value
 `(field_number << 3) | type`, where `type` is 3 bits long. 
 
 Unlike Protobuf, Wire deprecates "repeated fields" in favor of Lists. A List is
-encoded by first writing the typ3-bytes of the element type, followed by the
+encoded by first writing the typ3-byte of the element type, followed by the
 uvarint encoding of the length of the list, followed by the encoding of each
 element.
 
@@ -219,7 +218,7 @@ if err != nil { ... }
 // dump bz:
 // BINARY      HEX   NOTE
 // b0000 0011  0x03  "Start struct" for `List`
-// b0000 1110  0x14  field number and type for `MyList` (1, "List")
+// b0000 1110  0x0E  field number and type for `MyList` (1, "List")
 // b0000 0011  0x03  type of element of `MyList`, a struct
 // b0000 0010  0x02  length of list, uvarint for 2
 //                   "Start struct" for `Item` #0 (implied)
@@ -234,10 +233,11 @@ if err != nil { ... }
 ```
 
 A list of `n` elements where the elements are list of structs is encoded by the
-bytes `0x06 0x03` followed by the uvarint encoding of `n`, followed by the
-binary encoding of each element, which starts with the uvarint encoding of `m`
-(the size of the first child list).  Each struct element is encoded as if
-followed by a `Start struct` field key, as in the previous example.
+byte `0x06` followed by the uvarint encoding of `n`, followed by the binary
+encoding of each element, which starts with the byte `0x03` followed by the
+uvarint encoding of `m` (the size of the first child list).  Each struct
+element is encoded as if followed by a `Start struct` field key, as in the
+previous example.
 
 ```golang
 type Item struct {
@@ -256,12 +256,11 @@ if err != nil { ... }
 // dump bz:
 // BINARY      HEX   NOTE
 // b0000 0011  0x03  "Start struct" for `ListOfLists`
-// b0000 1110  0x14  field number and type for `MyLists` (1, "[]List")
+// b0000 1110  0x0E  field number and type for `MyLists` (1, "[]List")
 // b0000 0110  0x06  type of element of `MyLists`, a list
-// b0000 0011  0x03  type of list element, struct
 // b0000 0001  0x01  length of list, uvarint for 1
 //                   "List" for `List` #0 (implied)
-//                   type of list element, struct (implied)
+// b0000 0011  0x03  type of list element, struct
 // b0000 0010  0x02  length of list, uvarint for 2
 //                   "Start struct" for `Item` #0 (implied)
 // b0000 1000  0x08  field number and type for Number (1, "Varint)
@@ -282,12 +281,12 @@ initial list "declaration" bytes.
 
 To denote nil values in list elements, the element typ3-byte that immediately
 follows the bXXXXX110 typ3-byte (for nested lists) or key (for struct fields)
-list "declaration" reserves the 4th least-significant bit to denote whether
-elements are prefixed by a 0x00 byte to denote a non-nil item, or a 0x01 byte
-to denote a nil item.  Note that the byte values are flipped (typically 0 is
-used to denote nil).  This is to open the possibility of supporting sparse
-encoding of nil lists in the future by encoding the number of nil items to skip
-as a uvarint.
+list "declaration" reserves the 4th least-significant bit (the "pointer bit")
+to denote whether elements are prefixed by a 0x00 byte to denote a non-nil
+item, or a 0x01 byte to denote a nil item.  Note that the byte values are
+flipped (typically 0 is used to denote nil).  This is to open the possibility
+of supporting sparse encoding of nil lists in the future by encoding the number
+of nil items to skip as a uvarint.
 
 ```golang
 type Item struct {
@@ -305,7 +304,7 @@ if err != nil { ... }
 // dump bz:
 // BINARY      HEX   NOTE
 // b0000 0011  0x03  "Start struct" for `List`
-// b0000 1110  0x14  field number and type for `MyList` (1, "List")
+// b0000 1110  0x0E  field number and type for `MyList` (1, "List")
 // b0000 1011  0x03  type of element of `MyList`, a struct; and "nullable" elements
 // b0000 0010  0x02  length of list, uvarint for 2
 // b0000 0000  0x00  byte to denote non-nil element
@@ -320,12 +319,10 @@ if err != nil { ... }
 Finally, Protobuf's "oneof" gets a facelift.  Instead of "oneof", Wire has
 Interfaces.
 
-An interface value is typically a struct, but it doesn't need to be.  If it is
-a struct, then the prefix bytes or disfix bytes are followed by a field key.
-If it isn't, then it is followed by the byte `0000 0XXX` where `XXX` denote the
-type-bit's first 3-bits.  More bytes may follow if the type encodes a list, one
-byte for each 3-bit sequence.  Since a struct field number must be greater than
-0, we can distinguish between interface structs and all other concrete types.
+An interface value is typically a struct, but it doesn't need to be.  If the value
+of the interface isn't nil, the prefix or disfix bytes are followed by a typ3
+byte of the value type, so a scanner can recursively traverse the fields and
+elements of the value.
 
 
 ## Wire in other langauges

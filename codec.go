@@ -31,6 +31,7 @@ type TypeInfo struct {
 	ZeroProto interface{}
 	InterfaceInfo
 	ConcreteInfo
+	StructInfo
 }
 
 type InterfaceInfo struct {
@@ -45,13 +46,16 @@ type InterfaceOptions struct {
 }
 
 type ConcreteInfo struct {
-	PointerPreferred bool        // Deserialize to pointer type if possible.
 	Registered       bool        // Manually regsitered.
+	PointerPreferred bool        // Deserialize to pointer type if possible.
 	Name             string      // Ignored if !Registered.
 	Disamb           DisambBytes // Ignored if !Registered.
 	Prefix           PrefixBytes // Ignored if !Registered.
-	Fields           []FieldInfo // If a struct.
 	ConcreteOptions
+}
+
+type StructInfo struct {
+	Fields []FieldInfo // If a struct.
 }
 
 func (cinfo ConcreteInfo) GetDisfix() DisfixBytes {
@@ -66,12 +70,14 @@ type FieldInfo struct {
 	Index        int           // Struct field index
 	ZeroValue    reflect.Value // Could be nil pointer unlike TypeInfo.ZeroValue.
 	FieldOptions               // Encoding options
+	BinTyp3s     typ3          // (Binary) typ3 bytes
 }
 
 type FieldOptions struct {
 	JSONName      string // (JSON) field name
 	JSONOmitEmpty bool   // (JSON) omitempty
 	BinVarint     bool   // (Binary) Use length-prefixed encoding for (u)int64.
+	BinFieldNum   int32  // (Binary) max 1<<29-1
 	Unsafe        bool   // e.g. if this field is a float.
 }
 
@@ -240,31 +246,36 @@ func (cdc *Codec) getTypeInfoFromDisfix_rlock(df DisfixBytes) (info *TypeInfo, e
 	return
 }
 
-func (cdc *Codec) parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
+func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 	if rt.Kind() != reflect.Struct {
-		return nil
+		panic("should not happen")
 	}
 
 	infos = make([]FieldInfo, 0, rt.NumField())
 	for i := 0; i < rt.NumField(); i++ {
-		field := rt.Field(i)
+		var field = rt.Field(i)
+		var ftype = field.Type
 		if !isExported(field) {
 			continue // field is unexported
 		}
-		skip, opts := cdc.parseFieldOptions(field)
+		skip, fopts := cdc.parseFieldOptions(field)
 		if skip {
 			continue // e.g. json:"-"
 		}
+		// NOTE: This is going to change a bit.
+		// NOTE: BinFieldNum starts with 1.
+		fopts.BinFieldNum = int32(len(infos) + 1)
 		fieldInfo := FieldInfo{
 			Index:        i,
-			Type:         field.Type,
-			ZeroValue:    reflect.Zero(field.Type),
-			FieldOptions: opts,
+			Type:         ftype,
+			ZeroValue:    reflect.Zero(ftype),
+			FieldOptions: fopts,
+			BinTyp3s:     typeToTyp3s(ftype, fopts),
 		}
 		checkUnsafe(fieldInfo)
 		infos = append(infos, fieldInfo)
 	}
-	return infos
+	return StructInfo{infos}
 }
 
 func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, opts FieldOptions) {
@@ -321,9 +332,9 @@ func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 	info.PtrToType = reflect.PtrTo(rt)
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
-	info.ConcreteInfo.PointerPreferred = false
 	info.ConcreteInfo.Registered = false
-	info.ConcreteInfo.Fields = cdc.parseFieldInfos(rt)
+	info.ConcreteInfo.PointerPreferred = false
+	info.StructInfo = cdc.parseStructInfo(rt)
 	return info
 }
 
@@ -348,12 +359,12 @@ func (cdc *Codec) newTypeInfoFromInterfaceType(rt reflect.Type, opts *InterfaceO
 			info.InterfaceInfo.Priority[i] = disfix
 		}
 	}
-	// info.ConcreteInfo.PointerPreferred =
 	// info.ConcreteInfo.Registered =
+	// info.ConcreteInfo.PointerPreferred =
 	// info.ConcreteInfo.Name =
 	// info.ConcreteInfo.Disamb =
 	// info.ConcreteInfo.Prefix
-	// info.ConcreteInfo.Fields =
+	// info.StructInfo =
 	return info
 }
 
@@ -369,15 +380,15 @@ func (cdc *Codec) newTypeInfoFromConcreteType(rt reflect.Type, pointerPreferred 
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
 	// info.InterfaceOptions =
-	info.ConcreteInfo.PointerPreferred = pointerPreferred
 	info.ConcreteInfo.Registered = true
+	info.ConcreteInfo.PointerPreferred = pointerPreferred
 	info.ConcreteInfo.Name = name
 	info.ConcreteInfo.Disamb = nameToDisamb(name)
 	info.ConcreteInfo.Prefix = nameToPrefix(name)
-	info.ConcreteInfo.Fields = cdc.parseFieldInfos(rt)
 	if opts != nil {
 		info.ConcreteOptions = *opts
 	}
+	info.StructInfo = cdc.parseStructInfo(rt)
 	return info
 }
 
