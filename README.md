@@ -185,40 +185,41 @@ Typ3 | Meaning          | Used For
 ### Structs 
 
 Struct fields are encoded in order, and a null/empty/zero field is represented
-by the absence of a field in the encoding, similar to Protobuf. In general, the
-total byte-size of a Wire:binary encoded struct cannot be determined in a
-stream until each field's size has been determined by scanning all fields and
-elements recursively.
+by the absence of a field in the encoding, similar to Protobuf. Unlike
+Protobuf, in Wire, the total byte-size of a Wire encoded struct cannot be
+determined in a stream until each field's size has been determined by scanning
+all fields and elements recursively.
 
 As in Protobuf, each struct field is keyed by a uvarint with the value
-`(field_number << 3) | type`, where `type` is 3 bits long.  We call these 3
-bits in byte form (using the least significant bits) a `typ3 byte`.  For
-instance, the typ3 byte for List is 0x06.
+`(field_number << 3) | type`, where `type` is 3 bits long.
+
+We call those 3 bits the "typ3", and when represented as a single byte (using
+the least significant bits of the byte), we call it the "typ3 byte".  For
+example, the typ3 byte for a "List" is 0x06.
 
 When encoding elements of a list (Golang slice or array) in Wire, the typ3 byte
 isn't enough.  Specifically, when the element type of the list is a pointer
 type, the element value may be nil.  We encode the element type of this kind of
-list with a typ4 byte, which is like a typ3 byte, but uses 4 least significant
-bits.  This 4th bit is called the "pointer bit".
+list with a typ4 byte, which is like a typ3 byte, but uses the 4th least
+significant bit to encode the "pointer bit".
 
 Inner structs that are embedded in outer structs are encoded by the field typ3
-"Start struct".  (In Protobuf3, embedded messages are encoded as a
-Length-prefixed).
-
-TODO: How does this work in Protobuf3?
+"Start struct".  (In Protobuf3, embedded messages are encoded as
+"Length-prefixed".  In Wire, the "Length-prefixed" typ3 is reserved for
+byteslices and bytearrays.)
 
 ### Lists
 
-Unlike Protobuf, Wire deprecates "repeated fields" in favor of Lists. A List is
-encoded by first writing the typ4 byte of the element type, followed by the
+Unlike Protobuf, Wire deprecates "repeated fields" in favor of "lists". A list
+is encoded by first writing the typ4 byte of the element type, followed by the
 uvarint encoding of the length of the list, followed by the encoding of each
 element.
 
 A list of structs with `n` elements is encoded by the byte `0x03` followed by
-the uvarint encoding of `n`, followed by the binary encoding of each
-element.  Each struct element is encoded as if followed by a `Start struct`
-field key (i.e. it is implied), and terminates with an `End struct` field key
-(specifically, the byte 0x04).
+the uvarint encoding of `n`, followed by the binary encoding of each element.
+Each struct element is encoded as if followed by a `Start struct` field key
+(since it is already implied), and terminates with the `End struct` typ3 byte
+(0x04).
 
 ```golang
 type Item struct {
@@ -250,7 +251,7 @@ if err != nil { ... }
 // b0000 0100  0x04  "End struct" for `List`
 ```
 
-A list of `n` elements where the elements are list of structs is encoded by the
+A list of `n` elements [where the elements are list-of-structs] is encoded by the
 byte `0x06` followed by the uvarint encoding of `n`, followed by the binary
 encoding of each element, which starts with the byte `0x03` followed by the
 uvarint encoding of `m` (the size of the first child list).  Each struct
@@ -292,18 +293,20 @@ if err != nil { ... }
 // b0000 0100  0x04  "End struct" for `ListOfLists`
 ```
 
-Unlike fields of a struct where nil pointers are denoted by the absence of
-encoding, elements of a list are encoded without an index or key.  They are
-just encoded one after the other, with the first typ3 byte implied by the
-list's declared element typ4 byte (technically the first byte of the List).
+Unlike fields of a struct where nil (or in the future, perhaps zero/empty)
+pointers are denoted by the absence of its encoding, elements of a list are
+encoded without an index or key.  They are just encoded one after the other,
+with the first typ3 byte implied by the list's declared element typ4 byte
+(technically the first byte of the List).
 
 To declare that the List may contain nil elements, the Lists's element typ4
 byte should set the 4th least-significant bit (the "pointer bit") to 1.  If
-(and only if) the pointer bit is 1, elements are prefixed by a 0x00 byte to
-denote a non-nil item, or a 0x01 byte to denote a nil item.  Note that the byte
-values are flipped (typically 0 is used to denote nil).  This is to open the
-possibility of supporting sparse encoding of nil lists in the future by
-encoding the number of nil items to skip as a uvarint.
+(and only if) the pointer bit is 1, each element is prefixed by a 0x00 byte to
+declare that a non-nil item follows, or a 0x01 byte to declare that the next
+item is nil.  Note that the byte values are flipped (typically 0 is used to
+denote nil).  This is to open the possibility of supporting sparse encoding of
+nil lists in the future by encoding the number of nil items to skip as a
+uvarint.
 
 ```golang
 type Item struct {
@@ -338,12 +341,15 @@ if err != nil { ... }
 Finally, Protobuf's "oneof" gets a facelift.  Instead of "oneof", Wire has
 Interfaces.
 
-An interface value is typically a struct, but it doesn't need to be.  If the value
-of the interface isn't nil, the prefix or disfix bytes are followed by a typ3
-byte of the value type, so a scanner can recursively traverse the fields and
-elements of the value.
-
+An interface value is typically a struct, but it doesn't need to be.  If the
+value of the interface isn't nil, the prefix or disfix bytes are followed by a
+typ3 byte of the value type, so a scanner can recursively traverse the fields
+and elements of the value.  A nil interface value is encoded by four zero bytes
+in place of the 4 prefix bytes.  Of course, a nil struct field value is not
+encoded at all.
 
 ## Wire in other langauges
 
-Coming soon...
+Contact us on github.com/tendermint/go-wire/issues, we will pay out bounties
+for implementations in other languages.  In Golang, we are are interested in
+codec generators.
