@@ -183,6 +183,7 @@ func TestCodecBinaryRegister7(t *testing.T) {
 	}
 }
 
+// Serialize and deserialize a non-nil interface value.
 func TestCodecBinaryRegister8(t *testing.T) {
 	cdc := NewCodec()
 	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
@@ -206,14 +207,11 @@ func TestCodecBinaryRegister8(t *testing.T) {
 	assert.Equal(t, c3, i1)
 }
 
+// Like TestCodecBinaryRegister8, but JSON.
 func TestCodecJSONRegister8(t *testing.T) {
 	cdc := NewCodec()
 	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
 	cdc.RegisterConcrete(tests.Concrete3{}, "Concrete3", nil)
-
-	assert.Panics(t, func() {
-		cdc.RegisterConcrete(tests.Concrete2{}, "Concrete3", nil)
-	}, "duplicate concrete name")
 
 	var c3 tests.Concrete3
 	copy(c3[:], []byte("0123"))
@@ -229,6 +227,50 @@ func TestCodecJSONRegister8(t *testing.T) {
 	err = cdc.UnmarshalJSON(bz, &i1)
 	assert.Nil(t, err)
 	assert.Equal(t, c3, i1)
+}
+
+// Like TestCodecBinaryRegister8, but serialize the concrete value directly.
+func TestCodecBinaryRegister9(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
+	cdc.RegisterConcrete(tests.Concrete3{}, "Concrete3", nil)
+
+	assert.Panics(t, func() {
+		cdc.RegisterConcrete(tests.Concrete2{}, "Concrete3", nil)
+	}, "duplicate concrete name")
+
+	var c3 tests.Concrete3
+	copy(c3[:], []byte("0123"))
+
+	bz, err := cdc.MarshalBinary(c3)
+	assert.Nil(t, err)
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x01, 0x30, 0x31, 0x32, 0x33}, bz,
+		"Concrete3 incorrectly serialized")
+
+	var i1 tests.Interface1
+	err = cdc.UnmarshalBinary(bz, &i1)
+	assert.Nil(t, err)
+	assert.Equal(t, c3, i1)
+}
+
+// Like TestCodecBinaryRegister8 but read into concrete var.
+func TestCodecBinaryRegister10(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
+	cdc.RegisterConcrete(tests.Concrete3{}, "Concrete3", nil)
+
+	var c3a tests.Concrete3
+	copy(c3a[:], []byte("0123"))
+
+	bz, err := cdc.MarshalBinary(struct{ tests.Interface1 }{c3a})
+	assert.Nil(t, err)
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x01, 0x30, 0x31, 0x32, 0x33}, bz,
+		"Concrete3 incorrectly serialized")
+
+	var c3b tests.Concrete3
+	err = cdc.UnmarshalBinary(bz, &c3b)
+	assert.Nil(t, err)
+	assert.Equal(t, c3a, c3b)
 }
 
 //----------------------------------------

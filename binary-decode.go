@@ -50,7 +50,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		err = errors.New("EOF skipping prefix bytes.")
 		return
 	}
-	if !info.Prefix.EqualBytes(bz) {
+	if !info.Prefix.EqualBytes(bz[:PrefixBytesLen]) {
 		panic("should not happen")
 	}
 	bz = bz[PrefixBytesLen:]
