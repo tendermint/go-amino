@@ -1,10 +1,12 @@
 package wire
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"reflect"
 )
 
@@ -40,8 +42,16 @@ func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
 	return w.Bytes(), nil
 }
 
+func (cdc *Codec) UnmarshalBinaryStream(r io.Reader, ptr interface{}) error {
+	return cdc._unmarshalBinary(r, nil, ptr)
+}
+
 // UnmarshalBinary will panic if ptr is a nil-pointer.
 func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
+	return cdc._unmarshalBinary(nil, bz, ptr)
+}
+
+func (cdc *Codec) _unmarshalBinary(r io.Reader, bz []byte, ptr interface{}) error {
 	rv, rt := reflect.ValueOf(ptr), reflect.TypeOf(ptr)
 	if rv.Kind() != reflect.Ptr {
 		panic("Unmarshal expects a pointer")
@@ -51,7 +61,21 @@ func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
 	if err != nil {
 		return err
 	}
-	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{})
+	var br *bufio.Reader
+	// Creating the io.Reader
+	switch {
+	default:
+		br = bufio.NewReader(bytes.NewReader(bz))
+
+	case r != nil:
+		if brr, ok := r.(*bufio.Reader); ok {
+			br = brr
+		} else {
+			br = bufio.NewReader(r)
+		}
+	}
+
+	n, err := cdc.decodeReflectBinary(br, info, rv, FieldOptions{})
 	if err != nil {
 		return err
 	}

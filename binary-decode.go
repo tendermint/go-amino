@@ -1,8 +1,11 @@
 package wire
 
 import (
+	"bufio"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"time"
 
@@ -16,7 +19,7 @@ import (
 // function calls decodeReflectBinary*, and generally those functions should
 // only call this one, for the prefix bytes are consumed here when present.
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinary(br *bufio.Reader, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -25,8 +28,8 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	}
 
 	if printLog {
-		spew.Printf("(d) decodeReflectBinary(bz: %X, info: %v, rv: %#v (%v), opts: %v)\n",
-			bz, info, rv.Interface(), rv.Type(), opts)
+		spew.Printf("(d) decodeReflectBinary(info: %v, rv: %#v (%v), opts: %v)\n",
+			info, rv.Interface(), rv.Type(), opts)
 		defer func() {
 			fmt.Printf("(d) -> n: %v, err: %v\n", n, err)
 		}()
@@ -39,13 +42,20 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 
 	if !info.Registered {
 		// No need for disambiguation, decode as is.
-		n, err = cdc._decodeReflectBinary(bz, info, rv, opts)
+		n, err = cdc._decodeReflectBinary(br, info, rv, opts)
 		return
 	}
 
-	// It's a registered concrete type.
-	// Implies that info holds the info we need.
-	// Just strip the prefix bytes after checking it.
+	var _n int
+	var bz []byte
+	_n, err = peekConsumeDiscard(br, PrefixBytesLen, func(bzz []byte) (int, error) {
+		bz = bzz
+		return len(bzz), nil
+	})
+	n += _n
+	if err != nil {
+		return
+	}
 	if len(bz) < PrefixBytesLen {
 		err = errors.New("EOF skipping prefix bytes.")
 		return
@@ -53,39 +63,36 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	if !info.Prefix.EqualBytes(bz) {
 		panic("should not happen")
 	}
-	bz = bz[PrefixBytesLen:]
-	n += PrefixBytesLen
 
-	_n := 0
-	_n, err = cdc._decodeReflectBinary(bz, info, rv, opts)
-	slide(&bz, &n, _n)
+	_n, err = cdc._decodeReflectBinary(br, info, rv, opts)
+	n += _n
 	return
 }
 
 // CONTRACT: any immediate disamb/prefix bytes have been consumed/stripped.
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+func (cdc *Codec) _decodeReflectBinary(br *bufio.Reader, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 
 	// TODO consider the binary equivalent of json.Unmarshaller.
 
 	// If a pointer, handle pointer byte.
 	// 0x00 means nil, 0x01 means not nil.
 	if rv.Kind() == reflect.Ptr {
-		if len(bz) == 0 {
-			err = errors.New("EOF reading pointer type")
+		b0, rErr := br.ReadByte()
+		if rErr != nil {
+			err = fmt.Errorf("reading pointer type: %v", rErr)
 			return
 		}
-		switch bz[0] {
+		switch b0 {
 		case 0x00:
 			n += 1
 			rv.Set(reflect.Zero(rv.Type()))
 			return
 		case 0x01:
 			n += 1
-			bz = bz[1:]
 			// so continue...
 		default:
-			err = fmt.Errorf("unexpected pointer byte %X", bz[0])
+			err = fmt.Errorf("unexpected pointer byte %X", b0)
 			return
 		}
 	}
@@ -107,22 +114,22 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 	// Complex
 
 	case reflect.Interface:
-		_n, err = cdc.decodeReflectBinaryInterface(bz, info, rv, opts)
+		_n, err = cdc.decodeReflectBinaryInterface(br, info, rv, opts)
 		n += _n
 		return
 
 	case reflect.Array:
-		_n, err = cdc.decodeReflectBinaryArray(bz, info, rv, opts)
+		_n, err = cdc.decodeReflectBinaryArray(br, info, rv, opts)
 		n += _n
 		return
 
 	case reflect.Slice:
-		_n, err = cdc.decodeReflectBinarySlice(bz, info, rv, opts)
+		_n, err = cdc.decodeReflectBinarySlice(br, info, rv, opts)
 		n += _n
 		return
 
 	case reflect.Struct:
-		_n, err = cdc.decodeReflectBinaryStruct(bz, info, rv, opts)
+		_n, err = cdc.decodeReflectBinaryStruct(br, info, rv, opts)
 		n += _n
 		return
 
@@ -130,124 +137,189 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 	// Signed
 
 	case reflect.Int64:
-		var num int64
 		if opts.BinVarint {
-			num, _n, err = DecodeVarint(bz)
-			if slide(&bz, &n, _n) && err != nil {
+			_n, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (int, error) {
+				num, _n, err := DecodeVarint(bz)
+				if err != nil {
+					return 0, err
+				}
+				rv.SetInt(num)
+				return _n, nil
+			})
+			n += _n
+			if err != nil {
 				return
 			}
-			rv.SetInt(num)
 		} else {
-			num, _n, err = DecodeInt64(bz)
-			if slide(&bz, &n, _n) && err != nil {
-				return
+			var num int64
+			num, _n, err = peekConsumeDiscardInt64(br)
+			if err == nil {
+				rv.SetInt(num)
+				n += _n
 			}
-			rv.SetInt(num)
+			return
 		}
+
+		// End of reflect.Int64
 		return
 
 	case reflect.Int32:
-		var num int32
-		num, _n, err = DecodeInt32(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		rv.SetInt(int64(num))
+		_n, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (int, error) {
+			num, _n, err := DecodeInt32(bz)
+			if err != nil {
+				return 0, err
+			}
+			rv.SetInt(int64(num))
+			return _n, nil
+		})
+		n += _n
+
+		// End of reflect.Int32
 		return
 
 	case reflect.Int16:
-		var num int16
-		num, _n, err = DecodeInt16(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		rv.SetInt(int64(num))
+		_n, err = peekConsumeDiscard(br, binary.MaxVarintLen16, func(bz []byte) (int, error) {
+			num, _n, err := DecodeInt16(bz)
+			if err != nil {
+				return 0, err
+			}
+			rv.SetInt(int64(num))
+			return _n, nil
+		})
+		n += _n
+
+		// End of reflect.Int16
 		return
 
 	case reflect.Int8:
-		var num int8
-		num, _n, err = DecodeInt8(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		rv.SetInt(int64(num))
+		_n, err = peekConsumeDiscard(br, 1, func(bz []byte) (int, error) {
+			num, _n, err := DecodeInt8(bz)
+			if err != nil {
+				return 0, err
+			}
+			rv.SetInt(int64(num))
+			return _n, nil
+		})
+		n += _n
+
+		// End of reflect.Int8
 		return
 
 	case reflect.Int:
-		var num int64
-		num, _n, err = DecodeVarint(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		rv.SetInt(num)
+		_n, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (int, error) {
+			num, _n, err := DecodeVarint(bz)
+			if err != nil {
+				return 0, err
+			}
+			rv.SetInt(num)
+			return _n, nil
+		})
+		n += _n
+
+		// End of reflect.Int
 		return
 
 	//----------------------------------------
 	// Unsigned
 
 	case reflect.Uint64:
-		var num uint64
 		if opts.BinVarint {
-			num, _n, err = DecodeUvarint(bz)
-			if slide(&bz, &n, _n) && err != nil {
-				return
-			}
-			rv.SetUint(num)
+			_n, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (int, error) {
+				num, _n, err := DecodeUvarint(bz)
+				if err != nil {
+					return 0, err
+				}
+				rv.SetUint(num)
+				return _n, nil
+			})
+			n += _n
+
 		} else {
-			num, _n, err = DecodeUint64(bz)
-			if slide(&bz, &n, _n) && err != nil {
-				return
-			}
-			rv.SetUint(num)
+			_n, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (int, error) {
+				num, _n, err := DecodeUint64(bz)
+				if err != nil {
+					return 0, err
+				}
+				rv.SetUint(num)
+				return _n, nil
+			})
+			n += _n
+
 		}
+
+		// End of reflect.Uint64
 		return
 
 	case reflect.Uint32:
-		var num uint32
-		num, _n, err = DecodeUint32(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		rv.SetUint(uint64(num))
+		_n, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (int, error) {
+			num, _n, err := DecodeUint32(bz)
+			if err != nil {
+				return 0, err
+			}
+			rv.SetUint(uint64(num))
+			return _n, nil
+		})
+		n += _n
+
+		// End of reflect.Uint32
 		return
 
 	case reflect.Uint16:
-		var num uint16
-		num, _n, err = DecodeUint16(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		rv.SetUint(uint64(num))
+		_n, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (int, error) {
+			num, _n, err := DecodeUint16(bz)
+			if err != nil {
+				return 0, err
+			}
+			rv.SetUint(uint64(num))
+			return _n, nil
+		})
+		n += _n
+
+		// End of reflect.Uint16
 		return
 
 	case reflect.Uint8:
-		var num uint8
-		num, _n, err = DecodeUint8(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		rv.SetUint(uint64(num))
+		_n, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (int, error) {
+			num, _n, err := DecodeUint8(bz)
+			if err != nil {
+				return 0, err
+			}
+			rv.SetUint(uint64(num))
+			return _n, nil
+		})
+		n += _n
+
+		// End of reflect.Uint8
 		return
 
 	case reflect.Uint:
-		var num uint64
-		num, _n, err = DecodeUvarint(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		rv.SetUint(num)
+		_n, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (int, error) {
+			num, _n, err := DecodeUvarint(bz)
+			if err != nil {
+				return 0, err
+			}
+			rv.SetUint(num)
+			return _n, nil
+		})
+		n += _n
+
+		// End of reflect.Uint
 		return
 
 	//----------------------------------------
 	// Misc.
 
 	case reflect.Bool:
-		var b bool
-		b, _n, err = DecodeBool(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		rv.SetBool(b)
+		_n, err = peekConsumeDiscard(br, 1, func(bz []byte) (int, error) {
+			b, _n, err := DecodeBool(bz)
+			if err != nil {
+				return 0, err
+			}
+			rv.SetBool(b)
+			return _n, nil
+		})
+		n += _n
+		// End of reflect.Bool
 		return
 
 	case reflect.Float64:
@@ -256,11 +328,17 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 			err = errors.New("Float support requires `wire:\"unsafe\"`.")
 			return
 		}
-		f, _n, err = DecodeFloat64(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		rv.SetFloat(f)
+		_n, err = peekConsumeDiscard(br, 8, func(bz []byte) (int, error) {
+			f, _n, err = DecodeFloat64(bz)
+			if err != nil {
+				return 0, err
+			}
+			rv.SetFloat(f)
+			return _n, nil
+		})
+		n += _n
+
+		// End of reflect.Float64
 		return
 
 	case reflect.Float32:
@@ -269,20 +347,28 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 			err = errors.New("Float support requires `wire:\"unsafe\"`.")
 			return
 		}
-		f, _n, err = DecodeFloat32(bz)
-		if slide(&bz, &n, _n) && err != nil {
+		_n, err = peekConsumeDiscard(br, 4, func(bz []byte) (n int, err error) {
+			f, n, err = DecodeFloat32(bz)
+			if err != nil {
+				return 0, err
+			}
+			rv.SetFloat(float64(f))
 			return
-		}
-		rv.SetFloat(float64(f))
+		})
+		n += _n
+
+		// End of reflect.Float32
 		return
 
 	case reflect.String:
 		var str string
-		str, _n, err = DecodeString(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
+		str, _n, err = peekConsumeDiscardString(br)
+		if err == nil {
+			rv.SetString(str)
 		}
-		rv.SetString(str)
+		n += _n
+
+		// End of reflect.String
 		return
 
 	default:
@@ -291,8 +377,75 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 
 }
 
+func peekConsumeDiscard(br *bufio.Reader, maxPeek int, consumeBytes func([]byte) (int, error)) (int, error) {
+	bz, err := br.Peek(maxPeek)
+	if err != nil {
+		return 0, err
+	}
+
+	n, err := consumeBytes(bz)
+	if err != nil {
+		return 0, err
+	}
+
+	// Now discard exactly the peeked number of bytes.
+	dn, err := br.Discard(n)
+	if err != nil {
+		return 0, err
+	}
+	if dn != n {
+		return 0, fmt.Errorf("peekConsumeDiscard %d wanted %d", dn, n)
+	}
+	return dn, nil
+}
+
+func peekConsumeDiscardString(br *bufio.Reader) (string, int, error) {
+	bz, n, err := peekConsumeDiscardByteSlice(br)
+	if err != nil {
+		return "", 0, err
+	}
+	// TODO: (@odeke-em) figure out how to send over a string
+	// using the slice's underlying header perhaps, to avoid
+	// an extraneous string<-->[]byte allocation.
+	return string(bz), n, nil
+}
+
+func peekConsumeDiscardByteSlice(br *bufio.Reader) (bz []byte, n int, err error) {
+	// 1. Firstly read out the byte slice length
+	var length int64
+	n, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (nn int, err error) {
+		length, nn, err = DecodeVarint(bz)
+		return
+	})
+	if err != nil {
+		return
+	}
+
+	// 2 Validate the length
+	// 2.1: Check if negative.
+	if g, w := length, int64(-1); g <= w {
+		err = fmt.Errorf("possible underflow trying to make []byte got = %d want > %d", g, w)
+		return
+	}
+
+	// 2.2 Validate against extraneous string allocations i.e. length >= maxInt32.
+	// See https://github.com/tendermint/go-wire/pull/38
+	if g, w := length, int64(math.MaxInt32); g > w {
+		err = fmt.Errorf("possible overflow trying to make []byte got = %d want <= %d", g, w)
+		return
+	}
+
+	var _n int
+	_n, err = peekConsumeDiscard(br, int(length), func(bzz []byte) (int, error) {
+		bz = bzz
+		return len(bzz), nil
+	})
+	n += _n
+	return
+}
+
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinaryInterface(br *bufio.Reader, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -303,10 +456,11 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	}
 
 	// Peek disambiguation / prefix info.
-	disfix, hasDisamb, prefix, hasPrefix, isNil, _, err := decodeDisambPrefixBytes(bz)
+	disfix, hasDisamb, prefix, hasPrefix, isNil, _n, err := decodeDisambPrefixBytesWithReader(br)
 	if err != nil {
 		return
 	}
+	n += _n
 
 	// Special case for nil.
 	if isNil {
@@ -315,12 +469,12 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
-	// Consume disamb (if any) and prefix bytes.
-	if hasDisamb {
-		slide(&bz, &n, 1+DisfixBytesLen)
-	} else {
-		slide(&bz, &n, PrefixBytesLen)
-	}
+	// TODO: (@odeke-em) Check the meaning of this vestigial comment: Consume disamb (if any) and prefix bytes.
+	// if hasDisamb {
+	// 	slide(&bz, &n, 1+DisfixBytesLen)
+	// } else {
+	// 	slide(&bz, &n, PrefixBytesLen)
+	// }
 
 	// Get concrete type info.
 	var cinfo *TypeInfo
@@ -339,12 +493,12 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	var crv, irvSet = constructConcreteType(cinfo)
 
 	// Decode into the concrete type.
-	_n := 0
-	_n, err = cdc._decodeReflectBinary(bz, cinfo, crv, opts)
-	if slide(&bz, &n, _n) && err != nil {
+	_n, err = cdc._decodeReflectBinary(br, cinfo, crv, opts)
+	if err != nil {
 		rv.Set(irvSet) // Helps with debugging
 		return
 	}
+	n += _n
 
 	// We need to set here, for when !PointerPreferred and the type
 	// is say, an array of bytes (e.g. [32]byte), then we must call
@@ -356,7 +510,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinaryArray(br *bufio.Reader, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -367,11 +521,20 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 	switch ert.Kind() {
 
 	case reflect.Uint8: // Special case: byte array
+		var bz []byte
+		_n, err = peekConsumeDiscard(br, length, func(bzz []byte) (int, error) {
+			bz = bzz
+			return len(bzz), nil
+		})
+		n += _n
+		if err != nil {
+			return
+		}
+
 		if len(bz) < length {
 			return 0, fmt.Errorf("Insufficient bytes to decode [%v]byte.", length)
 		}
 		reflect.Copy(rv, reflect.ValueOf(bz[0:length]))
-		n += length
 		return
 
 	default: // General case.
@@ -382,17 +545,18 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 		}
 		for i := 0; i < length; i++ {
 			erv := rv.Index(i)
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, opts)
-			if slide(&bz, &n, _n) && err != nil {
+			_n, err = cdc.decodeReflectBinary(br, einfo, erv, opts)
+			if err != nil {
 				return
 			}
+			n += _n
 		}
 		return
 	}
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinarySlice(br *bufio.Reader, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -403,10 +567,11 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 
 	case reflect.Uint8: // Special case: byte slice
 		var byteslice []byte
-		byteslice, _n, err = DecodeByteSlice(bz)
-		if slide(&bz, &n, _n) && err != nil {
+		byteslice, _n, err = peekConsumeDiscardByteSlice(br)
+		if err != nil {
 			return
 		}
+		n += _n
 		if len(byteslice) == 0 {
 			// Special case when length is 0.
 			// NOTE: We prefer nil slices.
@@ -424,34 +589,36 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 		}
 
 		// Read length.
-		var length = int(0)
-		length64 := int64(0)
-		length64, _n, err = DecodeVarint(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		length = int(length64)
-		if length < 0 {
-			err = errors.New("Invalid negative slice length")
+		var length64 int64
+		length64, _n, err = peekConsumeDiscardVarInt(br)
+		if err != nil {
 			return
 		}
 
+		if length64 < 0 {
+			err = errors.New("Invalid negative slice length")
+			return
+		}
+		n += _n
+
 		// Special case when length is 0.
 		// NOTE: We prefer nil slices.
-		if length == 0 {
+		if length64 == 0 {
 			rv.Set(info.ZeroValue)
 			return
 		}
 
+		length := int(length64)
 		// Read into a new slice.
 		var esrt = reflect.SliceOf(ert) // TODO could be optimized.
 		var srv = reflect.MakeSlice(esrt, length, length)
 		for i := 0; i < length; i++ {
 			erv := srv.Index(i)
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, opts)
-			if slide(&bz, &n, _n) && err != nil {
+			_n, err = cdc.decodeReflectBinary(br, einfo, erv, opts)
+			if err != nil {
 				return
 			}
+			n += _n
 		}
 
 		// TODO do we need this extra step?
@@ -460,8 +627,58 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	}
 }
 
+func peekConsumeDiscardTime(br *bufio.Reader) (*time.Time, int, error) {
+	var n int
+	s, _n, err := peekConsumeDiscardInt64(br)
+	if err != nil {
+		return nil, 0, err
+	}
+	n += _n
+	ns, _n, err := peekConsumeDiscardInt32(br)
+	if err != nil {
+		return nil, n, err
+	}
+	n += _n
+	if ns < 0 || 999999999 < ns {
+		return nil, n, fmt.Errorf("Invalid time, nanoseconds out of bounds %v", ns)
+	}
+	t := time.Unix(s, int64(ns))
+	// strip timezone and monotonic for deep equality
+	t = t.UTC().Truncate(0)
+	return &t, n, nil
+}
+
+func peekConsumeDiscardInt64(br *bufio.Reader) (i64 int64, nRead int, err error) {
+	nRead, err = peekConsumeDiscard(br, binary.MaxVarintLen64, func(bz []byte) (n int, err error) {
+		i64, n, err = DecodeInt64(bz)
+		return
+	})
+	return
+}
+
+func peekConsumeDiscardVarInt(br *bufio.Reader) (i32 int64, nRead int, err error) {
+	nRead, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (n int, err error) {
+		i32, n, err = DecodeVarint(bz)
+		return
+	})
+	return
+}
+
+const int32Size = 4
+
+func peekConsumeDiscardInt32(br *bufio.Reader) (i32 int32, nRead int, err error) {
+	nRead, err = peekConsumeDiscard(br, int32Size, func(bz []byte) (int, error) {
+		if len(bz) < int32Size {
+			return 0, errors.New("EOF decoding int32")
+		}
+		i32 = int32(binary.BigEndian.Uint32(bz[:int32Size]))
+		return len(bz), nil
+	})
+	return
+}
+
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, _ FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinaryStruct(br *bufio.Reader, info *TypeInfo, rv reflect.Value, _ FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -470,12 +687,13 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	switch info.Type {
 
 	case timeType: // Special case: time.Time
-		var t time.Time
-		t, _n, err = DecodeTime(bz)
-		if slide(&bz, &n, _n) && err != nil {
+		var t *time.Time
+		t, _n, err = peekConsumeDiscardTime(br)
+		if err != nil {
 			return
 		}
-		rv.Set(reflect.ValueOf(t))
+		n += _n
+		rv.Set(reflect.ValueOf(*t))
 		return
 
 	default:
@@ -490,13 +708,31 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 			}
 
 			// Decode into field rv.
-			_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions)
-			if slide(&bz, &n, _n) && err != nil {
+			_n, err = cdc.decodeReflectBinary(br, finfo, frv, field.FieldOptions)
+			n += _n
+			if err != nil {
 				return
 			}
 		}
 		return
 	}
+}
+
+func decodeDisambPrefixBytesWithReader(br *bufio.Reader) (df DisfixBytes, hasDb bool, pb PrefixBytes, hasPb bool, isNil bool, n int, err error) {
+	var bz []byte
+	var _n int
+	_n, err = peekConsumeDiscard(br, 4, func(bzz []byte) (int, error) {
+		bz = bzz
+		return len(bzz), nil
+	})
+	if err != nil {
+		return
+	}
+	n += _n
+
+	df, hasDb, pb, hasPb, isNil, _n, err = decodeDisambPrefixBytes(bz)
+	n += _n
+	return
 }
 
 //----------------------------------------
