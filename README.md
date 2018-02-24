@@ -28,7 +28,7 @@ wire.RegisterConcrete(MyStruct2{}, "com.tendermint/MyStruct2", nil)
 wire.RegisterConcrete(&MyStruct3{}, "anythingcangoinhereifitsunique", nil)
 ```
 
-Notice that an interface is represented by a nil pointer.
+Notice that an interface is represented by a nil pointer of that interface.
 
 Structures that must be deserialized as pointer values must be registered with
 a pointer value as well.  It's OK to (de)serialize such structures in
@@ -40,19 +40,30 @@ interface field, they will always be deserialized as pointers.
 All registered concrete types are encoded with leading 4 bytes (called "prefix
 bytes"), even when it's not held in an interface field/element.  In this way,
 Wire ensures that concrete types (almost) always have the same canonical
-representation.  The first byte of the prefix bytes must not be a zero byte, so
-there are 2^(8x4)-2^(8x3) possible values.
+representation.  The first byte of the prefix bytes must not be a zero byte, 
+and the last 3 bits are reserved for the typ3 bits (explained elsewhere), so
+there are 2^(8x4-3)-2^(8x3-3) = 534,773,760 possible values.
 
-When there are 4096 types registered at once, the probability of there being a
-conflict is ~ 0.2%. See https://instacalc.com/51189 for estimation.  This is
-assuming that all registered concrete types have unique natural names (e.g.
-prefixed by a unique entity name such as "com.tendermint/", and not
-"mined/grinded" to produce a particular sequence of "prefix bytes").
+When there are 1024 concrete types registered that implement the same interface,
+the probability of there being a conflict is ~ 0.1%.
 
-TODO Update instacalc.com link with 255/256 since 0x00 is an escape.
+This is assuming that all registered concrete types have unique natural names
+(e.g.  prefixed by a unique entity name such as "com.tendermint/", and not
+"mined/grinded" to produce a particular sequence of "prefix bytes"). Do not
+mine/grind to produce a particular sequence of prefix bytes, and avoid using
+dependencies that do so.
 
-Do not mine/grind to produce a particular sequence of prefix bytes, and avoid
-using dependencies that do so.
+```
+The Birthday Paradox: 1024 random registered types, Wire prefix bytes
+https://instacalc.com/51339
+
+possible = 534773760                                = 534,773,760 
+registered = 1024                                   = 1,024 
+pairs = ((registered)*(registered-1)) / 2           = 523,776 
+no_collisions = ((possible-1) / possible)^pairs     = 0.99902104475 
+any_collisions = 1 - no_collisions                  = 0.00097895525 
+percent_any_collisions = any_collisions * 100       = 0.09789552533 
+```
 
 Since 4 bytes are not sufficient to ensure no conflicts, sometimes it is
 necessary to prepend more than the 4 prefix bytes for disambiguation.  Like the
@@ -74,10 +85,10 @@ possible values.
 The prefix bytes never start with a zero byte, so the disambiguation bytes are
 escaped with 0x00.
 
-Notice that the 4 prefix bytes always immediately precede the binary encoding
+The 4 prefix bytes always immediately precede the binary encoding
 of the concrete type.
 
-### Computing prefix bytes
+### Computing disambiguation and prefix bytes
 
 To compute the disambiguation bytes, we take `hash := sha256(concreteTypeName)`,
 and drop the leading 0x00 bytes.
@@ -102,6 +113,12 @@ The next 4 bytes are called the "prefix bytes" (in square brackets).
 ```
 > <0xA8 0xFC 0x54> [0xBB 0x9C 9x83 9xDD]
 ```
+
+We reserve the last 3 bits for the typ3 of the concrete type, so in
+this case the final prefix bytes become `(0xDD & 0xF8) | <typ3-byte>`.
+The type byte for a struct is 0x03, so if the concrete type were a struct,
+the final prefix byte would be `0xDE`.
+
 
 ### Supported types
 
@@ -341,12 +358,11 @@ if err != nil { ... }
 Finally, Protobuf's "oneof" gets a facelift.  Instead of "oneof", Wire has
 Interfaces.
 
-An interface value is typically a struct, but it doesn't need to be.  If the
-value of the interface isn't nil, the prefix or disfix bytes are followed by a
-typ3 byte of the value type, so a scanner can recursively traverse the fields
-and elements of the value.  A nil interface value is encoded by four zero bytes
-in place of the 4 prefix bytes.  Of course, a nil struct field value is not
-encoded at all.
+An interface value is typically a struct, but it doesn't need to be.  The last
+3 bits of the prefix bytes are typ3 bits, so a scanner can recursively traverse
+the fields and elements of the value.  A nil interface value is encoded by four
+zero bytes in place of the 4 prefix bytes.  Of course, a nil struct field value
+is not encoded at all.
 
 ## Wire in other langauges
 

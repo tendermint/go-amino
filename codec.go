@@ -20,9 +20,11 @@ type PrefixBytes [PrefixBytesLen]byte
 type DisambBytes [DisambBytesLen]byte
 type DisfixBytes [DisfixBytesLen]byte // Disamb+Prefix
 
-func (pb PrefixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(pb[:], bz) }
-func (db DisambBytes) EqualBytes(bz []byte) bool { return bytes.Equal(db[:], bz) }
-func (df DisfixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(df[:], bz) }
+func (pb PrefixBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(pb[:], bz) }
+func (pb PrefixBytes) WithTyp3(typ typ3) PrefixBytes { pb[3] |= typ3; return pb }
+func (pb PrefixBytes) WithoutTyp3() PrefixBytes      { pb[3] &= 0xF8; return pb }
+func (db DisambBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(db[:], bz) }
+func (df DisfixBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(df[:], bz) }
 
 type TypeInfo struct {
 	Type      reflect.Type // Interface type.
@@ -536,6 +538,8 @@ func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
 		bz = bz[1:]
 	}
 	copy(pb[:], bz[0:4])
+	// Drop the last 3 bits to make room for the typ3.
+	pb[3] &= 0xF8
 	return
 }
 

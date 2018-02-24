@@ -121,7 +121,7 @@ func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
 	return
 }
 
-func typeToTyp4(rt runtime.Type, fopts FieldOptions) (typ4 typ4) {
+func typeToTyp4(rt runtime.Type, opts FieldOptions) (typ4 typ4) {
 
 	// Transparently "dereference" pointer type.
 	var pointer bool = false
@@ -131,7 +131,7 @@ func typeToTyp4(rt runtime.Type, fopts FieldOptions) (typ4 typ4) {
 	}
 
 	// Call actual logic.
-	typ4 = typ4(typeToTyp3(rt, fopts))
+	typ4 = typ4(typeToTyp3(rt, opts))
 
 	// Set pointer bit to 1 if pointer.
 	if pointer {
@@ -140,8 +140,13 @@ func typeToTyp4(rt runtime.Type, fopts FieldOptions) (typ4 typ4) {
 	return
 }
 
+// Like typeToTyp4 but drop the pointer bit.
+func typeToTyp3(rt runtime.Type, opts FieldOptions) typ3 {
+	return typ3(typeToTyp4(rt, opts) & 0x07)
+}
+
 // CONTRACT: rt.Kind() != reflect.Ptr
-func typeToTyp3(rt runtime.Type, fopts FieldOptions) (typ typ3) {
+func typeToTyp3(rt runtime.Type, opts FieldOptions) (typ typ3) {
 	switch rt.Kind() {
 	case reflect.Interface:
 		return typ3_Interface
@@ -158,7 +163,7 @@ func typeToTyp3(rt runtime.Type, fopts FieldOptions) (typ typ3) {
 	case reflect.Struct:
 		return typ3_StartStruct
 	case reflect.Int64, reflect.Uint64:
-		if fopts.BinVarint {
+		if opts.BinVarint {
 			return typ3_Varint
 		}
 		return typ3_8Byte
@@ -172,32 +177,6 @@ func typeToTyp3(rt runtime.Type, fopts FieldOptions) (typ typ3) {
 	default:
 		panic(fmt.Sprintf("unsupported field type %v", rt))
 	}
-}
-
-func encodeFieldNumberAndTyp3s(w io.Writer, num int32, typ3s []typ3) (err error) {
-	var typ = typ3s[0]
-	if (typ & 0xF8) > 0 {
-		panic(fmt.Sprintf("invalid typ3 bytes %X (see first typ3 byte)" + typ3s))
-	}
-	if num < 0 || num > (1<<29-1) {
-		panic(fmt.Sprintf("invalid field number %v" + num))
-	}
-	value := (int64(num) << 3) | typ
-
-	// Write uvarint value for field and first typ3 byte.
-	var buf [10]byte
-	n := binary.PutUvarint(buf[:], value)
-	buf = buf[0:n]
-	_, err = w.Write(buf)
-
-	// Write remaining typ3 bytes.
-	if len(typ3s) > 1 {
-		_, err = w.Write(typ3s[1:])
-		if err != nil {
-			return
-		}
-	}
-	return
 }
 
 func isNilSafe(rv reflect.Value) bool {

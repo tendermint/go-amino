@@ -194,12 +194,12 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		}
 	}
 
-	// Write prefix bytes and concrete typ3 byte.
-	_, err = w.Write(cinfo.Prefix[:])
+	// Write prefix bytes and concrete typ3.
+	var typ = typeToTyp3(crt, opts)
+	_, err = w.Write(cinfo.Prefix.WithTyp3(typ)[:])
 	if err != nil {
 		return
 	}
-	typ := typeToTyp4(crt, opts)
 	err = EncodeByte(w, typ)
 	if err != nil {
 		return
@@ -344,4 +344,33 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 
 	}
 
+}
+
+//----------------------------------------
+// Misc.
+
+func encodeFieldNumberAndTyp3s(w io.Writer, num int32, typ3s []typ3) (err error) {
+	var typ = typ3s[0]
+	if (typ & 0xF8) > 0 {
+		panic(fmt.Sprintf("invalid typ3 bytes %X (see first typ3 byte)" + typ3s))
+	}
+	if num < 0 || num > (1<<29-1) {
+		panic(fmt.Sprintf("invalid field number %v" + num))
+	}
+	value := (int64(num) << 3) | typ
+
+	// Write uvarint value for field and first typ3 byte.
+	var buf [10]byte
+	n := binary.PutUvarint(buf[:], value)
+	buf = buf[0:n]
+	_, err = w.Write(buf)
+
+	// Write remaining typ3 bytes.
+	if len(typ3s) > 1 {
+		_, err = w.Write(typ3s[1:])
+		if err != nil {
+			return
+		}
+	}
+	return
 }

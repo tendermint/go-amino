@@ -37,24 +37,26 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	// info.ConcreteType.AlwaysDisambiguate.  But we don't support
 	// this yet.
 
-	// Read prefix bytes and typ3 byte if registered.
+	// Read prefix bytes (w/ typ3) if registered.
 	if info.Registered {
-		// Strip the prefix bytes after checking it.
 		if len(bz) < PrefixBytesLen {
 			err = errors.New("EOF skipping prefix bytes.")
 			return
 		}
-		// Check and consume prefix bytes.
-		if !info.Prefix.EqualBytes(bz) {
+		// Check prefix bytes.
+		var prefix3 = PrefixBytes(bz[:PrefixBytesLen])
+		var prefix = prefix3.WithoutTyp3()
+		if !info.Prefix.EqualBytes(prefix) {
 			panic("should not happen")
 		}
-		bz = bz[PrefixBytesLen:]
-		n += PrefixBytesLen
-		// Check and consume typ3 byte.
-		err = decodeTyp3AndCheck(info.Type, &bz, opts)
+		// Check that typ3 in prefix bytes is correct.
+		err = decodeTyp3AndCheck(info.Type, prefix, opts)
 		if err != nil {
 			return
 		}
+		// Consume prefix.  Yum.
+		bz = bz[PrefixBytesLen:]
+		n += PrefixBytesLen
 	}
 
 	_n := 0
@@ -713,7 +715,7 @@ func decodeFieldNumberAndTyp3(bz []byte) (num int32, typ typ3, n int, err error)
 	return
 }
 
-// Check and consume typ4 byte and error if it doesn't match rt.
+// Consume typ4 byte and error if it doesn't match rt.
 func decodeTyp4AndCheck(rt reflect.Type, bzPtr *[]byte, opts FieldOptions) (ptr bool, err error) {
 	var bz = *bzPtr
 	var typ, _n = typ4(0x00), int64(0)
@@ -745,34 +747,14 @@ func decodeTyp4(bz []byte) (typ typ4, n int, err error) {
 	return
 }
 
-// Check and consume typ3 byte and error if it doesn't match rt.
-func decodeTyp3AndCheck(rt reflect.Type, bzPtr *[]byte, opts FieldOptions) (err error) {
-	var bz = *bzPtr
-	var typ, _n = typ4(0x00), int64(0)
-	typ, _n, err = decodeTyp3(bz)
-	if slide(&bz, &n, _n) && err != nil {
-		return
-	}
-	typWanted := typ3(typeToTyp4(rt, opts) & 0x07) // TODO typeToTyp3?
+// Extract typ3 from prefix and error if it doesn't match rt.
+func decodeTyp3AndCheck(rt reflect.Type, prefix PrefixBytes, opts FieldOptions) (err error) {
+	var typ = typ3(prefix[3] & 0x07)
+	typWanted := typeToTyp3(rt, opts)
 	if typWanted != typ {
 		err = fmt.Errorf("Typ3 mismatch.  Expected %X, got %X", typWanted, typ)
 		return
 	}
-	return
-}
-
-// Read typ3 byte.
-func decodeTyp3(bz []byte) (typ typ3, n int, err error) {
-	if len(bz) == 0 {
-		err = errors.New(fmt.Sprintf("EOF reading typ3 bytes"))
-		return
-	}
-	if bz[0]&0xF8 != 0 {
-		err = errors.New(fmt.Sprintf("Invalid non-zero nibble reading typ3 bytes"))
-		return
-	}
-	typ = bz[0]
-	n = 1
 	return
 }
 
