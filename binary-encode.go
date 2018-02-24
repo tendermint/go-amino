@@ -26,13 +26,13 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		}()
 	}
 
-	// Write prefix bytes and typ3 byte if registered.
+	// Write prefix bytes and typ4 byte if registered.
 	if info.Registered {
 		_, err = w.Write(info.Prefix[:])
 		if err != nil {
 			return
 		}
-		typ := typeToTyp3(info.Type, opts)
+		typ := typeToTyp4(info.Type, opts)
 		err = EncodeByte(w, typ)
 		if err != nil {
 			return
@@ -48,27 +48,8 @@ func (cdc *Codec) _encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.V
 
 	// Dereference pointers all the way if any.
 	// This works for pointer-pointers.
-	var foundPointer = false
 	for rv.Kind() == reflect.Ptr {
-		foundPointer = true
 		rv = rv.Elem()
-	}
-
-	// Write pointer byte if necessary.
-	// XXX This doesnt seem right ... XXX
-	if foundPointer {
-		if rv.IsValid() {
-			_, err = w.Write([]byte{0x01})
-			// and continue...
-		} else {
-			_, err = w.Write([]byte{0x00})
-			return
-		}
-	}
-
-	// Sanity check
-	if info.Registered && foundPointer {
-		panic("should not happen")
 	}
 
 	switch info.Type.Kind() {
@@ -80,14 +61,17 @@ func (cdc *Codec) _encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.V
 		err = cdc.encodeReflectBinaryInterface(w, info, rv, opts)
 
 	case reflect.Array:
-		err = cdc.encodeReflectBinaryArray(w, info, rv, opts)
+		if info.Type.Elem() == reflect.Uint8 {
+			err = cdc.encodeReflectBinaryByteArray(w, info, rv, opts)
+		} else {
+			err = cdc.encodeReflectBinaryList(w, info, rv, opts)
+		}
 
 	case reflect.Slice:
-		ert := info.Type.Elem()
-		if ert == reflect.Uint8 {
+		if info.Type.Elem() == reflect.Uint8 {
 			err = cdc.encodeReflectBinaryByteSlice(w, info, rv, opts)
 		} else {
-			err = cdc.encodeReflectBinarySlice(w, info, rv, opts)
+			err = cdc.encodeReflectBinaryList(w, info, rv, opts)
 		}
 
 	case reflect.Struct:
@@ -210,12 +194,12 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		}
 	}
 
-	// Write prefix bytes and concrete typ3 bte.
+	// Write prefix bytes and concrete typ3 byte.
 	_, err = w.Write(cinfo.Prefix[:])
 	if err != nil {
 		return
 	}
-	typ := typeToTyp3(crt, opts)
+	typ := typeToTyp4(crt, opts)
 	err = EncodeByte(w, typ)
 	if err != nil {
 		return
@@ -242,13 +226,9 @@ func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv r
 		reflect.Copy(reflect.ValueOf(bz), rv) // XXX: looks expensive!
 	}
 
-	// Write byte-length prefixed byte-slice.
+	// Write byte-length prefixed byteslice.
 	err = EncodeByteSlice(w, byteslice)
 	return
-}
-
-func (cdc *Codec) encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-	return cdc.encodeReflectBinaryList(w, info, rv, opts)
 }
 
 func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
@@ -257,10 +237,8 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 		panic("should not happen")
 	}
 
-	XXX Pointer??
-
-	// Write element typ3 byte.
-	var typ = typeToTyp3(ert, opts)
+	// Write element typ4 byte.
+	var typ = typeToTyp4(ert, opts)
 	err = EncodeByte(w, typ)
 	if err != nil {
 		return
@@ -279,6 +257,21 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 		return
 	}
 	for i := 0; i < length; i++ {
+		// Maybe write pointer byte.
+		if typ & typ4_Pointer {
+			if rv.IsValid() {
+				// Value is not nil.
+				// Write 0x00 for not nil.
+				_, err = w.Write([]byte{0x00})
+				// and continue...
+			} else {
+				// Value is nil.
+				// Write 0x01 for nil.
+				_, err = w.Write([]byte{0x01})
+				return
+			}
+		}
+		// Write the value since it isn't nil.
 		erv := rv.Index(i)
 		err = cdc.encodeReflectBinary(w, einfo, erv, opts)
 		if err != nil {
@@ -299,11 +292,6 @@ func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv r
 	var byteslice = rv.Bytes()
 	err = EncodeByteSlice(w, byteslice)
 	return
-}
-
-// CONTRACT: info.Type.Elem().Kind() != reflect.Uint8
-func (cdc *Codec) encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-	return cdc.encodeReflectBinaryList(w, info, rv, opts)
 }
 
 func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
