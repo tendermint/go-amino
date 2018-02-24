@@ -29,8 +29,10 @@ Type | Meaning      | Used For
 */
 
 type typ3 uint8
+type typ4 uint8 // typ3 | 0x80 (pointer bit)
 
 const (
+	// typ3 types
 	typ3_Varint      = typ3(0)
 	typ3_8Byte       = typ3(1)
 	typ3_ByteLength  = typ3(2)
@@ -39,6 +41,9 @@ const (
 	typ3_4Byte       = typ3(5)
 	typ3_List        = typ3(6)
 	typ3_Interface   = typ3(7)
+
+	// typ4 bit
+	typ4_Pointer = typ4(0x08)
 )
 
 //----------------------------------------
@@ -116,7 +121,7 @@ func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
 	return
 }
 
-func typeToTyp3(rt runtime.Type, fopts FieldOptions) (typ3s []typ3) {
+func typeToTyp4(rt runtime.Type, fopts FieldOptions) (typ4 typ4) {
 
 	// Transparently "dereference" pointer type.
 	var pointer bool = false
@@ -126,65 +131,44 @@ func typeToTyp3(rt runtime.Type, fopts FieldOptions) (typ3s []typ3) {
 	}
 
 	// Call actual logic.
-	typ3s = typeToTyp3_(rt, fopts)
+	typ4 = typ4(typeToTyp3(rt, fopts))
 
 	// Set pointer bit to 1 if pointer.
 	if pointer {
-		typ3s[0] |= 0x08
+		typ4 |= typ4_Pointer
 	}
-
-	// Sanity check.
-	validateTyp3s(typ3s)
 	return
 }
 
-// NOTE: Do not use in decoders, since it panics.
-func validateTyp3s(typ3s []typ3) {
-	if len(typ3s) == 0 {
-		panic("empty typ3 bytes")
-	}
-	for i := 0; i < len(typ3s); i++ {
-		typ := typ3s[i]
-		if i < len(typ3s)-1 &&
-			(typ&0x07) != typ3_List {
-
-			panic("invalid leading typ3 byte")
-		}
-		if typ&0xF0 > 0 {
-			panic("invalid non-zero first nibble in typ3 byte")
-		}
-	}
-}
-
 // CONTRACT: rt.Kind() != reflect.Ptr
-func typeToTyp3_(rt runtime.Type, fopts FieldOptions) (typ3s []typ3) {
+func typeToTyp3(rt runtime.Type, fopts FieldOptions) (typ typ3) {
 	switch rt.Kind() {
 	case reflect.Interface:
-		return []typ3{typ3_Interface}
+		return typ3_Interface
 	case reflect.Array, reflect.Slice:
 		ert := rt.Elem()
 		switch ert.Kind() {
 		case reflect.Uint8:
-			return []typ3{typ3_ByteLength}
+			return typ3_ByteLength
 		default:
-			return append([]typ3{typ3_List}, typeToType3(ert, fopts)...)
+			return type3_List
 		}
 	case reflect.String:
-		return []typ3{typ3_ByteLength}
+		return typ3_ByteLength
 	case reflect.Struct:
-		return []typ3{typ3_StartStruct}
+		return typ3_StartStruct
 	case reflect.Int64, reflect.Uint64:
 		if fopts.BinVarint {
-			return []typ3{typ3_Varint}
+			return typ3_Varint
 		}
-		return []typ3{typ3_8Byte}
+		return typ3_8Byte
 	case reflect.Float64:
-		return []typ3{typ3_8Byte}
+		return typ3_8Byte
 	case reflect.Int32, reflect.Uint32, reflect.Float32:
-		return []typ3{typ3_4Byte}
+		return typ3_4Byte
 	case reflect.Int16, reflect.Int8, reflect.Int,
 		reflect.Uint16, reflect.Uint8, reflect.Uint, reflect.Bool:
-		return []typ3{typ3_Varint}
+		return typ3_Varint
 	default:
 		panic(fmt.Sprintf("unsupported field type %v", rt))
 	}
@@ -213,90 +197,6 @@ func encodeFieldNumberAndTyp3s(w io.Writer, num int32, typ3s []typ3) (err error)
 			return
 		}
 	}
-	return
-}
-
-// Read field key.
-func decodeFieldNumberAndTyp3s(bz []byte) (num int32, typ3s []typ3, n int, err error) {
-
-	// Read uvarint value.
-	var value int64
-	uvalue := uint64(0)
-	uvalue, n, err = DecodeUvarint(bz)
-	if err != nil {
-		return
-	}
-	value = int64(uvalue)
-
-	// Decode first typ3 byte.
-	var typ = uint8(value & 0x07)
-	typ3s = []typ3{typ}
-
-	// Decode num.
-	num64 = value >> 3
-	if num64 < 0 || num64 > (1<<29-1) {
-		err = errors.New(fmt.Sprintf("invalid field num %v", num64))
-		return
-	}
-	num = int32(num64)
-
-	// Read more typ3 bytes if field is a List.
-	if typ == typ3_List {
-		var mor3s, _n = []typ3(nil), int64(0)
-		mor3s, _n, err = decodeTyp3s(bz)
-		if err != nil {
-			return
-		}
-		typ3s = append(typ3s, mor3s...)
-	}
-	return
-}
-
-// Read typ3 byte.
-func decodeTyp3(bz []byte) (typ typ3, n int, err error) {
-	if len(bz) == 0 {
-		err = errors.New(fmt.Sprintf("EOF reading typ3 bytes"))
-		return
-	}
-	if bz[0]&0xF0 != 0 {
-		err = errors.New(fmt.Sprintf("Invalid non-zero nibble reading typ3 bytes"))
-		return
-	}
-	typ = bz[0]
-	n = 1
-	return
-}
-
-// Read typ3 byte and expect it to be some value.
-func decodeTyp3sExpect(bz []byte, typ3Wanted typ3) (n int, err error) {
-	var typ, n, err = decodeTyp3Byte(ert, &bz, opts)
-	if err != nil {
-		return
-	}
-	if typ != typ3Wanted {
-		err = errors.New("Expected typ3 byte %X but got %X", typ3Wanted, typ)
-		return
-	}
-	return
-}
-
-// Read a uvarint that encodes the number of nil items to skip.  NOTE:
-// Currently does not support any number besides 0 (not nil) and 1 (nil).  All
-// other values will error.
-func decodeNilBytes(bz []byte) (numNil int64, n int, err error) {
-	if len(bz[0]) == 0 {
-		err = errors.New("EOF reading nil byte(s)")
-		return
-	}
-	if bz[0] == 0x00 {
-		numNil, n = 0, 1
-		return
-	}
-	if bz[0] == 0x01 {
-		numNil, n = 1, 1
-		return
-	}
-	n, err = 0, fmt.Errorf("Unexpected nil byte %X (sparse lists not supported)", bz[0])
 	return
 }
 

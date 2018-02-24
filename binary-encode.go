@@ -226,59 +226,38 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 	return
 }
 
-// XXX Split up?
-func (cdc *Codec) encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-	ert := info.Type.Elem()
-	length := info.Type.Len()
-
-	switch ert.Kind() {
-
-	case reflect.Uint8: // Special case: byte array
-		bz := []byte(nil)
-		if rv.CanAddr() {
-			bz = rv.Slice(0, length).Bytes()
-		} else {
-			bz = make([]byte, length)
-			reflect.Copy(reflect.ValueOf(bz), rv) // XXX: looks expensive!
-		}
-		_, err = w.Write(bz)
-		return
-
-	default:
-		var einfo *TypeInfo
-		einfo, err = cdc.getTypeInfo_wlock(ert)
-		if err != nil {
-			return
-		}
-		for i := 0; i < length; i++ {
-			erv := rv.Index(i)
-			err = cdc.encodeReflectBinary(w, einfo, erv, opts)
-			if err != nil {
-				return
-			}
-		}
-		return
-	}
-}
-
-// CONTRACT: info.Type.Elem().Kind() == reflect.Uint8
-func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-	ert := info.Type.Elem()
-	if ert.Kind() != reflect.Uint8 {
-		panic("should not happen")
-	}
-
-	byteslice := rv.Bytes()
-	err = EncodeByteSlice(w, byteslice)
-	return
-}
-
-// CONTRACT: info.Type.Elem().Kind() != reflect.Uint8
-func (cdc *Codec) encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	ert := info.Type.Elem()
 	if ert.Kind() == reflect.Uint8 {
 		panic("should not happen")
 	}
+	length := info.Type.Len()
+
+	// Get bz.
+	var byteslice = []byte(nil)
+	if rv.CanAddr() {
+		bz = rv.Slice(0, length).Bytes()
+	} else {
+		bz = make([]byte, length)
+		reflect.Copy(reflect.ValueOf(bz), rv) // XXX: looks expensive!
+	}
+
+	// Write byte-length prefixed byte-slice.
+	err = EncodeByteSlice(w, byteslice)
+	return
+}
+
+func (cdc *Codec) encodeReflectBinaryArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	return cdc.encodeReflectBinaryList(w, info, rv, opts)
+}
+
+func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	ert := info.Type.Elem()
+	if ert.Kind() == reflect.Uint8 {
+		panic("should not happen")
+	}
+
+	XXX Pointer??
 
 	// Write element typ3 byte.
 	var typ = typeToTyp3(ert, opts)
@@ -288,7 +267,6 @@ func (cdc *Codec) encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv refle
 	}
 
 	// Write length.
-	var length = rv.Len()
 	err = EncodeVarint(w, int64(length))
 	if err != nil {
 		return
@@ -308,6 +286,24 @@ func (cdc *Codec) encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv refle
 		}
 	}
 	return
+}
+
+// CONTRACT: info.Type.Elem().Kind() == reflect.Uint8
+func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	ert := info.Type.Elem()
+	if ert.Kind() != reflect.Uint8 {
+		panic("should not happen")
+	}
+
+	// Write byte-length prefixed byte-slice.
+	var byteslice = rv.Bytes()
+	err = EncodeByteSlice(w, byteslice)
+	return
+}
+
+// CONTRACT: info.Type.Elem().Kind() != reflect.Uint8
+func (cdc *Codec) encodeReflectBinarySlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	return cdc.encodeReflectBinaryList(w, info, rv, opts)
 }
 
 func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {

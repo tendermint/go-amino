@@ -1,0 +1,1932 @@
+SCRIPT  /Users/jae/.vim/bundle/vim-go/syntax/go.vim
+Sourced 2 times
+Total time:   0.004765
+ Self time:   0.004716
+
+count  total (s)   self (s)
+                            " Copyright 2009 The Go Authors. All rights reserved.
+                            " Use of this source code is governed by a BSD-style
+                            " license that can be found in the LICENSE file.
+                            "
+                            " go.vim: Vim syntax file for Go.
+                            
+                            " Quit when a (custom) syntax file was already loaded
+    2              0.000018 if exists("b:current_syntax")
+                              finish
+                            endif
+                            
+                            " Set settings to default values.
+    2              0.000013 if !exists("g:go_highlight_array_whitespace_error")
+                              let g:go_highlight_array_whitespace_error = 0
+                            endif
+                            
+    2              0.000012 if !exists("g:go_highlight_chan_whitespace_error")
+                              let g:go_highlight_chan_whitespace_error = 0
+                            endif
+                            
+    2              0.000010 if !exists("g:go_highlight_extra_types")
+                              let g:go_highlight_extra_types = 0
+                            endif
+                            
+    2              0.000012 if !exists("g:go_highlight_space_tab_error")
+                              let g:go_highlight_space_tab_error = 0
+                            endif
+                            
+    2              0.000009 if !exists("g:go_highlight_trailing_whitespace_error")
+                              let g:go_highlight_trailing_whitespace_error = 0
+                            endif
+                            
+    2              0.000011 if !exists("g:go_highlight_operators")
+                              let g:go_highlight_operators = 0
+                            endif
+                            
+    2              0.000023 if !exists("g:go_highlight_functions")
+                              let g:go_highlight_functions = 0
+                            endif
+                            
+    2              0.000009 if !exists("g:go_highlight_methods")
+                              let g:go_highlight_methods = 0
+                            endif
+                            
+    2              0.000008 if !exists("g:go_highlight_fields")
+                              let g:go_highlight_fields = 0
+                            endif
+                            
+    2              0.000007 if !exists("g:go_highlight_types")
+                              let g:go_highlight_types = 0
+                            endif
+                            
+    2              0.000007 if !exists("g:go_highlight_build_constraints")
+                              let g:go_highlight_build_constraints = 0
+                            endif
+                            
+    2              0.000009 if !exists("g:go_highlight_string_spellcheck")
+                              let g:go_highlight_string_spellcheck = 1
+                            endif
+                            
+    2              0.000007 if !exists("g:go_highlight_format_strings")
+                              let g:go_highlight_format_strings = 1
+                            endif
+                            
+    2              0.000007 if !exists("g:go_highlight_generate_tags")
+                              let g:go_highlight_generate_tags = 0
+                            endif
+                            
+    2              0.000025 if !exists("g:go_highlight_variable_assignments")
+                              let g:go_highlight_variable_assignments = 0
+                            endif
+                            
+    2              0.000009 if !exists("g:go_highlight_variable_declarations")
+                              let g:go_highlight_variable_declarations = 0
+                            endif
+                            
+    2              0.000008 let s:fold_block = 1
+    2              0.000007 let s:fold_import = 1
+    2              0.000003 let s:fold_varconst = 1
+    2              0.000005 let s:fold_package_comment = 1
+    2              0.000004 let s:fold_comment = 0
+                            
+    2              0.000009 if exists("g:go_fold_enable")
+                              " Enabled by default.
+                              if index(g:go_fold_enable, 'block') == -1
+                                let s:fold_block = 0
+                              endif
+                              if index(g:go_fold_enable, 'import') == -1
+                                let s:fold_import = 0
+                              endif
+                              if index(g:go_fold_enable, 'varconst') == -1
+                                let s:fold_varconst = 0
+                              endif
+                              if index(g:go_fold_enable, 'package_comment') == -1
+                                let s:fold_package_comment = 0
+                              endif
+                             
+                              " Disabled by default.
+                              if index(g:go_fold_enable, 'comment') > -1
+                                let s:fold_comment = 1
+                              endif
+                            endif
+                            
+    2              0.000007 syn case match
+                            
+    2              0.000017 syn keyword     goPackage           package
+    2              0.000009 syn keyword     goImport            import    contained
+    2              0.000006 syn keyword     goVar               var       contained
+    2              0.000007 syn keyword     goConst             const     contained
+                            
+    2              0.000011 hi def link     goPackage           Statement
+    2              0.000007 hi def link     goImport            Statement
+    2              0.000006 hi def link     goVar               Keyword
+    2              0.000005 hi def link     goConst             Keyword
+    2              0.000006 hi def link     goDeclaration       Keyword
+                            
+                            " Keywords within functions
+    2              0.000014 syn keyword     goStatement         defer go goto return break continue fallthrough
+    2              0.000012 syn keyword     goConditional       if else switch select
+    2              0.000014 syn keyword     goLabel             case default
+    2              0.000006 syn keyword     goRepeat            for range
+                            
+    2              0.000007 hi def link     goStatement         Statement
+    2              0.000006 hi def link     goConditional       Conditional
+    2              0.000005 hi def link     goLabel             Label
+    2              0.000005 hi def link     goRepeat            Repeat
+                            
+                            " Predefined types
+    2              0.000008 syn keyword     goType              chan map bool string error
+    2              0.000009 syn keyword     goSignedInts        int int8 int16 int32 int64 rune
+    2              0.000009 syn keyword     goUnsignedInts      byte uint uint8 uint16 uint32 uint64 uintptr
+    2              0.000006 syn keyword     goFloats            float32 float64
+    2              0.000030 syn keyword     goComplexes         complex64 complex128
+                            
+    2              0.000006 hi def link     goType              Type
+    2              0.000006 hi def link     goSignedInts        Type
+    2              0.000005 hi def link     goUnsignedInts      Type
+    2              0.000006 hi def link     goFloats            Type
+    2              0.000005 hi def link     goComplexes         Type
+                            
+                            
+                            " Predefined functions and values
+    2              0.000059 syn match       goBuiltins                 /\<\v(append|cap|close|complex|copy|delete|imag|len)\ze\(/
+    2              0.000017 syn match       goBuiltins                 /\<\v(make|new|panic|print|println|real|recover)\ze\(/
+    2              0.000011 syn keyword     goBoolean                  true false
+    2              0.000013 syn keyword     goPredefinedIdentifiers    nil iota
+                            
+    2              0.000007 hi def link     goBuiltins                 Keyword
+    2              0.000005 hi def link     goBoolean                  Boolean
+    2              0.000006 hi def link     goPredefinedIdentifiers    goBoolean
+                            
+                            " Comments; their contents
+    2              0.000014 syn keyword     goTodo              contained TODO FIXME XXX BUG
+    2              0.000013 syn cluster     goCommentGroup      contains=goTodo
+                            
+    2              0.000033 syn region      goComment           start="//" end="$" contains=goGenerate,@goCommentGroup,@Spell
+    2              0.000010 if s:fold_comment
+                              syn region    goComment           start="/\*" end="\*/" contains=@goCommentGroup,@Spell fold
+                              syn match     goComment           "\v(^\s*//.*\n)+" contains=goGenerate,@goCommentGroup,@Spell fold
+                            else
+    2              0.000020   syn region    goComment           start="/\*" end="\*/" contains=@goCommentGroup,@Spell
+    2              0.000003 endif
+                            
+    2              0.000007 hi def link     goComment           Comment
+    2              0.000017 hi def link     goTodo              Todo
+                            
+    2              0.000007 if g:go_highlight_generate_tags != 0
+                              syn match       goGenerateVariables contained /\(\$GOARCH\|\$GOOS\|\$GOFILE\|\$GOLINE\|\$GOPACKAGE\|\$DOLLAR\)\>/
+                              syn region      goGenerate          start="^\s*//go:generate" end="$" contains=goGenerateVariables
+                              hi def link     goGenerate          PreProc
+                              hi def link     goGenerateVariables Special
+                            endif
+                            
+                            " Go escapes
+    2              0.000015 syn match       goEscapeOctal       display contained "\\[0-7]\{3}"
+    2              0.000014 syn match       goEscapeC           display contained +\\[abfnrtv\\'"]+
+    2              0.000012 syn match       goEscapeX           display contained "\\x\x\{2}"
+    2              0.000027 syn match       goEscapeU           display contained "\\u\x\{4}"
+    2              0.000013 syn match       goEscapeBigU        display contained "\\U\x\{8}"
+    2              0.000011 syn match       goEscapeError       display contained +\\[^0-7xuUabfnrtv\\'"]+
+                            
+    2              0.000006 hi def link     goEscapeOctal       goSpecialString
+    2              0.000006 hi def link     goEscapeC           goSpecialString
+    2              0.000021 hi def link     goEscapeX           goSpecialString
+    2              0.000006 hi def link     goEscapeU           goSpecialString
+    2              0.000006 hi def link     goEscapeBigU        goSpecialString
+    2              0.000009 hi def link     goSpecialString     Special
+    2              0.000008 hi def link     goEscapeError       Error
+                            
+                            " Strings and their contents
+    2              0.000032 syn cluster     goStringGroup       contains=goEscapeOctal,goEscapeC,goEscapeX,goEscapeU,goEscapeBigU,goEscapeError
+    2              0.000008 if g:go_highlight_string_spellcheck != 0
+    2              0.000042   syn region      goString            start=+"+ skip=+\\\\\|\\"+ end=+"+ contains=@goStringGroup,@Spell
+    2              0.000020   syn region      goRawString         start=+`+ end=+`+ contains=@Spell
+    2              0.000003 else
+                              syn region      goString            start=+"+ skip=+\\\\\|\\"+ end=+"+ contains=@goStringGroup
+                              syn region      goRawString         start=+`+ end=+`+
+                            endif
+                            
+    2              0.000007 if g:go_highlight_format_strings != 0
+    2              0.000039   syn match       goFormatSpecifier   /\([^%]\(%%\)*\)\@<=%[-#0 +]*\%(\*\|\d\+\)\=\%(\.\%(\*\|\d\+\)\)*[vTtbcdoqxXUeEfgGsp]/ contained containedin=goString
+    2              0.000007   hi def link     goFormatSpecifier   goSpecialString
+    2              0.000003 endif
+                            
+    2              0.000006 hi def link     goString            String
+    2              0.000008 hi def link     goRawString         String
+                            
+                            " Characters; their contents
+    2              0.000023 syn cluster     goCharacterGroup    contains=goEscapeOctal,goEscapeC,goEscapeX,goEscapeU,goEscapeBigU
+    2              0.000028 syn region      goCharacter         start=+'+ skip=+\\\\\|\\'+ end=+'+ contains=@goCharacterGroup
+                            
+    2              0.000007 hi def link     goCharacter         Character
+                            
+                            " Regions
+    2              0.000012 syn region      goParen             start='(' end=')' transparent
+    2              0.000016 if s:fold_block
+    2              0.000014   syn region    goBlock             start="{" end="}" transparent fold
+    2              0.000003 else
+                              syn region    goBlock             start="{" end="}" transparent
+                            endif
+                            
+                            " import
+    2              0.000005 if s:fold_import
+    2              0.000026   syn region    goImport            start='import (' end=')' transparent fold contains=goImport,goString,goComment
+    2              0.000003 else
+                              syn region    goImport            start='import (' end=')' transparent contains=goImport,goString,goComment
+                            endif
+                            
+                            " var, const
+    2              0.000005 if s:fold_varconst
+    2              0.000049   syn region    goVar               start='var ('   end='^\s*)$' transparent fold
+                                                    \ contains=ALLBUT,goParen,goBlock,goFunction,goTypeName,goReceiverType,goReceiverVar
+    2              0.000054   syn region    goConst             start='const (' end='^\s*)$' transparent fold
+                                                    \ contains=ALLBUT,goParen,goBlock,goFunction,goTypeName,goReceiverType,goReceiverVar
+    2              0.000003 else
+                              syn region    goVar               start='var ('   end='^\s*)$' transparent 
+                                                    \ contains=ALLBUT,goParen,goBlock,goFunction,goTypeName,goReceiverType,goReceiverVar
+                              syn region    goConst             start='const (' end='^\s*)$' transparent
+                                                    \ contains=ALLBUT,goParen,goBlock,goFunction,goTypeName,goReceiverType,goReceiverVar
+                            endif
+                            
+                            " Single-line var, const, and import.
+    2              0.000029 syn match       goSingleDecl        /\(import\|var\|const\) [^(]\@=/ contains=goImport,goVar,goConst
+                            
+                            " Integers
+    2              0.000015 syn match       goDecimalInt        "\<-\=\d\+\%([Ee][-+]\=\d\+\)\=\>"
+    2              0.000010 syn match       goHexadecimalInt    "\<-\=0[xX]\x\+\>"
+    2              0.000020 syn match       goOctalInt          "\<-\=0\o\+\>"
+    2              0.000009 syn match       goOctalError        "\<-\=0\o*[89]\d*\>"
+                            
+    2              0.000006 hi def link     goDecimalInt        Integer
+    2              0.000005 hi def link     goHexadecimalInt    Integer
+    2              0.000004 hi def link     goOctalInt          Integer
+    2              0.000006 hi def link     goOctalError        Error
+    2              0.000005 hi def link     Integer             Number
+                            
+                            " Floating point
+    2              0.000012 syn match       goFloat             "\<-\=\d\+\.\d*\%([Ee][-+]\=\d\+\)\=\>"
+    2              0.000014 syn match       goFloat             "\<-\=\.\d\+\%([Ee][-+]\=\d\+\)\=\>"
+                            
+    2              0.000029 hi def link     goFloat             Float
+                            
+                            " Imaginary literals
+    2              0.000020 syn match       goImaginary         "\<-\=\d\+i\>"
+    2              0.000009 syn match       goImaginary         "\<-\=\d\+[Ee][-+]\=\d\+i\>"
+    2              0.000012 syn match       goImaginaryFloat    "\<-\=\d\+\.\d*\%([Ee][-+]\=\d\+\)\=i\>"
+    2              0.000010 syn match       goImaginaryFloat    "\<-\=\.\d\+\%([Ee][-+]\=\d\+\)\=i\>"
+                            
+    2              0.000005 hi def link     goImaginary         Number
+    2              0.000005 hi def link     goImaginaryFloat    Float
+                            
+                            " Spaces after "[]"
+    2              0.000010 if g:go_highlight_array_whitespace_error != 0
+                              syn match goSpaceError display "\(\[\]\)\@<=\s\+"
+                            endif
+                            
+                            " Spacing errors around the 'chan' keyword
+    2              0.000004 if g:go_highlight_chan_whitespace_error != 0
+                              " receive-only annotation on chan type
+                              "
+                              " \(\<chan\>\)\@<!<-  (only pick arrow when it doesn't come after a chan)
+                              " this prevents picking up 'chan<- chan<-' but not '<- chan'
+                              syn match goSpaceError display "\(\(\<chan\>\)\@<!<-\)\@<=\s\+\(\<chan\>\)\@="
+                            
+                              " send-only annotation on chan type
+                              "
+                              " \(<-\)\@<!\<chan\>  (only pick chan when it doesn't come after an arrow)
+                              " this prevents picking up '<-chan <-chan' but not 'chan <-'
+                              syn match goSpaceError display "\(\(<-\)\@<!\<chan\>\)\@<=\s\+\(<-\)\@="
+                            
+                              " value-ignoring receives in a few contexts
+                              syn match goSpaceError display "\(\(^\|[={(,;]\)\s*<-\)\@<=\s\+"
+                            endif
+                            
+                            " Extra types commonly seen
+    2              0.000004 if g:go_highlight_extra_types != 0
+                              syn match goExtraType /\<bytes\.\(Buffer\)\>/
+                              syn match goExtraType /\<io\.\(Reader\|ReadSeeker\|ReadWriter\|ReadCloser\|ReadWriteCloser\|Writer\|WriteCloser\|Seeker\)\>/
+                              syn match goExtraType /\<reflect\.\(Kind\|Type\|Value\)\>/
+                              syn match goExtraType /\<unsafe\.Pointer\>/
+                            endif
+                            
+                            " Space-tab error
+    2              0.000006 if g:go_highlight_space_tab_error != 0
+                              syn match goSpaceError display " \+\t"me=e-1
+                            endif
+                            
+                            " Trailing white space error
+    2              0.000005 if g:go_highlight_trailing_whitespace_error != 0
+                              syn match goSpaceError display excludenl "\s\+$"
+                            endif
+                            
+    2              0.000010 hi def link     goExtraType         Type
+    2              0.000006 hi def link     goSpaceError        Error
+                            
+                            
+                            
+                            " included from: https://github.com/athom/more-colorful.vim/blob/master/after/syntax/go.vim
+                            "
+                            " Comments; their contents
+    2              0.000014 syn keyword     goTodo              contained NOTE
+    2              0.000008 hi def link     goTodo              Todo
+                            
+    2              0.000011 syn match goVarArgs /\.\.\./
+                            
+                            " Operators;
+    2              0.000006 if g:go_highlight_operators != 0
+                              " match single-char operators:          - + % < > ! & | ^ * =
+                              " and corresponding two-char operators: -= += %= <= >= != &= |= ^= *= ==
+                              syn match goOperator /[-+%<>!&|^*=]=\?/
+                              " match / and /=
+                              syn match goOperator /\/\%(=\|\ze[^/*]\)/
+                              " match two-char operators:               << >> &^
+                              " and corresponding three-char operators: <<= >>= &^=
+                              syn match goOperator /\%(<<\|>>\|&^\)=\?/
+                              " match remaining two-char operators: := && || <- ++ --
+                              syn match goOperator /:=\|||\|<-\|++\|--/
+                              " match ...
+                            
+                              hi def link     goPointerOperator   goOperator
+                              hi def link     goVarArgs           goOperator
+                            endif
+    2              0.000007 hi def link     goOperator          Operator
+                            
+                            " Functions;
+    2              0.000006 if g:go_highlight_functions != 0
+                              syn match goDeclaration       /\<func\>/ nextgroup=goReceiver,goFunction skipwhite skipnl
+                              syn match goReceiver          /(\(\w\|[ *]\)\+)/ contained nextgroup=goFunction contains=goReceiverVar skipwhite skipnl
+                              syn match goReceiverVar       /\w\+/ nextgroup=goPointerOperator,goReceiverType skipwhite skipnl contained
+                              syn match goPointerOperator   /\*/ nextgroup=goReceiverType contained skipwhite skipnl
+                              syn match goReceiverType      /\w\+/ contained
+                              syn match goFunction          /\w\+/ contained
+                              syn match goFunctionCall      /\w\+\ze(/ contains=GoBuiltins,goDeclaration
+                            else
+    2              0.000009   syn keyword goDeclaration func
+    2              0.000003 endif
+    2              0.000018 hi def link     goFunction          Function
+    2              0.000005 hi def link     goFunctionCall      Type
+                            
+                            " Methods;
+    2              0.000004 if g:go_highlight_methods != 0
+                              syn match goMethodCall            /\.\w\+\ze(/hs=s+1
+                            endif
+    2              0.000005 hi def link     goMethodCall        Type
+                            
+                            " Fields;
+    2              0.000003 if g:go_highlight_fields != 0
+                              syn match goField                 /\.\w\+\([.\ \n\r\:\)\[,]\)\@=/hs=s+1
+                            endif
+    2              0.000006 hi def link    goField              Identifier
+                            
+                            " Structs & Interfaces;
+    2              0.000003 if g:go_highlight_types != 0
+                              syn match goTypeConstructor      /\<\w\+{\@=/
+                              syn match goTypeDecl             /\<type\>/ nextgroup=goTypeName skipwhite skipnl
+                              syn match goTypeName             /\w\+/ contained nextgroup=goDeclType skipwhite skipnl
+                              syn match goDeclType             /\<\(interface\|struct\)\>/ skipwhite skipnl
+                              hi def link     goReceiverType      Type
+                            else
+    2              0.000006   syn keyword goDeclType           struct interface
+    2              0.000005   syn keyword goDeclaration        type
+    2              0.000003 endif
+    2              0.000006 hi def link     goTypeConstructor   Type
+    2              0.000006 hi def link     goTypeName          Type
+    2              0.000006 hi def link     goTypeDecl          Keyword
+    2              0.000004 hi def link     goDeclType          Keyword
+                            
+                            " Variable Assignments
+    2              0.000017 if g:go_highlight_variable_assignments != 0
+                              syn match goVarAssign /\v[_.[:alnum:]]+(,\s*[_.[:alnum:]]+)*\ze(\s*([-^+|^\/%&]|\*|\<\<|\>\>|\&\^)?\=[^=])/
+                              hi def link   goVarAssign         Special
+                            endif
+                            
+                            " Variable Declarations
+    2              0.000007 if g:go_highlight_variable_declarations != 0
+                              syn match goVarDefs /\v\w+(,\s*\w+)*\ze(\s*:\=)/
+                              hi def link   goVarDefs           Special
+                            endif
+                            
+                            " Build Constraints
+    2              0.000006 if g:go_highlight_build_constraints != 0
+                              syn match   goBuildKeyword      display contained "+build"
+                              " Highlight the known values of GOOS, GOARCH, and other +build options.
+                              syn keyword goBuildDirectives   contained
+                                    \ android darwin dragonfly freebsd linux nacl netbsd openbsd plan9
+                                    \ solaris windows 386 amd64 amd64p32 arm armbe arm64 arm64be ppc64
+                                    \ ppc64le mips mipsle mips64 mips64le mips64p32 mips64p32le ppc
+                                    \ s390 s390x sparc sparc64 cgo ignore race
+                            
+                              " Other words in the build directive are build tags not listed above, so
+                              " avoid highlighting them as comments by using a matchgroup just for the
+                              " start of the comment.
+                              " The rs=s+2 option lets the \s*+build portion be part of the inner region
+                              " instead of the matchgroup so it will be highlighted as a goBuildKeyword.
+                              syn region  goBuildComment      matchgroup=goBuildCommentStart
+                                    \ start="//\s*+build\s"rs=s+2 end="$"
+                                    \ contains=goBuildKeyword,goBuildDirectives
+                              hi def link goBuildCommentStart Comment
+                              hi def link goBuildDirectives   Type
+                              hi def link goBuildKeyword      PreProc
+                            endif
+                            
+    2              0.000008 if g:go_highlight_build_constraints != 0 || s:fold_package_comment
+                              " One or more line comments that are followed immediately by a "package"
+                              " declaration are treated like package documentation, so these must be
+                              " matched as comments to avoid looking like working build constraints.
+                              " The he, me, and re options let the "package" itself be highlighted by
+                              " the usual rules.
+    2              0.000058   exe 'syn region  goPackageComment    start=/\v(\/\/.*\n)+\s*package/'
+                                    \ . ' end=/\v\n\s*package/he=e-7,me=e-7,re=e-7'
+                                    \ . ' contains=@goCommentGroup,@Spell'
+                                    \ . (s:fold_package_comment ? ' fold' : '')
+    2              0.000065   exe 'syn region  goPackageComment    start=/\v\/\*.*\n(.*\n)*\s*\*\/\npackage/'
+                                    \ . ' end=/\v\n\s*package/he=e-7,me=e-7,re=e-7'
+                                    \ . ' contains=@goCommentGroup,@Spell'
+                                    \ . (s:fold_package_comment ? ' fold' : '')
+    2              0.000010   hi def link goPackageComment    Comment
+    2              0.000003 endif
+                            
+                            " :GoCoverage commands
+    2              0.000005 hi def link goCoverageNormalText Comment
+                            
+    2              0.000023 function! s:hi()
+                              hi def link goSameId Search
+                            
+                              " :GoCoverage commands
+                              hi def      goCoverageCovered    ctermfg=green guifg=#A6E22E
+                              hi def      goCoverageUncover    ctermfg=red guifg=#F92672
+                            endfunction
+                            
+    2              0.000010 augroup vim-go-hi
+    2              0.000639   autocmd!
+    2              0.000076   autocmd ColorScheme * call s:hi()
+    2              0.000003 augroup end
+    2   0.000160   0.000111 call s:hi()
+                            
+                            " Search backwards for a global declaration to start processing the syntax.
+                            "syn sync match goSync grouphere NONE /^\(const\|var\|type\|func\)\>/
+                            
+                            " There's a bug in the implementation of grouphere. For now, use the
+                            " following as a more expensive/less precise workaround.
+    2              0.000013 syn sync minlines=500
+                            
+    2              0.000014 let b:current_syntax = "go"
+                            
+                            " vim: sw=2 ts=2 et
+
+SCRIPT  /usr/local/Cellar/vim/8.0.1300/share/vim/vim80/syntax/go.vim
+Sourced 2 times
+Total time:   0.000344
+ Self time:   0.000344
+
+count  total (s)   self (s)
+                            " Vim syntax file
+                            " Language:	Go
+                            " Maintainer:	David Barnett (https://github.com/google/vim-ft-go)
+                            " Last Change:	2014 Aug 16
+                            
+                            " Options:
+                            "   There are some options for customizing the highlighting; the recommended
+                            "   settings are the default values, but you can write:
+                            "     let OPTION_NAME = 0
+                            "   in your ~/.vimrc file to disable particular options. You can also write:
+                            "     let OPTION_NAME = 1
+                            "   to enable particular options. At present, all options default to on.
+                            "
+                            "   - g:go_highlight_array_whitespace_error
+                            "     Highlights white space after "[]".
+                            "   - g:go_highlight_chan_whitespace_error
+                            "     Highlights white space around the communications operator that don't
+                            "     follow the standard style.
+                            "   - g:go_highlight_extra_types
+                            "     Highlights commonly used library types (io.Reader, etc.).
+                            "   - g:go_highlight_space_tab_error
+                            "     Highlights instances of tabs following spaces.
+                            "   - g:go_highlight_trailing_whitespace_error
+                            "     Highlights trailing white space.
+                            
+                            " Quit when a (custom) syntax file was already loaded
+    2              0.000022 if exists('b:current_syntax')
+    2              0.000232   finish
+                            endif
+                            
+                            if !exists('g:go_highlight_array_whitespace_error')
+                              let g:go_highlight_array_whitespace_error = 1
+                            endif
+                            if !exists('g:go_highlight_chan_whitespace_error')
+                              let g:go_highlight_chan_whitespace_error = 1
+                            endif
+                            if !exists('g:go_highlight_extra_types')
+                              let g:go_highlight_extra_types = 1
+                            endif
+                            if !exists('g:go_highlight_space_tab_error')
+                              let g:go_highlight_space_tab_error = 1
+                            endif
+                            if !exists('g:go_highlight_trailing_whitespace_error')
+                              let g:go_highlight_trailing_whitespace_error = 1
+                            endif
+                            
+                            syn case match
+                            
+                            syn keyword     goDirective         package import
+                            syn keyword     goDeclaration       var const type
+                            syn keyword     goDeclType          struct interface
+                            
+                            hi def link     goDirective         Statement
+                            hi def link     goDeclaration       Keyword
+                            hi def link     goDeclType          Keyword
+                            
+                            " Keywords within functions
+                            syn keyword     goStatement         defer go goto return break continue fallthrough
+                            syn keyword     goConditional       if else switch select
+                            syn keyword     goLabel             case default
+                            syn keyword     goRepeat            for range
+                            
+                            hi def link     goStatement         Statement
+                            hi def link     goConditional       Conditional
+                            hi def link     goLabel             Label
+                            hi def link     goRepeat            Repeat
+                            
+                            " Predefined types
+                            syn keyword     goType              chan map bool string error
+                            syn keyword     goSignedInts        int int8 int16 int32 int64 rune
+                            syn keyword     goUnsignedInts      byte uint uint8 uint16 uint32 uint64 uintptr
+                            syn keyword     goFloats            float32 float64
+                            syn keyword     goComplexes         complex64 complex128
+                            
+                            hi def link     goType              Type
+                            hi def link     goSignedInts        Type
+                            hi def link     goUnsignedInts      Type
+                            hi def link     goFloats            Type
+                            hi def link     goComplexes         Type
+                            
+                            " Treat func specially: it's a declaration at the start of a line, but a type
+                            " elsewhere. Order matters here.
+                            syn match       goType              /\<func\>/
+                            syn match       goDeclaration       /^func\>/
+                            
+                            " Predefined functions and values
+                            syn keyword     goBuiltins          append cap close complex copy delete imag len
+                            syn keyword     goBuiltins          make new panic print println real recover
+                            syn keyword     goConstants         iota true false nil
+                            
+                            hi def link     goBuiltins          Keyword
+                            hi def link     goConstants         Keyword
+                            
+                            " Comments; their contents
+                            syn keyword     goTodo              contained TODO FIXME XXX BUG
+                            syn cluster     goCommentGroup      contains=goTodo
+                            syn region      goComment           start="/\*" end="\*/" contains=@goCommentGroup,@Spell
+                            syn region      goComment           start="//" end="$" contains=@goCommentGroup,@Spell
+                            
+                            hi def link     goComment           Comment
+                            hi def link     goTodo              Todo
+                            
+                            " Go escapes
+                            syn match       goEscapeOctal       display contained "\\[0-7]\{3}"
+                            syn match       goEscapeC           display contained +\\[abfnrtv\\'"]+
+                            syn match       goEscapeX           display contained "\\x\x\{2}"
+                            syn match       goEscapeU           display contained "\\u\x\{4}"
+                            syn match       goEscapeBigU        display contained "\\U\x\{8}"
+                            syn match       goEscapeError       display contained +\\[^0-7xuUabfnrtv\\'"]+
+                            
+                            hi def link     goEscapeOctal       goSpecialString
+                            hi def link     goEscapeC           goSpecialString
+                            hi def link     goEscapeX           goSpecialString
+                            hi def link     goEscapeU           goSpecialString
+                            hi def link     goEscapeBigU        goSpecialString
+                            hi def link     goSpecialString     Special
+                            hi def link     goEscapeError       Error
+                            
+                            " Strings and their contents
+                            syn cluster     goStringGroup       contains=goEscapeOctal,goEscapeC,goEscapeX,goEscapeU,goEscapeBigU,goEscapeError
+                            syn region      goString            start=+"+ skip=+\\\\\|\\"+ end=+"+ contains=@goStringGroup
+                            syn region      goRawString         start=+`+ end=+`+
+                            
+                            hi def link     goString            String
+                            hi def link     goRawString         String
+                            
+                            " Characters; their contents
+                            syn cluster     goCharacterGroup    contains=goEscapeOctal,goEscapeC,goEscapeX,goEscapeU,goEscapeBigU
+                            syn region      goCharacter         start=+'+ skip=+\\\\\|\\'+ end=+'+ contains=@goCharacterGroup
+                            
+                            hi def link     goCharacter         Character
+                            
+                            " Regions
+                            syn region      goBlock             start="{" end="}" transparent fold
+                            syn region      goParen             start='(' end=')' transparent
+                            
+                            " Integers
+                            syn match       goDecimalInt        "\<\d\+\([Ee]\d\+\)\?\>"
+                            syn match       goHexadecimalInt    "\<0x\x\+\>"
+                            syn match       goOctalInt          "\<0\o\+\>"
+                            syn match       goOctalError        "\<0\o*[89]\d*\>"
+                            
+                            hi def link     goDecimalInt        Integer
+                            hi def link     goHexadecimalInt    Integer
+                            hi def link     goOctalInt          Integer
+                            hi def link     Integer             Number
+                            
+                            " Floating point
+                            syn match       goFloat             "\<\d\+\.\d*\([Ee][-+]\d\+\)\?\>"
+                            syn match       goFloat             "\<\.\d\+\([Ee][-+]\d\+\)\?\>"
+                            syn match       goFloat             "\<\d\+[Ee][-+]\d\+\>"
+                            
+                            hi def link     goFloat             Float
+                            
+                            " Imaginary literals
+                            syn match       goImaginary         "\<\d\+i\>"
+                            syn match       goImaginary         "\<\d\+\.\d*\([Ee][-+]\d\+\)\?i\>"
+                            syn match       goImaginary         "\<\.\d\+\([Ee][-+]\d\+\)\?i\>"
+                            syn match       goImaginary         "\<\d\+[Ee][-+]\d\+i\>"
+                            
+                            hi def link     goImaginary         Number
+                            
+                            " Spaces after "[]"
+                            if go_highlight_array_whitespace_error != 0
+                              syn match goSpaceError display "\(\[\]\)\@<=\s\+"
+                            endif
+                            
+                            " Spacing errors around the 'chan' keyword
+                            if go_highlight_chan_whitespace_error != 0
+                              " receive-only annotation on chan type
+                              syn match goSpaceError display "\(<-\)\@<=\s\+\(chan\>\)\@="
+                              " send-only annotation on chan type
+                              syn match goSpaceError display "\(\<chan\)\@<=\s\+\(<-\)\@="
+                              " value-ignoring receives in a few contexts
+                              syn match goSpaceError display "\(\(^\|[={(,;]\)\s*<-\)\@<=\s\+"
+                            endif
+                            
+                            " Extra types commonly seen
+                            if go_highlight_extra_types != 0
+                              syn match goExtraType /\<bytes\.\(Buffer\)\>/
+                              syn match goExtraType /\<io\.\(Reader\|Writer\|ReadWriter\|ReadWriteCloser\)\>/
+                              syn match goExtraType /\<reflect\.\(Kind\|Type\|Value\)\>/
+                              syn match goExtraType /\<unsafe\.Pointer\>/
+                            endif
+                            
+                            " Space-tab error
+                            if go_highlight_space_tab_error != 0
+                              syn match goSpaceError display " \+\t"me=e-1
+                            endif
+                            
+                            " Trailing white space error
+                            if go_highlight_trailing_whitespace_error != 0
+                              syn match goSpaceError display excludenl "\s\+$"
+                            endif
+                            
+                            hi def link     goExtraType         Type
+                            hi def link     goSpaceError        Error
+                            
+                            " Search backwards for a global declaration to start processing the syntax.
+                            "syn sync match goSync grouphere NONE /^\(const\|var\|type\|func\)\>/
+                            
+                            " There's a bug in the implementation of grouphere. For now, use the
+                            " following as a more expensive/less precise workaround.
+                            syn sync minlines=500
+                            
+                            let b:current_syntax = 'go'
+                            
+                            " vim: sw=2 sts=2 et
+
+SCRIPT  /Users/jae/.vim/bundle/vim-go/ftplugin/go.vim
+Sourced 2 times
+Total time:   0.002137
+ Self time:   0.001463
+
+count  total (s)   self (s)
+                            " Copyright 2013 The Go Authors. All rights reserved.
+                            " Use of this source code is governed by a BSD-style
+                            " license that can be found in the LICENSE file.
+                            "
+                            " go.vim: Vim filetype plugin for Go.
+                            
+    2              0.000018 if exists("b:did_ftplugin")
+                              finish
+                            endif
+    2              0.000007 let b:did_ftplugin = 1
+                            
+    2              0.000019 let b:undo_ftplugin = "setl fo< com< cms<"
+                            
+    2              0.000024 setlocal formatoptions-=t
+                            
+    2              0.000014 setlocal comments=s1:/*,mb:*,ex:*/,://
+    2              0.000014 setlocal commentstring=//\ %s
+                            
+    2              0.000016 setlocal noexpandtab
+                            
+    2   0.001314   0.000640 compiler go
+                            
+                            " Set gocode completion
+    2              0.000017 setlocal omnifunc=go#complete#Complete
+                            
+    2              0.000015 if get(g:, "go_doc_keywordprg_enabled", 1)
+                              " keywordprg doesn't allow to use vim commands, override it
+    2              0.000043   nnoremap <buffer> <silent> K :GoDoc<cr>
+    2              0.000004 endif
+                            
+    2              0.000009 if get(g:, "go_def_mapping_enabled", 1)
+                              " these are default Vim mappings, we're overriding them to make them
+                              " useful again for Go source code
+    2              0.000016   nnoremap <buffer> <silent> gd :GoDef<cr>
+    2              0.000017   nnoremap <buffer> <silent> <C-]> :GoDef<cr>
+    2              0.000024   nnoremap <buffer> <silent> <C-LeftMouse> <LeftMouse>:GoDef<cr>
+    2              0.000022   nnoremap <buffer> <silent> g<LeftMouse> <LeftMouse>:GoDef<cr>
+    2              0.000020   nnoremap <buffer> <silent> <C-w><C-]> :<C-u>call go#def#Jump("split")<CR>
+    2              0.000022   nnoremap <buffer> <silent> <C-w>] :<C-u>call go#def#Jump("split")<CR>
+    2              0.000021   nnoremap <buffer> <silent> <C-t> :<C-U>call go#def#StackPop(v:count1)<cr>
+    2              0.000002 endif
+                            
+    2              0.000007 if get(g:, "go_textobj_enabled", 1)
+    2              0.000023   onoremap <buffer> <silent> af :<c-u>call go#textobj#Function('a')<cr>
+    2              0.000020   onoremap <buffer> <silent> if :<c-u>call go#textobj#Function('i')<cr>
+                            
+    2              0.000021   xnoremap <buffer> <silent> af :<c-u>call go#textobj#Function('a')<cr>
+    2              0.000019   xnoremap <buffer> <silent> if :<c-u>call go#textobj#Function('i')<cr>
+                            
+                              " Remap ]] and [[ to jump betweeen functions as they are useless in Go
+    2              0.000022   nnoremap <buffer> <silent> ]] :<c-u>call go#textobj#FunctionJump('n', 'next')<cr>
+    2              0.000030   nnoremap <buffer> <silent> [[ :<c-u>call go#textobj#FunctionJump('n', 'prev')<cr>
+                            
+    2              0.000022   onoremap <buffer> <silent> ]] :<c-u>call go#textobj#FunctionJump('o', 'next')<cr>
+    2              0.000020   onoremap <buffer> <silent> [[ :<c-u>call go#textobj#FunctionJump('o', 'prev')<cr>
+                            
+    2              0.000020   xnoremap <buffer> <silent> ]] :<c-u>call go#textobj#FunctionJump('v', 'next')<cr>
+    2              0.000021   xnoremap <buffer> <silent> [[ :<c-u>call go#textobj#FunctionJump('v', 'prev')<cr>
+    2              0.000002 endif
+                            
+    2              0.000012 if get(g:, "go_auto_type_info", 0) || get(g:, "go_auto_sameids", 0)
+                              let &l:updatetime= get(g:, "go_updatetime", 800)
+                            endif
+                            
+                            " NOTE(arslan): experimental, disabled by default, doesn't work well. No
+                            " documentation as well. If anyone feels adventurous, enable the following and
+                            " try to search for Go identifiers ;)
+                            "
+                            " if get(g:, "go_sameid_search_enabled", 0)
+                            "   autocmd FileType go nnoremap <buffer> <silent> * :<c-u>call Sameids_search(0)<CR>
+                            "   autocmd FileType go nnoremap <buffer> <silent> # :<c-u>call Sameids_search(1)<CR>
+                            "   autocmd FileType go nnoremap <buffer> <silent> n :<c-u>call Sameids_repeat(0)<CR>
+                            "   autocmd FileType go nnoremap <buffer> <silent> N :<c-u>call Sameids_repeat(1)<CR>
+                            "   autocmd FileType go cabbrev nohlsearch <C-r>=Sameids_nohlsearch()<CR>
+                            " endif
+                            
+                            " " mode 0: next 1: prev
+                            " function! Sameids_repeat(mode)
+                            "   let matches = getmatches()
+                            "   if empty(matches)
+                            "     return
+                            "   endif
+                            "   let cur_offset = go#util#OffsetCursor()
+                            
+                            "   " reverse list to make it easy to find the prev occurrence
+                            "   if a:mode
+                            "    call reverse(matches)
+                            "   endif
+                            
+                            "   for m in matches
+                            "     if !has_key(m, "group")
+                            "       return
+                            "     endif
+                            
+                            "     if m.group != "goSameId"
+                            "       return
+                            "     endif
+                            
+                            "     let offset = go#util#Offset(m.pos1[0], m.pos1[1])
+                            
+                            "     if a:mode && cur_offset > offset
+                            "       call cursor(m.pos1[0], m.pos1[1])
+                            "       return
+                            "     elseif !a:mode && cur_offset < offset
+                            "       call cursor(m.pos1[0], m.pos1[1])
+                            "       return
+                            "     endif
+                            "   endfor
+                            
+                            "   " reached start/end, jump to the end/start
+                            "   let initial_match = matches[0]
+                            "   if !has_key(initial_match, "group")
+                            "     return
+                            "   endif
+                            
+                            "   if initial_match.group != "goSameId"
+                            "     return
+                            "   endif
+                            
+                            "   call cursor(initial_match.pos1[0], initial_match.pos1[1])
+                            " endfunction
+                            
+                            " function! Sameids_search(mode)
+                            "   call go#guru#SameIds()
+                            "   call Sameids_repeat(a:mode)
+                            " endfunction
+                            
+                            " function! Sameids_nohlsearch()
+                            "   call go#guru#ClearSameIds()
+                            "   return "nohlsearch"
+                            " endfunction
+                            
+                            " vim: sw=2 ts=2 et
+
+SCRIPT  /Users/jae/.vim/bundle/vim-go/compiler/go.vim
+Sourced 2 times
+Total time:   0.000457
+ Self time:   0.000457
+
+count  total (s)   self (s)
+                            " Copyright 2013 The Go Authors. All rights reserved.
+                            " Use of this source code is governed by a BSD-style
+                            " license that can be found in the LICENSE file.
+                            "
+                            " compiler/go.vim: Vim compiler file for Go.
+                            
+    2              0.000019 if exists("g:current_compiler")
+                              finish
+                            endif
+    2              0.000009 let g:current_compiler = "go"
+                            
+    2              0.000012 if exists(":CompilerSet") != 2
+                              command -nargs=* CompilerSet setlocal <args>
+                            endif
+                            
+    2              0.000032 let s:save_cpo = &cpo
+    2              0.000024 set cpo-=C
+    2              0.000082 if filereadable("makefile") || filereadable("Makefile")
+    2              0.000027   CompilerSet makeprg=make
+    2              0.000003 else
+                              CompilerSet makeprg=go\ build
+                            endif
+                            
+                            " Define the patterns that will be recognized by QuickFix when parsing the
+                            " output of Go command that use this errorforamt (when called make, cexpr or
+                            " lmake, lexpr). This is the global errorformat, however some command might
+                            " use a different output, for those we define them directly and modify the
+                            " errorformat ourselves. More information at:
+                            " http://vimdoc.sourceforge.net/htmldoc/quickfix.html#errorformat
+    2              0.000038 CompilerSet errorformat =%-G#\ %.%#                   " Ignore lines beginning with '#' ('# command-line-arguments' line sometimes appears?)
+    2              0.000017 CompilerSet errorformat+=%-G%.%#panic:\ %m            " Ignore lines containing 'panic: message'
+    2              0.000012 CompilerSet errorformat+=%Ecan\'t\ load\ package:\ %m " Start of multiline error string is 'can\'t load package'
+    2              0.000014 CompilerSet errorformat+=%A%f:%l:%c:\ %m              " Start of multiline unspecified string is 'filename:linenumber:columnnumber:'
+    2              0.000014 CompilerSet errorformat+=%A%f:%l:\ %m                 " Start of multiline unspecified string is 'filename:linenumber:'
+    2              0.000013 CompilerSet errorformat+=%C%*\\s%m                    " Continuation of multiline error message is indented
+    2              0.000013 CompilerSet errorformat+=%-G%.%#                      " All lines not matching any of the above patterns are ignored
+                            
+    2              0.000026 let &cpo = s:save_cpo
+    2              0.000007 unlet s:save_cpo
+                            
+                            " vim: sw=2 ts=2 et
+
+SCRIPT  /usr/local/Cellar/vim/8.0.1300/share/vim/vim80/compiler/go.vim
+Sourced 2 times
+Total time:   0.000074
+ Self time:   0.000074
+
+count  total (s)   self (s)
+                            " Vim compiler file
+                            " Compiler:	Go
+                            " Maintainer:	David Barnett (https://github.com/google/vim-ft-go)
+                            " Last Change:	2014 Aug 16
+                            
+    2              0.000029 if exists('current_compiler')
+    2              0.000006   finish
+                            endif
+                            let current_compiler = 'go'
+                            
+                            if exists(':CompilerSet') != 2
+                              command -nargs=* CompilerSet setlocal <args>
+                            endif
+                            
+                            let s:save_cpo = &cpo
+                            set cpo-=C
+                            
+                            CompilerSet makeprg=go\ build
+                            CompilerSet errorformat=
+                                \%-G#\ %.%#,
+                                \%A%f:%l:%c:\ %m,
+                                \%A%f:%l:\ %m,
+                                \%C%*\\s%m,
+                                \%-G%.%#
+                            
+                            let &cpo = s:save_cpo
+                            unlet s:save_cpo
+                            
+                            " vim: sw=2 sts=2 et
+
+SCRIPT  /Users/jae/.vim/bundle/vim-go/ftplugin/go/commands.vim
+Sourced 2 times
+Total time:   0.001085
+ Self time:   0.001085
+
+count  total (s)   self (s)
+                            " -- gorename
+    2              0.000047 command! -nargs=? -complete=customlist,go#rename#Complete GoRename call go#rename#Rename(<bang>0, <f-args>)
+                            
+                            " -- guru
+    2              0.000036 command! -nargs=* -complete=customlist,go#package#Complete GoGuruScope call go#guru#Scope(<f-args>)
+    2              0.000035 command! -range=% GoImplements call go#guru#Implements(<count>)
+    2              0.000022 command! -range=% GoWhicherrs call go#guru#Whicherrs(<count>)
+    2              0.000017 command! -range=% GoCallees call go#guru#Callees(<count>)
+    2              0.000016 command! -range=% GoDescribe call go#guru#Describe(<count>)
+    2              0.000016 command! -range=% GoCallers call go#guru#Callers(<count>)
+    2              0.000017 command! -range=% GoCallstack call go#guru#Callstack(<count>)
+    2              0.000017 command! -range=% GoFreevars call go#guru#Freevars(<count>)
+    2              0.000018 command! -range=% GoChannelPeers call go#guru#ChannelPeers(<count>)
+    2              0.000013 command! -range=% GoReferrers call go#guru#Referrers(<count>)
+                            
+    2              0.000009 command! -range=0 GoSameIds call go#guru#SameIds()
+    2              0.000010 command! -range=0 GoSameIdsClear call go#guru#ClearSameIds()
+    2              0.000010 command! -range=0 GoSameIdsToggle call go#guru#ToggleSameIds()
+    2              0.000010 command! -range=0 GoSameIdsAutoToggle call go#guru#AutoToogleSameIds()
+                            
+                            " -- tags
+    2              0.000023 command! -nargs=* -range GoAddTags call go#tags#Add(<line1>, <line2>, <count>, <f-args>)
+    2              0.000023 command! -nargs=* -range GoRemoveTags call go#tags#Remove(<line1>, <line2>, <count>, <f-args>)
+                            
+                            " -- tool
+    2              0.000011 command! -nargs=* -complete=customlist,go#tool#ValidFiles GoFiles echo go#tool#Files(<f-args>)
+    2              0.000008 command! -nargs=0 GoDeps echo go#tool#Deps()
+    2              0.000010 command! -nargs=* GoInfo call go#tool#Info(0)
+    2              0.000014 command! -nargs=0 GoAutoTypeInfoToggle call go#complete#ToggleAutoTypeInfo()
+                            
+                            " -- cmd
+    2              0.000017 command! -nargs=* -bang GoBuild call go#cmd#Build(<bang>0,<f-args>)
+    2              0.000018 command! -nargs=? -bang GoBuildTags call go#cmd#BuildTags(<bang>0, <f-args>)
+    2              0.000018 command! -nargs=* -bang GoGenerate call go#cmd#Generate(<bang>0,<f-args>)
+    2              0.000019 command! -nargs=* -bang -complete=file GoRun call go#cmd#Run(<bang>0,<f-args>)
+    2              0.000018 command! -nargs=* -bang GoInstall call go#cmd#Install(<bang>0, <f-args>)
+                            
+                            " -- test
+    2              0.000019 command! -nargs=* -bang GoTest call go#test#Test(<bang>0, 0, <f-args>)
+    2              0.000019 command! -nargs=* -bang GoTestFunc call go#test#Func(<bang>0, <f-args>)
+    2              0.000018 command! -nargs=* -bang GoTestCompile call go#test#Test(<bang>0, 1, <f-args>)
+                            
+                            " -- cover
+    2              0.000018 command! -nargs=* -bang GoCoverage call go#coverage#Buffer(<bang>0, <f-args>)
+    2              0.000012 command! -nargs=* -bang GoCoverageClear call go#coverage#Clear()
+    2              0.000020 command! -nargs=* -bang GoCoverageToggle call go#coverage#BufferToggle(<bang>0, <f-args>)
+    2              0.000019 command! -nargs=* -bang GoCoverageBrowser call go#coverage#Browser(<bang>0, <f-args>)
+                            
+                            " -- play
+    2              0.000027 command! -nargs=0 -range=% GoPlay call go#play#Share(<count>, <line1>, <line2>)
+                            
+                            " -- def
+    2              0.000011 command! -nargs=* -range GoDef :call go#def#Jump('')
+    2              0.000013 command! -nargs=? GoDefPop :call go#def#StackPop(<f-args>)
+    2              0.000013 command! -nargs=? GoDefStack :call go#def#Stack(<f-args>)
+    2              0.000015 command! -nargs=? GoDefStackClear :call go#def#StackClear(<f-args>)
+                            
+                            " -- doc
+    2              0.000019 command! -nargs=* -range -complete=customlist,go#package#Complete GoDoc call go#doc#Open('new', 'split', <f-args>)
+    2              0.000015 command! -nargs=* -range -complete=customlist,go#package#Complete GoDocBrowser call go#doc#OpenBrowser(<f-args>)
+                            
+                            " -- fmt
+    2              0.000011 command! -nargs=0 GoFmt call go#fmt#Format(-1)
+    2              0.000013 command! -nargs=0 GoFmtAutoSaveToggle call go#fmt#ToggleFmtAutoSave()
+    2              0.000011 command! -nargs=0 GoImports call go#fmt#Format(1)
+                            
+                            " -- asmfmt
+    2              0.000013 command! -nargs=0 GoAsmFmtAutoSaveToggle call go#asmfmt#ToggleAsmFmtAutoSave()
+                            
+                            " -- import
+    2              0.000021 command! -nargs=? -complete=customlist,go#package#Complete GoDrop call go#import#SwitchImport(0, '', <f-args>, '')
+    2              0.000024 command! -nargs=1 -bang -complete=customlist,go#package#Complete GoImport call go#import#SwitchImport(1, '', <f-args>, '<bang>')
+    2              0.000018 command! -nargs=* -bang -complete=customlist,go#package#Complete GoImportAs call go#import#SwitchImport(1, <f-args>, '<bang>')
+                            
+                            " -- linters
+    2              0.000011 command! -nargs=* GoMetaLinter call go#lint#Gometa(0, <f-args>)
+    2              0.000012 command! -nargs=0 GoMetaLinterAutoSaveToggle call go#lint#ToggleMetaLinterAutoSave()
+    2              0.000010 command! -nargs=* GoLint call go#lint#Golint(<f-args>)
+    2              0.000014 command! -nargs=* -bang GoVet call go#lint#Vet(<bang>0, <f-args>)
+    2              0.000010 command! -nargs=* -complete=customlist,go#package#Complete GoErrCheck call go#lint#Errcheck(<f-args>)
+                            
+                            " -- alternate
+    2              0.000014 command! -bang GoAlternate call go#alternate#Switch(<bang>0, '')
+                            
+                            " -- decls
+    2              0.000010 command! -nargs=? -complete=file GoDecls call go#decls#Decls(0, <q-args>)
+    2              0.000010 command! -nargs=? -complete=dir GoDeclsDir call go#decls#Decls(1, <q-args>)
+                            
+                            " -- impl
+    2              0.000010 command! -nargs=* -buffer -complete=customlist,go#impl#Complete GoImpl call go#impl#Impl(<f-args>)
+                            
+                            " -- template
+    2              0.000012 command! -nargs=0 GoTemplateAutoCreateToggle call go#template#ToggleAutoCreate()
+                            
+                            " -- keyify
+    2              0.000008 command! -nargs=0 GoKeyify call go#keyify#Keyify()
+                            
+                            " -- fillstruct
+    2              0.000010 command! -nargs=0 GoFillStruct call go#fillstruct#FillStruct()
+                            
+                            " vim: sw=2 ts=2 et
+
+SCRIPT  /Users/jae/.vim/bundle/vim-go/ftplugin/go/mappings.vim
+Sourced 2 times
+Total time:   0.001232
+ Self time:   0.001232
+
+count  total (s)   self (s)
+                            " go_jump_to_error defines whether we should pass the bang attribute to the
+                            " command or not. This is only used for mappings, because the user can't pass
+                            " the bang attribute to the plug mappings below. So instead of hardcoding it
+                            " as 0 (no '!' attribute) or 1 (with '!' attribute) we pass the user setting,
+                            " which by default is enabled. For commands the user has the ability to pass
+                            " the '!', such as :GoBuild or :GoBuild!
+    2              0.000019 if !exists("g:go_jump_to_error")
+                              let g:go_jump_to_error = 1
+                            endif
+                            
+                            " Some handy plug mappings
+    2              0.000036 nnoremap <silent> <Plug>(go-run) :<C-u>call go#cmd#Run(!g:go_jump_to_error)<CR>
+                            
+    2              0.000009 if has("nvim")
+                              nnoremap <silent> <Plug>(go-run-vertical) :<C-u>call go#cmd#RunTerm(!g:go_jump_to_error, 'vsplit', [])<CR>
+                              nnoremap <silent> <Plug>(go-run-split) :<C-u>call go#cmd#RunTerm(!g:go_jump_to_error, 'split', [])<CR>
+                              nnoremap <silent> <Plug>(go-run-tab) :<C-u>call go#cmd#RunTerm(!g:go_jump_to_error, 'tabe', [])<CR>
+                            endif
+                            
+    2              0.000025 nnoremap <silent> <Plug>(go-build) :<C-u>call go#cmd#Build(!g:go_jump_to_error)<CR>
+    2              0.000023 nnoremap <silent> <Plug>(go-generate) :<C-u>call go#cmd#Generate(!g:go_jump_to_error)<CR>
+    2              0.000022 nnoremap <silent> <Plug>(go-install) :<C-u>call go#cmd#Install(!g:go_jump_to_error)<CR>
+    2              0.000021 nnoremap <silent> <Plug>(go-test) :<C-u>call go#test#Test(!g:go_jump_to_error, 0)<CR>
+    2              0.000021 nnoremap <silent> <Plug>(go-test-func) :<C-u>call go#test#Func(!g:go_jump_to_error)<CR>
+    2              0.000023 nnoremap <silent> <Plug>(go-test-compile) :<C-u>call go#test#Test(!g:go_jump_to_error, 1)<CR>
+                            
+    2              0.000022 nnoremap <silent> <Plug>(go-coverage) :<C-u>call go#coverage#Buffer(!g:go_jump_to_error)<CR>
+    2              0.000020 nnoremap <silent> <Plug>(go-coverage-clear) :<C-u>call go#coverage#Clear()<CR>
+    2              0.000025 nnoremap <silent> <Plug>(go-coverage-toggle) :<C-u>call go#coverage#BufferToggle(!g:go_jump_to_error)<CR>
+    2              0.000024 nnoremap <silent> <Plug>(go-coverage-browser) :<C-u>call go#coverage#Browser(!g:go_jump_to_error)<CR>
+                            
+    2              0.000018 nnoremap <silent> <Plug>(go-files) :<C-u>call go#tool#Files()<CR>
+    2              0.000017 nnoremap <silent> <Plug>(go-deps) :<C-u>call go#tool#Deps()<CR>
+    2              0.000022 nnoremap <silent> <Plug>(go-info) :<C-u>call go#tool#Info(0)<CR>
+    2              0.000038 nnoremap <silent> <Plug>(go-import) :<C-u>call go#import#SwitchImport(1, '', expand('<cword>'), '')<CR>
+    2              0.000023 nnoremap <silent> <Plug>(go-imports) :<C-u>call go#fmt#Format(1)<CR>
+                            
+    2              0.000034 nnoremap <silent> <Plug>(go-implements) :<C-u>call go#guru#Implements(-1)<CR>
+    2              0.000029 nnoremap <silent> <Plug>(go-callees) :<C-u>call go#guru#Callees(-1)<CR>
+    2              0.000026 nnoremap <silent> <Plug>(go-callers) :<C-u>call go#guru#Callers(-1)<CR>
+    2              0.000024 nnoremap <silent> <Plug>(go-describe) :<C-u>call go#guru#Describe(-1)<CR>
+    2              0.000025 nnoremap <silent> <Plug>(go-callstack) :<C-u>call go#guru#Callstack(-1)<CR>
+    2              0.000026 xnoremap <silent> <Plug>(go-freevars) :<C-u>call go#guru#Freevars(0)<CR>
+    2              0.000026 nnoremap <silent> <Plug>(go-channelpeers) :<C-u>call go#guru#ChannelPeers(-1)<CR>
+    2              0.000025 nnoremap <silent> <Plug>(go-referrers) :<C-u>call go#guru#Referrers(-1)<CR>
+    2              0.000024 nnoremap <silent> <Plug>(go-sameids) :<C-u>call go#guru#SameIds()<CR>
+    2              0.000024 nnoremap <silent> <Plug>(go-whicherrs) :<C-u>call go#guru#Whicherrs(-1)<CR>
+    2              0.000026 nnoremap <silent> <Plug>(go-sameids-toggle) :<C-u>call go#guru#ToggleSameIds()<CR>
+                            
+    2              0.000021 nnoremap <silent> <Plug>(go-rename) :<C-u>call go#rename#Rename(!g:go_jump_to_error)<CR>
+                            
+    2              0.000016 nnoremap <silent> <Plug>(go-def) :<C-u>call go#def#Jump('')<CR>
+    2              0.000018 nnoremap <silent> <Plug>(go-def-vertical) :<C-u>call go#def#Jump("vsplit")<CR>
+    2              0.000019 nnoremap <silent> <Plug>(go-def-split) :<C-u>call go#def#Jump("split")<CR>
+    2              0.000017 nnoremap <silent> <Plug>(go-def-tab) :<C-u>call go#def#Jump("tab")<CR>
+                            
+    2              0.000017 nnoremap <silent> <Plug>(go-def-pop) :<C-u>call go#def#StackPop()<CR>
+    2              0.000022 nnoremap <silent> <Plug>(go-def-stack) :<C-u>call go#def#Stack()<CR>
+    2              0.000020 nnoremap <silent> <Plug>(go-def-stack-clear) :<C-u>call go#def#StackClear()<CR>
+                            
+    2              0.000018 nnoremap <silent> <Plug>(go-doc) :<C-u>call go#doc#Open("new", "split")<CR>
+    2              0.000020 nnoremap <silent> <Plug>(go-doc-tab) :<C-u>call go#doc#Open("tabnew", "tabe")<CR>
+    2              0.000021 nnoremap <silent> <Plug>(go-doc-vertical) :<C-u>call go#doc#Open("vnew", "vsplit")<CR>
+    2              0.000023 nnoremap <silent> <Plug>(go-doc-split) :<C-u>call go#doc#Open("new", "split")<CR>
+    2              0.000026 nnoremap <silent> <Plug>(go-doc-browser) :<C-u>call go#doc#OpenBrowser()<CR>
+                            
+    2              0.000026 nnoremap <silent> <Plug>(go-metalinter) :<C-u>call go#lint#Gometa(0)<CR>
+    2              0.000022 nnoremap <silent> <Plug>(go-lint) :<C-u>call go#lint#Golint()<CR>
+    2              0.000036 nnoremap <silent> <Plug>(go-vet) :<C-u>call go#lint#Vet(!g:go_jump_to_error)<CR>
+                            
+    2              0.000028 nnoremap <silent> <Plug>(go-alternate-edit) :<C-u>call go#alternate#Switch(0, "edit")<CR>
+    2              0.000026 nnoremap <silent> <Plug>(go-alternate-vertical) :<C-u>call go#alternate#Switch(0, "vsplit")<CR>
+    2              0.000022 nnoremap <silent> <Plug>(go-alternate-split) :<C-u>call go#alternate#Switch(0, "split")<CR>
+                            
+                            " vim: sw=2 ts=2 et
+
+SCRIPT  /Users/jae/.vim/bundle/vim-go/ftplugin/go/snippets.vim
+Sourced 2 times
+Total time:   0.000030
+ Self time:   0.000030
+
+count  total (s)   self (s)
+    2              0.000016 if exists("g:go_loaded_gosnippets")
+    2              0.000003   finish
+                            endif
+                            let g:go_loaded_gosnippets = 1
+                            
+                            " by default UltiSnips
+                            if !exists("g:go_snippet_engine")
+                              let g:go_snippet_engine = "ultisnips"
+                            endif
+                            
+                            function! s:GoUltiSnips()
+                              if globpath(&rtp, 'plugin/UltiSnips.vim') == ""
+                                return
+                              endif
+                            
+                              if !exists("g:UltiSnipsSnippetDirectories")
+                                let g:UltiSnipsSnippetDirectories = ["gosnippets/UltiSnips"]
+                              else
+                                let g:UltiSnipsSnippetDirectories += ["gosnippets/UltiSnips"]
+                              endif
+                            endfunction
+                            
+                            function! s:GoNeosnippet()
+                              if globpath(&rtp, 'plugin/neosnippet.vim') == ""
+                                return
+                              endif
+                            
+                              let g:neosnippet#enable_snipmate_compatibility = 1
+                            
+                              let gosnippets_dir = globpath(&rtp, 'gosnippets/snippets')
+                              if type(g:neosnippet#snippets_directory) == type([])
+                                let g:neosnippet#snippets_directory += [gosnippets_dir]
+                              elseif type(g:neosnippet#snippets_directory) == type("")
+                                if strlen(g:neosnippet#snippets_directory) > 0
+                                  let g:neosnippet#snippets_directory = g:neosnippet#snippets_directory . "," . gosnippets_dir
+                                else
+                                  let g:neosnippet#snippets_directory = gosnippets_dir
+                                endif
+                              endif
+                            endfunction
+                            
+                            if g:go_snippet_engine == "ultisnips"
+                              call s:GoUltiSnips()
+                            elseif g:go_snippet_engine == "neosnippet"
+                              call s:GoNeosnippet()
+                            endif
+                            
+                            " vim: sw=2 ts=2 et
+
+SCRIPT  /Users/jae/.vim/bundle/vim-go/ftplugin/go/tagbar.vim
+Sourced 2 times
+Total time:   0.001233
+ Self time:   0.000420
+
+count  total (s)   self (s)
+                            " Check if tagbar is installed under plugins or is directly under rtp
+                            " this covers pathogen + Vundle/Bundle
+                            "
+                            " Also make sure the ctags command exists
+                            "
+    2              0.000075 if !executable('ctags')
+                              finish
+                            elseif globpath(&rtp, 'plugin/tagbar.vim') == ""
+                              finish
+                            endif
+                            
+    2              0.000007 if !exists("g:go_gotags_bin")
+                              let g:go_gotags_bin = "gotags"
+                            endif
+                            
+                            
+    2              0.000011 function! s:SetTagbar()
+                              let bin_path = go#path#CheckBinPath(g:go_gotags_bin)
+                              if empty(bin_path)
+                                return
+                              endif
+                            
+                              if !exists("g:tagbar_type_go")
+                                let g:tagbar_type_go = {
+                                      \ 'ctagstype' : 'go',
+                                      \ 'kinds'     : [
+                                      \ 'p:package',
+                                      \ 'i:imports',
+                                      \ 'c:constants',
+                                      \ 'v:variables',
+                                      \ 't:types',
+                                      \ 'n:interfaces',
+                                      \ 'w:fields',
+                                      \ 'e:embedded',
+                                      \ 'm:methods',
+                                      \ 'r:constructor',
+                                      \ 'f:functions'
+                                      \ ],
+                                      \ 'sro' : '.',
+                                      \ 'kind2scope' : {
+                                      \ 't' : 'ctype',
+                                      \ 'n' : 'ntype'
+                                      \ },
+                                      \ 'scope2kind' : {
+                                      \ 'ctype' : 't',
+                                      \ 'ntype' : 'n'
+                                      \ },
+                                      \ 'ctagsbin'  : bin_path,
+                                      \ 'ctagsargs' : '-sort -silent'
+                                      \ }
+                              endif
+                            endfunction
+                            
+                            
+    2   0.000887   0.000074 call s:SetTagbar()
+                            
+                            " vim: sw=2 ts=2 et
+
+SCRIPT  /usr/local/Cellar/vim/8.0.1300/share/vim/vim80/ftplugin/go.vim
+Sourced 2 times
+Total time:   0.000040
+ Self time:   0.000040
+
+count  total (s)   self (s)
+                            " Vim filetype plugin file
+                            " Language:	Go
+                            " Maintainer:	David Barnett (https://github.com/google/vim-ft-go)
+                            " Last Change:	2014 Aug 16
+                            
+    2              0.000017 if exists('b:did_ftplugin')
+    2              0.000003   finish
+                            endif
+                            let b:did_ftplugin = 1
+                            
+                            setlocal formatoptions-=t
+                            
+                            setlocal comments=s1:/*,mb:*,ex:*/,://
+                            setlocal commentstring=//\ %s
+                            
+                            let b:undo_ftplugin = 'setl fo< com< cms<'
+                            
+                            " vim: sw=2 sts=2 et
+
+SCRIPT  /Users/jae/.vim/bundle/vim-go/indent/go.vim
+Sourced 2 times
+Total time:   0.000150
+ Self time:   0.000150
+
+count  total (s)   self (s)
+                            " Copyright 2011 The Go Authors. All rights reserved.
+                            " Use of this source code is governed by a BSD-style
+                            " license that can be found in the LICENSE file.
+                            "
+                            " indent/go.vim: Vim indent file for Go.
+                            "
+                            " TODO:
+                            " - function invocations split across lines
+                            " - general line splits (line ends in an operator)
+                            
+    2              0.000010 if exists("b:did_indent")
+                              finish
+                            endif
+    2              0.000005 let b:did_indent = 1
+                            
+                            " C indentation is too far off useful, mainly due to Go's := operator.
+                            " Let's just define our own.
+    2              0.000043 setlocal nolisp
+    2              0.000008 setlocal autoindent
+    2              0.000011 setlocal indentexpr=GoIndent(v:lnum)
+    2              0.000008 setlocal indentkeys+=<:>,0=},0=)
+                            
+    2              0.000007 if exists("*GoIndent")
+    2              0.000013   finish
+                            endif
+                            
+                            " use shiftwidth function only if it's available
+                            if exists('*shiftwidth')
+                              func s:sw()
+                                return shiftwidth()
+                              endfunc
+                            else
+                              func s:sw()
+                                return &sw
+                              endfunc
+                            endif
+                            
+                            function! GoIndent(lnum)
+                              let prevlnum = prevnonblank(a:lnum-1)
+                              if prevlnum == 0
+                                " top of file
+                                return 0
+                              endif
+                            
+                              " grab the previous and current line, stripping comments.
+                              let prevl = substitute(getline(prevlnum), '//.*$', '', '')
+                              let thisl = substitute(getline(a:lnum), '//.*$', '', '')
+                              let previ = indent(prevlnum)
+                            
+                              let ind = previ
+                            
+                              if prevl =~ '[({]\s*$'
+                                " previous line opened a block
+                                let ind += s:sw()
+                              endif
+                              if prevl =~# '^\s*\(case .*\|default\):$'
+                                " previous line is part of a switch statement
+                                let ind += s:sw()
+                              endif
+                              " TODO: handle if the previous line is a label.
+                            
+                              if thisl =~ '^\s*[)}]'
+                                " this line closed a block
+                                let ind -= s:sw()
+                              endif
+                            
+                              " Colons are tricky.
+                              " We want to outdent if it's part of a switch ("case foo:" or "default:").
+                              " We ignore trying to deal with jump labels because (a) they're rare, and
+                              " (b) they're hard to disambiguate from a composite literal key.
+                              if thisl =~# '^\s*\(case .*\|default\):$'
+                                let ind -= s:sw()
+                              endif
+                            
+                              return ind
+                            endfunction
+                            
+                            " vim: sw=2 ts=2 et
+
+SCRIPT  /usr/local/Cellar/vim/8.0.1300/share/vim/vim80/indent/go.vim
+Sourced 2 times
+Total time:   0.000045
+ Self time:   0.000045
+
+count  total (s)   self (s)
+                            " Vim indent file
+                            " Language:	Go
+                            " Maintainer:	David Barnett (https://github.com/google/vim-ft-go)
+                            " Last Change:	2017 Jun 13
+                            "
+                            " TODO:
+                            " - function invocations split across lines
+                            " - general line splits (line ends in an operator)
+                            
+    2              0.000011 if exists('b:did_indent')
+    2              0.000002   finish
+                            endif
+                            let b:did_indent = 1
+                            
+                            " C indentation is too far off useful, mainly due to Go's := operator.
+                            " Let's just define our own.
+                            setlocal nolisp
+                            setlocal autoindent
+                            setlocal indentexpr=GoIndent(v:lnum)
+                            setlocal indentkeys+=<:>,0=},0=)
+                            
+                            if exists('*GoIndent')
+                              finish
+                            endif
+                            
+                            function! GoIndent(lnum)
+                              let l:prevlnum = prevnonblank(a:lnum-1)
+                              if l:prevlnum == 0
+                                " top of file
+                                return 0
+                              endif
+                            
+                              " grab the previous and current line, stripping comments.
+                              let l:prevl = substitute(getline(l:prevlnum), '//.*$', '', '')
+                              let l:thisl = substitute(getline(a:lnum), '//.*$', '', '')
+                              let l:previ = indent(l:prevlnum)
+                            
+                              let l:ind = l:previ
+                            
+                              if l:prevl =~ '[({]\s*$'
+                                " previous line opened a block
+                                let l:ind += shiftwidth()
+                              endif
+                              if l:prevl =~# '^\s*\(case .*\|default\):$'
+                                " previous line is part of a switch statement
+                                let l:ind += shiftwidth()
+                              endif
+                              " TODO: handle if the previous line is a label.
+                            
+                              if l:thisl =~ '^\s*[)}]'
+                                " this line closed a block
+                                let l:ind -= shiftwidth()
+                              endif
+                            
+                              " Colons are tricky.
+                              " We want to outdent if it's part of a switch ("case foo:" or "default:").
+                              " We ignore trying to deal with jump labels because (a) they're rare, and
+                              " (b) they're hard to disambiguate from a composite literal key.
+                              if l:thisl =~# '^\s*\(case .*\|default\):$'
+                                let l:ind -= shiftwidth()
+                              endif
+                            
+                              return l:ind
+                            endfunction
+                            
+                            " vim: sw=2 sts=2 et
+
+FUNCTION  <SNR>19_LocalBrowse()
+Called 1 time
+Total time:   0.000046
+ Self time:   0.000046
+
+count  total (s)   self (s)
+                              " Unfortunate interaction -- only DechoMsg debugging calls can be safely used here.
+                              " Otherwise, the BufEnter event gets triggered when attempts to write to
+                              " the DBG buffer are made.
+                              
+    1              0.000003   if !exists("s:vimentered")
+                               " If s:vimentered doesn't exist, then the VimEnter event hasn't fired.  It will,
+                               " and so s:VimEnter() will then be calling this routine, but this time with s:vimentered defined.
+                            "   call Dfunc("s:LocalBrowse(dirname<".a:dirname.">)  (s:vimentered doesn't exist)")
+                            "   call Dret("s:LocalBrowse")
+                               return
+                              endif
+                            
+                            "  call Dfunc("s:LocalBrowse(dirname<".a:dirname.">)  (s:vimentered=".s:vimentered.")")
+                            
+    1              0.000004   if has("amiga")
+                               " The check against '' is made for the Amiga, where the empty
+                               " string is the current directory and not checking would break
+                               " things such as the help command.
+                            "   call Decho("(LocalBrowse) dirname<".a:dirname.">  (isdirectory, amiga)")
+                               if a:dirname != '' && isdirectory(a:dirname)
+                                sil! call netrw#LocalBrowseCheck(a:dirname)
+                                if exists("w:netrw_bannercnt") && line('.') < w:netrw_bannercnt
+                                 exe w:netrw_bannercnt
+                                endif
+                               endif
+                            
+                              elseif isdirectory(a:dirname)
+                            "   call Decho("(LocalBrowse) dirname<".a:dirname."> ft=".&ft."  (isdirectory, not amiga)")
+                            "   call Dredir("LocalBrowse ft last set: ","verbose set ft")
+                               sil! call netrw#LocalBrowseCheck(a:dirname)
+                               if exists("w:netrw_bannercnt") && line('.') < w:netrw_bannercnt
+                                exe w:netrw_bannercnt
+                               endif
+                            
+                              else
+                               " not a directory, ignore it
+                            "   call Decho("(LocalBrowse) dirname<".a:dirname."> not a directory, ignoring...")
+    1              0.000001   endif
+                            
+                            "  call Dret("s:LocalBrowse")
+
+FUNCTION  <SNR>8_LoadFTPlugin()
+Called 2 times
+Total time:   0.008557
+ Self time:   0.002403
+
+count  total (s)   self (s)
+    2              0.000010     if exists("b:undo_ftplugin")
+    1              0.000022       exe b:undo_ftplugin
+    1              0.000003       unlet! b:undo_ftplugin b:did_ftplugin
+    1              0.000001     endif
+                            
+    2              0.000012     let s = expand("<amatch>")
+    2              0.000006     if s != ""
+    2              0.000025       if &cpo =~# "S" && exists("b:did_ftplugin")
+                            	" In compatible mode options are reset to the global values, need to
+                            	" set the local values also when a plugin was already used.
+                            	unlet b:did_ftplugin
+                                  endif
+                            
+                                  " When there is a dot it is used to separate filetype names.  Thus for
+                                  " "aaa.bbb" load "aaa" and then "bbb".
+    4              0.000022       for name in split(s, '\.')
+    2   0.008405   0.002251 	exe 'runtime! ftplugin/' . name . '.vim ftplugin/' . name . '_*.vim ftplugin/' . name . '/*.vim'
+    2              0.000014       endfor
+    2              0.000003     endif
+
+FUNCTION  <SNR>4_SynSet()
+Called 2 times
+Total time:   0.006632
+ Self time:   0.001335
+
+count  total (s)   self (s)
+                              " clear syntax for :set syntax=OFF  and any syntax name that doesn't exist
+    2              0.000048   syn clear
+    2              0.000018   if exists("b:current_syntax")
+                                unlet b:current_syntax
+                              endif
+                            
+    2              0.000011   let s = expand("<amatch>")
+    2              0.000006   if s == "ON"
+                                " :set syntax=ON
+                                if &filetype == ""
+                                  echohl ErrorMsg
+                                  echo "filetype unknown"
+                                  echohl None
+                                endif
+                                let s = &filetype
+                              elseif s == "OFF"
+                                let s = ""
+                              endif
+                            
+    2              0.000003   if s != ""
+                                " Load the syntax file(s).  When there are several, separated by dots,
+                                " load each in sequence.
+    4              0.000038     for name in split(s, '\.')
+    2   0.006438   0.001141       exe "runtime! syntax/" . name . ".vim syntax/" . name . "/*.vim"
+    2              0.000005     endfor
+    2              0.000002   endif
+
+FUNCTION  go#guru#ClearSameIds()
+Called 1 time
+Total time:   0.000018
+ Self time:   0.000018
+
+count  total (s)   self (s)
+    1              0.000003   let l:cleared = 0
+                            
+    1              0.000003   let m = getmatches()
+    1              0.000002   for item in m
+                                if item['group'] == 'goSameId'
+                                  call matchdelete(item['id'])
+                                  let l:cleared = 1
+                                endif
+                              endfor
+                            
+    1              0.000002   if !l:cleared
+    1              0.000001     return 1
+                              endif
+                            
+                              " remove the autocmds we defined
+                              augroup vim-go-sameids
+                                autocmd!
+                              augroup end
+                            
+                              return 0
+
+FUNCTION  <SNR>7_gofiletype_pre()
+Called 1 time
+Total time:   0.005817
+ Self time:   0.000030
+
+count  total (s)   self (s)
+    1              0.000007   let s:current_fileformats = &g:fileformats
+    1              0.000003   let s:current_fileencodings = &g:fileencodings
+    1              0.000010   set fileencodings=utf-8 fileformats=unix
+    1   0.005795   0.000008   let &l:filetype = a:type
+
+FUNCTION  <SNR>9_LoadIndent()
+Called 2 times
+Total time:   0.000801
+ Self time:   0.000476
+
+count  total (s)   self (s)
+    2              0.000010     if exists("b:undo_indent")
+                                  exe b:undo_indent
+                                  unlet! b:undo_indent b:did_indent
+                                endif
+    2              0.000011     let s = expand("<amatch>")
+    2              0.000005     if s != ""
+    2              0.000007       if exists("b:did_indent")
+    1              0.000002 	unlet b:did_indent
+    1              0.000001       endif
+                            
+                                  " When there is a dot it is used to separate filetype names.  Thus for
+                                  " "aaa.bbb" load "indent/aaa.vim" and then "indent/bbb.vim".
+    4              0.000017       for name in split(s, '\.')
+    2   0.000716   0.000391 	exe 'runtime! indent/' . name . '.vim'
+    2              0.000003       endfor
+    2              0.000003     endif
+
+FUNCTION  go#path#BinPath()
+Called 2 times
+Total time:   0.000306
+ Self time:   0.000160
+
+count  total (s)   self (s)
+    2              0.000002   let bin_path = ""
+                            
+                              " check if our global custom path is set, if not check if $GOBIN is set so
+                              " we can use it, otherwise use default GOPATH
+    2              0.000007   if exists("g:go_bin_path")
+                                let bin_path = g:go_bin_path
+                              elseif $GOBIN != ""
+                                let bin_path = $GOBIN
+                              else
+    2   0.000235   0.000089     let go_paths = split(go#path#Default(), go#util#PathListSep())
+    2              0.000006     if len(go_paths) == 0
+                                  return "" "nothing found
+                                endif
+    2              0.000027     let bin_path = expand(go_paths[0] . "/bin/")
+    2              0.000002   endif
+                            
+    2              0.000003   return bin_path
+
+FUNCTION  <SNR>7_gofiletype_post()
+Called 1 time
+Total time:   0.000010
+ Self time:   0.000010
+
+count  total (s)   self (s)
+    1              0.000006   let &g:fileformats = s:current_fileformats
+    1              0.000003   let &g:fileencodings = s:current_fileencodings
+
+FUNCTION  <SNR>18_Highlight_Matching_Pair()
+Called 37 times
+Total time:   0.012283
+ Self time:   0.012283
+
+count  total (s)   self (s)
+                              " Remove any previous match.
+   37              0.000474   if exists('w:paren_hl_on') && w:paren_hl_on
+    2              0.000024     silent! call matchdelete(3)
+    2              0.000016     let w:paren_hl_on = 0
+    2              0.000008   endif
+                            
+                              " Avoid that we remove the popup menu.
+                              " Return when there are no colors (looks like the cursor jumps).
+   37              0.000403   if pumvisible() || (&t_Co < 8 && !has("gui_running"))
+                                return
+                              endif
+                            
+                              " Get the character under the cursor and check if it's in 'matchpairs'.
+   37              0.000210   let c_lnum = line('.')
+   37              0.000158   let c_col = col('.')
+   37              0.000076   let before = 0
+                            
+   37              0.000195   let text = getline(c_lnum)
+   37              0.001390   let matches = matchlist(text, '\(.\)\=\%'.c_col.'c\(.\=\)')
+   37              0.000163   if empty(matches)
+                                let [c_before, c] = ['', '']
+                              else
+   37              0.000312     let [c_before, c] = matches[1:2]
+   37              0.000053   endif
+   37              0.001539   let plist = split(&matchpairs, '.\zs[:,]')
+   37              0.000931   let i = index(plist, c)
+   37              0.000085   if i < 0
+                                " not found, in Insert mode try character before the cursor
+   33              0.000246     if c_col > 1 && (mode() == 'i' || mode() == 'R')
+                                  let before = strlen(c_before)
+                                  let c = c_before
+                                  let i = index(plist, c)
+                                endif
+   33              0.000051     if i < 0
+                                  " not found, nothing to do
+   33              0.000068       return
+                                endif
+                              endif
+                            
+                              " Figure out the arguments for searchpairpos().
+    4              0.000007   if i % 2 == 0
+                                let s_flags = 'nW'
+                                let c2 = plist[i + 1]
+                              else
+    4              0.000010     let s_flags = 'nbW'
+    4              0.000009     let c2 = c
+    4              0.000017     let c = plist[i - 1]
+    4              0.000004   endif
+    4              0.000011   if c == '['
+                                let c = '\['
+                                let c2 = '\]'
+                              endif
+                            
+                              " Find the match.  When it was just before the cursor move it there for a
+                              " moment.
+    4              0.000007   if before > 0
+                                let has_getcurpos = exists("*getcurpos")
+                                if has_getcurpos
+                                  " getcurpos() is more efficient but doesn't exist before 7.4.313.
+                                  let save_cursor = getcurpos()
+                                else
+                                  let save_cursor = winsaveview()
+                                endif
+                                call cursor(c_lnum, c_col - before)
+                              endif
+                            
+                              " Build an expression that detects whether the current cursor position is in
+                              " certain syntax types (string, comment, etc.), for use as searchpairpos()'s
+                              " skip argument.
+                              " We match "escape" for special items, such as lispEscapeSpecial.
+    4              0.000029   let s_skip = '!empty(filter(map(synstack(line("."), col(".")), ''synIDattr(v:val, "name")''), ' . '''v:val =~? "string\\|character\\|singlequote\\|escape\\|comment"''))'
+                              " If executing the expression determines that the cursor is currently in
+                              " one of the syntax types, then we want searchpairpos() to find the pair
+                              " within those syntax types (i.e., not skip).  Otherwise, the cursor is
+                              " outside of the syntax types and s_skip should keep its value so we skip any
+                              " matching pair inside the syntax types.
+    4              0.001656   execute 'if' s_skip '| let s_skip = 0 | endif'
+                            
+                              " Limit the search to lines visible in the window.
+    4              0.000024   let stoplinebottom = line('w$')
+    4              0.000021   let stoplinetop = line('w0')
+    4              0.000009   if i % 2 == 0
+                                let stopline = stoplinebottom
+                              else
+    4              0.000012     let stopline = stoplinetop
+    4              0.000005   endif
+                            
+                              " Limit the search time to 300 msec to avoid a hang on very long lines.
+                              " This fails when a timeout is not supported.
+    4              0.000025   if mode() == 'i' || mode() == 'R'
+                                let timeout = exists("b:matchparen_insert_timeout") ? b:matchparen_insert_timeout : g:matchparen_insert_timeout
+                              else
+    4              0.000031     let timeout = exists("b:matchparen_timeout") ? b:matchparen_timeout : g:matchparen_timeout
+    4              0.000004   endif
+    4              0.000007   try
+    4              0.001649     let [m_lnum, m_col] = searchpairpos(c, '', c2, s_flags, s_skip, stopline, timeout)
+    4              0.000018   catch /E118/
+                                " Can't use the timeout, restrict the stopline a bit more to avoid taking
+                                " a long time on closed folds and long lines.
+                                " The "viewable" variables give a range in which we can scroll while
+                                " keeping the cursor at the same position.
+                                " adjustedScrolloff accounts for very large numbers of scrolloff.
+                                let adjustedScrolloff = min([&scrolloff, (line('w$') - line('w0')) / 2])
+                                let bottom_viewable = min([line('$'), c_lnum + &lines - adjustedScrolloff - 2])
+                                let top_viewable = max([1, c_lnum-&lines+adjustedScrolloff + 2])
+                                " one of these stoplines will be adjusted below, but the current values are
+                                " minimal boundaries within the current window
+                                if i % 2 == 0
+                                  if has("byte_offset") && has("syntax_items") && &smc > 0
+                            	let stopbyte = min([line2byte("$"), line2byte(".") + col(".") + &smc * 2])
+                            	let stopline = min([bottom_viewable, byte2line(stopbyte)])
+                                  else
+                            	let stopline = min([bottom_viewable, c_lnum + 100])
+                                  endif
+                                  let stoplinebottom = stopline
+                                else
+                                  if has("byte_offset") && has("syntax_items") && &smc > 0
+                            	let stopbyte = max([1, line2byte(".") + col(".") - &smc * 2])
+                            	let stopline = max([top_viewable, byte2line(stopbyte)])
+                                  else
+                            	let stopline = max([top_viewable, c_lnum - 100])
+                                  endif
+                                  let stoplinetop = stopline
+                                endif
+                                let [m_lnum, m_col] = searchpairpos(c, '', c2, s_flags, s_skip, stopline)
+                              endtry
+                            
+    4              0.000009   if before > 0
+                                if has_getcurpos
+                                  call setpos('.', save_cursor)
+                                else
+                                  call winrestview(save_cursor)
+                                endif
+                              endif
+                            
+                              " If a match is found setup match highlighting.
+    4              0.000015   if m_lnum > 0 && m_lnum >= stoplinetop && m_lnum <= stoplinebottom 
+    2              0.000014     if exists('*matchaddpos')
+    2              0.000045       call matchaddpos('MatchParen', [[c_lnum, c_col - before], [m_lnum, m_col]], 10, 3)
+    2              0.000004     else
+                                  exe '3match MatchParen /\(\%' . c_lnum . 'l\%' . (c_col - before) . 'c\)\|\(\%' . m_lnum . 'l\%' . m_col . 'c\)/'
+                                endif
+    2              0.000006     let w:paren_hl_on = 1
+    2              0.000002   endif
+
+FUNCTION  go#path#CheckBinPath()
+Called 2 times
+Total time:   0.000734
+ Self time:   0.000266
+
+count  total (s)   self (s)
+                              " remove whitespaces if user applied something like 'goimports   '
+    2              0.000051   let binpath = substitute(a:binpath, '^\s*\(.\{-}\)\s*$', '\1', '')
+                              " save off original path
+    2              0.000004   let old_path = $PATH
+                            
+                              " check if we have an appropriate bin_path
+    2   0.000344   0.000038   let go_bin_path = go#path#BinPath()
+    2              0.000005   if !empty(go_bin_path)
+                                " append our GOBIN and GOPATH paths and be sure they can be found there...
+                                " let us search in our GOBIN and GOPATH paths
+    2   0.000092   0.000016     let $PATH = go_bin_path . go#util#PathListSep() . $PATH
+    2              0.000001   endif
+                            
+                              " if it's in PATH just return it
+    2              0.000036   if executable(binpath)
+    2              0.000005     if exists('*exepath')
+    2              0.000027       let binpath = exepath(binpath)
+    2              0.000002     endif
+    2              0.000004     let $PATH = old_path
+                            
+    2   0.000139   0.000053     if go#util#IsUsingCygwinShell() == 1
+                                  return go#path#CygwinPath(binpath)
+                                endif
+                            
+    2              0.000002     return binpath
+                              endif
+                            
+                              " just get the basename
+                              let basename = fnamemodify(binpath, ":t")
+                              if !executable(basename)
+                                call go#util#EchoError(printf("could not find '%s'. Run :GoInstallBinaries to fix it", basename))
+                            
+                                " restore back!
+                                let $PATH = old_path
+                                return ""
+                              endif
+                            
+                              let $PATH = old_path
+                            
+                              if go#util#IsUsingCygwinShell() == 1
+                                return go#path#CygwinPath(a:binpath)
+                              endif
+                            
+                              return go_bin_path . go#util#PathSep() . basename
+
+FUNCTION  go#path#Default()
+Called 2 times
+Total time:   0.000018
+ Self time:   0.000018
+
+count  total (s)   self (s)
+    2              0.000005   if $GOPATH == ""
+                                " use default GOPATH via go env
+                                return go#util#env("gopath")
+                              endif
+                            
+    2              0.000003   return $GOPATH
+
+FUNCTION  go#util#IsUsingCygwinShell()
+Called 2 times
+Total time:   0.000086
+ Self time:   0.000014
+
+count  total (s)   self (s)
+    2   0.000085   0.000013   return go#util#IsWin() && executable('cygpath') && &shell =~ '.*sh.*'
+
+FUNCTION  <SNR>27_hi()
+Called 1 time
+Total time:   0.000014
+ Self time:   0.000014
+
+count  total (s)   self (s)
+    1              0.000005   hi def link goSameId Search
+                            
+                              " :GoCoverage commands
+    1              0.000002   hi def      goCoverageCovered    ctermfg=green guifg=#A6E22E
+    1              0.000002   hi def      goCoverageUncover    ctermfg=red guifg=#F92672
+
+FUNCTION  go#util#IsWin()
+Called 6 times
+Total time:   0.000221
+ Self time:   0.000221
+
+count  total (s)   self (s)
+    6              0.000018   let win = ['win16', 'win32', 'win64', 'win95']
+   30              0.000028   for w in win
+   24              0.000075     if (has(w))
+                                  return 1
+                                endif
+   24              0.000024   endfor
+                            
+    6              0.000005   return 0
+
+FUNCTION  <SNR>26_dopopd()
+Called 3 times
+Total time:   0.000039
+ Self time:   0.000039
+
+count  total (s)   self (s)
+    3              0.000027   if !exists('w:fzf_dir') || s:fzf_getcwd() != w:fzf_dir[1]
+    3              0.000006     return
+                              endif
+                              execute 'lcd' s:escape(w:fzf_dir[0])
+                              unlet w:fzf_dir
+
+FUNCTION  go#util#PathListSep()
+Called 4 times
+Total time:   0.000204
+ Self time:   0.000055
+
+count  total (s)   self (s)
+    4   0.000194   0.000045   if go#util#IsWin()
+                                return ";"
+                              endif
+    4              0.000002   return ":"
+
+FUNCTION  <SNR>35_SetTagbar()
+Called 1 time
+Total time:   0.000314
+ Self time:   0.000022
+
+count  total (s)   self (s)
+    1   0.000300   0.000008   let bin_path = go#path#CheckBinPath(g:go_gotags_bin)
+    1              0.000002   if empty(bin_path)
+                                return
+                              endif
+                            
+    1              0.000003   if !exists("g:tagbar_type_go")
+                                let g:tagbar_type_go = { 'ctagstype' : 'go', 'kinds'     : [ 'p:package', 'i:imports', 'c:constants', 'v:variables', 't:types', 'n:interfaces', 'w:fields', 'e:embedded', 'm:methods', 'r:constructor', 'f:functions' ], 'sro' : '.', 'kind2scope' : { 't' : 'ctype', 'n' : 'ntype' }, 'scope2kind' : { 'ctype' : 't', 'ntype' : 'n' }, 'ctagsbin'  : bin_path, 'ctagsargs' : '-sort -silent' }
+                              endif
+
+FUNCTIONS SORTED ON TOTAL TIME
+count  total (s)   self (s)  function
+   37   0.012283             <SNR>18_Highlight_Matching_Pair()
+    2   0.008557   0.002403  <SNR>8_LoadFTPlugin()
+    2   0.006632   0.001335  <SNR>4_SynSet()
+    1   0.005817   0.000030  <SNR>7_gofiletype_pre()
+    2   0.000801   0.000476  <SNR>9_LoadIndent()
+    2   0.000734   0.000266  go#path#CheckBinPath()
+    1   0.000314   0.000022  <SNR>35_SetTagbar()
+    2   0.000306   0.000160  go#path#BinPath()
+    6   0.000221             go#util#IsWin()
+    4   0.000204   0.000055  go#util#PathListSep()
+    2   0.000086   0.000014  go#util#IsUsingCygwinShell()
+    1   0.000046             <SNR>19_LocalBrowse()
+    3   0.000039             <SNR>26_dopopd()
+    2   0.000018             go#path#Default()
+    1   0.000018             go#guru#ClearSameIds()
+    1   0.000014             <SNR>27_hi()
+    1   0.000010             <SNR>7_gofiletype_post()
+
+FUNCTIONS SORTED ON SELF TIME
+count  total (s)   self (s)  function
+   37              0.012283  <SNR>18_Highlight_Matching_Pair()
+    2   0.008557   0.002403  <SNR>8_LoadFTPlugin()
+    2   0.006632   0.001335  <SNR>4_SynSet()
+    2   0.000801   0.000476  <SNR>9_LoadIndent()
+    2   0.000734   0.000266  go#path#CheckBinPath()
+    6              0.000221  go#util#IsWin()
+    2   0.000306   0.000160  go#path#BinPath()
+    4   0.000204   0.000055  go#util#PathListSep()
+    1              0.000046  <SNR>19_LocalBrowse()
+    3              0.000039  <SNR>26_dopopd()
+    1   0.005817   0.000030  <SNR>7_gofiletype_pre()
+    1   0.000314   0.000022  <SNR>35_SetTagbar()
+    2              0.000018  go#path#Default()
+    1              0.000018  go#guru#ClearSameIds()
+    2   0.000086   0.000014  go#util#IsUsingCygwinShell()
+    1              0.000014  <SNR>27_hi()
+    1              0.000010  <SNR>7_gofiletype_post()
+

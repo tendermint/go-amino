@@ -134,7 +134,7 @@ TODO
 
 ## Wire vs Protobuf
 
-XXX Why Protobuf isn't good enough
+XXX Why Protobuf3 isn't good enough
 
 From the [Protocol Buffers encoding guide](https://developers.google.com/protocol-buffers/docs/encoding):
 
@@ -157,7 +157,7 @@ From the [Protocol Buffers encoding guide](https://developers.google.com/protoco
 > ---- | ------- | --------
 > 0    | Varint  | int32, int64, uint32, uint64, sint32, sint64, bool, enum
 > 1    | 64-bit  | fixed64, sfixed64, double
-> 2    | Length-delimited | string, bytes, embedded messages, packed repeated fields
+> 2    | Length-prefixed | string, bytes, embedded messages, packed repeated fields
 > 3    | Start group | groups (deprecated)
 > 4    | End group | groups (deprecated)
 > 5    | 32-bit  | fixed32, sfixed32, float
@@ -175,12 +175,14 @@ Typ3 | Meaning          | Used For
 ---- | ---------------- | --------
 0    | Varint           | bool, byte, [u]int16, and varint-[u]int[64/32]
 1    | 64-bit           | int64, uint64, float64(unsafe)
-2    | Length-delimited | string, bytes, raw?
+2    | Length-prefixed  | string, bytes, raw?
 3    | Start struct     | conceptually, '{'
 4    | End struct       | conceptually, '}'; always a single byte, 0x04
 5    | 32-bit           | int32, uint32, float32(unsafe)
-6    | List             | array, slice; followed by element `<typ3-byte>`, then `<uvarint(num-items)>`
+6    | List             | array, slice; followed by element `<typ4-byte>`, then `<uvarint(num-items)>`
 7    | Interface        | registered concrete types; followed by `<prefix-bytes>` or `<disfix-bytes>`, then `<typ3-byte>`.
+
+### Structs 
 
 Struct fields are encoded in order, and a null/empty/zero field is represented
 by the absence of a field in the encoding, similar to Protobuf. In general, the
@@ -189,10 +191,26 @@ stream until each field's size has been determined by scanning all fields and
 elements recursively.
 
 As in Protobuf, each struct field is keyed by a uvarint with the value
-`(field_number << 3) | type`, where `type` is 3 bits long. 
+`(field_number << 3) | type`, where `type` is 3 bits long.  We call these 3
+bits in byte form (using the least significant bits) a `typ3 byte`.  For
+instance, the typ3 byte for List is 0x06.
+
+When encoding elements of a list (Golang slice or array) in Wire, the typ3 byte
+isn't enough.  Specifically, when the element type of the list is a pointer
+type, the element value may be nil.  We encode the element type of this kind of
+list with a typ4 byte, which is like a typ3 byte, but uses 4 least significant
+bits.  This 4th bit is called the "pointer bit".
+
+Inner structs that are embedded in outer structs are encoded by the field typ3
+"Start struct".  (In Protobuf3, embedded messages are encoded as a
+Length-prefixed).
+
+TODO: How does this work in Protobuf3?
+
+### Lists
 
 Unlike Protobuf, Wire deprecates "repeated fields" in favor of Lists. A List is
-encoded by first writing the typ3-byte of the element type, followed by the
+encoded by first writing the typ4 byte of the element type, followed by the
 uvarint encoding of the length of the list, followed by the encoding of each
 element.
 
@@ -276,17 +294,16 @@ if err != nil { ... }
 
 Unlike fields of a struct where nil pointers are denoted by the absence of
 encoding, elements of a list are encoded without an index or key.  They are
-just encoded one after the other, with the first typ3-byte implied by the
-initial list "declaration" bytes.
+just encoded one after the other, with the first typ3 byte implied by the
+list's declared element typ4 byte (technically the first byte of the List).
 
-To denote nil values in list elements, the element typ3-byte that immediately
-follows the bXXXXX110 typ3-byte (for nested lists) or key (for struct fields)
-list "declaration" reserves the 4th least-significant bit (the "pointer bit")
-to denote whether elements are prefixed by a 0x00 byte to denote a non-nil
-item, or a 0x01 byte to denote a nil item.  Note that the byte values are
-flipped (typically 0 is used to denote nil).  This is to open the possibility
-of supporting sparse encoding of nil lists in the future by encoding the number
-of nil items to skip as a uvarint.
+To declare that the List may contain nil elements, the Lists's element typ4
+byte should set the 4th least-significant bit (the "pointer bit") to 1.  If
+(and only if) the pointer bit is 1, elements are prefixed by a 0x00 byte to
+denote a non-nil item, or a 0x01 byte to denote a nil item.  Note that the byte
+values are flipped (typically 0 is used to denote nil).  This is to open the
+possibility of supporting sparse encoding of nil lists in the future by
+encoding the number of nil items to skip as a uvarint.
 
 ```golang
 type Item struct {
@@ -315,6 +332,8 @@ if err != nil { ... }
 // b0000 0001  0x01  byte to denote nil element
 // b0000 0100  0x04  "End struct" for `List`
 ```
+
+### Interfaces
 
 Finally, Protobuf's "oneof" gets a facelift.  Instead of "oneof", Wire has
 Interfaces.
