@@ -296,7 +296,7 @@ func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv r
 
 func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
-	// The "Start struct" type3 doesn't get written here.
+	// The "Struct" type3 doesn't get written here.
 	// It's already implied, either by struct-key or list-element-type-byte.
 
 	switch info.Type {
@@ -335,8 +335,8 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 			}
 		}
 
-		// Write "End struct".
-		err = EncodeByte(w, type3_EndStruct)
+		// Write "StructTerm".
+		err = EncodeByte(w, type3_StructTerm)
 		if err != nil {
 			return
 		}

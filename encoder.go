@@ -138,7 +138,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 		return
 	}
 
-	err = EncodeByte(w, byte(0x04)) // End struct.
+	err = EncodeByte(w, byte(0x04)) // StructTerm
 	return
 }
 

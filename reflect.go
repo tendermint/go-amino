@@ -14,33 +14,22 @@ var timeType = reflect.TypeOf(time.Time{})
 const RFC3339Millis = "2006-01-02T15:04:05.000Z" // forced microseconds
 const printLog = false
 
-/*
-Type | Meaning      | Used For
----- | ------------ | --------
-0    | Varint       | bool, byte, [u]int16, and varint-[u]int[64/32]
-1    | 8 byte       | int64, uint64, float64(unsafe)
-2    | Byte length  | string, bytes, raw?
-3    | Start struct | conceptually, '{'
-4    | End struct   | conceptually, '}'; always a single byte, 0x04
-5    | 4 byte       | int32, uint32, float32(unsafe)
-6    | List         | array, slice; followed by 1 or more bytes encoding `<type-bytes>`,
-     |              | then `<uvarint(num-items)>`
-7    | Interface    | value starts with `<prefix-bytes>` or `<disfix-bytes>`
-*/
+//----------------------------------------
+// Typ3 and Typ4
 
 type typ3 uint8
 type typ4 uint8 // typ3 | 0x80 (pointer bit)
 
 const (
 	// typ3 types
-	typ3_Varint      = typ3(0)
-	typ3_8Byte       = typ3(1)
-	typ3_ByteLength  = typ3(2)
-	typ3_StartStruct = typ3(3)
-	typ3_EndStruct   = typ3(4)
-	typ3_4Byte       = typ3(5)
-	typ3_List        = typ3(6)
-	typ3_Interface   = typ3(7)
+	typ3_Varint     = typ3(0)
+	typ3_8Byte      = typ3(1)
+	typ3_ByteLength = typ3(2)
+	typ3_Struct     = typ3(3)
+	typ3_StructTerm = typ3(4)
+	typ3_4Byte      = typ3(5)
+	typ3_List       = typ3(6)
+	typ3_Interface  = typ3(7)
 
 	// typ4 bit
 	typ4_Pointer = typ4(0x08)
@@ -161,7 +150,7 @@ func typeToTyp3(rt runtime.Type, opts FieldOptions) (typ typ3) {
 	case reflect.String:
 		return typ3_ByteLength
 	case reflect.Struct:
-		return typ3_StartStruct
+		return typ3_Struct
 	case reflect.Int64, reflect.Uint64:
 		if opts.BinVarint {
 			return typ3_Varint

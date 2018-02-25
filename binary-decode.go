@@ -71,28 +71,6 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 
 	// TODO consider the binary equivalent of json.Unmarshaller.
 
-	// If a pointer, handle pointer byte.
-	// 0x00 means nil, 0x01 means not nil.
-	if rv.Kind() == reflect.Ptr {
-		if len(bz) == 0 {
-			err = errors.New("EOF reading pointer type")
-			return
-		}
-		switch bz[0] {
-		case 0x00:
-			n += 1
-			rv.Set(reflect.Zero(rv.Type()))
-			return
-		case 0x01:
-			n += 1
-			bz = bz[1:]
-			// so continue...
-		default:
-			err = fmt.Errorf("unexpected pointer byte %X", bz[0])
-			return
-		}
-	}
-
 	// Dereference-and-construct pointers all the way.
 	// This works for pointer-pointers.
 	for rv.Kind() == reflect.Ptr {
@@ -580,7 +558,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	}
 	_n := 0 // nolint: ineffassign
 
-	// The "Start struct" type3 doesn't get read here.
+	// The "Struct" type3 doesn't get read here.
 	// It's already implied, either by struct-key or list-element-type-byte.
 
 	switch info.Type {
@@ -639,15 +617,15 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 			}
 		}
 
-		// Read "End struct".
+		// Read "StructTerm".
 		// NOTE: In the future, we'll need to break out of a loop
-		// when encoutering an EndStruct typ3 byte.
+		// when encoutering an StructTerm typ3 byte.
 		typ, _n, err = DecodeByte(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
-		if typ != typ3_EndStruct {
-			err = errors.New(fmt.Sprintf("Expected End struct typ3 byte, got %X", typ))
+		if typ != typ3_StructTerm {
+			err = errors.New(fmt.Sprintf("Expected StructTerm typ3 byte, got %X", typ))
 			return
 		}
 		return

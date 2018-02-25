@@ -233,13 +233,13 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 		err = fmt.Errorf("Invalid time, nanoseconds out of bounds %v", ns)
 		return
 	}
-	{ // Expect "End struct" type3 byte.
+	{ // Expect "StructTerm" type3 byte.
 		typ, _n, err := DecodeByte(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
-		if typ != typ3_EndStruct {
-			err = errors.New(fmt.Sprintf("Expected End struct typ3 byte for time, got %X", typ))
+		if typ != typ3_StructTerm {
+			err = errors.New(fmt.Sprintf("Expected StructTerm typ3 byte for time, got %X", typ))
 			return
 		}
 	}
