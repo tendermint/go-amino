@@ -331,9 +331,8 @@ if err != nil { ... }
 Unlike fields of a struct where nil (or in the future, perhaps zero/empty)
 pointers are denoted by the absence of its encoding (both field key and value),
 elements of a list are encoded without an index or key.  They are just encoded
-one after the other, with the first typ3 byte implied by the list's declared
-element typ4 byte (technically the first byte of the List, since the field key
-isn't part of the value.).
+one after the other, with no need to prefix each element with a key, index
+number nor typ3 byte.
 
 To declare that the List may contain nil elements, the Lists's element typ4
 byte should set the 4th least-significant bit (the "pointer bit") to 1.  If
