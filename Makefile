@@ -42,7 +42,7 @@ get_vendor_deps:
 ### Testing
 
 test:
-	go test $(go list ./... | grep -v vendor)
+	go test $(shell go list ./... | grep -v vendor)
 
 gofuzz_binary:
 	rm -rf tests/fuzz/binary/corpus/
