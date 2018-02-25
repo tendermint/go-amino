@@ -20,6 +20,12 @@ type PrefixBytes [PrefixBytesLen]byte
 type DisambBytes [DisambBytesLen]byte
 type DisfixBytes [DisfixBytesLen]byte // Disamb+Prefix
 
+func NewPrefixBytes(prefixBytes []byte) PrefixBytes {
+	pb := PrefixBytes{}
+	copy(pb[:], prefixBytes)
+	return pb
+}
+
 func (pb PrefixBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(pb[:], bz) }
 func (pb PrefixBytes) WithTyp3(typ typ3) PrefixBytes { pb[3] |= typ3; return pb }
 func (pb PrefixBytes) WithoutTyp3() PrefixBytes      { pb[3] &= 0xF8; return pb }
@@ -79,7 +85,7 @@ type FieldOptions struct {
 	JSONName      string // (JSON) field name
 	JSONOmitEmpty bool   // (JSON) omitempty
 	BinVarint     bool   // (Binary) Use length-prefixed encoding for (u)int64.
-	BinFieldNum   int32  // (Binary) max 1<<29-1
+	BinFieldNum   uint32 // (Binary) max 1<<29-1
 	Unsafe        bool   // e.g. if this field is a float.
 }
 
@@ -266,7 +272,7 @@ func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 		}
 		// NOTE: This is going to change a bit.
 		// NOTE: BinFieldNum starts with 1.
-		fopts.BinFieldNum = int32(len(infos) + 1)
+		fopts.BinFieldNum = uint32(len(infos) + 1)
 		fieldInfo := FieldInfo{
 			Index:        i,
 			Type:         ftype,
