@@ -1,6 +1,7 @@
 package wire
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -33,7 +34,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 			return
 		}
 		typ := typeToTyp4(info.Type, opts)
-		err = EncodeByte(w, typ)
+		err = EncodeByte(w, byte(typ))
 		if err != nil {
 			return
 		}
@@ -61,14 +62,14 @@ func (cdc *Codec) _encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.V
 		err = cdc.encodeReflectBinaryInterface(w, info, rv, opts)
 
 	case reflect.Array:
-		if info.Type.Elem() == reflect.Uint8 {
+		if info.Type.Elem().Kind() == reflect.Uint8 {
 			err = cdc.encodeReflectBinaryByteArray(w, info, rv, opts)
 		} else {
 			err = cdc.encodeReflectBinaryList(w, info, rv, opts)
 		}
 
 	case reflect.Slice:
-		if info.Type.Elem() == reflect.Uint8 {
+		if info.Type.Elem().Kind() == reflect.Uint8 {
 			err = cdc.encodeReflectBinaryByteSlice(w, info, rv, opts)
 		} else {
 			err = cdc.encodeReflectBinaryList(w, info, rv, opts)
@@ -196,11 +197,11 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 
 	// Write prefix bytes and concrete typ3.
 	var typ = typeToTyp3(crt, opts)
-	_, err = w.Write(cinfo.Prefix.WithTyp3(typ)[:])
+	_, err = w.Write(cinfo.Prefix.WithTyp3(typ).Bytes())
 	if err != nil {
 		return
 	}
-	err = EncodeByte(w, typ)
+	err = EncodeByte(w, byte(typ))
 	if err != nil {
 		return
 	}
@@ -217,13 +218,13 @@ func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv r
 	}
 	length := info.Type.Len()
 
-	// Get bz.
+	// Get byteslice.
 	var byteslice = []byte(nil)
 	if rv.CanAddr() {
-		bz = rv.Slice(0, length).Bytes()
+		byteslice = rv.Slice(0, length).Bytes()
 	} else {
-		bz = make([]byte, length)
-		reflect.Copy(reflect.ValueOf(bz), rv) // XXX: looks expensive!
+		byteslice = make([]byte, length)
+		reflect.Copy(reflect.ValueOf(byteslice), rv) // XXX: looks expensive!
 	}
 
 	// Write byte-length prefixed byteslice.
@@ -239,13 +240,13 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 
 	// Write element typ4 byte.
 	var typ = typeToTyp4(ert, opts)
-	err = EncodeByte(w, typ)
+	err = EncodeByte(w, byte(typ))
 	if err != nil {
 		return
 	}
 
 	// Write length.
-	err = EncodeUvarint(w, uint64(length))
+	err = EncodeUvarint(w, uint64(rv.Len()))
 	if err != nil {
 		return
 	}
@@ -256,9 +257,9 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 	if err != nil {
 		return
 	}
-	for i := 0; i < length; i++ {
+	for i := 0; i < rv.Len(); i++ {
 		// Maybe write pointer byte.
-		if typ & typ4_Pointer {
+		if typ&typ4_Pointer != 0 {
 			if rv.IsValid() {
 				// Value is not nil.
 				// Write 0x00 for not nil.
@@ -296,7 +297,7 @@ func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv r
 
 func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
-	// The "Struct" type3 doesn't get written here.
+	// The "Struct" typ3 doesn't get written here.
 	// It's already implied, either by struct-key or list-element-type-byte.
 
 	switch info.Type {
@@ -304,14 +305,15 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 	case timeType:
 		// Special case: time.Time
 		err = EncodeTime(w, rv.Interface().(time.Time))
+		return
 
 	default:
 		// Write each field.
 		for _, field := range info.Fields {
 
 			// Write field key (number and type).
-			err = encodeFieldNumberAndTyp3s(w, field.BinFieldNum, field.Type3)
-			if err != niil {
+			err = encodeFieldNumberAndTyp3(w, field.BinFieldNum, field.BinTyp3)
+			if err != nil {
 				return
 			}
 
@@ -336,7 +338,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 		}
 
 		// Write "StructTerm".
-		err = EncodeByte(w, type3_StructTerm)
+		err = EncodeByte(w, byte(typ3_StructTerm))
 		if err != nil {
 			return
 		}
@@ -351,11 +353,11 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 
 // Write field key.
 func encodeFieldNumberAndTyp3(w io.Writer, num uint32, typ typ3) (err error) {
-	if (typ & 0xF8) > 0 {
-		panic(fmt.Sprintf("invalid typ3 byte %X" + typ))
+	if (typ & 0xF8) != 0 {
+		panic(fmt.Sprintf("invalid typ3 byte %X", typ))
 	}
 	if num < 0 || num > (1<<29-1) {
-		panic(fmt.Sprintf("invalid field number %v" + num))
+		panic(fmt.Sprintf("invalid field number %v", num))
 	}
 
 	// Pack typ3 and field number.
@@ -364,7 +366,6 @@ func encodeFieldNumberAndTyp3(w io.Writer, num uint32, typ typ3) (err error) {
 	// Write uvarint value for field and typ3.
 	var buf [10]byte
 	n := binary.PutUvarint(buf[:], value64)
-	buf = buf[0:n]
-	_, err = w.Write(buf)
+	_, err = w.Write(buf[0:n])
 	return
 }

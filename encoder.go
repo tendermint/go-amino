@@ -49,7 +49,7 @@ func VarintSize(i int64) int {
 // Unsigned
 
 func EncodeByte(w io.Writer, b byte) (err error) {
-	return EncodeUvarint(w, uint64(u))
+	return EncodeUvarint(w, uint64(b))
 }
 
 func EncodeUint8(w io.Writer, u uint8) (err error) {
@@ -120,7 +120,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 
 	// TODO: We are hand-encoding a struct until MarshalWire/UnmarshalWire is supported.
 
-	err = encodeFieldNumberAndType(w, 1, typ3_8Byte)
+	err = encodeFieldNumberAndTyp3(w, 1, typ3_8Byte)
 	if err != nil {
 		return
 	}
@@ -129,7 +129,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 		return
 	}
 
-	err = encodeFieldNumberAndType(w, 2, typ3_4Byte)
+	err = encodeFieldNumberAndTyp3(w, 2, typ3_4Byte)
 	if err != nil {
 		return
 	}

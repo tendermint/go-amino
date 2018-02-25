@@ -26,8 +26,9 @@ func NewPrefixBytes(prefixBytes []byte) PrefixBytes {
 	return pb
 }
 
+func (pb PrefixBytes) Bytes() []byte                 { return pb[:] }
 func (pb PrefixBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(pb[:], bz) }
-func (pb PrefixBytes) WithTyp3(typ typ3) PrefixBytes { pb[3] |= typ3; return pb }
+func (pb PrefixBytes) WithTyp3(typ typ3) PrefixBytes { pb[3] |= byte(typ); return pb }
 func (pb PrefixBytes) WithoutTyp3() PrefixBytes      { pb[3] &= 0xF8; return pb }
 func (db DisambBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(db[:], bz) }
 func (df DisfixBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(df[:], bz) }
@@ -78,7 +79,7 @@ type FieldInfo struct {
 	Index        int           // Struct field index
 	ZeroValue    reflect.Value // Could be nil pointer unlike TypeInfo.ZeroValue.
 	FieldOptions               // Encoding options
-	BinTyp3s     typ3          // (Binary) typ3 bytes
+	BinTyp3      typ3          // (Binary) typ3 byte
 }
 
 type FieldOptions struct {
@@ -259,31 +260,32 @@ func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 		panic("should not happen")
 	}
 
-	infos = make([]FieldInfo, 0, rt.NumField())
+	var infos = make([]FieldInfo, 0, rt.NumField())
 	for i := 0; i < rt.NumField(); i++ {
 		var field = rt.Field(i)
 		var ftype = field.Type
 		if !isExported(field) {
 			continue // field is unexported
 		}
-		skip, fopts := cdc.parseFieldOptions(field)
+		skip, opts := cdc.parseFieldOptions(field)
 		if skip {
 			continue // e.g. json:"-"
 		}
 		// NOTE: This is going to change a bit.
 		// NOTE: BinFieldNum starts with 1.
-		fopts.BinFieldNum = uint32(len(infos) + 1)
+		opts.BinFieldNum = uint32(len(infos) + 1)
 		fieldInfo := FieldInfo{
 			Index:        i,
 			Type:         ftype,
 			ZeroValue:    reflect.Zero(ftype),
-			FieldOptions: fopts,
-			BinTyp3s:     typeToTyp3s(ftype, fopts),
+			FieldOptions: opts,
+			BinTyp3:      typeToTyp3(ftype, opts),
 		}
 		checkUnsafe(fieldInfo)
 		infos = append(infos, fieldInfo)
 	}
-	return StructInfo{infos}
+	sinfo = StructInfo{infos}
+	return
 }
 
 func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, opts FieldOptions) {

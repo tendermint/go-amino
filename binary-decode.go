@@ -291,6 +291,8 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	}
 	if !rv.IsNil() {
 		// JAE: Heed this note, this is very tricky.
+		// I've forgotten the reason a second time,
+		// but I'm pretty sure that reason exists.
 		err = errors.New("Decoding to a non-nil interface is not supported yet")
 		return
 	}
@@ -403,14 +405,14 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 	}
 
 	// Check and consume typ4 byte.
-	var ptr bool
-	ptr, err = decodeTyp4AndCheck(ert, &bz, opts)
-	if err != nil {
+	var ptr, _n = false, int(0)
+	ptr, _n, err = decodeTyp4AndCheck(ert, bz, opts)
+	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
 
 	// Read number of items.
-	var count, _n = uint64(0), int(0)
+	var count = uint64(0)
 	count, _n, err = DecodeUvarint(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
@@ -495,20 +497,20 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	}
 
 	// Check and consume typ4 byte.
-	var ptr bool
-	ptr, err = decodeTyp4AndCheck(ert, &bz, opts)
-	if err != nil {
+	var ptr, _n = false, int(0)
+	ptr, _n, err = decodeTyp4AndCheck(ert, bz, opts)
+	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
 
 	// Read number of items.
-	var count, _n = uint64(0), int(0)
+	var count = uint64(0)
 	count, _n, err = DecodeUvarint(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
 	if int(count) > len(bz) { // Currently, each item takes at least 1 byte.
-		err = errors.New("Impossible number of elements (%v) compared to buffer length (%v)",
+		err = fmt.Errorf("Impossible number of elements (%v) compared to buffer length (%v)",
 			count, len(bz))
 		return
 	}
@@ -531,7 +533,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 		var erv, _n = rv.Index(i), int(0)
 		// Maybe read nil.
 		if ptr {
-			numNil := int64(0)
+			var numNil = int64(0)
 			numNil, _n, err = decodeNumNilBytes(bz)
 			if slide(&bz, &n, _n) && err != nil {
 				return
@@ -563,7 +565,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	}
 	_n := 0 // nolint: ineffassign
 
-	// The "Struct" type3 doesn't get read here.
+	// The "Struct" typ3 doesn't get read here.
 	// It's already implied, either by struct-key or list-element-type-byte.
 
 	switch info.Type {
@@ -625,7 +627,8 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 		// Read "StructTerm".
 		// NOTE: In the future, we'll need to break out of a loop
 		// when encoutering an StructTerm typ3 byte.
-		typ, _n, err = DecodeByte(bz)
+		var typ = typ3(0x00)
+		typ, _n, err = decodeTyp3(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
@@ -678,13 +681,13 @@ func decodeFieldNumberAndTyp3(bz []byte) (num uint32, typ typ3, n int, err error
 
 	// Read uvarint value.
 	var value64 = uint64(0)
-	vvalue, n, err = DecodeUvarint(bz)
+	value64, n, err = DecodeUvarint(bz)
 	if err != nil {
 		return
 	}
 
 	// Decode first typ3 byte.
-	typ = uint8(value64 & 0x07)
+	typ = typ3(value64 & 0x07)
 
 	// Decode num.
 	var num64 uint64
@@ -698,33 +701,32 @@ func decodeFieldNumberAndTyp3(bz []byte) (num uint32, typ typ3, n int, err error
 }
 
 // Consume typ4 byte and error if it doesn't match rt.
-func decodeTyp4AndCheck(rt reflect.Type, bzPtr *[]byte, opts FieldOptions) (ptr bool, err error) {
-	var bz = *bzPtr
-	var typ, _n = typ4(0x00), int64(0)
-	typ, _n, err = decodeTyp4(bz)
-	if slide(&bz, &n, _n) && err != nil {
+func decodeTyp4AndCheck(rt reflect.Type, bz []byte, opts FieldOptions) (ptr bool, n int, err error) {
+	var typ = typ4(0x00)
+	typ, n, err = decodeTyp4(bz)
+	if err != nil {
 		return
 	}
-	typWanted := typeToTyp4(rt, opts)
+	var typWanted = typeToTyp4(rt, opts)
 	if typWanted != typ {
 		err = errors.New(fmt.Sprintf("Typ4 mismatch.  Expected %X, got %X", typWanted, typ))
 		return
 	}
-	ptr = bool(typ & 0x80)
+	ptr = (typ & 0x80) != 0
 	return
 }
 
 // Read typ4 byte.
 func decodeTyp4(bz []byte) (typ typ4, n int, err error) {
 	if len(bz) == 0 {
-		err = errors.New(fmt.Sprintf("EOF reading typ4 bytes"))
+		err = errors.New(fmt.Sprintf("EOF reading typ4 byte"))
 		return
 	}
 	if bz[0]&0xF0 != 0 {
-		err = errors.New(fmt.Sprintf("Invalid non-zero nibble reading typ4 bytes"))
+		err = errors.New(fmt.Sprintf("Invalid non-zero nibble reading typ4 byte"))
 		return
 	}
-	typ = bz[0]
+	typ = typ4(bz[0])
 	n = 1
 	return
 }
@@ -740,11 +742,26 @@ func decodeTyp3AndCheck(rt reflect.Type, prefix PrefixBytes, opts FieldOptions) 
 	return
 }
 
+// Read typ3 byte.
+func decodeTyp3(bz []byte) (typ typ3, n int, err error) {
+	if len(bz) == 0 {
+		err = fmt.Errorf("EOF reading typ3 byte")
+		return
+	}
+	if bz[0]&0xF8 != 0 {
+		err = fmt.Errorf("Invalid typ3 byte")
+		return
+	}
+	typ = typ3(bz[0])
+	n = 1
+	return
+}
+
 // Read a uvarint that encodes the number of nil items to skip.  NOTE:
 // Currently does not support any number besides 0 (not nil) and 1 (nil).  All
 // other values will error.
 func decodeNumNilBytes(bz []byte) (numNil int64, n int, err error) {
-	if len(bz[0]) == 0 {
+	if len(bz) == 0 {
 		err = errors.New("EOF reading nil byte(s)")
 		return
 	}

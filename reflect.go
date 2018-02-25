@@ -110,32 +110,28 @@ func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
 	return
 }
 
-func typeToTyp4(rt runtime.Type, opts FieldOptions) (typ4 typ4) {
+// Like typeToTyp4 but include a pointer bit.
+func typeToTyp4(rt reflect.Type, opts FieldOptions) (typ typ4) {
 
 	// Transparently "dereference" pointer type.
-	var pointer bool = false
+	var pointer = false
 	for rt.Kind() == reflect.Ptr {
 		pointer = true
 		rt = rt.Elem()
 	}
 
 	// Call actual logic.
-	typ4 = typ4(typeToTyp3(rt, opts))
+	typ = typ4(typeToTyp3(rt, opts))
 
 	// Set pointer bit to 1 if pointer.
 	if pointer {
-		typ4 |= typ4_Pointer
+		typ |= typ4_Pointer
 	}
 	return
 }
 
-// Like typeToTyp4 but drop the pointer bit.
-func typeToTyp3(rt runtime.Type, opts FieldOptions) typ3 {
-	return typ3(typeToTyp4(rt, opts) & 0x07)
-}
-
 // CONTRACT: rt.Kind() != reflect.Ptr
-func typeToTyp3(rt runtime.Type, opts FieldOptions) (typ typ3) {
+func typeToTyp3(rt reflect.Type, opts FieldOptions) typ3 {
 	switch rt.Kind() {
 	case reflect.Interface:
 		return typ3_Interface
@@ -145,7 +141,7 @@ func typeToTyp3(rt runtime.Type, opts FieldOptions) (typ typ3) {
 		case reflect.Uint8:
 			return typ3_ByteLength
 		default:
-			return type3_List
+			return typ3_List
 		}
 	case reflect.String:
 		return typ3_ByteLength
@@ -171,7 +167,7 @@ func typeToTyp3(rt runtime.Type, opts FieldOptions) (typ typ3) {
 func isNilSafe(rv reflect.Value) bool {
 	switch rv.Kind() {
 	case reflect.Chan, reflect.Func, reflect.Interface,
-		reflect.Map, reflect.Pointer, reflect.Slice:
+		reflect.Map, reflect.Ptr, reflect.Slice:
 		return rv.IsNil()
 	default:
 		return false

@@ -21,7 +21,7 @@ func DecodeInt8(bz []byte) (i int8, n int, err error) {
 		err = errors.New("EOF decoding int8")
 		return
 	}
-	i = int8(u64)
+	i = int8(i64)
 	return
 }
 
@@ -35,7 +35,7 @@ func DecodeInt16(bz []byte) (i int16, n int, err error) {
 		err = errors.New("EOF decoding int16")
 		return
 	}
-	i = int16(u64)
+	i = int16(i64)
 	return
 }
 
@@ -194,39 +194,39 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 	// This is how that struct would be encoded.
 
 	{ // Decode field number 1 and typ3 (8Byte).
-		var fieldNum, typ, _n = int32(0), typ3(0x00), int(0)
+		var fieldNum, typ, _n = uint32(0), typ3(0x00), int(0)
 		fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		if fieldNum != 1 {
-			err = fmt.Error("Expected field number 1, got %v", fieldNum)
+			err = fmt.Errorf("Expected field number 1, got %v", fieldNum)
 			return
 		}
 		if typ != typ3_8Byte {
-			err = fmt.Error("Expected typ3 bytes <8Bytes> for time field #1, got %X", typ)
+			err = fmt.Errorf("Expected typ3 bytes <8Bytes> for time field #1, got %X", typ)
 			return
 		}
 	}
 	// Actually read the Int64.
-	var sec = int64(0)
+	var sec, _n = int64(0), int(0)
 	sec, _n, err = DecodeInt64(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
 
 	{ // Decode field number 2 and typ3 (4Byte).
-		var fieldNum, typ, _n = int32(0), typ3(0x00), int(0)
+		var fieldNum, typ, _n = uint32(0), typ3(0x00), int(0)
 		fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		if fieldNum != 2 {
-			err = fmt.Error("Expected field number 2, got %v", fieldNum)
+			err = fmt.Errorf("Expected field number 2, got %v", fieldNum)
 			return
 		}
 		if typ != typ3_4Byte {
-			err = fmt.Error("Expected typ3 bytes <4Byte> for time field #2, got %X", typ)
+			err = fmt.Errorf("Expected typ3 bytes <4Byte> for time field #2, got %X", typ)
 			return
 		}
 	}
@@ -241,9 +241,9 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 		err = fmt.Errorf("Invalid time, nanoseconds out of bounds %v", nsec)
 		return
 	}
-	{ // Expect "StructTerm" type3 byte.
+	{ // Expect "StructTerm" typ3 byte.
 		var typ, _n = typ3(0x00), int(0)
-		typ, _n, err = DecodeByte(bz)
+		typ, _n, err = decodeTyp3(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
