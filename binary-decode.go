@@ -235,7 +235,7 @@ func (cdc *Codec) _decodeReflectBinary(br *bufio.Reader, info *TypeInfo, rv refl
 			n += _n
 
 		} else {
-			_n, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (int, error) {
+			_n, err = peekConsumeDiscard(br, 8, func(bz []byte) (int, error) {
 				num, _n, err := DecodeUint64(bz)
 				if err != nil {
 					return 0, err
@@ -251,7 +251,7 @@ func (cdc *Codec) _decodeReflectBinary(br *bufio.Reader, info *TypeInfo, rv refl
 		return
 
 	case reflect.Uint32:
-		_n, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (int, error) {
+		_n, err = peekConsumeDiscard(br, 4, func(bz []byte) (int, error) {
 			num, _n, err := DecodeUint32(bz)
 			if err != nil {
 				return 0, err
@@ -413,6 +413,7 @@ func peekConsumeDiscardString(br *bufio.Reader) (string, int, error) {
 func peekConsumeDiscardByteSlice(br *bufio.Reader) (bz []byte, n int, err error) {
 	// 1. Firstly read out the byte slice length
 	var length int64
+	// The length is encoded as a Varint
 	n, err = peekConsumeDiscard(br, binary.MaxVarintLen32, func(bz []byte) (nn int, err error) {
 		length, nn, err = DecodeVarint(bz)
 		return
@@ -460,7 +461,6 @@ func (cdc *Codec) decodeReflectBinaryInterface(br *bufio.Reader, iinfo *TypeInfo
 	if err != nil {
 		return
 	}
-	n += _n
 
 	// Special case for nil.
 	if isNil {
@@ -469,12 +469,11 @@ func (cdc *Codec) decodeReflectBinaryInterface(br *bufio.Reader, iinfo *TypeInfo
 		return
 	}
 
-	// TODO: (@odeke-em) Check the meaning of this vestigial comment: Consume disamb (if any) and prefix bytes.
-	// if hasDisamb {
-	// 	slide(&bz, &n, 1+DisfixBytesLen)
-	// } else {
-	// 	slide(&bz, &n, PrefixBytesLen)
-	// }
+	if hasDisamb {
+		n += 1 + DisfixBytesLen
+	} else {
+		n += PrefixBytesLen
+	}
 
 	// Get concrete type info.
 	var cinfo *TypeInfo
