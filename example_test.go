@@ -16,6 +16,8 @@ package wire_test
 
 import (
 	"fmt"
+	"io"
+	"log"
 
 	wire "github.com/tendermint/go-wire"
 )
@@ -61,5 +63,55 @@ func Example() {
 	// Output:
 	// Encoded: 7406136506414243C801 (err: <nil>)
 	// Decoded: &{ABC 100} (err: <nil>)
+	// Decoded successfully: true
+}
+
+func Example_EndToEndStream() {
+
+	type Message interface{}
+
+	type bcMessage struct {
+		Message string
+		Height  int
+	}
+
+	type bcResponse struct {
+		Status  int
+		Message string
+	}
+
+	type bcStatus struct {
+		Peers int
+	}
+
+	var cdc = wire.NewCodec()
+	cdc.RegisterInterface((*Message)(nil), nil)
+	cdc.RegisterConcrete(&bcMessage{}, "bcMessage", nil)
+	cdc.RegisterConcrete(&bcResponse{}, "bcResponse", nil)
+	cdc.RegisterConcrete(&bcStatus{}, "bcStatus", nil)
+
+	var bm = &bcMessage{Message: "ABC", Height: 100}
+	var msg = bm
+
+	pr, pwc := io.Pipe()
+	// 1. The writer routine e.g. a remote streaming call or socket connection.
+	go func() {
+		defer pwc.Close()
+		if err := cdc.MarshalBinaryStream(pwc, struct{ Message }{msg}); err != nil {
+			log.Fatalf("MarshalBinaryStream: %v", err)
+		}
+	}()
+
+	// 2. The reader e.g. a socket.
+	var msg2 Message
+	if err := cdc.UnmarshalBinaryStream(pr, &msg2); err != nil {
+		log.Fatalf("UnmarshalBinaryStream: %v", err)
+	}
+	fmt.Printf("Decoded: %v\n", msg2)
+	var bm2 = msg2.(*bcMessage)
+	fmt.Printf("Decoded successfully: %v\n", *bm == *bm2)
+
+	// Output:
+	// Decoded: &{ABC 100}
 	// Decoded successfully: true
 }

@@ -1,10 +1,12 @@
 package wire
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"reflect"
 )
 
@@ -15,6 +17,18 @@ import (
 // before encoding.  MarshalBinary will panic if o is a nil-pointer,
 // or if o is invalid.
 func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
+	buf := new(bytes.Buffer)
+	if err := cdc._marshalBinaryStream(buf, o); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func (cdc *Codec) MarshalBinaryStream(w io.Writer, o interface{}) error {
+	return cdc._marshalBinaryStream(w, o)
+}
+
+func (cdc *Codec) _marshalBinaryStream(w io.Writer, o interface{}) error {
 
 	// Dereference pointer.
 	var rv = reflect.ValueOf(o)
@@ -27,21 +41,24 @@ func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
 		}
 	}
 
-	w := new(bytes.Buffer)
 	rt := rv.Type()
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	err = cdc.encodeReflectBinary(w, info, rv, FieldOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return w.Bytes(), nil
+	return cdc.encodeReflectBinary(w, info, rv, FieldOptions{})
 }
 
 // UnmarshalBinary will panic if ptr is a nil-pointer.
 func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
+	return cdc._unmarshalBinary(nil, bz, ptr)
+}
+
+func (cdc *Codec) UnmarshalBinaryStream(r io.Reader, ptr interface{}) error {
+	return cdc._unmarshalBinary(r, nil, ptr)
+}
+
+func (cdc *Codec) _unmarshalBinary(r io.Reader, bzz []byte, ptr interface{}) error {
 	rv, rt := reflect.ValueOf(ptr), reflect.TypeOf(ptr)
 	if rv.Kind() != reflect.Ptr {
 		panic("Unmarshal expects a pointer")
@@ -51,12 +68,27 @@ func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
 	if err != nil {
 		return err
 	}
+
+	readFromByteSlice := r == nil || len(bzz) > 0
+
+	// Creating the *bufio.Reader
+	var bz *bufio.Reader
+	if readFromByteSlice {
+		bz = bufio.NewReader(bytes.NewReader(bzz))
+	} else {
+		if bzr, ok := r.(*bufio.Reader); ok {
+			bz = bzr
+		} else {
+			bz = bufio.NewReader(r)
+		}
+	}
+
 	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{})
 	if err != nil {
 		return err
 	}
-	if n != len(bz) {
-		return fmt.Errorf("Unmarshal didn't read all bytes. Expected to read %v, only read %v", len(bz), n)
+	if readFromByteSlice && n != len(bzz) {
+		return fmt.Errorf("Unmarshal didn't read all bytes. Expected to read %v, only read %v", len(bzz), n)
 	}
 	return nil
 }
