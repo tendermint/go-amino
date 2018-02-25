@@ -51,7 +51,7 @@ func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
 	return cdc._unmarshalBinary(nil, bz, ptr)
 }
 
-func (cdc *Codec) _unmarshalBinary(r io.Reader, bz []byte, ptr interface{}) error {
+func (cdc *Codec) _unmarshalBinary(r io.Reader, bzz []byte, ptr interface{}) error {
 	rv, rt := reflect.ValueOf(ptr), reflect.TypeOf(ptr)
 	if rv.Kind() != reflect.Ptr {
 		panic("Unmarshal expects a pointer")
@@ -61,26 +61,27 @@ func (cdc *Codec) _unmarshalBinary(r io.Reader, bz []byte, ptr interface{}) erro
 	if err != nil {
 		return err
 	}
-	var br *bufio.Reader
-	// Creating the io.Reader
+
+	// Creating the *bufio.Reader
+	var bz *bufio.Reader
 	switch {
 	default:
-		br = bufio.NewReader(bytes.NewReader(bz))
+		bz = bufio.NewReader(bytes.NewReader(bzz))
 
 	case r != nil:
-		if brr, ok := r.(*bufio.Reader); ok {
-			br = brr
+		if bzr, ok := r.(*bufio.Reader); ok {
+			bz = bzr
 		} else {
-			br = bufio.NewReader(r)
+			bz = bufio.NewReader(r)
 		}
 	}
 
-	n, err := cdc.decodeReflectBinary(br, info, rv, FieldOptions{})
+	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{})
 	if err != nil {
 		return err
 	}
-	if n != len(bz) {
-		return fmt.Errorf("Unmarshal didn't read all bytes. Expected to read %v, only read %v", len(bz), n)
+	if n != len(bzz) {
+		return fmt.Errorf("Unmarshal didn't read all bytes. Expected to read %v, only read %v", len(bzz), n)
 	}
 	return nil
 }
