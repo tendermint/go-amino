@@ -245,7 +245,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 	}
 
 	// Write length.
-	err = EncodeVarint(w, int64(length))
+	err = EncodeUvarint(w, uint64(length))
 	if err != nil {
 		return
 	}

@@ -403,13 +403,15 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 	}
 
 	// Check and consume typ4 byte.
-	var ptr, err = decodeTyp4AndCheck(ert, &bz, opts)
+	var ptr bool
+	ptr, err = decodeTyp4AndCheck(ert, &bz, opts)
 	if err != nil {
 		return
 	}
 
 	// Read number of items.
-	var count, _n, err = DecodeVarint(bz)
+	var count, _n = int64(0), int(0)
+	count, _n, err = DecodeUvarint(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
@@ -493,18 +495,21 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	}
 
 	// Check and consume typ4 byte.
-	var ptr, err = decodeTyp4AndCheck(ert, &bz, opts)
+	var ptr bool
+	ptr, err = decodeTyp4AndCheck(ert, &bz, opts)
 	if err != nil {
 		return
 	}
 
 	// Read number of items.
-	var count, _n, err = DecodeVarint(bz)
+	var count, _n = uint64(0), int(0)
+	count, _n, err = DecodeUvarint(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
-	if count < 0 {
-		err = errors.New("Invalid negative slice length")
+	if count > len(bz) { // Currently, each item takes at least 1 byte.
+		err = errors.New("Impossible number of elements (%v) compared to buffer length (%v)",
+			count, len(bz))
 		return
 	}
 
