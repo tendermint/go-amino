@@ -28,9 +28,12 @@ func NewPrefixBytes(prefixBytes []byte) PrefixBytes {
 
 func (pb PrefixBytes) Bytes() []byte                 { return pb[:] }
 func (pb PrefixBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(pb[:], bz) }
-func (pb PrefixBytes) WithTyp3(typ typ3) PrefixBytes { pb[3] |= byte(typ); return pb }
+func (pb PrefixBytes) Typ3() Typ3                    { return Typ3(pb[3]) }
+func (pb PrefixBytes) WithTyp3(typ Typ3) PrefixBytes { pb[3] |= byte(typ); return pb }
 func (pb PrefixBytes) WithoutTyp3() PrefixBytes      { pb[3] &= 0xF8; return pb }
+func (db DisambBytes) Bytes() []byte                 { return db[:] }
 func (db DisambBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(db[:], bz) }
+func (df DisfixBytes) Bytes() []byte                 { return df[:] }
 func (df DisfixBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(df[:], bz) }
 
 type TypeInfo struct {
@@ -79,7 +82,7 @@ type FieldInfo struct {
 	Index        int           // Struct field index
 	ZeroValue    reflect.Value // Could be nil pointer unlike TypeInfo.ZeroValue.
 	FieldOptions               // Encoding options
-	BinTyp3      typ3          // (Binary) typ3 byte
+	BinTyp3      Typ3          // (Binary) Typ3 byte
 }
 
 type FieldOptions struct {
@@ -344,7 +347,9 @@ func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 	info.ZeroProto = reflect.Zero(rt).Interface()
 	info.ConcreteInfo.Registered = false
 	info.ConcreteInfo.PointerPreferred = false
-	info.StructInfo = cdc.parseStructInfo(rt)
+	if rt.Kind() == reflect.Struct {
+		info.StructInfo = cdc.parseStructInfo(rt)
+	}
 	return info
 }
 
@@ -398,7 +403,9 @@ func (cdc *Codec) newTypeInfoFromConcreteType(rt reflect.Type, pointerPreferred 
 	if opts != nil {
 		info.ConcreteOptions = *opts
 	}
-	info.StructInfo = cdc.parseStructInfo(rt)
+	if rt.Kind() == reflect.Struct {
+		info.StructInfo = cdc.parseStructInfo(rt)
+	}
 	return info
 }
 
@@ -546,7 +553,7 @@ func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
 		bz = bz[1:]
 	}
 	copy(pb[:], bz[0:4])
-	// Drop the last 3 bits to make room for the typ3.
+	// Drop the last 3 bits to make room for the Typ3.
 	pb[3] &= 0xF8
 	return
 }

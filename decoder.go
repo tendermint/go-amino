@@ -193,8 +193,8 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 	// Basically, MarshalWire on time should return a struct.
 	// This is how that struct would be encoded.
 
-	{ // Decode field number 1 and typ3 (8Byte).
-		var fieldNum, typ, _n = uint32(0), typ3(0x00), int(0)
+	{ // Decode field number 1 and Typ3 (8Byte).
+		var fieldNum, typ, _n = uint32(0), Typ3(0x00), int(0)
 		fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
@@ -203,8 +203,8 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 			err = fmt.Errorf("Expected field number 1, got %v", fieldNum)
 			return
 		}
-		if typ != typ3_8Byte {
-			err = fmt.Errorf("Expected typ3 bytes <8Bytes> for time field #1, got %X", typ)
+		if typ != Typ3_8Byte {
+			err = fmt.Errorf("Expected Typ3 bytes <8Bytes> for time field #1, got %X", typ)
 			return
 		}
 	}
@@ -215,8 +215,8 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 		return
 	}
 
-	{ // Decode field number 2 and typ3 (4Byte).
-		var fieldNum, typ, _n = uint32(0), typ3(0x00), int(0)
+	{ // Decode field number 2 and Typ3 (4Byte).
+		var fieldNum, typ, _n = uint32(0), Typ3(0x00), int(0)
 		fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
@@ -225,8 +225,8 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 			err = fmt.Errorf("Expected field number 2, got %v", fieldNum)
 			return
 		}
-		if typ != typ3_4Byte {
-			err = fmt.Errorf("Expected typ3 bytes <4Byte> for time field #2, got %X", typ)
+		if typ != Typ3_4Byte {
+			err = fmt.Errorf("Expected Typ3 bytes <4Byte> for time field #2, got %X", typ)
 			return
 		}
 	}
@@ -241,14 +241,14 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 		err = fmt.Errorf("Invalid time, nanoseconds out of bounds %v", nsec)
 		return
 	}
-	{ // Expect "StructTerm" typ3 byte.
-		var typ, _n = typ3(0x00), int(0)
+	{ // Expect "StructTerm" Typ3 byte.
+		var typ, _n = Typ3(0x00), int(0)
 		typ, _n, err = decodeTyp3(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
-		if typ != typ3_StructTerm {
-			err = errors.New(fmt.Sprintf("Expected StructTerm typ3 byte for time, got %X", typ))
+		if typ != Typ3_StructTerm {
+			err = errors.New(fmt.Sprintf("Expected StructTerm Typ3 byte for time, got %X", typ))
 			return
 		}
 	}
@@ -260,9 +260,9 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 }
 
 func DecodeByteSlice(bz []byte) (bz2 []byte, n int, err error) {
-	var count int64
+	var count uint64
 	var _n int
-	count, _n, err = DecodeVarint(bz)
+	count, _n, err = DecodeUvarint(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}

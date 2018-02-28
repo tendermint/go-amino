@@ -15,27 +15,6 @@ const RFC3339Millis = "2006-01-02T15:04:05.000Z" // forced microseconds
 const printLog = false
 
 //----------------------------------------
-// Typ3 and Typ4
-
-type typ3 uint8
-type typ4 uint8 // typ3 | 0x80 (pointer bit)
-
-const (
-	// typ3 types
-	typ3_Varint     = typ3(0)
-	typ3_8Byte      = typ3(1)
-	typ3_ByteLength = typ3(2)
-	typ3_Struct     = typ3(3)
-	typ3_StructTerm = typ3(4)
-	typ3_4Byte      = typ3(5)
-	typ3_List       = typ3(6)
-	typ3_Interface  = typ3(7)
-
-	// typ4 bit
-	typ4_Pointer = typ4(0x08)
-)
-
-//----------------------------------------
 // encode: see binary-encode.go and json-encode.go
 // decode: see binary-decode.go and json-decode.go
 
@@ -111,7 +90,7 @@ func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
 }
 
 // Like typeToTyp4 but include a pointer bit.
-func typeToTyp4(rt reflect.Type, opts FieldOptions) (typ typ4) {
+func typeToTyp4(rt reflect.Type, opts FieldOptions) (typ Typ4) {
 
 	// Transparently "dereference" pointer type.
 	var pointer = false
@@ -121,44 +100,44 @@ func typeToTyp4(rt reflect.Type, opts FieldOptions) (typ typ4) {
 	}
 
 	// Call actual logic.
-	typ = typ4(typeToTyp3(rt, opts))
+	typ = Typ4(typeToTyp3(rt, opts))
 
 	// Set pointer bit to 1 if pointer.
 	if pointer {
-		typ |= typ4_Pointer
+		typ |= Typ4_Pointer
 	}
 	return
 }
 
 // CONTRACT: rt.Kind() != reflect.Ptr
-func typeToTyp3(rt reflect.Type, opts FieldOptions) typ3 {
+func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
 	switch rt.Kind() {
 	case reflect.Interface:
-		return typ3_Interface
+		return Typ3_Interface
 	case reflect.Array, reflect.Slice:
 		ert := rt.Elem()
 		switch ert.Kind() {
 		case reflect.Uint8:
-			return typ3_ByteLength
+			return Typ3_ByteLength
 		default:
-			return typ3_List
+			return Typ3_List
 		}
 	case reflect.String:
-		return typ3_ByteLength
+		return Typ3_ByteLength
 	case reflect.Struct:
-		return typ3_Struct
+		return Typ3_Struct
 	case reflect.Int64, reflect.Uint64:
 		if opts.BinVarint {
-			return typ3_Varint
+			return Typ3_Varint
 		}
-		return typ3_8Byte
+		return Typ3_8Byte
 	case reflect.Float64:
-		return typ3_8Byte
+		return Typ3_8Byte
 	case reflect.Int32, reflect.Uint32, reflect.Float32:
-		return typ3_4Byte
+		return Typ3_4Byte
 	case reflect.Int16, reflect.Int8, reflect.Int,
 		reflect.Uint16, reflect.Uint8, reflect.Uint, reflect.Bool:
-		return typ3_Varint
+		return Typ3_Varint
 	default:
 		panic(fmt.Sprintf("unsupported field type %v", rt))
 	}

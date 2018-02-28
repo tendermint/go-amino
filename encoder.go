@@ -120,7 +120,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 
 	// TODO: We are hand-encoding a struct until MarshalWire/UnmarshalWire is supported.
 
-	err = encodeFieldNumberAndTyp3(w, 1, typ3_8Byte)
+	err = encodeFieldNumberAndTyp3(w, 1, Typ3_8Byte)
 	if err != nil {
 		return
 	}
@@ -129,7 +129,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 		return
 	}
 
-	err = encodeFieldNumberAndTyp3(w, 2, typ3_4Byte)
+	err = encodeFieldNumberAndTyp3(w, 2, Typ3_4Byte)
 	if err != nil {
 		return
 	}
@@ -143,7 +143,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 }
 
 func EncodeByteSlice(w io.Writer, bz []byte) (err error) {
-	err = EncodeVarint(w, int64(len(bz)))
+	err = EncodeUvarint(w, uint64(len(bz)))
 	if err != nil {
 		return
 	}
