@@ -311,12 +311,6 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 		// Write each field.
 		for _, field := range info.Fields {
 
-			// Write field key (number and type).
-			err = encodeFieldNumberAndTyp3(w, field.BinFieldNum, field.BinTyp3)
-			if err != nil {
-				return
-			}
-
 			// Get field rv and info.
 			var frv = rv.Field(field.Index)
 			var finfo *TypeInfo
@@ -328,6 +322,12 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 			// If field is nil, skip it.
 			if isNilSafe(frv) {
 				continue
+			}
+
+			// Write field key (number and type).
+			err = encodeFieldNumberAndTyp3(w, field.BinFieldNum, field.BinTyp3)
+			if err != nil {
+				return
 			}
 
 			// Write field from rv.

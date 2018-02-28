@@ -584,12 +584,20 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 		// Read each field.
 		for _, field := range info.Fields {
 
+			// Get field rv and info.
+			var frv = rv.Field(field.Index)
+			var finfo *TypeInfo
+			finfo, err = cdc.getTypeInfo_wlock(field.Type)
+			if err != nil {
+				return
+			}
+
 			// Read field key (number and type).
 			var fieldNum, typ = uint32(0), Typ3(0x00)
 			fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
 			if field.BinFieldNum < fieldNum {
 				// Set nil field value.
-				rv.Set(reflect.Zero(rv.Type()))
+				frv.Set(reflect.Zero(frv.Type()))
 				continue
 				// Do not slide, we will read it again.
 			}
@@ -603,21 +611,13 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 				err = errors.New(fmt.Sprintf("Expected field number %v, got %v", field.BinFieldNum, fieldNum))
 				return
 			}
-			Typ3Wanted := typeToTyp3(field.Type, field.FieldOptions)
-			if typ != Typ3Wanted {
-				err = errors.New(fmt.Sprintf("Expected field type %X, got %X", Typ3Wanted, typ))
+			typWanted := typeToTyp3(field.Type, field.FieldOptions)
+			if typ != typWanted {
+				err = errors.New(fmt.Sprintf("Expected field type %X, got %X", typWanted, typ))
 				return
 			}
 
-			// Get field rv and info.
-			var frv = rv.Field(field.Index)
-			var finfo *TypeInfo
-			finfo, err = cdc.getTypeInfo_wlock(field.Type)
-			if err != nil {
-				return
-			}
-
-			// Decode field into rv.
+			// Decode field into frv.
 			_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions)
 			if slide(&bz, &n, _n) && err != nil {
 				return

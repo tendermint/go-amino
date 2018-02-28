@@ -29,40 +29,6 @@ const (
 	Typ4_Pointer = Typ4(0x08)
 )
 
-func (typ Typ3) String() string {
-	switch typ {
-	case Typ3_Varint:
-		return "Varint"
-	case Typ3_8Byte:
-		return "8Byte"
-	case Typ3_ByteLength:
-		return "ByteLength"
-	case Typ3_Struct:
-		return "Struct"
-	case Typ3_StructTerm:
-		return "StructTerm"
-	case Typ3_4Byte:
-		return "4Byte"
-	case Typ3_List:
-		return "List"
-	case Typ3_Interface:
-		return "Interface"
-	default:
-		return fmt.Sprintf("<Invalid Typ3 %X>", typ)
-	}
-}
-
-func (typ Typ4) String() string {
-	if typ*0xF0 > 0 {
-		return fmt.Sprintf("<Invalid Typ4 %X>", typ)
-	}
-	if typ&0x80 > 0 {
-		return "*" + Typ3(typ).String()
-	} else {
-		return Typ3(typ).String()
-	}
-}
-
 //----------------------------------------
 // *Codec methods
 

@@ -262,7 +262,6 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 func DecodeByteSlice(bz []byte) (bz2 []byte, n int, err error) {
 	var count uint64
 	var _n int
-	fmt.Println(">>", bz)
 	count, _n, err = DecodeUvarint(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
