@@ -18,7 +18,7 @@ func main() {
 	}
 	bz := hexDecode(os.Args[1])
 	s, n, err := scanStruct(bz)
-	s += cmn.Red(fmt.Sprintf("%x", bz[n:]))
+	s += cmn.Red(fmt.Sprintf("%X", bz[n:]))
 	fmt.Println(s, n, err)
 }
 
@@ -32,7 +32,7 @@ func scanVarint(bz []byte) (s string, n int, err error) {
 		return
 	}
 	// s is the same either way.
-	s = fmt.Sprintf("%X", bz[:n])
+	s = cmn.Green(fmt.Sprintf("%X", bz[:n]))
 	// Also print Uvarint.
 	var u64, _n = uint64(0), int(0)
 	u64, _n = binary.Uvarint(bz)
@@ -124,7 +124,7 @@ func scanFieldKey(bz []byte) (s string, typ wire.Typ3, n int, err error) {
 	}
 	typ = wire.Typ3(u64 & 0x07)
 	var number uint32 = uint32(u64 >> 3)
-	s = cmn.Green(fmt.Sprintf("%X", bz[:n]))
+	s = fmt.Sprintf("%X", bz[:n])
 	fmt.Printf("%v @%v #%X\n", s, number, typ)
 	return
 }
