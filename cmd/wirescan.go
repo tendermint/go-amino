@@ -16,32 +16,42 @@ func main() {
 		fmt.Println("Usage: wirescan <HEXBYTES>")
 		return
 	}
-	bz := hexDecode(os.Args[1])
-	s, n, err := scanStruct(bz)
-	s += cmn.Red(fmt.Sprintf("%X", bz[n:]))
-	fmt.Println(s, n, err)
+	bz := hexDecode(os.Args[1])             // Read input hex bytes.
+	s, n, err := scanStruct(bz)             // Assume that it's  struct.
+	s += cmn.Red(fmt.Sprintf("%X", bz[n:])) // Bytes remaining are red.
+	fmt.Println(s, n, err)                  // Print color-encoded bytes s.
 }
 
 func scanVarint(bz []byte) (s string, n int, err error) {
 	// First try Varint.
-	var i64 int64
+	var i64, okI64 = int64(0), true
 	i64, n = binary.Varint(bz)
 	if n < 0 {
 		n = 0
-		err = errors.New("error decoding varint")
-		return
+		okI64 = false
 	}
-	// s is the same either way.
-	s = cmn.Green(fmt.Sprintf("%X", bz[:n]))
-	// Also print Uvarint.
-	var u64, _n = uint64(0), int(0)
+	// Then try Uvarint.
+	var u64, okU64, _n = uint64(0), true, int(0)
 	u64, _n = binary.Uvarint(bz)
 	if n != _n {
 		n = 0
-		err = errors.New("error decoding varint")
+		okU64 = false
+	}
+	// If neither work, return error.
+	if !okI64 && !okU64 {
+		err = fmt.Errorf("Invalid (u)varint")
 		return
 	}
-	fmt.Printf("%v i64:%v u64:%v\n", s, i64, u64)
+	// s is the same either way.
+	s = cmn.Cyan(fmt.Sprintf("%X", bz[:n]))
+	fmt.Printf("%v (", s)
+	if okI64 {
+		fmt.Printf("i64:%v ", i64)
+	}
+	if okU64 {
+		fmt.Printf("u64:%v", u64)
+	}
+	fmt.Print(")\n")
 	return
 }
 
@@ -51,7 +61,7 @@ func scan8Byte(bz []byte) (s string, n int, err error) {
 		return
 	}
 	n = 8
-	s = cmn.Cyan(fmt.Sprintf("%X", bz[:8]))
+	s = cmn.Blue(fmt.Sprintf("%X", bz[:8]))
 	fmt.Printf("%v\n", s)
 	return
 }
@@ -60,19 +70,21 @@ func scanByteLength(bz []byte) (s string, n int, err error) {
 	// Read the length
 	var length, l64, _n = int(0), uint64(0), int(0)
 	l64, _n = binary.Uvarint(bz)
-	if n != _n {
+	if n < 0 {
 		n = 0
-		err = errors.New("error decoding varint")
+		err = errors.New("error decoding uvarint")
 		return
 	}
-	slide(&bz, &n, _n)
 	length = int(l64)
 	if length >= len(bz) {
 		err = errors.New("EOF reading byte-length delimited.")
 		return
 	}
+	s = cmn.Cyan(fmt.Sprintf("%X", bz[:_n]))
+	slide(&bz, &n, _n)
 	// Read the remaining bytes
-	s = cmn.Yellow(fmt.Sprintf("%X", bz[:length]))
+	s += cmn.Green(fmt.Sprintf("%X", bz[:length]))
+	slide(&bz, &n, length)
 	fmt.Printf("%v (%v bytes)\n", s, length)
 	return
 }
@@ -125,7 +137,7 @@ func scanFieldKey(bz []byte) (s string, typ wire.Typ3, n int, err error) {
 	typ = wire.Typ3(u64 & 0x07)
 	var number uint32 = uint32(u64 >> 3)
 	s = fmt.Sprintf("%X", bz[:n])
-	fmt.Printf("%v @%v #%X\n", s, number, typ)
+	fmt.Printf("%v @%v #%v\n", s, number, typ)
 	return
 }
 
@@ -135,7 +147,7 @@ func scan4Byte(bz []byte) (s string, n int, err error) {
 		return
 	}
 	n = 4
-	s = cmn.Cyan(fmt.Sprintf("%X", bz[:8]))
+	s = cmn.Blue(fmt.Sprintf("%X", bz[:4]))
 	fmt.Printf("%v\n", s)
 	return
 }
@@ -163,8 +175,8 @@ func scanList(bz []byte) (s string, n int, err error) {
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
-	s = cmn.Yellow(fmt.Sprintf("%X", bz[:n]))
-	fmt.Printf("%v (%v #%X)\n", s, num, typ)
+	s = cmn.Cyan(fmt.Sprintf("%X", bz[:n]))
+	fmt.Printf("%v (%v #%v)\n", s, num, typ)
 	return
 }
 
@@ -177,10 +189,10 @@ func scanInterface(bz []byte) (s string, n int, err error) {
 	if isNil {
 		fmt.Printf("%v (nil interface)\n", s)
 	} else if hasDb {
-		fmt.Printf("%v (disamb: %X, prefix: %X, typ: #%X)\n",
+		fmt.Printf("%v (disamb: %X, prefix: %X, typ: #%v)\n",
 			s, df.Bytes(), pb.Bytes(), pb.Typ3())
 	} else {
-		fmt.Printf("%v (prefix: %X, typ: #%X)\n",
+		fmt.Printf("%v (prefix: %X, typ: #%v)\n",
 			s, pb.Bytes(), pb.Typ3())
 	}
 	return
