@@ -27,14 +27,10 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		}()
 	}
 
-	// Write prefix bytes and Typ4 byte if registered.
+	// Maybe write prefix bytes and concrete Typ3.
 	if info.Registered {
-		_, err = w.Write(info.Prefix[:])
-		if err != nil {
-			return
-		}
-		typ := typeToTyp4(info.Type, opts)
-		err = EncodeByte(w, byte(typ))
+		var typ = typeToTyp4(info.Type, opts).Typ3()
+		_, err = w.Write(info.Prefix.WithTyp3(typ).Bytes())
 		if err != nil {
 			return
 		}
@@ -201,10 +197,6 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 	if err != nil {
 		return
 	}
-	err = EncodeByte(w, byte(typ))
-	if err != nil {
-		return
-	}
 
 	// Write actual concrete value.
 	err = cdc._encodeReflectBinary(w, cinfo, crv, opts)
@@ -213,7 +205,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 
 func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	ert := info.Type.Elem()
-	if ert.Kind() == reflect.Uint8 {
+	if ert.Kind() != reflect.Uint8 {
 		panic("should not happen")
 	}
 	length := info.Type.Len()

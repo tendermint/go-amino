@@ -28,13 +28,16 @@ func NewPrefixBytes(prefixBytes []byte) PrefixBytes {
 
 func (pb PrefixBytes) Bytes() []byte                 { return pb[:] }
 func (pb PrefixBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(pb[:], bz) }
-func (pb PrefixBytes) Typ3() Typ3                    { return Typ3(pb[3]) }
 func (pb PrefixBytes) WithTyp3(typ Typ3) PrefixBytes { pb[3] |= byte(typ); return pb }
-func (pb PrefixBytes) WithoutTyp3() PrefixBytes      { pb[3] &= 0xF8; return pb }
-func (db DisambBytes) Bytes() []byte                 { return db[:] }
-func (db DisambBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(db[:], bz) }
-func (df DisfixBytes) Bytes() []byte                 { return df[:] }
-func (df DisfixBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(df[:], bz) }
+func (pb PrefixBytes) SplitTyp3() (PrefixBytes, Typ3) {
+	typ := Typ3(pb[3] & 0x07)
+	pb[3] &= 0xF8
+	return pb, typ
+}
+func (db DisambBytes) Bytes() []byte             { return db[:] }
+func (db DisambBytes) EqualBytes(bz []byte) bool { return bytes.Equal(db[:], bz) }
+func (df DisfixBytes) Bytes() []byte             { return df[:] }
+func (df DisfixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(df[:], bz) }
 
 type TypeInfo struct {
 	Type      reflect.Type // Interface type.
@@ -282,7 +285,7 @@ func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 			Type:         ftype,
 			ZeroValue:    reflect.Zero(ftype),
 			FieldOptions: opts,
-			BinTyp3:      typeToTyp3(ftype, opts),
+			BinTyp3:      typeToTyp4(ftype, opts).Typ3(),
 		}
 		checkUnsafe(fieldInfo)
 		infos = append(infos, fieldInfo)

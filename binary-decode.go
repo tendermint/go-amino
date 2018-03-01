@@ -44,13 +44,13 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 			return
 		}
 		// Check prefix bytes.
-		var prefix3 = NewPrefixBytes(bz[:PrefixBytesLen])
-		var prefix = prefix3.WithoutTyp3()
+		prefix3 := NewPrefixBytes(bz[:PrefixBytesLen])
+		var prefix, typ = prefix3.SplitTyp3()
 		if info.Prefix != prefix {
 			panic("should not happen")
 		}
 		// Check that Typ3 in prefix bytes is correct.
-		err = decodeTyp3AndCheck(info.Type, prefix, opts)
+		err = checkTyp3(info.Type, typ, opts)
 		if err != nil {
 			return
 		}
@@ -297,8 +297,8 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
-	// Peek disambiguation / prefix info.
-	disfix, hasDisamb, prefix, hasPrefix, isNil, _, err := DecodeDisambPrefixBytes(bz)
+	// Peek disambiguation / prefix+typ3 info.
+	disfix, hasDisamb, prefix, typ, hasPrefix, isNil, _, err := DecodeDisambPrefixBytes(bz)
 	if err != nil {
 		return
 	}
@@ -332,7 +332,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 
 	// Check and consume Typ3 byte.
 	// It cannot be a Typ4 byte because it cannot be nil.
-	err = decodeTyp3AndCheck(cinfo.Type, prefix, opts)
+	err = checkTyp3(cinfo.Type, typ, opts)
 	if err != nil {
 		return
 	}
@@ -530,7 +530,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	var esrt = reflect.SliceOf(ert) // TODO could be optimized.
 	var srv = reflect.MakeSlice(esrt, int(count), int(count))
 	for i := 0; i < int(count); i++ {
-		var erv, _n = rv.Index(i), int(0)
+		var erv, _n = srv.Index(i), int(0)
 		// Maybe read nil.
 		if ptr {
 			var numNil = int64(0)
@@ -601,6 +601,10 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 				continue
 				// Do not slide, we will read it again.
 			}
+			if fieldNum == 0 {
+				// Probably a StructTerm.
+				break
+			}
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
@@ -611,7 +615,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 				err = errors.New(fmt.Sprintf("Expected field number %v, got %v", field.BinFieldNum, fieldNum))
 				return
 			}
-			typWanted := typeToTyp3(field.Type, field.FieldOptions)
+			typWanted := typeToTyp4(field.Type, field.FieldOptions).Typ3()
 			if typ != typWanted {
 				err = errors.New(fmt.Sprintf("Expected field type %X, got %X", typWanted, typ))
 				return
@@ -642,7 +646,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 
 //----------------------------------------
 
-func DecodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBytes, hasPb bool, isNil bool, n int, err error) {
+func DecodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBytes, typ Typ3, hasPb bool, isNil bool, n int, err error) {
 	// Validate
 	if len(bz) < 4 {
 		err = errors.New("EOF reading prefix bytes.")
@@ -662,6 +666,7 @@ func DecodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBy
 		}
 		copy(df[0:7], bz[1:8])
 		copy(pb[0:4], bz[4:8])
+		pb, typ = pb.SplitTyp3()
 		hasDb = true
 		hasPb = true
 		n = 8
@@ -669,6 +674,7 @@ func DecodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBy
 	} else {
 		// General case with no disambiguation
 		copy(pb[0:4], bz[0:4])
+		pb, typ = pb.SplitTyp3()
 		hasDb = false
 		hasPb = true
 		n = 4
@@ -731,13 +737,11 @@ func decodeTyp4(bz []byte) (typ Typ4, n int, err error) {
 	return
 }
 
-// Extract Typ3 from prefix and error if it doesn't match rt.
-func decodeTyp3AndCheck(rt reflect.Type, prefix PrefixBytes, opts FieldOptions) (err error) {
-	var typ = Typ3(prefix[3] & 0x07)
+// Error if typ doesn't match rt.
+func checkTyp3(rt reflect.Type, typ Typ3, opts FieldOptions) (err error) {
 	typWanted := typeToTyp3(rt, opts)
-	if typWanted != typ {
+	if typ != typWanted {
 		err = fmt.Errorf("Typ3 mismatch.  Expected %X, got %X", typWanted, typ)
-		return
 	}
 	return
 }

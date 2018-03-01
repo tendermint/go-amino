@@ -22,6 +22,30 @@ func main() {
 	fmt.Println(s, n, err)                  // Print color-encoded bytes s.
 }
 
+func scanAny(typ wire.Typ3, bz []byte) (stop bool, s string, n int, err error) {
+	switch typ {
+	case wire.Typ3_Varint:
+		s, n, err = scanVarint(bz)
+	case wire.Typ3_8Byte:
+		s, n, err = scan8Byte(bz)
+	case wire.Typ3_ByteLength:
+		s, n, err = scanByteLength(bz)
+	case wire.Typ3_Struct:
+		s, n, err = scanStruct(bz)
+	case wire.Typ3_StructTerm:
+		stop = true
+	case wire.Typ3_4Byte:
+		s, n, err = scan4Byte(bz)
+	case wire.Typ3_List:
+		s, n, err = scanList(bz)
+	case wire.Typ3_Interface:
+		s, n, err = scanInterface(bz)
+	default:
+		panic("should not happen")
+	}
+	return
+}
+
 func scanVarint(bz []byte) (s string, n int, err error) {
 	// First try Varint.
 	var i64, okI64 = int64(0), true
@@ -67,7 +91,7 @@ func scan8Byte(bz []byte) (s string, n int, err error) {
 }
 
 func scanByteLength(bz []byte) (s string, n int, err error) {
-	// Read the length
+	// Read the length.
 	var length, l64, _n = int(0), uint64(0), int(0)
 	l64, _n = binary.Uvarint(bz)
 	if n < 0 {
@@ -82,7 +106,7 @@ func scanByteLength(bz []byte) (s string, n int, err error) {
 	}
 	s = cmn.Cyan(fmt.Sprintf("%X", bz[:_n]))
 	slide(&bz, &n, _n)
-	// Read the remaining bytes
+	// Read the remaining bytes.
 	s += cmn.Green(fmt.Sprintf("%X", bz[:length]))
 	slide(&bz, &n, length)
 	fmt.Printf("%v (%v bytes)\n", s, length)
@@ -98,28 +122,13 @@ FOR_LOOP:
 		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
 			return
 		}
-		switch typ {
-		case wire.Typ3_Varint:
-			_s, _n, err = scanVarint(bz)
-		case wire.Typ3_8Byte:
-			_s, _n, err = scan8Byte(bz)
-		case wire.Typ3_ByteLength:
-			_s, _n, err = scanByteLength(bz)
-		case wire.Typ3_Struct:
-			_s, _n, err = scanStruct(bz)
-		case wire.Typ3_StructTerm:
-			break FOR_LOOP
-		case wire.Typ3_4Byte:
-			_s, _n, err = scan4Byte(bz)
-		case wire.Typ3_List:
-			_s, _n, err = scanList(bz)
-		case wire.Typ3_Interface:
-			_s, _n, err = scanInterface(bz)
-		default:
-			panic("should not happen")
-		}
+		var stop bool
+		stop, _s, _n, err = scanAny(typ, bz)
 		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
 			return
+		}
+		if stop {
+			break FOR_LOOP
 		}
 	}
 	fmt.Println("End Struct")
@@ -153,7 +162,7 @@ func scan4Byte(bz []byte) (s string, n int, err error) {
 }
 
 func scanList(bz []byte) (s string, n int, err error) {
-	// Read element Typ4
+	// Read element Typ4.
 	if len(bz) < 1 {
 		err = errors.New("EOF reading 4byte field.")
 		return
@@ -165,7 +174,7 @@ func scanList(bz []byte) (s string, n int, err error) {
 	if slide(&bz, &n, 1) && err != nil {
 		return
 	}
-	// Read number elements
+	// Read number of elements.
 	var num, _n = uint64(0), int(0)
 	num, _n = binary.Uvarint(bz)
 	if _n < 0 {
@@ -177,23 +186,52 @@ func scanList(bz []byte) (s string, n int, err error) {
 	}
 	s = cmn.Cyan(fmt.Sprintf("%X", bz[:n]))
 	fmt.Printf("%v (%v #%v)\n", s, num, typ)
+	// Read elements.
+	var _s string
+	for i := 0; i < int(num); i++ {
+		// Maybe read pointer byte.
+		if typ&0x08 != 0 {
+			if len(bz) == 0 {
+				err = errors.New("EOF reading list pointer byte")
+				return
+			}
+			switch typ & 0x08 {
+			case 0x00:
+				s += "00"
+				fmt.Printf("00 (non-nul)")
+			case 0x01:
+				s += "01" // Is nil (NOTE: reverse logic)
+				fmt.Printf("00 (1 nil)")
+				continue
+			default:
+				err = fmt.Errorf("Unexpected nil pointer byte %X", bz[0])
+				return
+			}
+		}
+		// Read element.
+		_, _s, _n, err = scanAny(typ.Typ3(), bz)
+		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
+			return
+		}
+	}
 	return
 }
 
 func scanInterface(bz []byte) (s string, n int, err error) {
-	df, hasDb, pb, _, isNil, _n, err := wire.DecodeDisambPrefixBytes(bz)
+	df, hasDb, pb, typ, _, isNil, _n, err := wire.DecodeDisambPrefixBytes(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
-	s = cmn.Magenta(fmt.Sprintf("%X%X", df.Bytes(), pb.Bytes()))
+	pb3 := pb.WithTyp3(typ)
+	s = cmn.Magenta(fmt.Sprintf("%X%X", df.Bytes(), pb3.Bytes()))
 	if isNil {
 		fmt.Printf("%v (nil interface)\n", s)
 	} else if hasDb {
 		fmt.Printf("%v (disamb: %X, prefix: %X, typ: #%v)\n",
-			s, df.Bytes(), pb.Bytes(), pb.Typ3())
+			s, df.Bytes(), pb.Bytes(), typ)
 	} else {
 		fmt.Printf("%v (prefix: %X, typ: #%v)\n",
-			s, pb.Bytes(), pb.Typ3())
+			s, pb.Bytes(), typ)
 	}
 	return
 }
