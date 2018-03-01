@@ -45,7 +45,8 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		return
 	}
 	if !info.GetDisfix().EqualBytes(disfix[:]) {
-		panic("should not happen")
+		err = fmt.Errorf("Expected disfix bytes %X but got %X", info.GetDisfix(), disfix)
+		return
 	}
 
 	err = cdc._decodeReflectJSON(bz, info, rv, opts)
