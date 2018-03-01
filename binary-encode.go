@@ -27,7 +27,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		}()
 	}
 
-	// Maybe write prefix bytes and concrete Typ3.
+	// Maybe write prefix+typ3 bytes.
 	if info.Registered {
 		var typ = typeToTyp4(info.Type, opts).Typ3()
 		_, err = w.Write(info.Prefix.WithTyp3(typ).Bytes())
@@ -40,7 +40,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	return
 }
 
-// CONTRACT: any disamb/prefix bytes have already been written.
+// CONTRACT: any disamb/prefix+typ3 bytes have already been written.
 func (cdc *Codec) _encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	// Dereference pointers all the way if any.
@@ -191,7 +191,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		}
 	}
 
-	// Write prefix bytes and concrete Typ3.
+	// Write prefix+typ3 bytes.
 	var typ = typeToTyp3(crt, opts)
 	_, err = w.Write(cinfo.Prefix.WithTyp3(typ).Bytes())
 	if err != nil {

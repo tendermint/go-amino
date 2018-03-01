@@ -37,7 +37,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	// info.ConcreteType.AlwaysDisambiguate.  But we don't support
 	// this yet.
 
-	// Read prefix bytes (w/ Typ3) if registered.
+	// Read prefix+typ3 bytes if registered.
 	if info.Registered {
 		if len(bz) < PrefixBytesLen {
 			err = errors.New("EOF skipping prefix bytes.")

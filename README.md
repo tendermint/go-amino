@@ -85,8 +85,8 @@ possible values.
 The prefix bytes never start with a zero byte, so the disambiguation bytes are
 escaped with 0x00.
 
-The 4 prefix bytes always immediately precede the binary encoding
-of the concrete type.
+The 4 prefix bytes always immediately precede the binary encoding of the
+concrete type.
 
 ### Computing disambiguation and prefix bytes
 
@@ -395,10 +395,10 @@ Finally, Protobuf's "oneof" gets a facelift.  Instead of "oneof", Wire has
 Interfaces.
 
 An interface value is typically a struct, but it doesn't need to be.  The last
-3 bits of the prefix bytes are typ3 bits, so a scanner can recursively traverse
-the fields and elements of the value.  A nil interface value is encoded by four
-zero bytes in place of the 4 prefix bytes.  Of course, a nil struct field value
-is not encoded at all.
+3 bits of the written prefix bytes are the concrete type's typ3 bits, so a
+scanner can recursively traverse the fields and elements of the value.  A nil
+interface value is encoded by four zero bytes in place of the 4 prefix bytes.
+Of course, a nil struct field value is not encoded at all.
 
 
 ## Wire in other langauges
