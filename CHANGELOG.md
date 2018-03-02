@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.3 (Mar 2, 2018)
+
+FEATURES:
+ - new Marshal API in preparation for major upgrade: MarshalBinary, UnmarshalBinary, MarshalJSON, UnmarshalJSON
+
 ## 0.7.2 (Dec 5, 2017)
 
 IMPROVEMENTS:
