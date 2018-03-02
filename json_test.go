@@ -39,8 +39,8 @@ func TestMarshalJSON(t *testing.T) {
 		{&noExportedFields{a: 10, b: "foo"}, "{}", ""},
 		{nil, "null", ""},
 		{&oneExportedField{}, `{"A":""}`, ""},
-		{Vehicle(Car("Tesla")), `{"_df":"2B2961A431B23C","_v":"Tesla"}`, ""},
-		{Car("Tesla"), `{"_df":"2B2961A431B23C","_v":"Tesla"}`, ""},
+		{Vehicle(Car("Tesla")), `{"_df":"2B2961A431B238","_v":"Tesla"}`, ""},
+		{Car("Tesla"), `{"_df":"2B2961A431B238","_v":"Tesla"}`, ""},
 		{&oneExportedField{A: "Z"}, `{"A":"Z"}`, ""},
 		{[]string{"a", "bc"}, `["a","bc"]`, ""},
 		{[]interface{}{"a", "bc", 10, 10.93, 1e3}, ``, "Unregistered"},
@@ -67,19 +67,19 @@ func TestMarshalJSON(t *testing.T) {
 		},
 		{
 			Transport{},
-			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":null,"Capacity":0}}`, "",
+			`{"_df":"AEB127E121A6B0","_v":{"Vehicle":null,"Capacity":0}}`, "",
 		},
 		{
 			Transport{Vehicle: Car("Bugatti")},
-			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":{"_df":"2B2961A431B23C","_v":"Bugatti"},"Capacity":0}}`, "",
+			`{"_df":"AEB127E121A6B0","_v":{"Vehicle":{"_df":"2B2961A431B238","_v":"Bugatti"},"Capacity":0}}`, "",
 		},
 		{
 			BalanceSheet{Assets: []Asset{Car("Corolla"), insurancePlan(1e7)}},
-			`{"assets":[{"_df":"2B2961A431B23C","_v":"Corolla"},{"_df":"7DF0BC76182A1F","_v":10000000}]}`, "",
+			`{"assets":[{"_df":"2B2961A431B238","_v":"Corolla"},{"_df":"7DF0BC76182A18","_v":10000000}]}`, "",
 		},
 		{
 			Transport{Vehicle: Boat("Poseidon"), Capacity: 1789},
-			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":{"_df":"25CDB46D8D2115","_v":"Poseidon"},"Capacity":1789}}`, "",
+			`{"_df":"AEB127E121A6B0","_v":{"Vehicle":{"_df":"25CDB46D8D2110","_v":"Poseidon"},"Capacity":1789}}`, "",
 		},
 		{
 			withCustomMarshaler{A: &aPointerField{Foo: intPtr(12)}, F: customJSONMarshaler(10)},
@@ -260,10 +260,10 @@ func TestUnmarshalJSON(t *testing.T) {
 			`{"null"}`, new(int), nil, "invalid character",
 		},
 		{
-			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":null,"Capacity":0}}`, new(Transport), new(Transport), "",
+			`{"_df":"AEB127E121A6B0","_v":{"Vehicle":null,"Capacity":0}}`, new(Transport), new(Transport), "",
 		},
 		{
-			`{"_df":"AEB127E121A6B2","_v":{"Vehicle":{"_df":"2B2961A431B23C","_v":"Bugatti"},"Capacity":10}}`,
+			`{"_df":"AEB127E121A6B0","_v":{"Vehicle":{"_df":"2B2961A431B238","_v":"Bugatti"},"Capacity":10}}`,
 			new(Transport),
 			&Transport{
 				Vehicle:  Car("Bugatti"),
@@ -271,7 +271,7 @@ func TestUnmarshalJSON(t *testing.T) {
 			}, "",
 		},
 		{
-			`{"_df":"2B2961A431B23C","_v":"Bugatti"}`, new(Car), func() *Car { c := Car("Bugatti"); return &c }(), "",
+			`{"_df":"2B2961A431B238","_v":"Bugatti"}`, new(Car), func() *Car { c := Car("Bugatti"); return &c }(), "",
 		},
 		{
 			`[1, 2, 3]`, new([]int), func() interface{} {

@@ -114,7 +114,7 @@ func TestCodecBinaryRegister2(t *testing.T) {
 
 	bz, err := cdc.MarshalBinary(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.Nil(t, err, "correctly registered")
-	assert.Equal(t, []byte{0xe3, 0xda, 0xb8, 0x33}, bz,
+	assert.Equal(t, []byte{0x0f, 0xe3, 0xda, 0xb8, 0x33, 0x04, 0x04}, bz,
 		"prefix bytes did not match")
 }
 
@@ -125,7 +125,7 @@ func TestCodecBinaryRegister3(t *testing.T) {
 
 	bz, err := cdc.MarshalBinary(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.Nil(t, err, "correctly registered")
-	assert.Equal(t, []byte{0xe3, 0xda, 0xb8, 0x33}, bz,
+	assert.Equal(t, []byte{0x0f, 0xe3, 0xda, 0xb8, 0x33, 0x04, 0x04}, bz,
 		"prefix bytes did not match")
 }
 
@@ -138,7 +138,7 @@ func TestCodecBinaryRegister4(t *testing.T) {
 
 	bz, err := cdc.MarshalBinary(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.Nil(t, err, "correctly registered")
-	assert.Equal(t, []byte{0x0, 0x12, 0xb5, 0x86, 0xe3, 0xda, 0xb8, 0x33}, bz,
+	assert.Equal(t, []byte{0x0f, 0x00, 0x12, 0xb5, 0x86, 0xe3, 0xda, 0xb8, 0x33, 0x04, 0x04}, bz,
 		"prefix bytes did not match")
 }
 
@@ -171,14 +171,14 @@ func TestCodecBinaryRegister7(t *testing.T) {
 	{ // test tests.Concrete1, no conflict.
 		bz, err := cdc.MarshalBinary(struct{ tests.Interface1 }{tests.Concrete1{}})
 		assert.Nil(t, err, "correctly registered")
-		assert.Equal(t, []byte{0xe3, 0xda, 0xb8, 0x33}, bz,
+		assert.Equal(t, []byte{0x0f, 0xe3, 0xda, 0xb8, 0x33, 0x04, 0x04}, bz,
 			"disfix bytes did not match")
 	}
 
 	{ // test tests.Concrete2, no conflict
 		bz, err := cdc.MarshalBinary(struct{ tests.Interface1 }{tests.Concrete2{}})
 		assert.Nil(t, err, "correctly registered")
-		assert.Equal(t, []byte{0x6a, 0x9, 0xca, 0x1}, bz,
+		assert.Equal(t, []byte{0x0f, 0x6a, 0x9, 0xca, 0x3, 0x04, 0x04}, bz,
 			"disfix bytes did not match")
 	}
 }
@@ -195,9 +195,9 @@ func TestCodecBinaryRegister8(t *testing.T) {
 	var c3 tests.Concrete3
 	copy(c3[:], []byte("0123"))
 
-	bz, err := cdc.MarshalBinary(struct{ tests.Interface1 }{c3})
+	bz, err := cdc.MarshalBinary(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x01, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x2, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
 		"Concrete3 incorrectly serialized")
 
 	var i1 tests.Interface1
@@ -222,7 +222,7 @@ func TestCodecJSONRegister8(t *testing.T) {
 	// But that's OK, JSON still writes the disfix bytes by default.
 	bz, err := cdc.MarshalJSON(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte(`{"_df":"43FAF453372101","_v":"MDEyMw=="}`),
+	assert.Equal(t, []byte(`{"_df":"43FAF453372100","_v":"MDEyMw=="}`),
 		bz, "Concrete3 incorrectly serialized")
 
 	var i1 tests.Interface1

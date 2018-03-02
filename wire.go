@@ -9,6 +9,62 @@ import (
 )
 
 //----------------------------------------
+// Typ3 and Typ4
+
+type Typ3 uint8
+type Typ4 uint8 // Typ3 | 0x80 (pointer bit)
+
+const (
+	// Typ3 types
+	Typ3_Varint     = Typ3(0)
+	Typ3_8Byte      = Typ3(1)
+	Typ3_ByteLength = Typ3(2)
+	Typ3_Struct     = Typ3(3)
+	Typ3_StructTerm = Typ3(4)
+	Typ3_4Byte      = Typ3(5)
+	Typ3_List       = Typ3(6)
+	Typ3_Interface  = Typ3(7)
+
+	// Typ4 bit
+	Typ4_Pointer = Typ4(0x08)
+)
+
+func (typ Typ3) String() string {
+	switch typ {
+	case Typ3_Varint:
+		return "Varint"
+	case Typ3_8Byte:
+		return "8Byte"
+	case Typ3_ByteLength:
+		return "ByteLength"
+	case Typ3_Struct:
+		return "Struct"
+	case Typ3_StructTerm:
+		return "StructTerm"
+	case Typ3_4Byte:
+		return "4Byte"
+	case Typ3_List:
+		return "List"
+	case Typ3_Interface:
+		return "Interface"
+	default:
+		return fmt.Sprintf("<Invalid Typ3 %X>", byte(typ))
+	}
+}
+
+func (typ Typ4) Typ3() Typ3 { return Typ3(typ & 0x07) }
+func (typ Typ4) String() string {
+	if typ&0xF0 != 0 {
+		return fmt.Sprintf("<Invalid Typ4 %X>", byte(typ))
+	}
+	if typ&0x80 != 0 {
+		return "*" + Typ3(typ).String()
+	} else {
+		return Typ3(typ).String()
+	}
+}
+
+//----------------------------------------
 // *Codec methods
 
 // For consistency, MarshalBinary will first dereference pointers
@@ -59,6 +115,10 @@ func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
 		return fmt.Errorf("Unmarshal didn't read all bytes. Expected to read %v, only read %v", len(bz), n)
 	}
 	return nil
+}
+
+func (cdc *Codec) MarshalBinaryLengthPrefied(o interface{}) ([]byte, error) {
+	panic("not implemented yet") // XXX
 }
 
 func (cdc *Codec) UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) error {

@@ -88,3 +88,67 @@ func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
 	}
 	return
 }
+
+// Like typeToTyp4 but include a pointer bit.
+func typeToTyp4(rt reflect.Type, opts FieldOptions) (typ Typ4) {
+
+	// Transparently "dereference" pointer type.
+	var pointer = false
+	for rt.Kind() == reflect.Ptr {
+		pointer = true
+		rt = rt.Elem()
+	}
+
+	// Call actual logic.
+	typ = Typ4(typeToTyp3(rt, opts))
+
+	// Set pointer bit to 1 if pointer.
+	if pointer {
+		typ |= Typ4_Pointer
+	}
+	return
+}
+
+// CONTRACT: rt.Kind() != reflect.Ptr
+func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
+	switch rt.Kind() {
+	case reflect.Interface:
+		return Typ3_Interface
+	case reflect.Array, reflect.Slice:
+		ert := rt.Elem()
+		switch ert.Kind() {
+		case reflect.Uint8:
+			return Typ3_ByteLength
+		default:
+			return Typ3_List
+		}
+	case reflect.String:
+		return Typ3_ByteLength
+	case reflect.Struct:
+		return Typ3_Struct
+	case reflect.Int64, reflect.Uint64:
+		if opts.BinVarint {
+			return Typ3_Varint
+		}
+		return Typ3_8Byte
+	case reflect.Float64:
+		return Typ3_8Byte
+	case reflect.Int32, reflect.Uint32, reflect.Float32:
+		return Typ3_4Byte
+	case reflect.Int16, reflect.Int8, reflect.Int,
+		reflect.Uint16, reflect.Uint8, reflect.Uint, reflect.Bool:
+		return Typ3_Varint
+	default:
+		panic(fmt.Sprintf("unsupported field type %v", rt))
+	}
+}
+
+func isNilSafe(rv reflect.Value) bool {
+	switch rv.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface,
+		reflect.Map, reflect.Ptr, reflect.Slice:
+		return rv.IsNil()
+	default:
+		return false
+	}
+}
