@@ -218,17 +218,21 @@ func scanList(bz []byte) (s string, n int, err error) {
 }
 
 func scanInterface(bz []byte) (s string, n int, err error) {
-	df, hasDb, pb, typ, _, isNil, _n, err := wire.DecodeDisambPrefixBytes(bz)
+	db, hasDb, pb, typ, _, isNil, _n, err := wire.DecodeDisambPrefixBytes(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
 	pb3 := pb.WithTyp3(typ)
-	s = cmn.Magenta(fmt.Sprintf("%X%X", df.Bytes(), pb3.Bytes()))
+	if hasDb {
+		s = cmn.Magenta(fmt.Sprintf("%X%X", db.Bytes(), pb3.Bytes()))
+	} else {
+		s = cmn.Magenta(fmt.Sprintf("%X", pb3.Bytes()))
+	}
 	if isNil {
 		fmt.Printf("%v (nil interface)\n", s)
 	} else if hasDb {
 		fmt.Printf("%v (disamb: %X, prefix: %X, typ: #%v)\n",
-			s, df.Bytes(), pb.Bytes(), typ)
+			s, db.Bytes(), pb.Bytes(), typ)
 	} else {
 		fmt.Printf("%v (prefix: %X, typ: #%v)\n",
 			s, pb.Bytes(), typ)
