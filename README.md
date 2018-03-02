@@ -117,7 +117,7 @@ The next 4 bytes are called the "prefix bytes" (in square brackets).
 We reserve the last 3 bits for the typ3 of the concrete type, so in
 this case the final prefix bytes become `(0xDD & 0xF8) | <typ3-byte>`.
 The type byte for a struct is 0x03, so if the concrete type were a struct,
-the final prefix byte would be `0xDE`.
+the final prefix byte would be `0xDB`.
 
 
 ### Supported types

@@ -298,7 +298,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	}
 
 	// Peek disambiguation / prefix+typ3 info.
-	disfix, hasDisamb, prefix, typ, hasPrefix, isNil, _, err := DecodeDisambPrefixBytes(bz)
+	disamb, hasDisamb, prefix, typ, hasPrefix, isNil, _, err := DecodeDisambPrefixBytes(bz)
 	if err != nil {
 		return
 	}
@@ -320,7 +320,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	// Get concrete type info from disfix/prefix.
 	var cinfo *TypeInfo
 	if hasDisamb {
-		cinfo, err = cdc.getTypeInfoFromDisfix_rlock(disfix)
+		cinfo, err = cdc.getTypeInfoFromDisfix_rlock(toDisfix(disamb, prefix))
 	} else if hasPrefix {
 		cinfo, err = cdc.getTypeInfoFromPrefix_rlock(iinfo, prefix)
 	} else {
@@ -646,7 +646,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 
 //----------------------------------------
 
-func DecodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBytes, typ Typ3, hasPb bool, isNil bool, n int, err error) {
+func DecodeDisambPrefixBytes(bz []byte) (db DisambBytes, hasDb bool, pb PrefixBytes, typ Typ3, hasPb bool, isNil bool, n int, err error) {
 	// Validate
 	if len(bz) < 4 {
 		err = errors.New("EOF reading prefix bytes.")
@@ -664,7 +664,7 @@ func DecodeDisambPrefixBytes(bz []byte) (df DisfixBytes, hasDb bool, pb PrefixBy
 			err = errors.New("EOF reading disamb bytes.")
 			return // hasPb = false
 		}
-		copy(df[0:7], bz[1:8])
+		copy(db[0:3], bz[1:4])
 		copy(pb[0:4], bz[4:8])
 		pb, typ = pb.SplitTyp3()
 		hasDb = true
