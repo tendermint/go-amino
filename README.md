@@ -192,11 +192,11 @@ and "uvarint" is the equivalent of "varint" aka "int32".
 Typ3 | Meaning          | Used For
 ---- | ---------------- | --------
 0    | Varint           | bool, byte, [u]int16, and varint-[u]int[64/32]
-1    | 64-bit           | int64, uint64, float64(unsafe)
-2    | Length-prefixed  | string, bytes, raw?
+1    | 8-Byte           | int64, uint64, float64(unsafe)
+2    | Byte-Length      | string, bytes, raw?
 3    | Struct           | struct (e.g. Protobuf message)
 4    | Struct Term      | end of struct
-5    | 32-bit           | int32, uint32, float32(unsafe)
+5    | 4-Byte           | int32, uint32, float32(unsafe)
 6    | List             | array, slice; followed by element `<typ4-byte>`, then `<uvarint(num-items)>`
 7    | Interface        | registered concrete types; followed by `<prefix-bytes>` or `<disfix-bytes>`, then `<typ3-byte>`.
 
@@ -227,7 +227,7 @@ prefix bytes, or (3) the typ4 byte of a parent list's element type declaration.
 
 Inner structs that are embedded in outer structs are encoded by the field typ3
 "Struct" (e.g. `0x03`).  (In Protobuf3, embedded messages are encoded as
-"Length-prefixed".  In Wire, the "Length-prefixed" typ3 is only used for
+"Byte-Length (prefixed)".  In Wire, the "Byte-Length" typ3 is only used for
 byteslices and bytearrays.)
 
 
