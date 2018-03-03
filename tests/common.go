@@ -184,7 +184,7 @@ var DefTypes = []interface{}{
 }
 
 //----------------------------------------
-// Register types
+// Register/Interface test types
 
 type Interface1 interface {
 	AssertInterface1()
@@ -207,3 +207,10 @@ func (_ Concrete2) AssertInterface2() {}
 type Concrete3 [4]byte
 
 func (_ Concrete3) AssertInterface1() {}
+
+type InterfaceFieldsStruct struct {
+	F1 Interface1
+	F2 Interface1
+}
+
+func (_ *InterfaceFieldsStruct) AssertInterface1() {}

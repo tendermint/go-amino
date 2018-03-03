@@ -231,23 +231,16 @@ func TestCodecJSONRegister8(t *testing.T) {
 	assert.Equal(t, c3, i1)
 }
 
-// TODO: Move to tests/common.go
-type interfaceFields struct {
-	F1 Interface1
-	F2 Interface1
-}
-func (_ *interfaceFields) AssertInterface1() {}
-
 func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
 	cdc := NewCodec()
-	cdc.RegisterInterface((*Interface1)(nil), nil)
-	cdc.RegisterConcrete((*interfaceFields)(nil), "interfaceFields", nil)
+	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
+	cdc.RegisterConcrete((*tests.InterfaceFieldsStruct)(nil), "interfaceFields", nil)
 
-	i1 := &interfaceFields{F1: new(interfaceFields), F2: nil}
-	bz, err := cdc.MarshalBinary(struct { Interface1 } {i1})
+	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
+	bz, err := cdc.MarshalBinary(i1)
 	assert.Nil(t, err, "unexpected error")
 
-	i2 := new(interfaceFields)
+	i2 := new(tests.InterfaceFieldsStruct)
 	err = cdc.UnmarshalBinary(bz, i2)
 
 	assert.Nil(t, err, "unexpected error")
