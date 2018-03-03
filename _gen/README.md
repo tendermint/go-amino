@@ -86,7 +86,7 @@ deserialization.
 
 This will run code from `github.com/tendermin/go-wire/gen` to do the actual
 codegen, and knowing go, it will look in your vendor directory if you have
-one... so update glide and make sure you have a recent version of
+one... so run `dep ensure --update` and make sure you have a recent version of
 `go-wire:develop` in your vendor dir.
 
 Then... just type `gen` in the same directory... suddenly a brand new file will

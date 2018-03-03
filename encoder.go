@@ -11,14 +11,11 @@ import (
 // Signed
 
 func EncodeInt8(w io.Writer, i int8) (err error) {
-	return EncodeByte(w, byte(i))
+	return EncodeVarint(w, int64(i))
 }
 
 func EncodeInt16(w io.Writer, i int16) (err error) {
-	var buf [2]byte
-	binary.BigEndian.PutUint16(buf[:], uint16(i))
-	_, err = w.Write(buf[:])
-	return
+	return EncodeVarint(w, int64(i))
 }
 
 func EncodeInt32(w io.Writer, i int32) (err error) {
@@ -52,45 +49,41 @@ func VarintSize(i int64) int {
 // Unsigned
 
 func EncodeByte(w io.Writer, b byte) (err error) {
-	_, err = w.Write([]byte{b})
-	return
+	return EncodeUvarint(w, uint64(b))
 }
 
-func EncodeUint8(w io.Writer, i uint8) (err error) {
-	return EncodeByte(w, i)
+func EncodeUint8(w io.Writer, u uint8) (err error) {
+	return EncodeUvarint(w, uint64(u))
 }
 
-func EncodeUint16(w io.Writer, i uint16) (err error) {
-	var buf [2]byte
-	binary.BigEndian.PutUint16(buf[:], i)
-	_, err = w.Write(buf[:])
-	return
+func EncodeUint16(w io.Writer, u uint16) (err error) {
+	return EncodeUvarint(w, uint64(u))
 }
 
-func EncodeUint32(w io.Writer, i uint32) (err error) {
+func EncodeUint32(w io.Writer, u uint32) (err error) {
 	var buf [4]byte
-	binary.BigEndian.PutUint32(buf[:], i)
+	binary.BigEndian.PutUint32(buf[:], u)
 	_, err = w.Write(buf[:])
 	return
 }
 
-func EncodeUint64(w io.Writer, i uint64) (err error) {
+func EncodeUint64(w io.Writer, u uint64) (err error) {
 	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], i)
+	binary.BigEndian.PutUint64(buf[:], u)
 	_, err = w.Write(buf[:])
 	return
 }
 
-func EncodeUvarint(w io.Writer, i uint64) (err error) {
+func EncodeUvarint(w io.Writer, u uint64) (err error) {
 	var buf [10]byte
-	n := binary.PutUvarint(buf[:], i)
+	n := binary.PutUvarint(buf[:], u)
 	_, err = w.Write(buf[0:n])
 	return
 }
 
-func UvarintSize(i uint64) int {
+func UvarintSize(u uint64) int {
 	var buf [10]byte
-	n := binary.PutUvarint(buf[:], i)
+	n := binary.PutUvarint(buf[:], u)
 	return n
 }
 
@@ -99,9 +92,9 @@ func UvarintSize(i uint64) int {
 
 func EncodeBool(w io.Writer, b bool) (err error) {
 	if b {
-		err = EncodeUint8(w, uint8(1))
+		err = EncodeUint8(w, 1) // same as EncodeUvarint(w, 1).
 	} else {
-		err = EncodeUint8(w, uint8(0))
+		err = EncodeUint8(w, 0) // same as EncodeUvarint(w, 0).
 	}
 	return
 }
@@ -122,21 +115,35 @@ func EncodeFloat64(w io.Writer, f float64) (err error) {
 // Milliseconds are used to ease compatibility with Javascript,
 // which does not support finer resolution.
 func EncodeTime(w io.Writer, t time.Time) (err error) {
-	s := t.Unix()
-	ns := int32(t.Nanosecond()) // this int64 -> int32 is safe.
+	var s = t.Unix()
+	var ns = int32(t.Nanosecond()) // this int64 -> int32 is safe.
+
+	// TODO: We are hand-encoding a struct until MarshalWire/UnmarshalWire is supported.
+
+	err = encodeFieldNumberAndTyp3(w, 1, Typ3_8Byte)
+	if err != nil {
+		return
+	}
 	err = EncodeInt64(w, s)
 	if err != nil {
-		return err
+		return
+	}
+
+	err = encodeFieldNumberAndTyp3(w, 2, Typ3_4Byte)
+	if err != nil {
+		return
 	}
 	err = EncodeInt32(w, ns)
 	if err != nil {
-		return err
+		return
 	}
+
+	err = EncodeByte(w, byte(0x04)) // StructTerm
 	return
 }
 
 func EncodeByteSlice(w io.Writer, bz []byte) (err error) {
-	err = EncodeVarint(w, int64(len(bz)))
+	err = EncodeUvarint(w, uint64(len(bz)))
 	if err != nil {
 		return
 	}

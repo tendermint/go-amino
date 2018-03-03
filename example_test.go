@@ -22,6 +22,12 @@ import (
 
 func Example() {
 
+	defer func() {
+		if e := recover(); e != nil {
+			fmt.Println("Recovered:", e)
+		}
+	}()
+
 	type Message interface{}
 
 	type bcMessage struct {
@@ -49,7 +55,7 @@ func Example() {
 
 	var bz []byte // the marshalled bytes.
 	var err error
-	bz, err = cdc.MarshalBinary(struct{ Message }{msg})
+	bz, err = cdc.MarshalBinary(msg)
 	fmt.Printf("Encoded: %X (err: %v)\n", bz, err)
 
 	var msg2 Message
@@ -59,7 +65,7 @@ func Example() {
 	fmt.Printf("Decoded successfully: %v\n", *bm == *bm2)
 
 	// Output:
-	// Encoded: 7406136506414243C801 (err: <nil>)
+	// Encoded: 0D740613630A0341424310C80104 (err: <nil>)
 	// Decoded: &{ABC 100} (err: <nil>)
 	// Decoded successfully: true
 }
