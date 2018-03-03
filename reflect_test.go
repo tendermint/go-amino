@@ -242,13 +242,13 @@ func TestCodecBinaryRegister9(t *testing.T) {
 	var c3 tests.Concrete3
 	copy(c3[:], []byte("0123"))
 
-	bz, err := cdc.MarshalBinary(c3)
+	bz, err := cdc.MarshalBinaryBare(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x01, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x02, 0x04, 0x30, 0x31, 0x32, 0x33}, bz,
 		"Concrete3 incorrectly serialized")
 
 	var i1 tests.Interface1
-	err = cdc.UnmarshalBinary(bz, &i1)
+	err = cdc.UnmarshalBinaryBare(bz, &i1)
 	assert.Nil(t, err)
 	assert.Equal(t, c3, i1)
 }
@@ -262,15 +262,16 @@ func TestCodecBinaryRegister10(t *testing.T) {
 	var c3a tests.Concrete3
 	copy(c3a[:], []byte("0123"))
 
-	bz, err := cdc.MarshalBinary(struct{ tests.Interface1 }{c3a})
+	bz, err := cdc.MarshalBinaryBare(c3a)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x01, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x02, 0x04, 0x30, 0x31, 0x32, 0x33}, bz,
 		"Concrete3 incorrectly serialized")
 
 	var c3b tests.Concrete3
-	err = cdc.UnmarshalBinary(bz, &c3b)
+	err = cdc.UnmarshalBinaryBare(bz, &c3b)
 	assert.Nil(t, err)
 	assert.Equal(t, c3a, c3b)
+}
 
 func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
 	cdc := NewCodec()
