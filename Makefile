@@ -1,7 +1,7 @@
 GOTOOLS = \
-	github.com/tendermint/glide \
+	github.com/golang/dep/cmd/dep  \
 	gopkg.in/alecthomas/gometalinter.v2
-GOTOOLS_CHECK = glide gometalinter.v2
+GOTOOLS_CHECK = dep gometalinter.v2
 
 all: check_tools get_vendor_deps test metalinter
 
@@ -34,15 +34,15 @@ update_tools:
 
 get_vendor_deps:
 	@rm -rf vendor/
-	@echo "--> Running glide install"
-	@glide install
+	@echo "--> Running dep ensure"
+	@dep ensure
 
 
 ########################################
 ### Testing
 
 test:
-	go test `glide novendor`
+	go test $(shell go list ./... | grep -v vendor)
 
 gofuzz_binary:
 	rm -rf tests/fuzz/binary/corpus/

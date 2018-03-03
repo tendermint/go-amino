@@ -20,8 +20,23 @@ type PrefixBytes [PrefixBytesLen]byte
 type DisambBytes [DisambBytesLen]byte
 type DisfixBytes [DisfixBytesLen]byte // Disamb+Prefix
 
-func (pb PrefixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(pb[:], bz) }
+func NewPrefixBytes(prefixBytes []byte) PrefixBytes {
+	pb := PrefixBytes{}
+	copy(pb[:], prefixBytes)
+	return pb
+}
+
+func (pb PrefixBytes) Bytes() []byte                 { return pb[:] }
+func (pb PrefixBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(pb[:], bz) }
+func (pb PrefixBytes) WithTyp3(typ Typ3) PrefixBytes { pb[3] |= byte(typ); return pb }
+func (pb PrefixBytes) SplitTyp3() (PrefixBytes, Typ3) {
+	typ := Typ3(pb[3] & 0x07)
+	pb[3] &= 0xF8
+	return pb, typ
+}
+func (db DisambBytes) Bytes() []byte             { return db[:] }
 func (db DisambBytes) EqualBytes(bz []byte) bool { return bytes.Equal(db[:], bz) }
+func (df DisfixBytes) Bytes() []byte             { return df[:] }
 func (df DisfixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(df[:], bz) }
 
 type TypeInfo struct {
@@ -31,6 +46,7 @@ type TypeInfo struct {
 	ZeroProto interface{}
 	InterfaceInfo
 	ConcreteInfo
+	StructInfo
 }
 
 type InterfaceInfo struct {
@@ -45,13 +61,16 @@ type InterfaceOptions struct {
 }
 
 type ConcreteInfo struct {
-	PointerPreferred bool        // Deserialize to pointer type if possible.
 	Registered       bool        // Manually regsitered.
+	PointerPreferred bool        // Deserialize to pointer type if possible.
 	Name             string      // Ignored if !Registered.
 	Disamb           DisambBytes // Ignored if !Registered.
 	Prefix           PrefixBytes // Ignored if !Registered.
-	Fields           []FieldInfo // If a struct.
 	ConcreteOptions
+}
+
+type StructInfo struct {
+	Fields []FieldInfo // If a struct.
 }
 
 func (cinfo ConcreteInfo) GetDisfix() DisfixBytes {
@@ -66,12 +85,14 @@ type FieldInfo struct {
 	Index        int           // Struct field index
 	ZeroValue    reflect.Value // Could be nil pointer unlike TypeInfo.ZeroValue.
 	FieldOptions               // Encoding options
+	BinTyp3      Typ3          // (Binary) Typ3 byte
 }
 
 type FieldOptions struct {
 	JSONName      string // (JSON) field name
 	JSONOmitEmpty bool   // (JSON) omitempty
 	BinVarint     bool   // (Binary) Use length-prefixed encoding for (u)int64.
+	BinFieldNum   uint32 // (Binary) max 1<<29-1
 	Unsafe        bool   // e.g. if this field is a float.
 }
 
@@ -240,14 +261,15 @@ func (cdc *Codec) getTypeInfoFromDisfix_rlock(df DisfixBytes) (info *TypeInfo, e
 	return
 }
 
-func (cdc *Codec) parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
+func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 	if rt.Kind() != reflect.Struct {
-		return nil
+		panic("should not happen")
 	}
 
-	infos = make([]FieldInfo, 0, rt.NumField())
+	var infos = make([]FieldInfo, 0, rt.NumField())
 	for i := 0; i < rt.NumField(); i++ {
-		field := rt.Field(i)
+		var field = rt.Field(i)
+		var ftype = field.Type
 		if !isExported(field) {
 			continue // field is unexported
 		}
@@ -255,16 +277,21 @@ func (cdc *Codec) parseFieldInfos(rt reflect.Type) (infos []FieldInfo) {
 		if skip {
 			continue // e.g. json:"-"
 		}
+		// NOTE: This is going to change a bit.
+		// NOTE: BinFieldNum starts with 1.
+		opts.BinFieldNum = uint32(len(infos) + 1)
 		fieldInfo := FieldInfo{
 			Index:        i,
-			Type:         field.Type,
-			ZeroValue:    reflect.Zero(field.Type),
+			Type:         ftype,
+			ZeroValue:    reflect.Zero(ftype),
 			FieldOptions: opts,
+			BinTyp3:      typeToTyp4(ftype, opts).Typ3(),
 		}
 		checkUnsafe(fieldInfo)
 		infos = append(infos, fieldInfo)
 	}
-	return infos
+	sinfo = StructInfo{infos}
+	return
 }
 
 func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, opts FieldOptions) {
@@ -321,9 +348,11 @@ func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 	info.PtrToType = reflect.PtrTo(rt)
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
-	info.ConcreteInfo.PointerPreferred = false
 	info.ConcreteInfo.Registered = false
-	info.ConcreteInfo.Fields = cdc.parseFieldInfos(rt)
+	info.ConcreteInfo.PointerPreferred = false
+	if rt.Kind() == reflect.Struct {
+		info.StructInfo = cdc.parseStructInfo(rt)
+	}
 	return info
 }
 
@@ -348,12 +377,12 @@ func (cdc *Codec) newTypeInfoFromInterfaceType(rt reflect.Type, opts *InterfaceO
 			info.InterfaceInfo.Priority[i] = disfix
 		}
 	}
-	// info.ConcreteInfo.PointerPreferred =
 	// info.ConcreteInfo.Registered =
+	// info.ConcreteInfo.PointerPreferred =
 	// info.ConcreteInfo.Name =
 	// info.ConcreteInfo.Disamb =
 	// info.ConcreteInfo.Prefix
-	// info.ConcreteInfo.Fields =
+	// info.StructInfo =
 	return info
 }
 
@@ -369,14 +398,16 @@ func (cdc *Codec) newTypeInfoFromConcreteType(rt reflect.Type, pointerPreferred 
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
 	// info.InterfaceOptions =
-	info.ConcreteInfo.PointerPreferred = pointerPreferred
 	info.ConcreteInfo.Registered = true
+	info.ConcreteInfo.PointerPreferred = pointerPreferred
 	info.ConcreteInfo.Name = name
 	info.ConcreteInfo.Disamb = nameToDisamb(name)
 	info.ConcreteInfo.Prefix = nameToPrefix(name)
-	info.ConcreteInfo.Fields = cdc.parseFieldInfos(rt)
 	if opts != nil {
 		info.ConcreteOptions = *opts
+	}
+	if rt.Kind() == reflect.Struct {
+		info.StructInfo = cdc.parseStructInfo(rt)
 	}
 	return info
 }
@@ -525,6 +556,8 @@ func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
 		bz = bz[1:]
 	}
 	copy(pb[:], bz[0:4])
+	// Drop the last 3 bits to make room for the Typ3.
+	pb[3] &= 0xF8
 	return
 }
 

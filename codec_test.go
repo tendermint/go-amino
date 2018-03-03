@@ -75,9 +75,8 @@ func TestMarshalUnmarshalBinaryPointer3(t *testing.T) {
 
 	var s2 *SimpleStruct
 	err = cdc.UnmarshalBinary(b, &s2) // extra indirection
-	assert.NotNil(t, err, "unmarshal should not accept extra indirection")
-	// assert.Equal(t, s, s2)
-
+	assert.Nil(t, err)
+	assert.Equal(t, s, *s2)
 }
 
 func TestMarshalUnmarshalBinaryPointer4(t *testing.T) {
@@ -90,7 +89,7 @@ func TestMarshalUnmarshalBinaryPointer4(t *testing.T) {
 
 	var s2 *SimpleStruct
 	err = cdc.UnmarshalBinary(b, &s2) // extra indirection
-	assert.NotNil(t, err, "unmarshal should not accept extra indirection")
-	// assert.Equal(t, s, s2)
+	assert.Nil(t, err)
+	assert.Equal(t, s, *s2)
 
 }
