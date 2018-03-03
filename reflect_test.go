@@ -95,7 +95,7 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 }
 
 //----------------------------------------
-// Register tests
+// Register/interface tests
 
 func TestCodecBinaryRegister1(t *testing.T) {
 	cdc := NewCodec()
@@ -229,6 +229,29 @@ func TestCodecJSONRegister8(t *testing.T) {
 	err = cdc.UnmarshalJSON(bz, &i1)
 	assert.Nil(t, err)
 	assert.Equal(t, c3, i1)
+}
+
+// TODO: Move to tests/common.go
+type interfaceFields struct {
+	F1 Interface1
+	F2 Interface1
+}
+func (_ *interfaceFields) AssertInterface1() {}
+
+func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterInterface((*Interface1)(nil), nil)
+	cdc.RegisterConcrete((*interfaceFields)(nil), "interfaceFields", nil)
+
+	i1 := &interfaceFields{F1: new(interfaceFields), F2: nil}
+	bz, err := cdc.MarshalBinary(struct { Interface1 } {i1})
+	assert.Nil(t, err, "unexpected error")
+
+	i2 := new(interfaceFields)
+	err = cdc.UnmarshalBinary(bz, i2)
+
+	assert.Nil(t, err, "unexpected error")
+	require.Equal(t, i1, i2, "i1 and i2 should be the same after decoding")
 }
 
 //----------------------------------------
