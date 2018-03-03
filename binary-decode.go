@@ -509,6 +509,10 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
+	if int(count) < 0 {
+		err = fmt.Errorf("Impossible number of elements (%v)", count)
+		return
+	}
 	if int(count) > len(bz) { // Currently, each item takes at least 1 byte.
 		err = fmt.Errorf("Impossible number of elements (%v) compared to buffer length (%v)",
 			count, len(bz))
