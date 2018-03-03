@@ -48,6 +48,7 @@ gofuzz_binary:
 	rm -rf tests/fuzz/binary/corpus/
 	rm -rf tests/fuzz/binary/crashers/
 	rm -rf tests/fuzz/binary/suppressions/
+	go run tests/fuzz/binary/init-corpus/main.go --corpus-parent=tests/fuzz/binary
 	go-fuzz-build github.com/tendermint/go-wire/tests/fuzz/binary
 	go-fuzz -bin=./fuzz_binary-fuzz.zip -workdir=tests/fuzz/binary
 
