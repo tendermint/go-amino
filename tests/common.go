@@ -85,6 +85,25 @@ type PointersStruct struct {
 	TimePt    *time.Time
 }
 
+type PointerSlicesStruct struct {
+	Int8PtSl    []*int8
+	Int16PtSl   []*int16
+	Int32PtSl   []*int32
+	Int64PtSl   []*int64
+	VarintPtSl  []*int64 `binary:"varint"`
+	IntPtSl     []*int
+	BytePtSl    []*byte
+	Uint8PtSl   []*uint8
+	Uint16PtSl  []*uint16
+	Uint32PtSl  []*uint32
+	Uint64PtSl  []*uint64
+	UvarintPtSl []*uint64 `binary:"varint"`
+	UintPtSl    []*uint
+	StringPtSl  []*string
+	BytesPtSl   []*[]byte
+	TimePtSl    []*time.Time
+}
+
 // NOTE: See registered fuzz funcs for *byte, **byte, and ***byte.
 type NestedPointersStruct struct {
 	Ptr1 *byte
@@ -147,6 +166,7 @@ var StructTypes = []interface{}{
 	(*ArraysStruct)(nil),
 	(*SlicesStruct)(nil),
 	(*PointersStruct)(nil),
+	(*PointerSlicesStruct)(nil),
 	(*NestedPointersStruct)(nil),
 	(*ComplexSt)(nil),
 	(*EmbeddedSt1)(nil),

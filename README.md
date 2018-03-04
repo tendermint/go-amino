@@ -111,7 +111,7 @@ The first 3 bytes are called the "disambiguation bytes" (in angle brackets).
 The next 4 bytes are called the "prefix bytes" (in square brackets).
 
 ```
-> <0xA8 0xFC 0x54> [0xBB 0x9C 9x83 9xDD]
+> <0xA8 0xFC 0x54> [0xBB 0x9C 9x83 9xDD] // Before stripping typ3 bits
 ```
 
 We reserve the last 3 bits for the typ3 of the concrete type, so in
@@ -119,6 +119,9 @@ this case the final prefix bytes become `(0xDD & 0xF8) | <typ3-byte>`.
 The type byte for a struct is 0x03, so if the concrete type were a struct,
 the final prefix byte would be `0xDB`.
 
+```
+> <0xA8 0xFC 0x54> [0xBB 0x9C 9x83 9xDB] // Final <Disamb Bytes> and [Prefix Bytes]
+```
 
 ### Supported types
 
@@ -334,14 +337,19 @@ elements of a list are encoded without an index or key.  They are just encoded
 one after the other, with no need to prefix each element with a key, index
 number nor typ3 byte.
 
-To declare that the List may contain nil elements, the Lists's element typ4
-byte should set the 4th least-significant bit (the "pointer bit") to 1.  If
-(and only if) the pointer bit is 1, each element is prefixed by a 0x00 byte to
-declare that a non-nil item follows, or a 0x01 byte to declare that the next
-item is nil.  Note that the byte values are flipped (typically 0 is used to
-denote nil).  This is to open the possibility of supporting sparse encoding of
-nil lists in the future by encoding the number of nil items to skip as a
-uvarint.
+To declare that the List may contain nil elements (e.g. the list "nillable"),
+the Lists's element typ4 byte should set the 4th least-significant bit (the
+"pointer bit") to 1.  If (and only if) the pointer bit is 1, each element is
+prefixed by a 0x00 byte to declare that a non-nil item follows, or a 0x01 byte
+to declare that the next item is nil.  Note that the byte values are flipped
+(typically 0 is used to denote nil).  This is to open the possibility of
+supporting sparse encoding of nil lists in the future by encoding the number of
+nil items to skip as a uvarint.
+
+Nil slices, interfaces, and pointers are all encoded as nil in a nillable list.
+
+NOTE: A nil interface in a nillable list is encoded with a single byte 0x01,
+while a nil interface in a non-nillable list is encoded with two bytes 0x0000.
 
 ```golang
 type Item struct {
@@ -397,8 +405,8 @@ Interfaces.
 An interface value is typically a struct, but it doesn't need to be.  The last
 3 bits of the written prefix bytes are the concrete type's typ3 bits, so a
 scanner can recursively traverse the fields and elements of the value.  A nil
-interface value is encoded by four zero bytes in place of the 4 prefix bytes.
-Of course, a nil struct field value is not encoded at all.
+interface value is encoded by 2 zero bytes (0x0000) in place of the 4 prefix
+bytes.  As in Protobuf, a nil struct field value is not encoded at all.
 
 
 ## Wire in other langauges

@@ -61,12 +61,21 @@ type InterfaceOptions struct {
 }
 
 type ConcreteInfo struct {
-	Registered       bool        // Manually regsitered.
+
+	// These fields are only set when registered (as implementing an interface).
+	Registered       bool        // Registered with RegisterConcrete().
 	PointerPreferred bool        // Deserialize to pointer type if possible.
-	Name             string      // Ignored if !Registered.
-	Disamb           DisambBytes // Ignored if !Registered.
-	Prefix           PrefixBytes // Ignored if !Registered.
-	ConcreteOptions
+	Name             string      // Registered name.
+	Disamb           DisambBytes // Disambiguation bytes derived from name.
+	Prefix           PrefixBytes // Prefix bytes derived from name.
+	ConcreteOptions              // Registration options.
+
+	// These fields get set for all concrete types,
+	// even those not manually registered (e.g. are never interface values).
+	IsWireMarshaler       bool         // Implements WireMarshal() (<ReprObject>, error).
+	WireMarshalReprType   reflect.Type // <ReprType>
+	IsWireUnmarshaler     bool         // Implements WireUnmarshal(<ReprObject>) (error).
+	WireUnmarshalReprType reflect.Type // <ReprType>
 }
 
 type StructInfo struct {
@@ -170,7 +179,7 @@ func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOpt
 	}
 
 	// Construct ConcreteInfo.
-	var info = cdc.newTypeInfoFromConcreteType(rt, pointerPreferred, name, opts)
+	var info = cdc.newTypeInfoFromRegisteredConcreteType(rt, pointerPreferred, name, opts)
 
 	// Finally, check conflicts and register.
 	func() {
@@ -212,7 +221,7 @@ func (cdc *Codec) getTypeInfo_wlock(rt reflect.Type) (info *TypeInfo, err error)
 	cdc.mtx.Lock() // requires wlock because we might set.
 	defer cdc.mtx.Unlock()
 
-	// Transparently "dereference" pointer type.
+	// Dereference pointer type.
 	for rt.Kind() == reflect.Ptr {
 		rt = rt.Elem()
 	}
@@ -348,10 +357,16 @@ func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 	info.PtrToType = reflect.PtrTo(rt)
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
-	info.ConcreteInfo.Registered = false
-	info.ConcreteInfo.PointerPreferred = false
 	if rt.Kind() == reflect.Struct {
 		info.StructInfo = cdc.parseStructInfo(rt)
+	}
+	if rm, ok := rt.MethodByName("MarshalWire"); ok {
+		info.ConcreteInfo.IsWireMarshaler = true
+		info.ConcreteInfo.WireMarshalReprType = marshalWireReprType(rm)
+	}
+	if rm, ok := rt.MethodByName("UnmarshalWire"); ok {
+		info.ConcreteInfo.IsWireUnmarshaler = true
+		info.ConcreteInfo.WireUnmarshalReprType = unmarshalWireReprType(rm)
 	}
 	return info
 }
@@ -377,27 +392,16 @@ func (cdc *Codec) newTypeInfoFromInterfaceType(rt reflect.Type, opts *InterfaceO
 			info.InterfaceInfo.Priority[i] = disfix
 		}
 	}
-	// info.ConcreteInfo.Registered =
-	// info.ConcreteInfo.PointerPreferred =
-	// info.ConcreteInfo.Name =
-	// info.ConcreteInfo.Disamb =
-	// info.ConcreteInfo.Prefix
-	// info.StructInfo =
 	return info
 }
 
-func (cdc *Codec) newTypeInfoFromConcreteType(rt reflect.Type, pointerPreferred bool, name string, opts *ConcreteOptions) *TypeInfo {
+func (cdc *Codec) newTypeInfoFromRegisteredConcreteType(rt reflect.Type, pointerPreferred bool, name string, opts *ConcreteOptions) *TypeInfo {
 	if rt.Kind() == reflect.Interface ||
 		rt.Kind() == reflect.Ptr {
 		panic(fmt.Sprintf("expected non-interface non-pointer concrete type, got %v", rt))
 	}
 
-	var info = new(TypeInfo)
-	info.Type = rt
-	info.PtrToType = reflect.PtrTo(rt)
-	info.ZeroValue = reflect.Zero(rt)
-	info.ZeroProto = reflect.Zero(rt).Interface()
-	// info.InterfaceOptions =
+	var info = cdc.newTypeInfoUnregistered(rt)
 	info.ConcreteInfo.Registered = true
 	info.ConcreteInfo.PointerPreferred = pointerPreferred
 	info.ConcreteInfo.Name = name
@@ -405,9 +409,6 @@ func (cdc *Codec) newTypeInfoFromConcreteType(rt reflect.Type, pointerPreferred 
 	info.ConcreteInfo.Prefix = nameToPrefix(name)
 	if opts != nil {
 		info.ConcreteOptions = *opts
-	}
-	if rt.Kind() == reflect.Struct {
-		info.StructInfo = cdc.parseStructInfo(rt)
 	}
 	return info
 }
@@ -502,6 +503,8 @@ func (ti TypeInfo) String() string {
 		} else {
 			buf.Write([]byte("Registered:false,"))
 		}
+		buf.Write([]byte(fmt.Sprintf("WireMarshalReprType:\"%X\",", ti.WireMarshalReprType)))
+		buf.Write([]byte(fmt.Sprintf("WireUnmarshalReprType:\"%X\",", ti.WireUnmarshalReprType)))
 		if ti.Type.Kind() == reflect.Struct {
 			buf.Write([]byte(fmt.Sprintf("Fields:%v,", ti.Fields)))
 		}
@@ -564,5 +567,44 @@ func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
 func toDisfix(db DisambBytes, pb PrefixBytes) (df DisfixBytes) {
 	copy(df[0:3], db[0:3])
 	copy(df[3:7], pb[0:4])
+	return
+}
+
+func marshalWireReprType(rm reflect.Method) (rrt reflect.Type) {
+	// Verify form of this method.
+	if rm.Type.NumIn() != 1 {
+		panic(fmt.Sprintf("MarshalWire should have 1 input parameters (including receiver); got %v", rm.Type))
+	}
+	if rm.Type.NumOut() != 2 {
+		panic(fmt.Sprintf("MarshalWire should have 2 output parameters; got %v", rm.Type))
+	}
+	if out := rm.Type.Out(1); out != errorType {
+		panic(fmt.Sprintf("MarshalWire should have second output parameter of error type, got %v", out))
+	}
+	rrt = rm.Type.Out(0)
+	if rrt.Kind() == reflect.Ptr {
+		panic(fmt.Sprintf("Representative objects cannot be pointers; got %v", rrt))
+	}
+	return
+}
+
+func unmarshalWireReprType(rm reflect.Method) (rrt reflect.Type) {
+	// Verify form of this method.
+	if rm.Type.NumIn() != 2 {
+		panic(fmt.Sprintf("UnmarshalWire should have 2 input parameters (including receiver); got %v", rm.Type))
+	}
+	if in1 := rm.Type.In(0); in1.Kind() != reflect.Ptr {
+		panic(fmt.Sprintf("UnmarshalWire first input parameter should be pointer type but got %v", in1))
+	}
+	if rm.Type.NumOut() != 1 {
+		panic(fmt.Sprintf("UnmarshalWire should have 1 output parameters; got %v", rm.Type))
+	}
+	if out := rm.Type.Out(0); out != errorType {
+		panic(fmt.Sprintf("UnmarshalWire should have first output parameter of error type, got %v", out))
+	}
+	rrt = rm.Type.In(0)
+	if rrt.Kind() == reflect.Ptr {
+		panic(fmt.Sprintf("Representative objects cannot be pointers; got %v", rrt))
+	}
 	return
 }

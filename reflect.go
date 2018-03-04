@@ -50,27 +50,39 @@ func slide(bz *[]byte, n *int, _n int) bool {
 	return true
 }
 
-// Dereference pointer transparently for interface iinfo.
-// This also works for pointer-pointers.
-func derefForInterface(crv reflect.Value, iinfo *TypeInfo) (reflect.Value, error) {
-	if iinfo.Type.Kind() != reflect.Interface {
-		panic("derefForInterface() expects interface type info")
-	}
-	// NOTE: Encoding pointer-pointers only work for no-method interfaces like
-	// `interface{}`.
-	for crv.Kind() == reflect.Ptr {
-		crv = crv.Elem()
-		if crv.Kind() == reflect.Interface {
-			err := fmt.Errorf("Unexpected interface-pointer of type *%v for registered interface %v. Not supported yet.", crv.Type(), iinfo.Type)
-			return crv, err
+// Dereference pointer recursively.
+// drv: the final non-pointer value (which may be invalid).
+// isPtr: whether rv.Kind() == reflect.Ptr.
+// isNilPtr: whether a nil pointer at any level.
+func derefPointers(rv reflect.Value) (drv reflect.Value, isPtr bool, isNilPtr bool) {
+	for rv.Kind() == reflect.Ptr {
+		isPtr = true
+		if rv.IsNil() {
+			isNilPtr = true
+			return
 		}
-		if !crv.IsValid() {
-			err := fmt.Errorf("Illegal nil-pointer of type %v for registered interface %v. "+
-				"For compatibility with other languages, nil-pointer interface values are forbidden.", crv.Type(), iinfo.Type)
-			return crv, err
+		rv = rv.Elem()
+	}
+	drv = rv
+	return
+}
+
+// Returns isNil=true iff is ultimately nil after (recursive) dereferencing.
+// If isNil=false, erv is set to the non-nil (valid) dereferenced value.
+// Empty non-pointers/non-interfaces or 0-length slices are not nil.
+func isNilSafe(rv reflect.Value) (erv reflect.Value, isNil bool) {
+	rv, _, isNilPtr := derefPointers(rv)
+	if isNilPtr {
+		return rv, true
+	} else {
+		switch rv.Kind() {
+		case reflect.Chan, reflect.Func, reflect.Interface,
+			reflect.Map, reflect.Slice:
+			return rv, rv.IsNil()
+		default:
+			return rv, false
 		}
 	}
-	return crv, nil
 }
 
 // constructConcreteType creates the concrete value as
@@ -92,7 +104,7 @@ func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
 // Like typeToTyp4 but include a pointer bit.
 func typeToTyp4(rt reflect.Type, opts FieldOptions) (typ Typ4) {
 
-	// Transparently "dereference" pointer type.
+	// Dereference pointer type.
 	var pointer = false
 	for rt.Kind() == reflect.Ptr {
 		pointer = true
@@ -143,12 +155,20 @@ func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
 	}
 }
 
-func isNilSafe(rv reflect.Value) bool {
-	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface,
-		reflect.Map, reflect.Ptr, reflect.Slice:
-		return rv.IsNil()
-	default:
-		return false
+func toReprObject(rv reflect.Value) (rrv reflect.Value, err error) {
+	var mwrm reflect.Value
+	if rv.CanAddr() {
+		mwrm = rv.Addr().MethodByName("MarshalWire")
+	} else {
+		mwrm = rv.MethodByName("MarshalWire")
 	}
+	mwouts := mwrm.Call(nil)
+	if !mwouts[1].IsNil() {
+		err = mwouts[1].Interface().(error)
+		if err != nil {
+			return
+		}
+	}
+	rrv = mwouts[0]
+	return
 }

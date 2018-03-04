@@ -17,7 +17,15 @@ import (
 // This is the main entrypoint for encoding all types in binary form.  This
 // function calls encodeReflectBinary*, and generally those functions should
 // only call this one, for the prefix bytes are only written here.
+// CONTRACT: rv is not a pointer (nil is already handled).
+// CONTRACT: rv is valid.
 func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	if rv.Kind() == reflect.Ptr {
+		panic("should not happen")
+	}
+	if !rv.IsValid() {
+		panic("should not happen")
+	}
 
 	if printLog {
 		spew.Printf("(e) encodeReflectBinary(info: %v, rv: %#v (%v), opts: %v)\n",
@@ -40,13 +48,32 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	return
 }
 
+// CONTRACT: rv is not a pointer (nil is already handled).
+// CONTRACT: rv is valid.
 // CONTRACT: any disamb/prefix+typ3 bytes have already been written.
 func (cdc *Codec) _encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	if rv.Kind() == reflect.Ptr {
+		panic("should not happen")
+	}
+	if !rv.IsValid() {
+		panic("should not happen")
+	}
 
-	// Dereference pointers all the way if any.
-	// This works for pointer-pointers.
-	for rv.Kind() == reflect.Ptr {
-		rv = rv.Elem()
+	// Handle override if rv implements json.Marshaler.
+	if info.IsWireMarshaler {
+		// First, encode rv into repr instance.
+		var rrv, rinfo = reflect.Value{}, (*TypeInfo)(nil)
+		rrv, err = toReprObject(rv)
+		if err != nil {
+			return
+		}
+		rinfo, err = cdc.getTypeInfo_wlock(info.WireMarshalReprType)
+		if err != nil {
+			return
+		}
+		// Then, encode the repr instance.
+		err = cdc._encodeReflectBinary(w, rinfo, rrv, opts)
+		return
 	}
 
 	switch info.Type.Kind() {
@@ -153,16 +180,20 @@ func (cdc *Codec) _encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.V
 
 func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
+	// Special case when rv is nil, write 0x0000.
 	if rv.IsNil() {
-		_, err = w.Write([]byte{0x00, 0x00, 0x00, 0x00})
+		_, err = w.Write([]byte{0x00, 0x00})
 		return
 	}
 
 	// Get concrete non-pointer reflect value & type.
-	var crv = rv.Elem()
-	crv, err = derefForInterface(crv, iinfo)
-	if err != nil {
-		return
+	var crv, isPtr, isNilPtr = derefPointers(rv)
+	if isPtr && crv.Kind() == reflect.Interface {
+		panic(fmt.Sprintf("Unexpected interface-pointer of type *%v for registered interface %v. Not supported yet.", crv.Type(), iinfo.Type))
+	}
+	if isNilPtr {
+		panic(fmt.Sprintf("Illegal nil-pointer of type %v for registered interface %v. "+
+			"For compatibility with other languages, nil-pointer interface values are forbidden.", crv.Type(), iinfo.Type))
 	}
 	var crt = crv.Type()
 
@@ -250,22 +281,30 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 		return
 	}
 	for i := 0; i < rv.Len(); i++ {
-		// Maybe write pointer byte.
-		if typ&Typ4_Pointer != 0 {
-			if rv.IsValid() {
+		// Get dereferenced element value and info.
+		var erv, isNil = isNilSafe(rv.Index(i))
+		if typ.IsPointer() {
+			// We must write a byte to denote whether element is nil.
+			var isNil bool
+			erv, isNil = isNilSafe(erv) // NOTE: sets erv without shadowing it.
+			if isNil {
+				// Value is nil.
+				// e.g. nil pointer, nil slice, pointer to nil slice, pointer to nil pointer.
+				// Write 0x01 for nil.
+				_, err = w.Write([]byte{0x01})
+				continue
+			} else {
 				// Value is not nil.
 				// Write 0x00 for not nil.
 				_, err = w.Write([]byte{0x00})
-				// and continue...
-			} else {
-				// Value is nil.
-				// Write 0x01 for nil.
-				_, err = w.Write([]byte{0x01})
-				return
+			}
+		} else {
+			// Do not write nil byte.
+			if isNil {
+				continue
 			}
 		}
-		// Write the value since it isn't nil.
-		erv := rv.Index(i)
+		// Write the element value, it isn't nil.
 		err = cdc.encodeReflectBinary(w, einfo, erv, opts)
 		if err != nil {
 			return
@@ -300,28 +339,23 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 		return
 
 	default:
-		// Write each field.
 		for _, field := range info.Fields {
-
-			// Get field rv and info.
-			var frv = rv.Field(field.Index)
+			// Get dereferenced field value and info.
+			var frv, isNil = isNilSafe(rv.Field(field.Index))
+			if isNil {
+				continue // Do not encode nil fields.
+			}
 			var finfo *TypeInfo
 			finfo, err = cdc.getTypeInfo_wlock(field.Type)
 			if err != nil {
 				return
 			}
-
-			// If field is nil, skip it.
-			if isNilSafe(frv) {
-				continue
-			}
-
+			// TODO Maybe allow omitempty somehow.
 			// Write field key (number and type).
 			err = encodeFieldNumberAndTyp3(w, field.BinFieldNum, field.BinTyp3)
 			if err != nil {
 				return
 			}
-
 			// Write field from rv.
 			err = cdc.encodeReflectBinary(w, finfo, frv, field.FieldOptions)
 			if err != nil {

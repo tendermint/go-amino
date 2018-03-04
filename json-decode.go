@@ -31,22 +31,18 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		}()
 	}
 
-	if !info.Registered {
-		// No need for disambiguation, decode as is.
-		err = cdc._decodeReflectJSON(bz, info, rv, opts)
-		return
-	}
-
-	// It's a registered concrete type.
-	// Implies that info holds the info we need.
-	// Just strip the disfix bytes after checking it.
-	disfix, bz, err := decodeDisfixJSON(bz)
-	if err != nil {
-		return
-	}
-	if !info.GetDisfix().EqualBytes(disfix[:]) {
-		err = fmt.Errorf("Expected disfix bytes %X but got %X", info.GetDisfix(), disfix)
-		return
+	// Read disfix bytes if registered.
+	if info.Registered {
+		// Strip the disfix bytes after checking it.
+		var disfix DisfixBytes
+		disfix, bz, err = decodeDisfixJSON(bz)
+		if err != nil {
+			return
+		}
+		if !info.GetDisfix().EqualBytes(disfix[:]) {
+			err = fmt.Errorf("Expected disfix bytes %X but got %X", info.GetDisfix(), disfix)
+			return
+		}
 	}
 
 	err = cdc._decodeReflectJSON(bz, info, rv, opts)
@@ -54,7 +50,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {
+func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 
 	// Special case for null for either interface, pointer, slice
 	// NOTE: This doesn't match the binary implementation completely.
@@ -62,7 +58,7 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 		switch rv.Kind() {
 		case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Array:
 			rv.Set(reflect.Zero(rv.Type()))
-			return nil
+			return
 		}
 	}
 
@@ -76,9 +72,29 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 		rv = rv.Elem()
 	}
 
-	// If a pointer to the dereferenced type implements json.Unmarshaller...
-	if rv.Addr().Type().Implements(unmarshalerType) {
-		return rv.Addr().Interface().(json.Unmarshaler).UnmarshalJSON(bz)
+	// Handle override if a pointer to rv implements json.Unmarshaler.
+	if rv.Addr().Type().Implements(jsonUnmarshalerType) {
+		err = rv.Addr().Interface().(json.Unmarshaler).UnmarshalJSON(bz)
+		return
+	}
+
+	// Handle override if a pointer to rv implements UnmarshalWire.
+	if info.IsWireUnmarshaler {
+		// First, decode repr instance from bytes.
+		rrv, rinfo := reflect.New(info.WireUnmarshalReprType).Elem(), (*TypeInfo)(nil)
+		rinfo, err = cdc.getTypeInfo_wlock(info.WireUnmarshalReprType)
+		if err != nil {
+			return
+		}
+		err = cdc._decodeReflectJSON(bz, rinfo, rrv, opts)
+		if err != nil {
+			return
+		}
+		// Then, decode from repr instance.
+		uwrm := rv.Addr().MethodByName("UnmarshalWire")
+		uwouts := uwrm.Call([]reflect.Value{rrv})
+		err = uwouts[0].Interface().(error)
+		return
 	}
 
 	switch ikind := info.Type.Kind(); ikind {
@@ -87,23 +103,23 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 	// Complex
 
 	case reflect.Interface:
-		return cdc.decodeReflectJSONInterface(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONInterface(bz, info, rv, opts)
 
 	case reflect.Array:
-		return cdc.decodeReflectJSONArray(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONArray(bz, info, rv, opts)
 
 	case reflect.Slice:
-		return cdc.decodeReflectJSONSlice(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONSlice(bz, info, rv, opts)
 
 	case reflect.Struct:
-		return cdc.decodeReflectJSONStruct(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONStruct(bz, info, rv, opts)
 
 	//----------------------------------------
 	// Signed, Unsigned
 
 	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int,
 		reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
-		return invokeStdlibJSONUnmarshal(bz, info, rv, opts)
+		err = invokeStdlibJSONUnmarshal(bz, info, rv, opts)
 
 	//----------------------------------------
 	// Misc
@@ -114,7 +130,7 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 		}
 		fallthrough
 	case reflect.Bool, reflect.String:
-		return invokeStdlibJSONUnmarshal(bz, info, rv, opts)
+		err = invokeStdlibJSONUnmarshal(bz, info, rv, opts)
 
 	//----------------------------------------
 	// Default
@@ -122,6 +138,8 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 	default:
 		panic(fmt.Sprintf("unsupported type %v", info.Type.Kind()))
 	}
+
+	return
 }
 
 func invokeStdlibJSONUnmarshal(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) error {

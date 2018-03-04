@@ -55,7 +55,8 @@ func (typ Typ3) String() string {
 	}
 }
 
-func (typ Typ4) Typ3() Typ3 { return Typ3(typ & 0x07) }
+func (typ Typ4) Typ3() Typ3      { return Typ3(typ & 0x07) }
+func (typ Typ4) IsPointer() bool { return (typ & 0x08) > 0 }
 func (typ Typ4) String() string {
 	if typ&0xF0 != 0 {
 		return fmt.Sprintf("<Invalid Typ4 %X>", byte(typ))
@@ -108,15 +109,12 @@ func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
 // so the caller must handle framing.
 func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 
-	// Dereference pointer.
-	var rv = reflect.ValueOf(o)
-	for rv.Kind() == reflect.Ptr {
-		rv = rv.Elem()
-		if !rv.IsValid() {
-			// NOTE: You can still do so by calling
-			// `.MarshalBinary(struct{ *SomeType })` or so on.
-			panic("MarshalBinary cannot marshal a nil pointer.")
-		}
+	// Dereference value if pointer.
+	var rv, _, isNilPtr = derefPointers(reflect.ValueOf(o))
+	if isNilPtr {
+		// NOTE: You can still do so by calling
+		// `.MarshalBinary(struct{ *SomeType })` or so on.
+		panic("MarshalBinary cannot marshal a nil pointer directly. Try wrapping in a struct?")
 	}
 
 	// Encode Wire:binary bytes.
@@ -247,7 +245,7 @@ func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
 
 	// If the type implements json.Unmarshaler, just
 	// automatically respect that and skip to it.
-	// if rv.Type().Implements(unmarshalerType) {
+	// if rv.Type().Implements(jsonUnmarshalerType) {
 	// 	return rv.Interface().(json.Unmarshaler).UnmarshalJSON(bz)
 	// }
 
@@ -265,6 +263,7 @@ func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
 // Misc.
 
 var (
-	marshalerType   = reflect.TypeOf(new(json.Marshaler)).Elem()
-	unmarshalerType = reflect.TypeOf(new(json.Unmarshaler)).Elem()
+	jsonMarshalerType   = reflect.TypeOf(new(json.Marshaler)).Elem()
+	jsonUnmarshalerType = reflect.TypeOf(new(json.Unmarshaler)).Elem()
+	errorType           = reflect.TypeOf(new(error)).Elem()
 )
