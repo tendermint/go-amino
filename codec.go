@@ -546,15 +546,10 @@ func nameToPrefix(name string) (pb PrefixBytes) {
 func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
 	hasher := sha256.New()
 	hasher.Write([]byte(name))
-	bz := hasher.Sum(nil)
-	for bz[0] == 0x00 {
-		bz = bz[1:]
-	}
+	bz := trimNullPrefixBytes(hasher.Sum(nil))
 	copy(db[:], bz[0:3])
 	bz = bz[3:]
-	for bz[0] == 0x00 {
-		bz = bz[1:]
-	}
+	bz = trimNullPrefixBytes(bz)
 	copy(pb[:], bz[0:4])
 	// Drop the last 3 bits to make room for the Typ3.
 	pb[3] &= 0xF8
@@ -565,4 +560,8 @@ func toDisfix(db DisambBytes, pb PrefixBytes) (df DisfixBytes) {
 	copy(df[0:3], db[0:3])
 	copy(df[3:7], pb[0:4])
 	return
+}
+
+func trimNullPrefixBytes(b []byte) []byte {
+	return bytes.TrimLeftFunc(b, func(r rune) bool { return r == 0x00 })
 }
