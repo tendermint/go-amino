@@ -340,11 +340,11 @@ number nor typ3 byte.
 To declare that the List may contain nil elements (e.g. the list "nillable"),
 the Lists's element typ4 byte should set the 4th least-significant bit (the
 "pointer bit") to 1.  If (and only if) the pointer bit is 1, each element is
-prefixed by a 0x00 byte to declare that a non-nil item follows, or a 0x01 byte
-to declare that the next item is nil.  Note that the byte values are flipped
-(typically 0 is used to denote nil).  This is to open the possibility of
-supporting sparse encoding of nil lists in the future by encoding the number of
-nil items to skip as a uvarint.
+prefixed by a "nil byte" -- a 0x00 byte to declare that a non-nil item follows,
+or a 0x01 byte to declare that the next item is nil.  Note that the byte values
+are flipped (typically 0 is used to denote nil).  This is to open the
+possibility of supporting sparse encoding of nil lists in the future by
+encoding the number of nil items to skip as a uvarint.
 
 Nil slices, interfaces, and pointers are all encoded as nil in a nillable list.
 

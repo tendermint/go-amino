@@ -151,6 +151,31 @@ func (cdc *Codec) RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
 		}
 		cdc.setTypeInfo_nolock(info)
 	}()
+	/*
+		NOTE: The above func block is a defensive pattern.
+
+		First of all, the defer call is necessary to recover from panics,
+		otherwise the Codec would become unusable after a single panic.
+
+		This “defer-panic-unlock” pattern requires a func block to denote the
+		boundary outside of which the defer call is guaranteed to have been
+		called.  In other words, using any other form of curly braces (e.g.  in
+		the form of a conditional or looping block) won't actually unlock when
+		it might appear to visually.  Consider:
+
+		```
+		var info = ...
+		{
+			cdc.mtx.Lock()
+			defer cdc.mtx.Unlock()
+
+			...
+		}
+		// Here, cdc.mtx.Unlock() hasn't been called yet.
+		```
+
+		So, while the above code could be simplified, it's there for defense.
+	*/
 }
 
 // This function should be used to register concrete types that will appear in
@@ -173,6 +198,7 @@ func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOpt
 			panic(fmt.Sprintf("registering pointer-pointers not yet supported: *%v", rt))
 		}
 		if rt.Kind() == reflect.Interface {
+			// MARKER: Registering interface pointers
 			panic(fmt.Sprintf("registering interface-pointers not yet supported: *%v", rt))
 		}
 		pointerPreferred = true

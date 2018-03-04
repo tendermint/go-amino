@@ -22,12 +22,11 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
 		panic("should not happen")
 	}
-
 	if printLog {
-		spew.Printf("(d) decodeReflectJSON(bz: %s, info: %v, rv: %#v (%v), opts: %v)\n",
+		spew.Printf("(D) decodeReflectJSON(bz: %s, info: %v, rv: %#v (%v), opts: %v)\n",
 			bz, info, rv.Interface(), rv.Type(), opts)
 		defer func() {
-			fmt.Printf("(d) -> err: %v\n", err)
+			fmt.Printf("(D) -> err: %v\n", err)
 		}()
 	}
 
@@ -51,6 +50,19 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	if !rv.CanAddr() {
+		panic("rv not addressable")
+	}
+	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
+		panic("should not happen")
+	}
+	if printLog {
+		spew.Printf("(_) _decodeReflectJSON(bz: %s, info: %v, rv: %#v (%v), opts: %v)\n",
+			bz, info, rv.Interface(), rv.Type(), opts)
+		defer func() {
+			fmt.Printf("(_) -> err: %v\n", err)
+		}()
+	}
 
 	// Special case for null for either interface, pointer, slice
 	// NOTE: This doesn't match the binary implementation completely.
@@ -164,6 +176,12 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv refl
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+	if printLog {
+		fmt.Println("(d) decodeReflectJSONInterface")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
+	}
 
 	/*
 		We don't make use of user-provided interface values because there are a
@@ -221,6 +239,12 @@ func (cdc *Codec) decodeReflectJSONArray(bz []byte, info *TypeInfo, rv reflect.V
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+	if printLog {
+		fmt.Println("(d) decodeReflectJSONArray")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
+	}
 	ert := info.Type.Elem()
 	length := info.Type.Len()
 
@@ -273,6 +297,12 @@ func (cdc *Codec) decodeReflectJSONArray(bz []byte, info *TypeInfo, rv reflect.V
 func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
+	}
+	if printLog {
+		fmt.Println("(d) decodeReflectJSONSlice")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
 	}
 
 	var ert = info.Type.Elem()
@@ -336,6 +366,12 @@ func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.V
 func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
+	}
+	if printLog {
+		fmt.Println("(d) decodeReflectJSONStruct")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
 	}
 
 	// Map all the fields(keys) to their blobs/bytes.

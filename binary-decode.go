@@ -23,12 +23,11 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
 		panic("should not happen")
 	}
-
 	if printLog {
-		spew.Printf("(d) decodeReflectBinary(bz: %X, info: %v, rv: %#v (%v), opts: %v)\n",
+		spew.Printf("(D) decodeReflectBinary(bz: %X, info: %v, rv: %#v (%v), opts: %v)\n",
 			bz, info, rv.Interface(), rv.Type(), opts)
 		defer func() {
-			fmt.Printf("(d) -> n: %v, err: %v\n", n, err)
+			fmt.Printf("(D) -> n: %v, err: %v\n", n, err)
 		}()
 	}
 
@@ -68,6 +67,19 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 // CONTRACT: any immediate disamb/prefix bytes have been consumed/stripped.
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+	if !rv.CanAddr() {
+		panic("rv not addressable")
+	}
+	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
+		panic("should not happen")
+	}
+	if printLog {
+		spew.Printf("(_) _decodeReflectBinary(bz: %X, info: %v, rv: %#v (%v), opts: %v)\n",
+			bz, info, rv.Interface(), rv.Type(), opts)
+		defer func() {
+			fmt.Printf("(_) -> n: %v, err: %v\n", n, err)
+		}()
+	}
 	var _n int
 
 	// TODO consider the binary equivalent of json.Unmarshaller.
@@ -308,6 +320,12 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+	if printLog {
+		fmt.Println("(d) decodeReflectBinaryInterface")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
+	}
 	if !rv.IsNil() {
 		// JAE: Heed this note, this is very tricky.
 		// I've forgotten the reason a second time,
@@ -342,7 +360,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	}
 
 	// Check and consume typ3 byte.
-	// It cannot be a Typ4 byte because it cannot be nil.
+	// It cannot be a typ4 byte because it cannot be nil.
 	err = checkTyp3(cinfo.Type, typ, opts)
 	if err != nil {
 		return
@@ -371,6 +389,12 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 func (cdc *Codec) decodeReflectBinaryByteArray(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
+	}
+	if printLog {
+		fmt.Println("(d) decodeReflectBinaryByteArray")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
 	}
 	ert := info.Type.Elem()
 	if ert.Kind() != reflect.Uint8 {
@@ -403,6 +427,12 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+	if printLog {
+		fmt.Println("(d) decodeReflectBinaryArray")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
+	}
 	ert := info.Type.Elem()
 	if ert.Kind() == reflect.Uint8 {
 		panic("should not happen")
@@ -414,7 +444,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 		return
 	}
 
-	// Check and consume Typ4 byte.
+	// Check and consume typ4 byte.
 	var ptr, _n = false, int(0)
 	ptr, _n, err = decodeTyp4AndCheck(ert, bz, opts)
 	if slide(&bz, &n, _n) && err != nil {
@@ -470,6 +500,12 @@ func (cdc *Codec) decodeReflectBinaryByteSlice(bz []byte, info *TypeInfo, rv ref
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+	if printLog {
+		fmt.Println("(d) decodeReflectByteSlice")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
+	}
 	ert := info.Type.Elem()
 	if ert.Kind() != reflect.Uint8 {
 		panic("should not happen")
@@ -496,6 +532,12 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+	if printLog {
+		fmt.Println("(d) decodeReflectBinarySlice")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
+	}
 	ert := info.Type.Elem()
 	if ert.Kind() == reflect.Uint8 {
 		panic("should not happen")
@@ -506,7 +548,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 		return
 	}
 
-	// Check and consume Typ4 byte.
+	// Check and consume typ4 byte.
 	var ptr, _n = false, int(0)
 	ptr, _n, err = decodeTyp4AndCheck(ert, bz, opts)
 	if slide(&bz, &n, _n) && err != nil {
@@ -576,6 +618,12 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, _ FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
+	}
+	if printLog {
+		fmt.Println("(d) decodeReflectBinaryStruct")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
 	}
 	_n := 0 // nolint: ineffassign
 
@@ -720,7 +768,7 @@ func decodeFieldNumberAndTyp3(bz []byte) (num uint32, typ Typ3, n int, err error
 	return
 }
 
-// Consume Typ4 byte and error if it doesn't match rt.
+// Consume typ4 byte and error if it doesn't match rt.
 func decodeTyp4AndCheck(rt reflect.Type, bz []byte, opts FieldOptions) (ptr bool, n int, err error) {
 	var typ = Typ4(0x00)
 	typ, n, err = decodeTyp4(bz)
@@ -732,18 +780,18 @@ func decodeTyp4AndCheck(rt reflect.Type, bz []byte, opts FieldOptions) (ptr bool
 		err = errors.New(fmt.Sprintf("Typ4 mismatch.  Expected %X, got %X", typWanted, typ))
 		return
 	}
-	ptr = (typ & 0x80) != 0
+	ptr = (typ & 0x08) != 0
 	return
 }
 
 // Read Typ4 byte.
 func decodeTyp4(bz []byte) (typ Typ4, n int, err error) {
 	if len(bz) == 0 {
-		err = errors.New(fmt.Sprintf("EOF reading Typ4 byte"))
+		err = errors.New(fmt.Sprintf("EOF reading typ4 byte"))
 		return
 	}
 	if bz[0]&0xF0 != 0 {
-		err = errors.New(fmt.Sprintf("Invalid non-zero nibble reading Typ4 byte"))
+		err = errors.New(fmt.Sprintf("Invalid non-zero nibble reading typ4 byte"))
 		return
 	}
 	typ = Typ4(bz[0])

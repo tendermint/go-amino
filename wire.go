@@ -15,7 +15,7 @@ import (
 // Typ3 and Typ4
 
 type Typ3 uint8
-type Typ4 uint8 // Typ3 | 0x80 (pointer bit)
+type Typ4 uint8 // Typ3 | 0x08 (pointer bit)
 
 const (
 	// Typ3 types
@@ -61,8 +61,8 @@ func (typ Typ4) String() string {
 	if typ&0xF0 != 0 {
 		return fmt.Sprintf("<Invalid Typ4 %X>", byte(typ))
 	}
-	if typ&0x80 != 0 {
-		return "*" + Typ3(typ).String()
+	if typ&0x08 != 0 {
+		return "*" + Typ3(typ&0x07).String()
 	} else {
 		return Typ3(typ).String()
 	}
