@@ -33,7 +33,8 @@ Wire wants to be Protobuf4.  The bulk of this spec will
 explain how Wire differs from Protobuf3, so here we will just illustrate two key
 selling points for Wire.
 
-* In Protobuf3, the fields of a structure are varint byte-length prefixed.
+* In Protobuf3, *all* the fields of a structure are varint byte-length prefixed;
+not only for string and byteslice fields, but also for embedded messages.
   This makes the binary encoding naturally more inefficient, as bytes cannot
 simply be written to a memory array (buffer) in sequence without allocating a
 new buffer for each embedded message.  Wire is encoded in such a way that the
