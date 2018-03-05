@@ -1,10 +1,50 @@
 # Wire encoding for Golang
 
-This software implements Go bindings for the Wire encoding protocol.  The goal
-of the Wire encoding protocol is to be a simple language-agnostic encoding
-protocol for rapid prototyping of blockchain applications.
+This software implements Go bindings for the Wire encoding protocol.
 
-This package also includes a compatible (and slower) JSON codec.
+Wire is an object encoding specification.  It's like Protobuf3+RLP with native
+JSON support for that extra developer friendliness.
+
+(CAVEAT: we're still building out the ecosystem.  If you'd like to contribute
+by creating supporting libraries in various languages from scratch or by
+adapting existing Protobuf3 libraries, please contact us via the Github issue
+system!)
+
+
+## Why Wire?
+
+### Wire vs JSON
+
+JSON is good but inefficient.  There should be a more compact binary encoding
+standard for messages.  Wire provides a binary encoding for complex objects,
+but also a fully compatible JSON encoding as well so you can switch over to
+binary for the compactness.
+
+
+### Wire vs Protobuf3
+
+Protobuf3 is almost perfect.  Upgradeability and compact binary representation,
+with JSON support via pbjson.
+
+Wire is best thought of as a contender for Protobuf4.  It extends the 3-bit
+type system and introduces a few more types that objectively make it a better
+binary encoding protocol for many use-cases.  The bulk of this spec will
+explain how Wire differs from Protobuf3, so here we will just illustrate a few
+reasons to adopt Wire.
+
+* In Protobuf3, the fields of a structure are varint byte-length prefixed.
+  This makes the binary encoding naturally more inefficient, as bytes cannot
+simply be written to a memory array (buffer) in sequence without allocating a
+new buffer for each embedded message.  Wire is encoded in such a way that the
+complete structure of the message (not just the top-level) can be determined by
+scanning the byte encoding without any type information other than what is
+available in the binary bytes.  This makes encoding faster with no penalty when
+decoding.
+
+* Interfaces (TODO)
+
+* Parity between language primitives and protocol (TODO)
+
 
 ## Interfaces and concrete types
 
@@ -125,38 +165,43 @@ the final prefix byte would be `0xDB`.
 
 ### Supported types
 
-**Primary types**: `uvarint`, `varint`, `byte`, `uint[8,16,32,64]`, `int[8,16,32,64]`, `string`, and `time` types are supported
+**Primary types**: `uvarint`, `varint`, `byte`, `uint[8,16,32,64]`,
+`int[8,16,32,64]`, `string`, and `time` types are supported
 
-**Arrays**: Arrays can hold items of any arbitrary type.  For example, byte-arrays and byte-array-arrays are supported.
+**Arrays**: Arrays can hold items of any arbitrary type.  For example,
+byte-arrays and byte-array-arrays are supported.
 
-**Structs**: Struct fields are encoded by value (without the key name) in the order that they are declared in the struct.  In this way it is similar to Apache Avro.
+**Structs**: Struct fields are encoded by value (without the key name) in the
+order that they are declared in the struct.  In this way it is similar to
+Apache Avro.
 
-**Interfaces**: Interfaces are like union types where the value can be any non-interface type. The actual value is preceded by a single "type byte" that shows which concrete is encoded.
+**Interfaces**: Interfaces are like union types where the value can be any
+non-interface type. The actual value is preceded by a single "type byte" that
+shows which concrete is encoded.
 
-**Pointers**: Pointers are like optional fields.  The first byte is 0x00 to denote a null pointer (i.e. no value), otherwise it is 0x01.
+**Pointers**: Pointers are like optional fields.  The first byte is 0x00 to
+denote a null pointer (i.e. no value), otherwise it is 0x01.
 
 ### Unsupported types
 
-**Maps**: Maps are not supported because for most languages, key orders are nondeterministic.
-If you need to encode/decode maps of arbitrary key-value pairs, encode an array of {key,value} structs instead.
+**Maps**: Maps are not supported because for most languages, key orders are
+nondeterministic.  If you need to encode/decode maps of arbitrary key-value
+pairs, encode an array of {key,value} structs instead.
 
-**Floating points**: Floating point number types are discouraged because [of reasons](http://gafferongames.com/networking-for-game-programmers/floating-point-determinism/).  If you need to use them, use the field tag `wire:"unsafe"`.
+**Floating points**: Floating point number types are discouraged because [of
+reasons](http://gafferongames.com/networking-for-game-programmers/floating-point-determinism/).
+If you need to use them, use the field tag `wire:"unsafe"`.
 
-**Enums**: Enum types are not supported in all languages, and they're simple enough to model as integers anyways.
+**Enums**: Enum types are not supported in all languages, and they're simple
+enough to model as integers anyways.
 
-## Forward and Backward compatibility
 
-TODO
-
-## Wire vs JSON
-
-TODO
-
-## Wire vs Protobuf
+## Wire vs Protobuf3 in Detail
 
 XXX Why Protobuf3 isn't good enough
 
-From the [Protocol Buffers encoding guide](https://developers.google.com/protocol-buffers/docs/encoding):
+From the [Protocol Buffers encoding
+guide](https://developers.google.com/protocol-buffers/docs/encoding):
 
 > As you know, a protocol buffer message is a series of key-value pairs. The
 > binary version of a message just uses the field's number as the key – the

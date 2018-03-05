@@ -47,10 +47,13 @@ func scanAny(typ wire.Typ3, bz []byte) (stop bool, s string, n int, err error) {
 }
 
 func scanVarint(bz []byte) (s string, n int, err error) {
+	if len(bz) == 0 {
+		err = fmt.Errorf("EOF reading Varint")
+	}
 	// First try Varint.
 	var i64, okI64 = int64(0), true
 	i64, n = binary.Varint(bz)
-	if n < 0 {
+	if n <= 0 {
 		n = 0
 		okI64 = false
 	}
