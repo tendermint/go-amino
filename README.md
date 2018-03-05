@@ -2,7 +2,7 @@
 
 This software implements Go bindings for the Wire encoding protocol.
 
-Wire is an object encoding specification.  It's like Protobuf3+RLP with native
+Wire is an object encoding specification.  It's like object-oriented Protobuf3 with native
 JSON support for that extra developer friendliness.  The goal of Wire is to
 bring parity between the most popular modern language's natural object-oriented
 featureset and a common binary encoding protocol.
@@ -18,22 +18,20 @@ issue system!)
 
 ### Wire vs JSON
 
-JSON is good but inefficient.  There should be a more compact binary encoding
-standard for messages.  Wire provides a binary encoding for complex objects,
-but also a fully compatible JSON encoding as well so you can switch over to
-binary for the compactness.
+JSON is good, but inefficient.  Protobuf3, BER, RLP all exist because we need a more compact
+and efficient binary encoding standard.  Wire provides efficient binary encoding for complex objects
+(even nested objects) that integrate naturally with your favorite modern programming langauge,
+but also a fully compatible JSON encoding as well.
 
 
 ### Wire vs Protobuf3
 
-Protobuf3 is almost perfect.  Upgradeability and compact binary representation,
-with JSON support via pbjson.
+Protobuf3 is almost perfect.  It has backwards-compatible upgradeability,
+and a decent compact binary representation.
 
-Wire is best thought of as a contender for Protobuf4.  It extends the 3-bit
-type system and introduces a few more types that objectively make it a better
-binary encoding protocol for many use-cases.  The bulk of this spec will
-explain how Wire differs from Protobuf3, so here we will just illustrate a few
-reasons to adopt Wire.
+Wire wants to be Protobuf4.  The bulk of this spec will
+explain how Wire differs from Protobuf3, so here we will just illustrate two key
+selling points for Wire.
 
 * In Protobuf3, the fields of a structure are varint byte-length prefixed.
   This makes the binary encoding naturally more inefficient, as bytes cannot
