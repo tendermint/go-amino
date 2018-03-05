@@ -476,6 +476,6 @@ interface value is encoded by 2 zero bytes (0x0000) in place of the 4 prefix
 bytes.  As in Protobuf, a nil struct field value is not encoded at all.
 
 
-# Wire in other langauges
+# Wire in other languages
 
 Contact us on github.com/tendermint/go-wire/issues, we are looking for contributors to implement Wire in other languages.  In Golang, we are are interested in codec generators.
