@@ -14,9 +14,9 @@ or by adapting existing Protobuf3 libraries, please contact us via the Github
 issue system!)
 
 
-## Why Wire?
+# Why Wire?
 
-### Wire vs JSON
+## Wire vs JSON
 
 JSON is good, but inefficient.  Protobuf3, BER, RLP all exist because we need a more compact
 and efficient binary encoding standard.  Wire provides efficient binary encoding for complex objects
@@ -24,7 +24,7 @@ and efficient binary encoding standard.  Wire provides efficient binary encoding
 but also a fully compatible JSON encoding as well.
 
 
-### Wire vs Protobuf3
+## Wire vs Protobuf3
 
 Protobuf3 is almost perfect.  It has backwards-compatible upgradeability,
 and a decent compact binary representation.
@@ -188,7 +188,7 @@ the final prefix byte would be `0xDB`.
 > <0xA8 0xFC 0x54> [0xBB 0x9C 9x83 9xDB] // Final <Disamb Bytes> and [Prefix Bytes]
 ```
 
-### Supported types
+## Supported types
 
 **Primary types**: `uvarint`, `varint`, `byte`, `uint[8,16,32,64]`,
 `int[8,16,32,64]`, `string`, and `time` types are supported
@@ -207,21 +207,22 @@ shows which concrete is encoded.
 **Pointers**: Pointers are like optional fields.  The first byte is 0x00 to
 denote a null pointer (i.e. no value), otherwise it is 0x01.
 
-### Unsupported types
+### Supported (but discouraged) types
 
-**Maps**: Maps are not supported because for most languages, key orders are
-nondeterministic.  If you need to encode/decode maps of arbitrary key-value
-pairs, encode an array of {key,value} structs instead.
+**Maps**: In most languages, iteration order is nondeterministic, so in those
+cases Wire (should) provide a standard Map library for compatibility.
 
 **Floating points**: Floating point number types are discouraged because [of
-reasons](http://gafferongames.com/networking-for-game-programmers/floating-point-determinism/).
+incompatibility across architectures](http://gafferongames.com/networking-for-game-programmers/floating-point-determinism/).
 If you need to use them, use the field tag `wire:"unsafe"`.
+
+### Unsupported types
 
 **Enums**: Enum types are not supported in all languages, and they're simple
 enough to model as integers anyways.
 
 
-### Wire vs Protobuf3 in detail
+## Wire vs Protobuf3 in detail
 
 From the [Protocol Buffers encoding
 guide](https://developers.google.com/protocol-buffers/docs/encoding):
@@ -272,7 +273,7 @@ Typ3 | Meaning          | Used For
 7    | Interface        | registered concrete types; followed by `<prefix-bytes>` or `<disfix-bytes>`, then `<typ3-byte>`.
 
 
-#### Structs 
+### Structs 
 
 Struct fields are encoded in order, and a null/empty/zero field is represented
 by the absence of a field in the encoding, similar to Protobuf. Unlike
@@ -302,7 +303,7 @@ Inner structs that are embedded in outer structs are encoded by the field typ3
 byteslices and bytearrays.)
 
 
-#### Lists
+### Lists
 
 Unlike Protobuf, Wire deprecates "repeated fields" in favor of "lists". A list
 is encoded by first writing the typ4 byte of the element type, followed by the
@@ -465,7 +466,7 @@ go-wire binary blob shouldn't decode into a 1GB object in memory, but it might
 with sparse encoding, so we should be aware of that.
 
 
-#### Interfaces
+### Interfaces
 
 Finally, Protobuf's "oneof" gets a facelift.  Instead of "oneof", Wire has
 Interfaces.
@@ -477,7 +478,7 @@ interface value is encoded by 2 zero bytes (0x0000) in place of the 4 prefix
 bytes.  As in Protobuf, a nil struct field value is not encoded at all.
 
 
-### Wire in other langauges
+# Wire in other langauges
 
 Contact us on github.com/tendermint/go-wire/issues, we will pay out bounties
 for implementations in other languages.  In Golang, we are are interested in
