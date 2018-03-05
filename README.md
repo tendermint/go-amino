@@ -3,12 +3,15 @@
 This software implements Go bindings for the Wire encoding protocol.
 
 Wire is an object encoding specification.  It's like Protobuf3+RLP with native
-JSON support for that extra developer friendliness.
+JSON support for that extra developer friendliness.  The goal of Wire is to
+bring parity between the most popular modern language's natural object-oriented
+featureset and a common binary encoding protocol.
 
-(CAVEAT: we're still building out the ecosystem.  If you'd like to contribute
-by creating supporting libraries in various languages from scratch or by
-adapting existing Protobuf3 libraries, please contact us via the Github issue
-system!)
+(CAVEAT: we're still building out the ecosystem, which is currently most
+developed in Golang.  But Wire is not just for Golang.  If you'd like to
+contribute by creating supporting libraries in various languages from scratch
+or by adapting existing Protobuf3 libraries, please contact us via the Github
+issue system!)
 
 
 ## Why Wire?
@@ -39,22 +42,47 @@ new buffer for each embedded message.  Wire is encoded in such a way that the
 complete structure of the message (not just the top-level) can be determined by
 scanning the byte encoding without any type information other than what is
 available in the binary bytes.  This makes encoding faster with no penalty when
-decoding.
+decoding. See how Protobuf3 encodes embedded message fields
+[here](https://github.com/tendermint/go-wire/wiki/wirescan)
 
-* Interfaces (TODO)
+* Protobuf3 has `oneof`, but it's clunky.  For example, Golang Protobuf's
+  implementation is not so good ([source](https://github.com/gogo/protobuf/issues/168)).
+But this isn't just an implementation issue. The real problem is that oneof
+doesn't match how modern languages already work to provide oneof-like features.
+Protobuf3's oneof support feels more like an encoding for C union types.  C
+union, the possible values for a union type each get their own name.  This is
+primitive and type-unsafe system, and it's been replaced or supplemented with a
+variety of language features since.
 
-* Parity between language primitives and protocol (TODO)
+	* In C++, classes.  Unions are still useful (e.g. for performance) but not as
+	  widely used as classes.
+	* In Java, Java-interfaces and classes.
+	* In Golang, the replacement is Golang-interfaces and all (even primitive)
+	  types.
+	* Javascript naturally lends itself well to oneof support, as it only has a few
+	  native types including the ubiquitous Object type.
+
+This isn't possible today with Protobuf3 because it's not sufficiently
+object-oriented in its message-embedding/oneof/repeated design.  You need to
+create your Protobuf schema file which generates code, but the generated code
+is often not the logical objects that you really want to use in your
+application.  This means that if your application is sufficiently complex,
+using Protobuf probably adds more complexity to your application than is
+necessary with a different protocol.  While Protobuf is useful, it can be
+improved.
 
 
-## Interfaces and concrete types
+### Interfaces and concrete types
 
 Wire is an encoding library that can handle interfaces (like Protobuf "oneof")
-well.  This is achieved by prefixing bytes before each "concrete type".
+exceptionally well.  This is achieved by prefixing bytes before each "concrete
+type".
 
 A concrete type is some non-interface value (generally a struct) which
 implements the interface to be (de)serialized. Not all structures need to be
 registered as concrete types -- only when they will be stored in interface type
 fields (or interface type slices) do they need to be registered.
+
 
 ### Registering types
 
@@ -75,7 +103,8 @@ a pointer value as well.  It's OK to (de)serialize such structures in
 non-pointer (value) form, but when deserializing such structures into an
 interface field, they will always be deserialized as pointers.
 
-### How it works
+
+### Prefix bytes to identify the concrete type
 
 All registered concrete types are encoded with leading 4 bytes (called "prefix
 bytes"), even when it's not held in an interface field/element.  In this way,
@@ -128,7 +157,8 @@ escaped with 0x00.
 The 4 prefix bytes always immediately precede the binary encoding of the
 concrete type.
 
-### Computing disambiguation and prefix bytes
+
+### Computing the prefix and disambiguation bytes
 
 To compute the disambiguation bytes, we take `hash := sha256(concreteTypeName)`,
 and drop the leading 0x00 bytes.
@@ -196,9 +226,7 @@ If you need to use them, use the field tag `wire:"unsafe"`.
 enough to model as integers anyways.
 
 
-## Wire vs Protobuf3 in Detail
-
-XXX Why Protobuf3 isn't good enough
+### Wire vs Protobuf3 in detail
 
 From the [Protocol Buffers encoding
 guide](https://developers.google.com/protocol-buffers/docs/encoding):
@@ -249,7 +277,7 @@ Typ3 | Meaning          | Used For
 7    | Interface        | registered concrete types; followed by `<prefix-bytes>` or `<disfix-bytes>`, then `<typ3-byte>`.
 
 
-### Structs 
+#### Structs 
 
 Struct fields are encoded in order, and a null/empty/zero field is represented
 by the absence of a field in the encoding, similar to Protobuf. Unlike
@@ -279,7 +307,7 @@ Inner structs that are embedded in outer structs are encoded by the field typ3
 byteslices and bytearrays.)
 
 
-### Lists
+#### Lists
 
 Unlike Protobuf, Wire deprecates "repeated fields" in favor of "lists". A list
 is encoded by first writing the typ4 byte of the element type, followed by the
@@ -442,7 +470,7 @@ go-wire binary blob shouldn't decode into a 1GB object in memory, but it might
 with sparse encoding, so we should be aware of that.
 
 
-### Interfaces
+#### Interfaces
 
 Finally, Protobuf's "oneof" gets a facelift.  Instead of "oneof", Wire has
 Interfaces.
@@ -454,7 +482,7 @@ interface value is encoded by 2 zero bytes (0x0000) in place of the 4 prefix
 bytes.  As in Protobuf, a nil struct field value is not encoded at all.
 
 
-## Wire in other langauges
+### Wire in other langauges
 
 Contact us on github.com/tendermint/go-wire/issues, we will pay out bounties
 for implementations in other languages.  In Golang, we are are interested in
