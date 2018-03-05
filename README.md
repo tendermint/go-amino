@@ -48,10 +48,10 @@ decoding. See how Protobuf3 encodes embedded message fields
   implementation is not so good ([source](https://github.com/gogo/protobuf/issues/168)).
 But this isn't just an implementation issue. The real problem is that oneof
 doesn't match how modern languages already work to provide oneof-like features.
-Protobuf3's oneof support feels more like an encoding for C union types.  C
-union, the possible values for a union type each get their own name.  This is
-primitive and type-unsafe system, and it's been replaced or supplemented with a
-variety of language features since.
+Protobuf3's oneof support feels more like a (bad) encoding for C union types.  For example,
+you can't declare a union type and re-use it in Protobuf.  Also, each "oneof" option gets a
+second field name in addition to the common field name  (Why?!).  What we want is a way to encode
+*objects*, and a new type to represent a set of object types (often called interfaces).
 
 	* In C++, classes.  Unions are still useful (e.g. for performance) but not as
 	  widely used as classes.
@@ -61,14 +61,10 @@ variety of language features since.
 	* Javascript naturally lends itself well to oneof support, as it only has a few
 	  native types including the ubiquitous Object type.
 
-This isn't possible today with Protobuf3 because it's not sufficiently
-object-oriented in its message-embedding/oneof/repeated design.  You need to
-create your Protobuf schema file which generates code, but the generated code
+Protobuf would be better if it were object-oriented. Since it isn't, the generated code
 is often not the logical objects that you really want to use in your
-application.  This means that if your application is sufficiently complex,
-using Protobuf probably adds more complexity to your application than is
-necessary with a different protocol.  While Protobuf is useful, it can be
-improved.
+application, so you end up duplicating the structure in the Protobuf schema file and
+writing translators to and from your logic objects.  Wire can eliminate this extra duplication.
 
 
 ### Interfaces and concrete types
