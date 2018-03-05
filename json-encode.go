@@ -258,8 +258,13 @@ func (cdc *Codec) encodeReflectJSONList(w io.Writer, info *TypeInfo, rv reflect.
 			return
 		}
 		for i := 0; i < length; i++ {
-			erv := rv.Index(i)
-			err = cdc.encodeReflectJSON(w, einfo, erv, opts)
+			// Get dereferenced element value and info.
+			var erv, _, isNil = derefPointers(rv.Index(i))
+			if isNil {
+				err = writeStr(w, `null`)
+			} else {
+				err = cdc.encodeReflectJSON(w, einfo, erv, opts)
+			}
 			if err != nil {
 				return
 			}
@@ -303,7 +308,7 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 	var writeComma = false
 	for _, field := range info.Fields {
 		// Get dereferenced field value and info.
-		var frv, _, _ = derefPointers(rv.Field(field.Index))
+		var frv, _, isNil = derefPointers(rv.Field(field.Index))
 		var finfo *TypeInfo
 		finfo, err = cdc.getTypeInfo_wlock(field.Type)
 		if err != nil {
@@ -334,7 +339,11 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 			return
 		}
 		// Write field value.
-		err = cdc.encodeReflectJSON(w, finfo, frv, field.FieldOptions)
+		if isNil {
+			err = writeStr(w, `null`)
+		} else {
+			err = cdc.encodeReflectJSON(w, finfo, frv, field.FieldOptions)
+		}
 		if err != nil {
 			return
 		}

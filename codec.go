@@ -90,6 +90,7 @@ type ConcreteOptions struct {
 }
 
 type FieldInfo struct {
+	Name         string        // Struct field name
 	Type         reflect.Type  // Struct field type
 	Index        int           // Struct field index
 	ZeroValue    reflect.Value // Could be nil pointer unlike TypeInfo.ZeroValue.
@@ -198,7 +199,7 @@ func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOpt
 			panic(fmt.Sprintf("registering pointer-pointers not yet supported: *%v", rt))
 		}
 		if rt.Kind() == reflect.Interface {
-			// MARKER: Registering interface pointers
+			// MARKER: No interface-pointers
 			panic(fmt.Sprintf("registering interface-pointers not yet supported: *%v", rt))
 		}
 		pointerPreferred = true
@@ -316,6 +317,7 @@ func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 		// NOTE: BinFieldNum starts with 1.
 		opts.BinFieldNum = uint32(len(infos) + 1)
 		fieldInfo := FieldInfo{
+			Name:         field.Name, // Mostly for debugging.
 			Index:        i,
 			Type:         ftype,
 			ZeroValue:    reflect.Zero(ftype),
