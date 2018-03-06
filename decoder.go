@@ -17,7 +17,7 @@ func DecodeInt8(bz []byte) (i int8, n int, err error) {
 	if err != nil {
 		return
 	}
-	if i64 > int64(math.MaxInt8) {
+	if i64 < int64(math.MinInt8) || i64 > int64(math.MaxInt8) {
 		err = errors.New("EOF decoding int8")
 		return
 	}
@@ -31,7 +31,7 @@ func DecodeInt16(bz []byte) (i int16, n int, err error) {
 	if err != nil {
 		return
 	}
-	if i64 > int64(math.MaxInt16) {
+	if i64 < int64(math.MinInt16) || i64 > int64(math.MaxInt16) {
 		err = errors.New("EOF decoding int16")
 		return
 	}
