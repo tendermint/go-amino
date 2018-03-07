@@ -47,10 +47,13 @@ func scanAny(typ wire.Typ3, bz []byte) (stop bool, s string, n int, err error) {
 }
 
 func scanVarint(bz []byte) (s string, n int, err error) {
+	if len(bz) == 0 {
+		err = fmt.Errorf("EOF reading Varint")
+	}
 	// First try Varint.
 	var i64, okI64 = int64(0), true
 	i64, n = binary.Varint(bz)
-	if n < 0 {
+	if n <= 0 {
 		n = 0
 		okI64 = false
 	}
@@ -114,7 +117,6 @@ func scanByteLength(bz []byte) (s string, n int, err error) {
 }
 
 func scanStruct(bz []byte) (s string, n int, err error) {
-	fmt.Println("Start Struct")
 	var _s, _n, typ = string(""), int(0), wire.Typ3(0x00)
 FOR_LOOP:
 	for {
@@ -131,7 +133,6 @@ FOR_LOOP:
 			break FOR_LOOP
 		}
 	}
-	fmt.Println("End Struct")
 	return
 }
 
@@ -146,7 +147,7 @@ func scanFieldKey(bz []byte) (s string, typ wire.Typ3, n int, err error) {
 	typ = wire.Typ3(u64 & 0x07)
 	var number uint32 = uint32(u64 >> 3)
 	s = fmt.Sprintf("%X", bz[:n])
-	fmt.Printf("%v @%v #%v\n", s, number, typ)
+	fmt.Printf("%v @%v %v\n", s, number, typ)
 	return
 }
 
@@ -164,13 +165,14 @@ func scan4Byte(bz []byte) (s string, n int, err error) {
 func scanList(bz []byte) (s string, n int, err error) {
 	// Read element Typ4.
 	if len(bz) < 1 {
-		err = errors.New("EOF reading 4byte field.")
+		err = errors.New("EOF reading list element typ4.")
 		return
 	}
 	var typ = wire.Typ4(bz[0])
 	if typ&0xF0 > 0 {
 		err = errors.New("Invalid list element typ4 byte")
 	}
+	s = fmt.Sprintf("%X", bz[:1])
 	if slide(&bz, &n, 1) && err != nil {
 		return
 	}
@@ -181,30 +183,32 @@ func scanList(bz []byte) (s string, n int, err error) {
 		_n = 0
 		err = errors.New("error decoding list length (uvarint)")
 	}
+	s += cmn.Cyan(fmt.Sprintf("%X", bz[:_n]))
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
-	s = cmn.Cyan(fmt.Sprintf("%X", bz[:n]))
-	fmt.Printf("%v (%v #%v)\n", s, num, typ)
+	fmt.Printf("%v of %v with %v items\n", s, typ, num)
 	// Read elements.
 	var _s string
 	for i := 0; i < int(num); i++ {
-		// Maybe read pointer byte.
+		// Maybe read nil byte.
 		if typ&0x08 != 0 {
 			if len(bz) == 0 {
-				err = errors.New("EOF reading list pointer byte")
+				err = errors.New("EOF reading list nil byte")
 				return
 			}
-			switch typ & 0x08 {
+			var nb = bz[0]
+			slide(&bz, &n, 1)
+			switch nb {
 			case 0x00:
 				s += "00"
-				fmt.Printf("00 (non-nul)")
+				fmt.Printf("00 (not nil)\n")
 			case 0x01:
 				s += "01" // Is nil (NOTE: reverse logic)
-				fmt.Printf("00 (1 nil)")
+				fmt.Printf("01 (is nil)\n")
 				continue
 			default:
-				err = fmt.Errorf("Unexpected nil pointer byte %X", bz[0])
+				err = fmt.Errorf("Unexpected nil pointer byte %X", nb)
 				return
 			}
 		}
@@ -223,7 +227,9 @@ func scanInterface(bz []byte) (s string, n int, err error) {
 		return
 	}
 	pb3 := pb.WithTyp3(typ)
-	if hasDb {
+	if isNil {
+		s = cmn.Magenta("0000")
+	} else if hasDb {
 		s = cmn.Magenta(fmt.Sprintf("%X%X", db.Bytes(), pb3.Bytes()))
 	} else {
 		s = cmn.Magenta(fmt.Sprintf("%X", pb3.Bytes()))
@@ -231,10 +237,10 @@ func scanInterface(bz []byte) (s string, n int, err error) {
 	if isNil {
 		fmt.Printf("%v (nil interface)\n", s)
 	} else if hasDb {
-		fmt.Printf("%v (disamb: %X, prefix: %X, typ: #%v)\n",
+		fmt.Printf("%v (disamb: %X, prefix: %X, typ: %v)\n",
 			s, db.Bytes(), pb.Bytes(), typ)
 	} else {
-		fmt.Printf("%v (prefix: %X, typ: #%v)\n",
+		fmt.Printf("%v (prefix: %X, typ: %v)\n",
 			s, pb.Bytes(), typ)
 	}
 	return

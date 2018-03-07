@@ -23,12 +23,11 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
 		panic("should not happen")
 	}
-
 	if printLog {
-		spew.Printf("(d) decodeReflectBinary(bz: %X, info: %v, rv: %#v (%v), opts: %v)\n",
+		spew.Printf("(D) decodeReflectBinary(bz: %X, info: %v, rv: %#v (%v), opts: %v)\n",
 			bz, info, rv.Interface(), rv.Type(), opts)
 		defer func() {
-			fmt.Printf("(d) -> n: %v, err: %v\n", n, err)
+			fmt.Printf("(D) -> n: %v, err: %v\n", n, err)
 		}()
 	}
 
@@ -49,7 +48,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		if info.Prefix != prefix {
 			panic("should not happen")
 		}
-		// Check that Typ3 in prefix bytes is correct.
+		// Check that typ3 in prefix bytes is correct.
 		err = checkTyp3(info.Type, typ, opts)
 		if err != nil {
 			return
@@ -68,6 +67,20 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 // CONTRACT: any immediate disamb/prefix bytes have been consumed/stripped.
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
+	if !rv.CanAddr() {
+		panic("rv not addressable")
+	}
+	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
+		panic("should not happen")
+	}
+	if printLog {
+		spew.Printf("(_) _decodeReflectBinary(bz: %X, info: %v, rv: %#v (%v), opts: %v)\n",
+			bz, info, rv.Interface(), rv.Type(), opts)
+		defer func() {
+			fmt.Printf("(_) -> n: %v, err: %v\n", n, err)
+		}()
+	}
+	var _n int
 
 	// TODO consider the binary equivalent of json.Unmarshaller.
 
@@ -81,7 +94,25 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 		rv = rv.Elem()
 	}
 
-	var _n int
+	// Handle override if a pointer to rv implements UnmarshalWire.
+	if info.IsWireUnmarshaler {
+		// First, decode repr instance from bytes.
+		rrv, rinfo := reflect.New(info.WireUnmarshalReprType).Elem(), (*TypeInfo)(nil)
+		rinfo, err = cdc.getTypeInfo_wlock(info.WireUnmarshalReprType)
+		if err != nil {
+			return
+		}
+		_n, err = cdc._decodeReflectBinary(bz, rinfo, rrv, opts)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+		// Then, decode from repr instance.
+		uwrm := rv.Addr().MethodByName("UnmarshalWire")
+		uwouts := uwrm.Call([]reflect.Value{rrv})
+		err = uwouts[0].Interface().(error)
+		return
+	}
+
 	switch info.Type.Kind() {
 
 	//----------------------------------------
@@ -289,6 +320,12 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+	if printLog {
+		fmt.Println("(d) decodeReflectBinaryInterface")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
+	}
 	if !rv.IsNil() {
 		// JAE: Heed this note, this is very tricky.
 		// I've forgotten the reason a second time,
@@ -297,24 +334,16 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
-	// Peek disambiguation / prefix+typ3 info.
-	disamb, hasDisamb, prefix, typ, hasPrefix, isNil, _, err := DecodeDisambPrefixBytes(bz)
-	if err != nil {
+	// Consume disambiguation / prefix+typ3 bytes.
+	disamb, hasDisamb, prefix, typ, hasPrefix, isNil, _n, err := DecodeDisambPrefixBytes(bz)
+	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
 
 	// Special case for nil.
 	if isNil {
-		n += 1 + DisambBytesLen // Consume 0x{00 00 00 00}
 		rv.Set(iinfo.ZeroValue)
 		return
-	}
-
-	// Consume disamb (if any) and prefix bytes.
-	if hasDisamb {
-		slide(&bz, &n, 1+DisfixBytesLen)
-	} else {
-		slide(&bz, &n, PrefixBytesLen)
 	}
 
 	// Get concrete type info from disfix/prefix.
@@ -330,8 +359,8 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
-	// Check and consume Typ3 byte.
-	// It cannot be a Typ4 byte because it cannot be nil.
+	// Check and consume typ3 byte.
+	// It cannot be a typ4 byte because it cannot be nil.
 	err = checkTyp3(cinfo.Type, typ, opts)
 	if err != nil {
 		return
@@ -341,7 +370,6 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	var crv, irvSet = constructConcreteType(cinfo)
 
 	// Decode into the concrete type.
-	_n := 0
 	_n, err = cdc._decodeReflectBinary(bz, cinfo, crv, opts)
 	if slide(&bz, &n, _n) && err != nil {
 		rv.Set(irvSet) // Helps with debugging
@@ -361,6 +389,12 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 func (cdc *Codec) decodeReflectBinaryByteArray(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
+	}
+	if printLog {
+		fmt.Println("(d) decodeReflectBinaryByteArray")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
 	}
 	ert := info.Type.Elem()
 	if ert.Kind() != reflect.Uint8 {
@@ -393,6 +427,12 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+	if printLog {
+		fmt.Println("(d) decodeReflectBinaryArray")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
+	}
 	ert := info.Type.Elem()
 	if ert.Kind() == reflect.Uint8 {
 		panic("should not happen")
@@ -404,7 +444,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 		return
 	}
 
-	// Check and consume Typ4 byte.
+	// Check and consume typ4 byte.
 	var ptr, _n = false, int(0)
 	ptr, _n, err = decodeTyp4AndCheck(ert, bz, opts)
 	if slide(&bz, &n, _n) && err != nil {
@@ -460,6 +500,12 @@ func (cdc *Codec) decodeReflectBinaryByteSlice(bz []byte, info *TypeInfo, rv ref
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+	if printLog {
+		fmt.Println("(d) decodeReflectByteSlice")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
+	}
 	ert := info.Type.Elem()
 	if ert.Kind() != reflect.Uint8 {
 		panic("should not happen")
@@ -486,6 +532,12 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+	if printLog {
+		fmt.Println("(d) decodeReflectBinarySlice")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
+	}
 	ert := info.Type.Elem()
 	if ert.Kind() == reflect.Uint8 {
 		panic("should not happen")
@@ -496,7 +548,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 		return
 	}
 
-	// Check and consume Typ4 byte.
+	// Check and consume typ4 byte.
 	var ptr, _n = false, int(0)
 	ptr, _n, err = decodeTyp4AndCheck(ert, bz, opts)
 	if slide(&bz, &n, _n) && err != nil {
@@ -567,9 +619,15 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
+	if printLog {
+		fmt.Println("(d) decodeReflectBinaryStruct")
+		defer func() {
+			fmt.Printf("(d) -> err: %v\n", err)
+		}()
+	}
 	_n := 0 // nolint: ineffassign
 
-	// The "Struct" Typ3 doesn't get read here.
+	// The "Struct" typ3 doesn't get read here.
 	// It's already implied, either by struct-key or list-element-type-byte.
 
 	switch info.Type {
@@ -634,14 +692,14 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 
 		// Read "StructTerm".
 		// NOTE: In the future, we'll need to break out of a loop
-		// when encoutering an StructTerm Typ3 byte.
+		// when encoutering an StructTerm typ3 byte.
 		var typ = Typ3(0x00)
 		typ, _n, err = decodeTyp3(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		if typ != Typ3_StructTerm {
-			err = errors.New(fmt.Sprintf("Expected StructTerm Typ3 byte, got %X", typ))
+			err = errors.New(fmt.Sprintf("Expected StructTerm typ3 byte, got %X", typ))
 			return
 		}
 		return
@@ -651,18 +709,18 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 //----------------------------------------
 
 func DecodeDisambPrefixBytes(bz []byte) (db DisambBytes, hasDb bool, pb PrefixBytes, typ Typ3, hasPb bool, isNil bool, n int, err error) {
+	// Special case: nil
+	if len(bz) >= 2 && bz[0] == 0x00 && bz[1] == 0x00 {
+		isNil = true
+		n = 2
+		return
+	}
 	// Validate
 	if len(bz) < 4 {
 		err = errors.New("EOF reading prefix bytes.")
 		return // hasPb = false
 	}
-	if bz[0] == 0x00 {
-		// Special case: nil
-		if (DisambBytes{}).EqualBytes(bz[1:4]) {
-			isNil = true
-			n = 4
-			return
-		}
+	if bz[0] == 0x00 { // Disfix
 		// Validate
 		if len(bz) < 8 {
 			err = errors.New("EOF reading disamb bytes.")
@@ -675,7 +733,7 @@ func DecodeDisambPrefixBytes(bz []byte) (db DisambBytes, hasDb bool, pb PrefixBy
 		hasPb = true
 		n = 8
 		return
-	} else {
+	} else { // Prefix
 		// General case with no disambiguation
 		copy(pb[0:4], bz[0:4])
 		pb, typ = pb.SplitTyp3()
@@ -696,7 +754,7 @@ func decodeFieldNumberAndTyp3(bz []byte) (num uint32, typ Typ3, n int, err error
 		return
 	}
 
-	// Decode first Typ3 byte.
+	// Decode first typ3 byte.
 	typ = Typ3(value64 & 0x07)
 
 	// Decode num.
@@ -710,7 +768,7 @@ func decodeFieldNumberAndTyp3(bz []byte) (num uint32, typ Typ3, n int, err error
 	return
 }
 
-// Consume Typ4 byte and error if it doesn't match rt.
+// Consume typ4 byte and error if it doesn't match rt.
 func decodeTyp4AndCheck(rt reflect.Type, bz []byte, opts FieldOptions) (ptr bool, n int, err error) {
 	var typ = Typ4(0x00)
 	typ, n, err = decodeTyp4(bz)
@@ -722,18 +780,18 @@ func decodeTyp4AndCheck(rt reflect.Type, bz []byte, opts FieldOptions) (ptr bool
 		err = errors.New(fmt.Sprintf("Typ4 mismatch.  Expected %X, got %X", typWanted, typ))
 		return
 	}
-	ptr = (typ & 0x80) != 0
+	ptr = (typ & 0x08) != 0
 	return
 }
 
 // Read Typ4 byte.
 func decodeTyp4(bz []byte) (typ Typ4, n int, err error) {
 	if len(bz) == 0 {
-		err = errors.New(fmt.Sprintf("EOF reading Typ4 byte"))
+		err = errors.New(fmt.Sprintf("EOF reading typ4 byte"))
 		return
 	}
 	if bz[0]&0xF0 != 0 {
-		err = errors.New(fmt.Sprintf("Invalid non-zero nibble reading Typ4 byte"))
+		err = errors.New(fmt.Sprintf("Invalid non-zero nibble reading typ4 byte"))
 		return
 	}
 	typ = Typ4(bz[0])
@@ -750,14 +808,14 @@ func checkTyp3(rt reflect.Type, typ Typ3, opts FieldOptions) (err error) {
 	return
 }
 
-// Read Typ3 byte.
+// Read typ3 byte.
 func decodeTyp3(bz []byte) (typ Typ3, n int, err error) {
 	if len(bz) == 0 {
-		err = fmt.Errorf("EOF reading Typ3 byte")
+		err = fmt.Errorf("EOF reading typ3 byte")
 		return
 	}
 	if bz[0]&0xF8 != 0 {
-		err = fmt.Errorf("Invalid Typ3 byte")
+		err = fmt.Errorf("Invalid typ3 byte")
 		return
 	}
 	typ = Typ3(bz[0])

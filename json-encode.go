@@ -13,13 +13,20 @@ import (
 //----------------------------------------
 // cdc.encodeReflectJSON
 
+// This is the main entrypoint for encoding all types in json form.  This
+// function calls encodeReflectJSON*, and generally those functions should
+// only call this one, for the disfix wrapper is only written here.
+// NOTE: Unlike encodeReflectBinary, rv may be a pointer.
+// CONTRACT: rv is valid.
 func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-
+	if !rv.IsValid() {
+		panic("should not happen")
+	}
 	if printLog {
-		spew.Printf("(e) encodeReflectJSON(info: %v, rv: %#v (%v), opts: %v)\n",
+		spew.Printf("(E) encodeReflectJSON(info: %v, rv: %#v (%v), opts: %v)\n",
 			info, rv.Interface(), rv.Type(), opts)
 		defer func() {
-			fmt.Printf("(e) -> err: %v\n", err)
+			fmt.Printf("(E) -> err: %v\n", err)
 		}()
 	}
 
@@ -33,34 +40,67 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		}
 		// Part 2:
 		defer func() {
+			if err != nil {
+				return
+			}
 			err = writeStr(w, `}`)
 		}()
 	}
 
-	// Dereference pointers all the way if any.
-	// This works for pointer-pointers.
-	var foundPointer = false
-	for rv.Kind() == reflect.Ptr {
-		foundPointer = true
-		rv = rv.Elem()
+	err = cdc._encodeReflectJSON(w, info, rv, opts)
+	return
+}
+
+// NOTE: Unlike _encodeReflectBinary, rv may be a pointer.
+// CONTRACT: rv is valid.
+// CONTRACT: any disfix wrapper has already been written.
+func (cdc *Codec) _encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	if !rv.IsValid() {
+		panic("should not happen")
 	}
+	if printLog {
+		spew.Printf("(_) _encodeReflectJSON(info: %v, rv: %#v (%v), opts: %v)\n",
+			info, rv.Interface(), rv.Type(), opts)
+		defer func() {
+			fmt.Printf("(_) -> err: %v\n", err)
+		}()
+	}
+
+	// Dereference value if pointer.
+	var isNilPtr bool
+	rv, _, isNilPtr = derefPointers(rv)
 
 	// Write null if necessary.
-	if foundPointer {
-		if !rv.IsValid() {
-			err = writeStr(w, `null`)
-			return
-		}
+	if isNilPtr {
+		err = writeStr(w, `null`)
+		return
 	}
 
-	// Handle override if json.Marshaler is implemented.
+	// Handle override if rv implements json.Marshaler.
 	if rv.CanAddr() { // Try pointer first.
-		if rv.Addr().Type().Implements(marshalerType) {
+		if rv.Addr().Type().Implements(jsonMarshalerType) {
 			err = invokeMarshalJSON(w, rv.Addr())
 			return
 		}
-	} else if rv.Type().Implements(marshalerType) {
+	} else if rv.Type().Implements(jsonMarshalerType) {
 		err = invokeMarshalJSON(w, rv)
+		return
+	}
+
+	// Handle override if rv implements json.Marshaler.
+	if info.IsWireMarshaler {
+		// First, encode rv into repr instance.
+		var rrv, rinfo = reflect.Value{}, (*TypeInfo)(nil)
+		rrv, err = toReprObject(rv)
+		if err != nil {
+			return
+		}
+		rinfo, err = cdc.getTypeInfo_wlock(info.WireMarshalReprType)
+		if err != nil {
+			return
+		}
+		// Then, encode the repr instance.
+		err = cdc._encodeReflectJSON(w, rinfo, rrv, opts)
 		return
 	}
 
@@ -73,7 +113,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		return cdc.encodeReflectJSONInterface(w, info, rv, opts)
 
 	case reflect.Array, reflect.Slice:
-		return cdc.encodeReflectJSONArrayOrSlice(w, info, rv, opts)
+		return cdc.encodeReflectJSONList(w, info, rv, opts)
 
 	case reflect.Struct:
 		return cdc.encodeReflectJSONStruct(w, info, rv, opts)
@@ -105,6 +145,12 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 }
 
 func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	if printLog {
+		fmt.Println("(e) encodeReflectJSONInterface")
+		defer func() {
+			fmt.Printf("(e) -> err: %v\n", err)
+		}()
+	}
 
 	// Special case when rv is nil, just write "null".
 	if rv.IsNil() {
@@ -113,10 +159,14 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 	}
 
 	// Get concrete non-pointer reflect value & type.
-	var crv = rv.Elem()
-	crv, err = derefForInterface(crv, iinfo)
-	if err != nil {
-		return
+	var crv, isPtr, isNilPtr = derefPointers(rv.Elem())
+	if isPtr && crv.Kind() == reflect.Interface {
+		// See "MARKER: No interface-pointers" in codec.go
+		panic("should not happen")
+	}
+	if isNilPtr {
+		panic(fmt.Sprintf("Illegal nil-pointer of type %v for registered interface %v. "+
+			"For compatibility with other languages, nil-pointer interface values are forbidden.", crv.Type(), iinfo.Type))
 	}
 	var crt = crv.Type()
 
@@ -131,24 +181,47 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 		return
 	}
 
+	// Write disfix wrapper.
+	// Part 1:
+	disfix := toDisfix(cinfo.Disamb, cinfo.Prefix)
+	err = writeStr(w, _fmt(`{"_df":"%X","_v":`, disfix))
+	if err != nil {
+		return
+	}
+	// Part 2:
+	defer func() {
+		if err != nil {
+			return
+		}
+		err = writeStr(w, `}`)
+	}()
+
 	// NOTE: In the future, we may write disambiguation bytes
 	// here, if it is only to be written for interface values.
 	// Currently, go-wire JSON *always* writes disfix bytes for
 	// all registered concrete types.
 
-	err = cdc.encodeReflectJSON(w, cinfo, crv, opts)
+	err = cdc._encodeReflectJSON(w, cinfo, crv, opts)
 	return
 }
 
-func (cdc *Codec) encodeReflectJSONArrayOrSlice(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-	ert := info.Type.Elem()
-	length := rv.Len()
+func (cdc *Codec) encodeReflectJSONList(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	if printLog {
+		fmt.Println("(e) encodeReflectJSONList")
+		defer func() {
+			fmt.Printf("(e) -> err: %v\n", err)
+		}()
+	}
 
-	// Special case when length is 0, just write "null".
-	if length == 0 {
+	// Special case when list is a nil slice, just write "null".
+	// Empty slices and arrays are not encoded as "null".
+	if rv.Kind() == reflect.Slice && rv.IsNil() {
 		err = writeStr(w, `null`)
 		return
 	}
+
+	ert := info.Type.Elem()
+	length := rv.Len()
 
 	switch ert.Kind() {
 
@@ -185,8 +258,13 @@ func (cdc *Codec) encodeReflectJSONArrayOrSlice(w io.Writer, info *TypeInfo, rv 
 			return
 		}
 		for i := 0; i < length; i++ {
-			erv := rv.Index(i)
-			err = cdc.encodeReflectJSON(w, einfo, erv, opts)
+			// Get dereferenced element value and info.
+			var erv, _, isNil = derefPointers(rv.Index(i))
+			if isNil {
+				err = writeStr(w, `null`)
+			} else {
+				err = cdc.encodeReflectJSON(w, einfo, erv, opts)
+			}
 			if err != nil {
 				return
 			}
@@ -208,6 +286,12 @@ func (cdc *Codec) encodeReflectJSONArrayOrSlice(w io.Writer, info *TypeInfo, rv 
 }
 
 func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflect.Value, _ FieldOptions) (err error) {
+	if printLog {
+		fmt.Println("(e) encodeReflectJSONStruct")
+		defer func() {
+			fmt.Printf("(e) -> err: %v\n", err)
+		}()
+	}
 
 	// Part 1.
 	err = writeStr(w, `{`)
@@ -216,24 +300,25 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 	}
 	// Part 2.
 	defer func() {
-		err = writeStr(w, `}`)
+		if err == nil {
+			err = writeStr(w, `}`)
+		}
 	}()
 
 	var writeComma = false
 	for _, field := range info.Fields {
-		// Get field value and info.
-		var frv = rv.Field(field.Index)
+		// Get dereferenced field value and info.
+		var frv, _, isNil = derefPointers(rv.Field(field.Index))
 		var finfo *TypeInfo
 		finfo, err = cdc.getTypeInfo_wlock(field.Type)
 		if err != nil {
 			return
 		}
-		var fopts = field.FieldOptions
-		// If frv is empty and omitempty...
+		// If frv is empty and omitempty, skip it.
+		// NOTE: Unlike Wire:binary, we don't skip null fields unless "omitempty".
 		if field.JSONOmitEmpty && isEmpty(frv, field.ZeroValue) {
 			continue
 		}
-
 		// Now we know we're going to write something.
 		// Add a comma if we need to.
 		if writeComma {
@@ -254,7 +339,11 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 			return
 		}
 		// Write field value.
-		err = cdc.encodeReflectJSON(w, finfo, frv, fopts)
+		if isNil {
+			err = writeStr(w, `null`)
+		} else {
+			err = cdc.encodeReflectJSON(w, finfo, frv, field.FieldOptions)
+		}
 		if err != nil {
 			return
 		}
