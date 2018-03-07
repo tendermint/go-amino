@@ -480,3 +480,6 @@ bytes.  As in Protobuf, a nil struct field value is not encoded at all.
 # Wire in other languages
 
 Contact us on github.com/tendermint/go-wire/issues, we are looking for contributors to implement Wire in other languages.  In Golang, we are are interested in codec generators.
+
+Bounty payments will be available (from individual contributions).
+More details coming, but in the meantime, please start contributing and soliciting feedback.
