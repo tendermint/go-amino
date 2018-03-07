@@ -3,8 +3,9 @@
 This software implements Go bindings for the Wire encoding protocol.
 
 Wire is an object encoding specification. Think of it as an object-oriented Protobuf3 with native
-JSON support for an extra friendly developer experience. The goal of the Wire encoding protocol is to
-bring to parity a simple to use, common binary encoding scheme supported by the most popular object-oriented programming languages.
+JSON support.
+
+The goal of the Wire encoding protocol is to bring parity between application logic objects and persistence objects.
 
 (CAVEAT: we're still building out the ecosystem, which is currently most
 developed in Golang.  But Wire is not just for Golang.  If you'd like to
