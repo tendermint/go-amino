@@ -2,10 +2,10 @@
 
 This software implements Go bindings for the Wire encoding protocol.
 
-Wire is an object encoding specification.  It's like object-oriented Protobuf3 with native
-JSON support for that extra developer friendliness.  The goal of Wire is to
-bring parity between the most popular modern language's natural object-oriented
-featureset and a common binary encoding protocol.
+Wire is an object encoding specification. Think of it as an object-oriented Protobuf3 with native
+JSON support.
+
+The goal of the Wire encoding protocol is to bring parity between application logic objects and persistence objects.
 
 (CAVEAT: we're still building out the ecosystem, which is currently most
 developed in Golang.  But Wire is not just for Golang.  If you'd like to
@@ -18,31 +18,30 @@ issue system!)
 
 ## Wire vs JSON
 
-JSON is good, but inefficient.  Protobuf3, BER, RLP all exist because we need a more compact
-and efficient binary encoding standard.  Wire provides efficient binary encoding for complex objects
-(even nested objects) that integrate naturally with your favorite modern programming langauge,
-but also a fully compatible JSON encoding as well.
+JSON is good, but it's inefficient. Protobuf3, BER, RLP all exist because we need a more compact
+and efficient binary encoding standard. Wire provides efficient binary encoding for complex objects
+(even nested objects) that integrate naturally with your favorite modern programming langauge.
+Additionally, Wire is fully compatible with JSON encoding.
 
 
 ## Wire vs Protobuf3
 
-Protobuf3 is almost perfect.  It has backwards-compatible upgradeability,
-and a decent compact binary representation.
+Protobuf3 is almost perfect. It has backwards-compatible upgradeability and a decent compact binary representation.
 
-Wire wants to be Protobuf4.  The bulk of this spec will
-explain how Wire differs from Protobuf3, so here we will just illustrate two key
+Wire wants to be Protobuf4. The bulk of this spec will
+explain how Wire differs from Protobuf3. Here, we will illustrate two key
 selling points for Wire.
 
 * In Protobuf3, *all* the fields of a structure are varint byte-length prefixed;
 not only for string and byteslice fields, but also for embedded messages.
   This makes the binary encoding naturally more inefficient, as bytes cannot
 simply be written to a memory array (buffer) in sequence without allocating a
-new buffer for each embedded message.  Wire is encoded in such a way that the
-complete structure of the message (not just the top-level) can be determined by
+new buffer for each embedded message. Wire is encoded in such a way that the
+complete structure of the message (not just the top-level structure) can be determined by
 scanning the byte encoding without any type information other than what is
-available in the binary bytes.  This makes encoding faster with no penalty when
+available in the binary bytes. This makes encoding faster with no penalty when
 decoding. See how Protobuf3 encodes embedded message fields
-[here](https://github.com/tendermint/go-wire/wiki/wirescan)
+[here](https://github.com/tendermint/go-wire/wiki/wirescan).
 
 * Protobuf3 has `oneof`, but it's clunky.  For example, Golang Protobuf's
   implementation is not so good ([source](https://github.com/gogo/protobuf/issues/168)).
@@ -50,7 +49,7 @@ But this isn't just an implementation issue. The real problem is that oneof
 doesn't match how modern languages already work to provide oneof-like features.
 Protobuf3's oneof support feels more like a (bad) encoding for C union types.  For example,
 you can't declare a union type and re-use it in Protobuf.  Also, each "oneof" option gets a
-second field name in addition to the common field name  (Why?!).  What we want is a way to encode
+second field name in addition to the common field name.  (Why?!)  What we want is a way to encode
 *objects*, and a new type to represent a set of object types (often called interfaces).
 
 	* In C++, classes.  Unions are still useful (e.g. for performance) but not as
@@ -166,7 +165,7 @@ and drop the leading 0x00 bytes.
 In the example above, hash has two leading 0x00 bytes, so we drop them.
 
 ```
-> rest = dropLeadingZeroBytes(hash) // 0x{A8 FC 54 00 00 BB 9C 83 DD ...}
+> rest = dropLeadingZeroBytes(hash) // 0x{A8 FC 54 00 00 00 BB 9C 83 DD ...}
 > disamb = rest[0:3]
 > rest = dropLeadingZeroBytes(rest[3:])
 > prefix = rest[0:4]
@@ -255,7 +254,7 @@ guide](https://developers.google.com/protocol-buffers/docs/encoding):
 > 3) | wire_type – in other words, the last three bits of the number store the
 > wire type.
 
-In Wire, the "type" is similarly enocded by 3 bits, called the "typ3". When it
+In Wire, the "type" is similarly encoded by 3 bits, called the "typ3". When it
 appears alone in a byte, it is called a "typ3 byte".
 
 In Wire, "varint" is the Protobuf equivalent of "signed varint" aka "sint32",
@@ -460,8 +459,8 @@ number is implied.
 In the future, for sparse lists we could support encoding of more than one nil
 items at a time, which could be even more compact.
 
-NOTE: The current spec makes the byte-length of the input be more-or-less
-representative of the amount of memory it takes to decode it. A 200-byte
+NOTE: The current spec makes the byte-length of the input more-or-less
+representative of the amount of memory it takes to decode the input. A 200-byte
 go-wire binary blob shouldn't decode into a 1GB object in memory, but it might
 with sparse encoding, so we should be aware of that.
 
@@ -478,8 +477,9 @@ interface value is encoded by 2 zero bytes (0x0000) in place of the 4 prefix
 bytes.  As in Protobuf, a nil struct field value is not encoded at all.
 
 
-# Wire in other langauges
+# Wire in other languages
 
-Contact us on github.com/tendermint/go-wire/issues, we will pay out bounties
-for implementations in other languages.  In Golang, we are are interested in
-codec generators.
+Contact us on github.com/tendermint/go-wire/issues, we are looking for contributors to implement Wire in other languages.  In Golang, we are are interested in codec generators.
+
+Bounty payments will be available (from individual contributions).
+More details coming, but in the meantime, please start contributing and soliciting feedback.
