@@ -1,37 +1,37 @@
-# Wire encoding for Go
+# Amino encoding for Go
 
-This software implements Go bindings for the Wire encoding protocol.
+This software implements Go bindings for the Amino encoding protocol.
 
-Wire is an object encoding specification. Think of it as an object-oriented
+Amino is an object encoding specification. Think of it as an object-oriented
 Protobuf3 with native JSON support.
 
-The goal of the Wire encoding protocol is to bring parity between application
+The goal of the Amino encoding protocol is to bring parity between application
 logic objects and persistence objects.
 
 **CAVEAT:** we're still building out the ecosystem, which is currently most
-developed in Go.  But Wire is not just for Go — if you'd like to
+developed in Go.  But Amino is not just for Go — if you'd like to
 contribute by creating supporting libraries in various languages from scratch,
-or by adapting existing Protobuf3 libraries, please [open an issue on GitHub](https://github.com/tendermint/go-wire/issues)!
+or by adapting existing Protobuf3 libraries, please [open an issue on GitHub](https://github.com/tendermint/go-amino/issues)!
 
-# Why Wire?
+# Why Amino?
 
-## Wire vs JSON
+## Amino vs JSON
 
 JavaScript Object Notation (JSON) is human readable, well structured and great for interoperability with Javascript, but it is inefficient.
 Protobuf3, BER, RLP all exist because we need a more compact and efficient binary encoding standard.
-Wire provides efficient binary encoding for complex objects (e.g. embedded objects) that integrate naturally
-with your favorite modern programming language. Additionally, Wire is fully compatible with JSON encoding.
+Amino provides efficient binary encoding for complex objects (e.g. embedded objects) that integrate naturally
+with your favorite modern programming language. Additionally, Amino is fully compatible with JSON encoding.
 
-## Wire vs Protobuf3
+## Amino vs Protobuf3
 
-Wire wants to be Protobuf4. The bulk of this spec will
-explain how Wire differs from Protobuf3. Here, we will illustrate two key
-selling points for Wire.
+Amino wants to be Protobuf4. The bulk of this spec will
+explain how Amino differs from Protobuf3. Here, we will illustrate two key
+selling points for Amino.
 
-* In Protobuf3, [embedded message are `varint` byte-length prefixed]((https://github.com/tendermint/go-wire/wiki/wirescan));
+* In Protobuf3, [embedded message are `varint` byte-length prefixed]((https://github.com/tendermint/go-amino/wiki/aminoscan));
   However, this makes the binary encoding naturally more inefficient, as bytes cannot
   simply be written to a memory array (buffer) in sequence without allocating a
-  new buffer for each embedded message. Wire is encoded in such a way that the
+  new buffer for each embedded message. Amino is encoded in such a way that the
   complete structure of the message (not just the top-level structure) can be determined by
   scanning the byte encoding without any type information other than what is
   available in the binary bytes. This makes encoding faster with no penalty when
@@ -55,11 +55,11 @@ selling points for Wire.
 Protobuf would be better if it were object-oriented. Since it isn't, the generated code
 is often not the logical objects that you really want to use in your
 application, so you end up duplicating the structure in the Protobuf schema file and
-writing translators to and from your logic objects.  Wire can eliminate this extra duplication.
+writing translators to and from your logic objects.  Amino can eliminate this extra duplication.
 
 ### Interfaces and concrete types
 
-Wire is an encoding library that can handle interfaces (like Protobuf `oneof`)
+Amino is an encoding library that can handle interfaces (like Protobuf `oneof`)
 exceptionally well.  This is achieved by prefixing bytes before each "concrete
 type".
 
@@ -74,16 +74,16 @@ To encode and decode an interface, it has to be registered with `codec.RegisterI
 and its respective concrete type implementers should be registered with `codec.RegisterConcrete`
 
 ```go
-wire.RegisterInterface((*MyInterface1)(nil), nil)
-wire.RegisterInterface((*MyInterface2)(nil), nil)
-wire.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)
-wire.RegisterConcrete(MyStruct2{}, "com.tendermint/MyStruct2", nil)
-wire.RegisterConcrete(&MyStruct3{}, "anythingcangoinhereifitsunique", nil)
+amino.RegisterInterface((*MyInterface1)(nil), nil)
+amino.RegisterInterface((*MyInterface2)(nil), nil)
+amino.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)
+amino.RegisterConcrete(MyStruct2{}, "com.tendermint/MyStruct2", nil)
+amino.RegisterConcrete(&MyStruct3{}, "anythingcangoinhereifitsunique", nil)
 ```
 
 Notice that an interface is represented by a nil pointer of that interface.
 
-Wire tries to transparently deal with pointers (and pointer-pointers) when it can.
+Amino tries to transparently deal with pointers (and pointer-pointers) when it can.
 When it comes to decoding a concrete type into an interface value, Go gives
 the user the option to register the concrete type as a pointer or non-pointer.
 If and only if the value is registered as a pointer the decoded value will be a pointer as well.
@@ -92,7 +92,7 @@ If and only if the value is registered as a pointer the decoded value will be a 
 ### Prefix bytes to identify the concrete type
 All registered concrete types are encoded with leading 4 bytes (called "prefix
 bytes"), even when it's not held in an interface field/element.  In this way,
-Wire ensures that concrete types (almost) always have the same canonical
+Amino ensures that concrete types (almost) always have the same canonical
 representation.  The first byte of the prefix bytes must not be a zero byte, and
 the last 3 bits are reserved for the [`typ3` bits](#the-typ3-byte), so there
 are `2^(8x4-3)-2^(8x3-3) = 534,773,760` possible values.
@@ -107,7 +107,7 @@ mine/grind to produce a particular sequence of prefix bytes, and avoid using
 dependencies that do so.
 
 ```
-The Birthday Paradox: 1024 random registered types, Wire prefix bytes
+The Birthday Paradox: 1024 random registered types, Amino prefix bytes
 https://instacalc.com/51339
 
 possible = 534773760                                = 534,773,760
@@ -127,10 +127,10 @@ disambiguation bytes must not be a zero byte, so there are 2^(8x3)-2^(8x2)
 possible values.
 
 ```
-// Sample Wire encoded binary bytes with 4 prefix bytes.
+// Sample Amino encoded binary bytes with 4 prefix bytes.
 > [0xBB 0x9C 0x83 0xDD] [...]
 
-// Sample Wire encoded binary bytes with 3 disambiguation bytes and 4
+// Sample Amino encoded binary bytes with 3 disambiguation bytes and 4
 // prefix bytes.
 > 0x00 <0xA8 0xFC 0x54> [0xBB 0x9C 0x83 0xDD] [...]
 ```
@@ -201,12 +201,12 @@ denote a null pointer (i.e. no value), otherwise it is 0x01.
 
 #### Maps
 In most languages, iteration order is nondeterministic, so in those
-cases Wire (should) provide a standard Map library for compatibility.
+cases Amino (should) provide a standard Map library for compatibility.
 
 #### Floating points
 Floating point number types are discouraged as [they are generally
 non-deterministic](http://gafferongames.com/networking-for-game-programmers/floating-point-determinism/).
-If you need to use them, use the field tag `wire:"unsafe"`.
+If you need to use them, use the field tag `amino:"unsafe"`.
 
 ### Unsupported types
 
@@ -214,7 +214,7 @@ If you need to use them, use the field tag `wire:"unsafe"`.
 Enum types are not supported in all languages, and they're simple enough to
 model as integers anyways.
 
-### Wire vs Protobuf3 in detail
+### Amino vs Protobuf3 in detail
 
 From the [Protocol Buffers encoding
 guide](https://developers.google.com/protocol-buffers/docs/encoding):
@@ -249,10 +249,10 @@ guide](https://developers.google.com/protocol-buffers/docs/encoding):
 
 #### The Typ3 Byte
 
-In Wire, the "type" is similarly enocded by 3 bits, called the "typ3". When it
+In Amino, the "type" is similarly enocded by 3 bits, called the "typ3". When it
 appears alone in a byte, it is called a "typ3 byte".
 
-In Wire, `varint` is the Protobuf equivalent of "signed varint" aka `sint32`,
+In Amino, `varint` is the Protobuf equivalent of "signed varint" aka `sint32`,
 and `uvarint` is the equivalent of "varint" aka `int32`.
 
 Typ3 | Meaning          | Used For
@@ -270,7 +270,7 @@ Typ3 | Meaning          | Used For
 
 Struct fields are encoded in order, and a null/empty/zero field is represented
 by the absence of a field in the encoding, similar to Protobuf. Unlike Protobuf,
-in Wire, the total byte-size of a Wire encoded struct cannot in general be
+in Amino, the total byte-size of a Amino encoded struct cannot in general be
 determined in a stream until each field's size has been determined by scanning
 all fields and elements recursively.
 
@@ -281,7 +281,7 @@ When the typ3 bits are represented as a single byte (using the least
 significant bits of the byte), we call it the "typ3 byte".  For example, the
 typ3 byte for a "list" is `0x06`.
 
-In Wire, when encoding elements of a "list" (Go slice or array), the typ3
+In Amino, when encoding elements of a "list" (Go slice or array), the typ3
 byte isn't enough.  Specifically, when the element type of the list is a
 pointer type, the element value may be nil.  We encode the element type of this
 kind of list with a typ4 byte, which is like a typ3 byte, but uses the 4th
@@ -292,12 +292,12 @@ prefix bytes, or (3) the typ4 byte of a parent list's element type declaration.
 
 Inner structs that are embedded in outer structs are encoded by the field typ3
 "Struct" (e.g. `0x03`).  (In Protobuf3, embedded messages are encoded as
-"Byte-Length (prefixed)".  In Wire, the "Byte-Length" typ3 is only used for
+"Byte-Length (prefixed)".  In Amino, the "Byte-Length" typ3 is only used for
 byteslices and bytearrays.)
 
 #### Lists
 
-Unlike Protobuf, Wire deprecates "repeated fields" in favor of "lists". A list
+Unlike Protobuf, Amino deprecates "repeated fields" in favor of "lists". A list
 is encoded by first writing the typ4 byte of the element type, followed by the
 uvarint encoding of the length of the list, followed by the encoding of each
 element.
@@ -324,7 +324,7 @@ list := List{
 	}
 }
 
-bz, err := wire.MarshalBinary(list)
+bz, err := amino.MarshalBinary(list)
 if err != nil { ... }
 
 // dump bz:
@@ -370,7 +370,7 @@ llist := ListOfLists{
 	}
 }
 
-bz, err := wire.MarshalBinary(llist)
+bz, err := amino.MarshalBinary(llist)
 if err != nil { ... }
 
 // dump bz:
@@ -428,7 +428,7 @@ list := List{
 	}
 }
 
-bz, err := wire.MarshalBinary(list)
+bz, err := amino.MarshalBinary(list)
 if err != nil { ... }
 
 // dump bz:
@@ -445,7 +445,7 @@ if err != nil { ... }
 ```
 
 In theory, List encoding could be similar to struct encoding, e.g. by prefixing
-each element with a key that includes the index number. Instead, the Wire
+each element with a key that includes the index number. Instead, the Amino
 encoding specified here is more compact for dense lists because the index
 number is implied.
 
@@ -454,7 +454,7 @@ items at a time, which could be even more compact.
 
 NOTE: The current spec makes the byte-length of the input more-or-less
 representative of the amount of memory it takes to decode the input. A 200-byte
-go-wire binary blob shouldn't decode into a 1GB object in memory, but it might
+go-amino binary blob shouldn't decode into a 1GB object in memory, but it might
 with sparse encoding, so we should be aware of that.
 
 #### Interfaces
@@ -465,8 +465,8 @@ scanner can recursively traverse the fields and elements of the value.  A nil
 interface value is encoded by 2 zero bytes (0x0000) in place of the 4 prefix
 bytes.  As in Protobuf, a nil struct field value is not encoded at all.
 
-# Wire in other langauges
+# Amino in other langauges
 
-[Open an Issue on GitHub](https://github.com/tendermint/go-wire/issues), as we
+[Open an Issue on GitHub](https://github.com/tendermint/go-amino/issues), as we
 will pay out bounties for implementations in other languages.  In Golang, we are
 are primarily interested in codec generators.

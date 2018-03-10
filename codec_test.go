@@ -1,11 +1,11 @@
-package wire_test
+package amino_test
 
 import (
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tendermint/go-wire"
+	"github.com/tendermint/go-amino"
 )
 
 type SimpleStruct struct {
@@ -26,7 +26,7 @@ func newSimpleStruct() SimpleStruct {
 func TestMarshalUnmarshalBinaryPointer0(t *testing.T) {
 
 	var s = newSimpleStruct()
-	cdc := wire.NewCodec()
+	cdc := amino.NewCodec()
 	b, err := cdc.MarshalBinary(s) // no indirection
 	assert.Nil(t, err)
 
@@ -40,7 +40,7 @@ func TestMarshalUnmarshalBinaryPointer0(t *testing.T) {
 func TestMarshalUnmarshalBinaryPointer1(t *testing.T) {
 
 	var s = newSimpleStruct()
-	cdc := wire.NewCodec()
+	cdc := amino.NewCodec()
 	b, err := cdc.MarshalBinary(&s) // extra indirection
 	assert.Nil(t, err)
 
@@ -55,7 +55,7 @@ func TestMarshalUnmarshalBinaryPointer2(t *testing.T) {
 
 	var s = newSimpleStruct()
 	var ptr = &s
-	cdc := wire.NewCodec()
+	cdc := amino.NewCodec()
 	b, err := cdc.MarshalBinary(&ptr) // double extra indirection
 	assert.Nil(t, err)
 
@@ -69,7 +69,7 @@ func TestMarshalUnmarshalBinaryPointer2(t *testing.T) {
 func TestMarshalUnmarshalBinaryPointer3(t *testing.T) {
 
 	var s = newSimpleStruct()
-	cdc := wire.NewCodec()
+	cdc := amino.NewCodec()
 	b, err := cdc.MarshalBinary(s) // no indirection
 	assert.Nil(t, err)
 
@@ -83,7 +83,7 @@ func TestMarshalUnmarshalBinaryPointer4(t *testing.T) {
 
 	var s = newSimpleStruct()
 	var ptr = &s
-	cdc := wire.NewCodec()
+	cdc := amino.NewCodec()
 	b, err := cdc.MarshalBinary(&ptr) // extra indirection
 	assert.Nil(t, err)
 

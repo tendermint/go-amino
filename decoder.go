@@ -1,4 +1,4 @@
-package wire
+package amino
 
 import (
 	"encoding/binary"
@@ -189,8 +189,8 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 // TODO return error if behavior is undefined.
 func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 
-	// TODO: This is a temporary measure until we support MarshalWire/UnmarshalWire.
-	// Basically, MarshalWire on time should return a struct.
+	// TODO: This is a temporary measure until we support MarshalAmino/UnmarshalAmino.
+	// Basically, MarshalAmino on time should return a struct.
 	// This is how that struct would be encoded.
 
 	{ // Decode field number 1 and Typ3 (8Byte).

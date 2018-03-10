@@ -1,4 +1,4 @@
-package wire
+package amino
 
 import (
 	"bytes"
@@ -90,11 +90,11 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 		return
 	}
 
-	// Handle override if a pointer to rv implements UnmarshalWire.
-	if info.IsWireUnmarshaler {
+	// Handle override if a pointer to rv implements UnmarshalAmino.
+	if info.IsAminoUnmarshaler {
 		// First, decode repr instance from bytes.
-		rrv, rinfo := reflect.New(info.WireUnmarshalReprType).Elem(), (*TypeInfo)(nil)
-		rinfo, err = cdc.getTypeInfo_wlock(info.WireUnmarshalReprType)
+		rrv, rinfo := reflect.New(info.AminoUnmarshalReprType).Elem(), (*TypeInfo)(nil)
+		rinfo, err = cdc.getTypeInfo_wlock(info.AminoUnmarshalReprType)
 		if err != nil {
 			return
 		}
@@ -103,7 +103,7 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 			return
 		}
 		// Then, decode from repr instance.
-		uwrm := rv.Addr().MethodByName("UnmarshalWire")
+		uwrm := rv.Addr().MethodByName("UnmarshalAmino")
 		uwouts := uwrm.Call([]reflect.Value{rrv})
 		err = uwouts[0].Interface().(error)
 		return
@@ -138,7 +138,7 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 
 	case reflect.Float32, reflect.Float64:
 		if !opts.Unsafe {
-			return errors.New("Wire.JSON float* support requires `wire:\"unsafe\"`.")
+			return errors.New("Amino.JSON float* support requires `amino:\"unsafe\"`.")
 		}
 		fallthrough
 	case reflect.Bool, reflect.String:

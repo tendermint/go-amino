@@ -1,4 +1,4 @@
-package wire
+package amino
 
 import (
 	"fmt"
@@ -35,7 +35,7 @@ func checkUnsafe(field FieldInfo) {
 	}
 	switch field.Type.Kind() {
 	case reflect.Float32, reflect.Float64:
-		panic("floating point types are unsafe for go-wire")
+		panic("floating point types are unsafe for go-amino")
 	}
 }
 
@@ -158,9 +158,9 @@ func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
 func toReprObject(rv reflect.Value) (rrv reflect.Value, err error) {
 	var mwrm reflect.Value
 	if rv.CanAddr() {
-		mwrm = rv.Addr().MethodByName("MarshalWire")
+		mwrm = rv.Addr().MethodByName("MarshalAmino")
 	} else {
-		mwrm = rv.MethodByName("MarshalWire")
+		mwrm = rv.MethodByName("MarshalAmino")
 	}
 	mwouts := mwrm.Call(nil)
 	if !mwouts[1].IsNil() {

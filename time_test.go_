@@ -1,4 +1,4 @@
-package wire
+package amino
 
 import (
 	"fmt"
@@ -58,15 +58,15 @@ func TestTime(t *testing.T) {
 		time.Unix(0, -10),
 	}
 	for _, c := range panicCases {
-		assert.Panics(t, func() { wire.MarshalBinary(c) }, "expected MarshalBinary to panic on times before 1970")
+		assert.Panics(t, func() { amino.MarshalBinary(c) }, "expected MarshalBinary to panic on times before 1970")
 	}
 
 	// ensure we can encode/decode a recent time
 	now := time.Now()
-	buf, err := wire.MarshalBinary(now)
+	buf, err := amino.MarshalBinary(now)
 
 	var thisTime time.Time
-	err = wire.UnmarshalBinary(buf, thisTime)
+	err = amino.UnmarshalBinary(buf, thisTime)
 	if !thisTime.Truncate(time.Millisecond).Equal(now.Truncate(time.Millisecond)) {
 		t.Fatalf("times dont match. got %v, expected %v", thisTime, now)
 	}
@@ -85,9 +85,9 @@ func TestTime(t *testing.T) {
 	}
 	for _, c := range errorCases {
 		timeNano := c.thisTime.UnixNano()
-		buf, err := wire.EncodeInt64(timeNano)
+		buf, err := amino.EncodeInt64(timeNano)
 		var thisTime time.Time
-		err = wire.UnmarshalBinary(buf, thisTime)
+		err = amino.UnmarshalBinary(buf, thisTime)
 		assert.Equal(t, err, c.err, "expected UnmarshalBinary to throw an error")
 		assert.Equal(t, thisTime, time.Time{}, "expected UnmarshalBinary to return default time")
 	}

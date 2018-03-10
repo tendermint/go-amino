@@ -1,6 +1,6 @@
 /*
 
-Wire is an encoding library that can handle interfaces (like protobuf "oneof")
+Amino is an encoding library that can handle interfaces (like protobuf "oneof")
 well.  This is achieved by prefixing bytes before each "concrete type".
 
 A concrete type is some non-interface value (generally a struct) which
@@ -13,11 +13,11 @@ Registering types
 
 All interfaces and the concrete types that implement them must be registered.
 
- wire.RegisterInterface((*MyInterface1)(nil), nil)
- wire.RegisterInterface((*MyInterface2)(nil), nil)
- wire.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)
- wire.RegisterConcrete(MyStruct2{}, "com.tendermint/MyStruct2", nil)
- wire.RegisterConcrete(&MyStruct3{}, "anythingcangoinhereifitsunique", nil)
+ amino.RegisterInterface((*MyInterface1)(nil), nil)
+ amino.RegisterInterface((*MyInterface2)(nil), nil)
+ amino.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)
+ amino.RegisterConcrete(MyStruct2{}, "com.tendermint/MyStruct2", nil)
+ amino.RegisterConcrete(&MyStruct3{}, "anythingcangoinhereifitsunique", nil)
 
 Notice that an interface is represented by a nil pointer.
 
@@ -31,7 +31,7 @@ How it works
 
 All registered concrete types are encoded with leading 4 bytes (called "prefix
 bytes"), even when it's not held in an interface field/element.  In this way,
-Wire ensures that concrete types (almost) always have the same canonical
+Amino ensures that concrete types (almost) always have the same canonical
 representation.  The first byte of the prefix bytes must not be a zero byte, so
 there are 2**(8*4)-2**(8*3) possible values.
 
@@ -54,10 +54,10 @@ form they always precede the prefix bytes.  The first byte of the
 disambiguation bytes must not be a zero byte, so there are 2**(8*3)-2**(8*2)
 possible values.
 
- // Sample Wire encoded binary bytes with 4 prefix bytes.
+ // Sample Amino encoded binary bytes with 4 prefix bytes.
  > [0xBB 0x9C 0x83 0xDD] [...]
 
- // Sample Wire encoded binary bytes with 3 disambiguation bytes and 4
+ // Sample Amino encoded binary bytes with 3 disambiguation bytes and 4
  // prefix bytes.
  > 0x00 <0xA8 0xFC 0x54> [0xBB 0x9C 0x83 0xDD] [...]
 
@@ -89,4 +89,4 @@ The next 4 bytes are called the "prefix bytes" (in square brackets).
  > <0xA8 0xFC 0x54> [0xBB 0x9C 9x83 9xDD]
 
 */
-package wire
+package amino

@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tendermint/go-wire"
+	"github.com/tendermint/go-amino"
 	cmn "github.com/tendermint/tmlibs/common"
 )
 
 func main() {
 	if len(os.Args) == 1 {
-		fmt.Println("Usage: wirescan <HEXBYTES>")
+		fmt.Println("Usage: aminoscan <HEXBYTES>")
 		return
 	}
 	bz := hexDecode(os.Args[1])             // Read input hex bytes.
@@ -22,23 +22,23 @@ func main() {
 	fmt.Println(s, n, err)                  // Print color-encoded bytes s.
 }
 
-func scanAny(typ wire.Typ3, bz []byte) (stop bool, s string, n int, err error) {
+func scanAny(typ amino.Typ3, bz []byte) (stop bool, s string, n int, err error) {
 	switch typ {
-	case wire.Typ3_Varint:
+	case amino.Typ3_Varint:
 		s, n, err = scanVarint(bz)
-	case wire.Typ3_8Byte:
+	case amino.Typ3_8Byte:
 		s, n, err = scan8Byte(bz)
-	case wire.Typ3_ByteLength:
+	case amino.Typ3_ByteLength:
 		s, n, err = scanByteLength(bz)
-	case wire.Typ3_Struct:
+	case amino.Typ3_Struct:
 		s, n, err = scanStruct(bz)
-	case wire.Typ3_StructTerm:
+	case amino.Typ3_StructTerm:
 		stop = true
-	case wire.Typ3_4Byte:
+	case amino.Typ3_4Byte:
 		s, n, err = scan4Byte(bz)
-	case wire.Typ3_List:
+	case amino.Typ3_List:
 		s, n, err = scanList(bz)
-	case wire.Typ3_Interface:
+	case amino.Typ3_Interface:
 		s, n, err = scanInterface(bz)
 	default:
 		panic("should not happen")
@@ -117,7 +117,7 @@ func scanByteLength(bz []byte) (s string, n int, err error) {
 }
 
 func scanStruct(bz []byte) (s string, n int, err error) {
-	var _s, _n, typ = string(""), int(0), wire.Typ3(0x00)
+	var _s, _n, typ = string(""), int(0), amino.Typ3(0x00)
 FOR_LOOP:
 	for {
 		_s, typ, _n, err = scanFieldKey(bz)
@@ -136,7 +136,7 @@ FOR_LOOP:
 	return
 }
 
-func scanFieldKey(bz []byte) (s string, typ wire.Typ3, n int, err error) {
+func scanFieldKey(bz []byte) (s string, typ amino.Typ3, n int, err error) {
 	var u64 uint64
 	u64, n = binary.Uvarint(bz)
 	if n < 0 {
@@ -144,7 +144,7 @@ func scanFieldKey(bz []byte) (s string, typ wire.Typ3, n int, err error) {
 		err = errors.New("error decoding uvarint")
 		return
 	}
-	typ = wire.Typ3(u64 & 0x07)
+	typ = amino.Typ3(u64 & 0x07)
 	var number uint32 = uint32(u64 >> 3)
 	s = fmt.Sprintf("%X", bz[:n])
 	fmt.Printf("%v @%v %v\n", s, number, typ)
@@ -168,7 +168,7 @@ func scanList(bz []byte) (s string, n int, err error) {
 		err = errors.New("EOF reading list element typ4.")
 		return
 	}
-	var typ = wire.Typ4(bz[0])
+	var typ = amino.Typ4(bz[0])
 	if typ&0xF0 > 0 {
 		err = errors.New("Invalid list element typ4 byte")
 	}
@@ -222,7 +222,7 @@ func scanList(bz []byte) (s string, n int, err error) {
 }
 
 func scanInterface(bz []byte) (s string, n int, err error) {
-	db, hasDb, pb, typ, _, isNil, _n, err := wire.DecodeDisambPrefixBytes(bz)
+	db, hasDb, pb, typ, _, isNil, _n, err := amino.DecodeDisambPrefixBytes(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}

@@ -1,8 +1,8 @@
 package fuzz_binary
 
 import (
-	"github.com/tendermint/go-wire"
-	"github.com/tendermint/go-wire/tests"
+	"github.com/tendermint/go-amino"
+	"github.com/tendermint/go-amino/tests"
 )
 
 //-------------------------------------
@@ -11,7 +11,7 @@ import (
 // (Test that deserialize never panics)
 
 func Fuzz(data []byte) int {
-	cdc := wire.NewCodec()
+	cdc := amino.NewCodec()
 	cst := tests.ComplexSt{}
 	err := cdc.UnmarshalBinary(data, &cst)
 	if err != nil {

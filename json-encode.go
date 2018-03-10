@@ -1,4 +1,4 @@
-package wire
+package amino
 
 import (
 	"encoding/json"
@@ -88,14 +88,14 @@ func (cdc *Codec) _encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Val
 	}
 
 	// Handle override if rv implements json.Marshaler.
-	if info.IsWireMarshaler {
+	if info.IsAminoMarshaler {
 		// First, encode rv into repr instance.
 		var rrv, rinfo = reflect.Value{}, (*TypeInfo)(nil)
 		rrv, err = toReprObject(rv)
 		if err != nil {
 			return
 		}
-		rinfo, err = cdc.getTypeInfo_wlock(info.WireMarshalReprType)
+		rinfo, err = cdc.getTypeInfo_wlock(info.AminoMarshalReprType)
 		if err != nil {
 			return
 		}
@@ -130,7 +130,7 @@ func (cdc *Codec) _encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Val
 
 	case reflect.Float64, reflect.Float32:
 		if !opts.Unsafe {
-			return errors.New("Wire.JSON float* support requires `wire:\"unsafe\"`.")
+			return errors.New("Amino.JSON float* support requires `amino:\"unsafe\"`.")
 		}
 		fallthrough
 	case reflect.Bool, reflect.String:
@@ -198,7 +198,7 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 
 	// NOTE: In the future, we may write disambiguation bytes
 	// here, if it is only to be written for interface values.
-	// Currently, go-wire JSON *always* writes disfix bytes for
+	// Currently, go-amino JSON *always* writes disfix bytes for
 	// all registered concrete types.
 
 	err = cdc._encodeReflectJSON(w, cinfo, crv, opts)
@@ -315,7 +315,7 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 			return
 		}
 		// If frv is empty and omitempty, skip it.
-		// NOTE: Unlike Wire:binary, we don't skip null fields unless "omitempty".
+		// NOTE: Unlike Amino:binary, we don't skip null fields unless "omitempty".
 		if field.JSONOmitEmpty && isEmpty(frv, field.ZeroValue) {
 			continue
 		}

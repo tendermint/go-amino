@@ -1,4 +1,4 @@
-package wire
+package amino
 
 import (
 	"bytes"
@@ -72,10 +72,10 @@ type ConcreteInfo struct {
 
 	// These fields get set for all concrete types,
 	// even those not manually registered (e.g. are never interface values).
-	IsWireMarshaler       bool         // Implements WireMarshal() (<ReprObject>, error).
-	WireMarshalReprType   reflect.Type // <ReprType>
-	IsWireUnmarshaler     bool         // Implements WireUnmarshal(<ReprObject>) (error).
-	WireUnmarshalReprType reflect.Type // <ReprType>
+	IsAminoMarshaler       bool         // Implements AminoMarshal() (<ReprObject>, error).
+	AminoMarshalReprType   reflect.Type // <ReprType>
+	IsAminoUnmarshaler     bool         // Implements AminoUnmarshal(<ReprObject>) (error).
+	AminoUnmarshalReprType reflect.Type // <ReprType>
 }
 
 type StructInfo struct {
@@ -126,9 +126,9 @@ func NewCodec() *Codec {
 }
 
 // This function should be used to register all interfaces that will be
-// encoded/decoded by go-wire.
+// encoded/decoded by go-amino.
 // Usage:
-// `wire.RegisterInterface((*MyInterface1)(nil), nil)`
+// `amino.RegisterInterface((*MyInterface1)(nil), nil)`
 func (cdc *Codec) RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
 
 	// Get reflect.Type from ptr.
@@ -180,9 +180,9 @@ func (cdc *Codec) RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
 }
 
 // This function should be used to register concrete types that will appear in
-// interface fields/elements to be encoded/decoded by go-wire.
+// interface fields/elements to be encoded/decoded by go-amino.
 // Usage:
-// `wire.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)`
+// `amino.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)`
 func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOptions) {
 
 	var pointerPreferred bool
@@ -333,7 +333,7 @@ func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 
 func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, opts FieldOptions) {
 	binTag := field.Tag.Get("binary")
-	wireTag := field.Tag.Get("wire")
+	aminoTag := field.Tag.Get("amino")
 	jsonTag := field.Tag.Get("json")
 
 	// If `json:"-"`, don't encode.
@@ -363,8 +363,8 @@ func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, opts 
 		opts.BinVarint = true
 	}
 
-	// Parse wire tags.
-	if wireTag == "unsafe" {
+	// Parse amino tags.
+	if aminoTag == "unsafe" {
 		opts.Unsafe = true
 	}
 
@@ -388,13 +388,13 @@ func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 	if rt.Kind() == reflect.Struct {
 		info.StructInfo = cdc.parseStructInfo(rt)
 	}
-	if rm, ok := rt.MethodByName("MarshalWire"); ok {
-		info.ConcreteInfo.IsWireMarshaler = true
-		info.ConcreteInfo.WireMarshalReprType = marshalWireReprType(rm)
+	if rm, ok := rt.MethodByName("MarshalAmino"); ok {
+		info.ConcreteInfo.IsAminoMarshaler = true
+		info.ConcreteInfo.AminoMarshalReprType = marshalAminoReprType(rm)
 	}
-	if rm, ok := rt.MethodByName("UnmarshalWire"); ok {
-		info.ConcreteInfo.IsWireUnmarshaler = true
-		info.ConcreteInfo.WireUnmarshalReprType = unmarshalWireReprType(rm)
+	if rm, ok := rt.MethodByName("UnmarshalAmino"); ok {
+		info.ConcreteInfo.IsAminoUnmarshaler = true
+		info.ConcreteInfo.AminoUnmarshalReprType = unmarshalAminoReprType(rm)
 	}
 	return info
 }
@@ -531,8 +531,8 @@ func (ti TypeInfo) String() string {
 		} else {
 			buf.Write([]byte("Registered:false,"))
 		}
-		buf.Write([]byte(fmt.Sprintf("WireMarshalReprType:\"%X\",", ti.WireMarshalReprType)))
-		buf.Write([]byte(fmt.Sprintf("WireUnmarshalReprType:\"%X\",", ti.WireUnmarshalReprType)))
+		buf.Write([]byte(fmt.Sprintf("AminoMarshalReprType:\"%X\",", ti.AminoMarshalReprType)))
+		buf.Write([]byte(fmt.Sprintf("AminoUnmarshalReprType:\"%X\",", ti.AminoUnmarshalReprType)))
 		if ti.Type.Kind() == reflect.Struct {
 			buf.Write([]byte(fmt.Sprintf("Fields:%v,", ti.Fields)))
 		}
@@ -598,16 +598,16 @@ func toDisfix(db DisambBytes, pb PrefixBytes) (df DisfixBytes) {
 	return
 }
 
-func marshalWireReprType(rm reflect.Method) (rrt reflect.Type) {
+func marshalAminoReprType(rm reflect.Method) (rrt reflect.Type) {
 	// Verify form of this method.
 	if rm.Type.NumIn() != 1 {
-		panic(fmt.Sprintf("MarshalWire should have 1 input parameters (including receiver); got %v", rm.Type))
+		panic(fmt.Sprintf("MarshalAmino should have 1 input parameters (including receiver); got %v", rm.Type))
 	}
 	if rm.Type.NumOut() != 2 {
-		panic(fmt.Sprintf("MarshalWire should have 2 output parameters; got %v", rm.Type))
+		panic(fmt.Sprintf("MarshalAmino should have 2 output parameters; got %v", rm.Type))
 	}
 	if out := rm.Type.Out(1); out != errorType {
-		panic(fmt.Sprintf("MarshalWire should have second output parameter of error type, got %v", out))
+		panic(fmt.Sprintf("MarshalAmino should have second output parameter of error type, got %v", out))
 	}
 	rrt = rm.Type.Out(0)
 	if rrt.Kind() == reflect.Ptr {
@@ -616,19 +616,19 @@ func marshalWireReprType(rm reflect.Method) (rrt reflect.Type) {
 	return
 }
 
-func unmarshalWireReprType(rm reflect.Method) (rrt reflect.Type) {
+func unmarshalAminoReprType(rm reflect.Method) (rrt reflect.Type) {
 	// Verify form of this method.
 	if rm.Type.NumIn() != 2 {
-		panic(fmt.Sprintf("UnmarshalWire should have 2 input parameters (including receiver); got %v", rm.Type))
+		panic(fmt.Sprintf("UnmarshalAmino should have 2 input parameters (including receiver); got %v", rm.Type))
 	}
 	if in1 := rm.Type.In(0); in1.Kind() != reflect.Ptr {
-		panic(fmt.Sprintf("UnmarshalWire first input parameter should be pointer type but got %v", in1))
+		panic(fmt.Sprintf("UnmarshalAmino first input parameter should be pointer type but got %v", in1))
 	}
 	if rm.Type.NumOut() != 1 {
-		panic(fmt.Sprintf("UnmarshalWire should have 1 output parameters; got %v", rm.Type))
+		panic(fmt.Sprintf("UnmarshalAmino should have 1 output parameters; got %v", rm.Type))
 	}
 	if out := rm.Type.Out(0); out != errorType {
-		panic(fmt.Sprintf("UnmarshalWire should have first output parameter of error type, got %v", out))
+		panic(fmt.Sprintf("UnmarshalAmino should have first output parameter of error type, got %v", out))
 	}
 	rrt = rm.Type.In(0)
 	if rrt.Kind() == reflect.Ptr {

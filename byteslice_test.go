@@ -1,4 +1,4 @@
-package wire
+package amino
 
 import (
 	"bytes"
@@ -9,18 +9,18 @@ func TestReadByteSliceEquality(t *testing.T) {
 
 	var encoded []byte
 	var err error
-	var wire = NewCodec()
+	var cdc = NewCodec()
 
 	// Write a byteslice
 	var testBytes = []byte("ThisIsSomeTestArray")
-	encoded, err = wire.MarshalBinary(testBytes)
+	encoded, err = cdc.MarshalBinary(testBytes)
 	if err != nil {
 		t.Error(err.Error())
 	}
 
 	// Read the byteslice, should return the same byteslice
 	var testBytes2 []byte
-	err = wire.UnmarshalBinary(encoded, &testBytes2)
+	err = cdc.UnmarshalBinary(encoded, &testBytes2)
 	if err != nil {
 		t.Error(err.Error())
 	}

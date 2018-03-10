@@ -1,4 +1,4 @@
-package wire_test
+package amino_test
 
 import (
 	"bytes"
@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tendermint/go-wire"
+	"github.com/tendermint/go-amino"
 )
 
 func TestMarshalBinary(t *testing.T) {
-	var cdc = wire.NewCodec()
+	var cdc = amino.NewCodec()
 
 	type SimpleStruct struct {
 		String string
@@ -35,7 +35,7 @@ func TestMarshalBinary(t *testing.T) {
 }
 
 func TestUnmarshalBinaryReader(t *testing.T) {
-	var cdc = wire.NewCodec()
+	var cdc = amino.NewCodec()
 
 	type SimpleStruct struct {
 		String string
@@ -61,7 +61,7 @@ func TestUnmarshalBinaryReader(t *testing.T) {
 }
 
 func TestUnmarshalBinaryReaderTooLong(t *testing.T) {
-	var cdc = wire.NewCodec()
+	var cdc = amino.NewCodec()
 
 	type SimpleStruct struct {
 		String string

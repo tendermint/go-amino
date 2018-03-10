@@ -1,4 +1,4 @@
-package wire
+package amino
 
 import (
 	"bufio"
@@ -71,7 +71,7 @@ func (typ Typ4) String() string {
 //----------------------------------------
 // *Codec methods
 
-// MarshalBinary encodes the object o according to the Wire spec,
+// MarshalBinary encodes the object o according to the Amino spec,
 // but prefixed by a uvarint encoding of the object to encode.
 // Use MarshalBinaryBare if you don't want byte-length prefixing.
 //
@@ -104,7 +104,7 @@ func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// MarshalBinaryBare encodes the object o according to the Wire spec.
+// MarshalBinaryBare encodes the object o according to the Amino spec.
 // MarshalBinaryBare doesn't prefix the byte-length of the encoding,
 // so the caller must handle framing.
 func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
@@ -117,7 +117,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 		panic("MarshalBinary cannot marshal a nil pointer directly. Try wrapping in a struct?")
 	}
 
-	// Encode Wire:binary bytes.
+	// Encode Amino:binary bytes.
 	var bz []byte
 	buf := new(bytes.Buffer)
 	rt := rv.Type()
