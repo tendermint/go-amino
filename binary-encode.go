@@ -1,4 +1,4 @@
-package wire
+package amino
 
 import (
 	"encoding/binary"
@@ -66,14 +66,14 @@ func (cdc *Codec) _encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.V
 	}
 
 	// Handle override if rv implements json.Marshaler.
-	if info.IsWireMarshaler {
+	if info.IsAminoMarshaler {
 		// First, encode rv into repr instance.
 		var rrv, rinfo = reflect.Value{}, (*TypeInfo)(nil)
 		rrv, err = toReprObject(rv)
 		if err != nil {
 			return
 		}
-		rinfo, err = cdc.getTypeInfo_wlock(info.WireMarshalReprType)
+		rinfo, err = cdc.getTypeInfo_wlock(info.AminoMarshalReprType)
 		if err != nil {
 			return
 		}
@@ -159,14 +159,14 @@ func (cdc *Codec) _encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.V
 
 	case reflect.Float64:
 		if !opts.Unsafe {
-			err = errors.New("Wire float* support requires `wire:\"unsafe\"`.")
+			err = errors.New("Amino float* support requires `amino:\"unsafe\"`.")
 			return
 		}
 		err = EncodeFloat64(w, rv.Float())
 
 	case reflect.Float32:
 		if !opts.Unsafe {
-			err = errors.New("Wire float* support requires `wire:\"unsafe\"`.")
+			err = errors.New("Amino float* support requires `amino:\"unsafe\"`.")
 			return
 		}
 		err = EncodeFloat32(w, float32(rv.Float()))

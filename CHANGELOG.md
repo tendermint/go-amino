@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.0 (Mar 10, 2018)
+
+BREAKING CHANGE:
+ - wire -> amino
+ - Protobuf-like encoding
+ - MarshalAmino/UnmarshalAmino
+
 ## 0.8.0 (Jan 28, 2018)
 
 BREAKING CHANGE:

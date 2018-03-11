@@ -1,4 +1,4 @@
-package wire
+package amino
 
 import (
 	"errors"
@@ -94,11 +94,11 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 		rv = rv.Elem()
 	}
 
-	// Handle override if a pointer to rv implements UnmarshalWire.
-	if info.IsWireUnmarshaler {
+	// Handle override if a pointer to rv implements UnmarshalAmino.
+	if info.IsAminoUnmarshaler {
 		// First, decode repr instance from bytes.
-		rrv, rinfo := reflect.New(info.WireUnmarshalReprType).Elem(), (*TypeInfo)(nil)
-		rinfo, err = cdc.getTypeInfo_wlock(info.WireUnmarshalReprType)
+		rrv, rinfo := reflect.New(info.AminoUnmarshalReprType).Elem(), (*TypeInfo)(nil)
+		rinfo, err = cdc.getTypeInfo_wlock(info.AminoUnmarshalReprType)
 		if err != nil {
 			return
 		}
@@ -107,7 +107,7 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 			return
 		}
 		// Then, decode from repr instance.
-		uwrm := rv.Addr().MethodByName("UnmarshalWire")
+		uwrm := rv.Addr().MethodByName("UnmarshalAmino")
 		uwouts := uwrm.Call([]reflect.Value{rrv})
 		err = uwouts[0].Interface().(error)
 		return
@@ -277,7 +277,7 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 	case reflect.Float64:
 		var f float64
 		if !opts.Unsafe {
-			err = errors.New("Float support requires `wire:\"unsafe\"`.")
+			err = errors.New("Float support requires `amino:\"unsafe\"`.")
 			return
 		}
 		f, _n, err = DecodeFloat64(bz)
@@ -290,7 +290,7 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 	case reflect.Float32:
 		var f float32
 		if !opts.Unsafe {
-			err = errors.New("Float support requires `wire:\"unsafe\"`.")
+			err = errors.New("Float support requires `amino:\"unsafe\"`.")
 			return
 		}
 		f, _n, err = DecodeFloat32(bz)

@@ -1,4 +1,4 @@
-package wire
+package amino
 
 import (
 	"fmt"
@@ -26,7 +26,7 @@ func (pr pair) get(key string) (value interface{}) {
 	return pr.Value
 }
 
-func (f Foo) MarshalWire() ([]pair, error) {
+func (f Foo) MarshalAmino() ([]pair, error) {
 	return []pair{
 		{"a", f.a},
 		{"b", f.b},
@@ -35,7 +35,7 @@ func (f Foo) MarshalWire() ([]pair, error) {
 	}, nil
 }
 
-func (f *Foo) UnmarshalWire(repr []pair) error {
+func (f *Foo) UnmarshalAmino(repr []pair) error {
 	f.a = repr[0].get("a").(string)
 	f.b = repr[1].get("b").(int)
 	f.c = repr[2].get("c").([]*Foo)
@@ -43,7 +43,7 @@ func (f *Foo) UnmarshalWire(repr []pair) error {
 	return nil
 }
 
-func TestMarshalWire(t *testing.T) {
+func TestMarshalAmino(t *testing.T) {
 
 	cdc := NewCodec()
 	cdc.RegisterInterface((*interface{})(nil), nil)

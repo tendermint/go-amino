@@ -1,4 +1,4 @@
-package wire_test
+package amino_test
 
 import (
 	"bytes"
@@ -10,16 +10,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tendermint/go-wire"
+	"github.com/tendermint/go-amino"
 )
 
-var cdc = wire.NewCodec()
+var cdc = amino.NewCodec()
 
 func TestMain(m *testing.M) {
 	// Register the concrete types first.
 	cdc.RegisterConcrete(&Transport{}, "our/transport", nil)
-	cdc.RegisterInterface((*Vehicle)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
-	cdc.RegisterInterface((*Asset)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
+	cdc.RegisterInterface((*Vehicle)(nil), &amino.InterfaceOptions{AlwaysDisambiguate: true})
+	cdc.RegisterInterface((*Asset)(nil), &amino.InterfaceOptions{AlwaysDisambiguate: true})
 	cdc.RegisterConcrete(Car(""), "car", nil)
 	cdc.RegisterConcrete(insurancePlan(0), "insuranceplan", nil)
 	cdc.RegisterConcrete(Boat(""), "boat", nil)
@@ -124,7 +124,7 @@ func TestMarshalJSON(t *testing.T) {
 }
 
 func TestMarshalJSONWithMonotonicTime(t *testing.T) {
-	var cdc = wire.NewCodec()
+	var cdc = amino.NewCodec()
 
 	type SimpleStruct struct {
 		String string
@@ -173,7 +173,7 @@ func TestUnmarshalMap(t *testing.T) {
 	binBytes := []byte(`dontcare`)
 	jsonBytes := []byte(`{"2": 2}`)
 	obj := new(map[string]int)
-	cdc := wire.NewCodec()
+	cdc := amino.NewCodec()
 	// Binary doesn't support decoding to a map...
 	assert.Panics(t, func() {
 		err := cdc.UnmarshalBinary(binBytes, &obj)
@@ -208,7 +208,7 @@ func TestUnmarshalFunc(t *testing.T) {
 	binBytes := []byte(`dontcare`)
 	jsonBytes := []byte(`"dontcare"`)
 	obj := func() {}
-	cdc := wire.NewCodec()
+	cdc := amino.NewCodec()
 	// Binary doesn't support decoding to a func...
 	assert.Panics(t, func() {
 		err := cdc.UnmarshalBinary(binBytes, &obj)

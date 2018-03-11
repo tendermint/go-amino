@@ -1,4 +1,4 @@
-package wire
+package amino
 
 import (
 	"math/rand"
@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tendermint/go-wire/tests"
+	"github.com/tendermint/go-amino/tests"
 )
 
 //-------------------------------------
@@ -299,7 +299,7 @@ func spw(o interface{}) string {
 var fuzzFuncs = []interface{}{
 	func(bz *[]byte, c fuzz.Continue) {
 		// Prefer nil instead of empty, for deep equality.
-		// (go-wire decoder will always prefer nil).
+		// (go-amino decoder will always prefer nil).
 		c.Fuzz(bz)
 		if len(*bz) == 0 {
 			*bz = nil
@@ -307,7 +307,7 @@ var fuzzFuncs = []interface{}{
 	},
 	func(bz **[]byte, c fuzz.Continue) {
 		// Prefer nil instead of empty, for deep equality.
-		// (go-wire decoder will always prefer nil).
+		// (go-amino decoder will always prefer nil).
 		c.Fuzz(bz)
 		if *bz == nil {
 			return

@@ -1,4 +1,4 @@
-package wire
+package amino
 
 import (
 	"encoding/binary"
@@ -118,7 +118,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 	var s = t.Unix()
 	var ns = int32(t.Nanosecond()) // this int64 -> int32 is safe.
 
-	// TODO: We are hand-encoding a struct until MarshalWire/UnmarshalWire is supported.
+	// TODO: We are hand-encoding a struct until MarshalAmino/UnmarshalAmino is supported.
 
 	err = encodeFieldNumberAndTyp3(w, 1, Typ3_8Byte)
 	if err != nil {
