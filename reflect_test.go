@@ -220,7 +220,7 @@ func TestCodecJSONRegister8(t *testing.T) {
 	// But that's OK, JSON still writes the disfix bytes by default.
 	bz, err := cdc.MarshalJSON(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte(`{"_df":"43FAF453372100","_v":"MDEyMw=="}`),
+	assert.Equal(t, []byte(`{"type":"43FAF453372100","value":"MDEyMw=="}`),
 		bz, "Concrete3 incorrectly serialized")
 
 	var i1 tests.Interface1

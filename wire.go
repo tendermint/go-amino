@@ -223,7 +223,7 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 	// var t GenericInterface = t2(v1)
 	// but we need to be able to encode
 	// both s and t disambiguated, so:
-	//    {"_df":<disfix>, "_v":<data>}
+	//    {"type":<disfix>, "value":<data>}
 	// for the above case.
 
 	w := new(bytes.Buffer)

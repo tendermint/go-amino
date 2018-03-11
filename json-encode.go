@@ -34,7 +34,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	if info.Registered {
 		// Part 1:
 		disfix := toDisfix(info.Disamb, info.Prefix)
-		err = writeStr(w, _fmt(`{"_df":"%X","_v":`, disfix))
+		err = writeStr(w, _fmt(`{"type":"%X","value":`, disfix))
 		if err != nil {
 			return
 		}
@@ -184,7 +184,7 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 	// Write disfix wrapper.
 	// Part 1:
 	disfix := toDisfix(cinfo.Disamb, cinfo.Prefix)
-	err = writeStr(w, _fmt(`{"_df":"%X","_v":`, disfix))
+	err = writeStr(w, _fmt(`{"type":"%X","value":`, disfix))
 	if err != nil {
 		return
 	}

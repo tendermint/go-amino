@@ -10,6 +10,9 @@ import (
 	"unicode"
 )
 
+//----------------------------------------
+// PrefixBytes/DisambBytes/DisfixBytes types
+
 const (
 	PrefixBytesLen = 4
 	DisambBytesLen = 3
@@ -38,6 +41,9 @@ func (db DisambBytes) Bytes() []byte             { return db[:] }
 func (db DisambBytes) EqualBytes(bz []byte) bool { return bytes.Equal(db[:], bz) }
 func (df DisfixBytes) Bytes() []byte             { return df[:] }
 func (df DisfixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(df[:], bz) }
+
+//----------------------------------------
+// Codec internals
 
 type TypeInfo struct {
 	Type      reflect.Type // Interface type.
