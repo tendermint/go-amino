@@ -423,15 +423,15 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 // Misc.
 
 type disfixWrapper struct {
-	Disfix string          `json:"_df"`
-	Data   json.RawMessage `json:"_v"`
+	Disfix string          `json:"type"`
+	Data   json.RawMessage `json:"value"`
 }
 
 // decodeDisfixJSON helps unravel the disfix and
 // the stored data, which are expected in the form:
 // {
-//    "_df": "XXXXXXXXXXXXXXXXX",
-//    "_v":  {}
+//    "type": "XXXXXXXXXXXXXXXXX",
+//    "value":  {}
 // }
 func decodeDisfixJSON(bz []byte) (df DisfixBytes, data []byte, err error) {
 	if string(bz) == "null" {
