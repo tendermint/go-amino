@@ -191,7 +191,7 @@ func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
 // Like UnmarshalBinaryBare, but will first read the byte-length prefix.
 // UnmarshalBinaryReader will panic if ptr is a nil-pointer.
 // If maxSize is 0, there is no limit (not recommended).
-func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize int64) error {
+func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize int64) (n int64, err error) {
 	if maxSize < 0 {
 		panic("maxSize cannot be negative.")
 	}
@@ -201,22 +201,26 @@ func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize in
 	var l int64
 	u64, err := binary.ReadUvarint(br)
 	if err != nil {
-		return err
+		return
 	}
 	if maxSize > 0 && u64 > uint64(maxSize) {
-		return fmt.Errorf("Read overflow, maxSize is %v but next message is %v bytes", maxSize, u64)
+		err = fmt.Errorf("Read overflow, maxSize is %v but next message is %v bytes", maxSize, u64)
+		return
 	}
 	l = int64(u64)
+	n += int64(binary.Size(u64))
 
 	// Read that many bytes.
 	var bz = make([]byte, l, l)
 	_, err = io.ReadFull(br, bz)
 	if err != nil {
-		return err
+		return
 	}
+	n += l
 
 	// Decode.
-	return cdc.UnmarshalBinaryBare(bz, ptr)
+	err = cdc.UnmarshalBinaryBare(bz, ptr)
+	return
 }
 
 // UnmarshalBinaryBare will panic if ptr is a nil-pointer.

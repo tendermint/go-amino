@@ -54,7 +54,7 @@ func TestUnmarshalBinaryReader(t *testing.T) {
 	t.Logf("MarshalBinary(s) -> %X", b)
 
 	var s2 SimpleStruct
-	err = cdc.UnmarshalBinaryReader(bytes.NewBuffer(b), &s2, 0)
+	_, err = cdc.UnmarshalBinaryReader(bytes.NewBuffer(b), &s2, 0)
 	assert.Nil(t, err)
 
 	assert.Equal(t, s, s2)
@@ -80,6 +80,6 @@ func TestUnmarshalBinaryReaderTooLong(t *testing.T) {
 	t.Logf("MarshalBinary(s) -> %X", b)
 
 	var s2 SimpleStruct
-	err = cdc.UnmarshalBinaryReader(bytes.NewBuffer(b), &s2, 1) // 1 byte limit is ridiculous.
+	_, err = cdc.UnmarshalBinaryReader(bytes.NewBuffer(b), &s2, 1) // 1 byte limit is ridiculous.
 	assert.NotNil(t, err)
 }
