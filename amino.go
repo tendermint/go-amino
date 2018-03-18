@@ -104,6 +104,17 @@ func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// MarshalBinaryWriter writes the bytes as would be returned from
+// MarshalBinary to the writer w.
+func (cdc *Codec) MarshalBinaryWriter(w io.Writer, o interface{}) error {
+	var bz, err = cdc.MarshalBinary(o)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(bz)
+	return err
+}
+
 // MarshalBinaryBare encodes the object o according to the Amino spec.
 // MarshalBinaryBare doesn't prefix the byte-length of the encoding,
 // so the caller must handle framing.
