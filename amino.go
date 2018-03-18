@@ -106,12 +106,12 @@ func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
 
 // MarshalBinaryWriter writes the bytes as would be returned from
 // MarshalBinary to the writer w.
-func (cdc *Codec) MarshalBinaryWriter(w io.Writer, o interface{}) error {
+func (cdc *Codec) MarshalBinaryWriter(w io.Writer, o interface{}) (n int64, err error) {
 	var bz, err = cdc.MarshalBinary(o)
 	if err != nil {
 		return err
 	}
-	_, err = w.Write(bz)
+	n, err = w.Write(bz) // TODO: handle overflow in 32-bit systems.
 	return err
 }
 
