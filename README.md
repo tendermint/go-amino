@@ -264,7 +264,7 @@ Typ3 | Meaning          | Used For
 4    | Struct Term      | end of struct
 5    | 4-Byte           | int32, uint32, float32(unsafe)
 6    | List             | array, slice; followed by element `<typ4-byte>`, then `<uvarint(num-items)>`
-7    | Interface        | registered concrete types; followed by `<prefix-bytes>` or `<disfix-bytes>`, then `<typ3-byte>`.
+7    | Interface        | registered concrete types; followed by `<prefix-bytes>` or `<disfix-bytes>`, the last byte which ends with the concrete type's `<typ3-byte>`.
 
 #### Structs
 
