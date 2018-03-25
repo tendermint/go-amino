@@ -1,6 +1,11 @@
 # Changelog
 
-## 0.0.0 (Mar 10, 2018)
+## 0.9.1 (Mar 24, 2018)
+
+BUG FIXES:
+ - Fix UnmarshalBinaryReader returned n
+
+## 0.9.0 (Mar 10, 2018)
 
 BREAKING CHANGE:
  - wire -> amino

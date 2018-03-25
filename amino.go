@@ -199,7 +199,20 @@ func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize in
 
 	// Read byte-length prefix.
 	var l int64
-	u64, err := binary.ReadUvarint(br)
+	var buf [binary.MaxVarintLen64]byte
+	var byt byte
+	for i := 0; i < len(buf); i++ {
+		byt, err = br.ReadByte()
+		if err != nil {
+			return
+		}
+		buf[i] = byt
+		n += 1
+		if byt&0x80 == 0 {
+			break
+		}
+	}
+	u64, _ := binary.Uvarint(buf[:])
 	if err != nil {
 		return
 	}
@@ -208,7 +221,6 @@ func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize in
 		return
 	}
 	l = int64(u64)
-	n += int64(binary.Size(u64))
 
 	// Read that many bytes.
 	var bz = make([]byte, l, l)
