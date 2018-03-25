@@ -207,16 +207,29 @@ func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize in
 		if buf[i]&0x80 == 0 {
 			break
 		}
+		if n >= maxSize {
+			err = fmt.Errorf("Read overflow, maxSize is %v but uvarint(length-prefix) is itself greater than maxSize.")
+		}
 	}
 	u64, _ := binary.Uvarint(buf[:])
 	if err != nil {
 		return
 	}
-	if maxSize > 0 && u64 > uint64(maxSize) {
-		err = fmt.Errorf("Read overflow, maxSize is %v but next message is %v bytes", maxSize, u64)
-		return
+	if maxSize > 0 {
+		if u64 > uint64(maxSize) {
+			err = fmt.Errorf("Read overflow, maxSize is %v but this amino binary object is %v bytes.", maxSize, u64)
+			return
+		}
+		if (u64 - uint64(n)) > uint64(maxSize) { // NOTE: Looks like this is an instance of unsigned arithmetic (-) being safer/correct.
+			err = fmt.Errorf("Read overflow, maxSize is %v but this length-prefixed amino binary object is %v+%v bytes.", maxSize, n, u64)
+			return
+
+		}
 	}
 	l = int64(u64)
+	if l < 0 {
+		err = fmt.Errorf("Read overflow, this implementation can't read this because, why would anyone have this much data? Hello from 2018.")
+	}
 
 	// Read that many bytes.
 	var bz = make([]byte, l, l)

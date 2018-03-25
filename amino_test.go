@@ -77,6 +77,25 @@ func TestUnmarshalBinaryReaderSize(t *testing.T) {
 	assert.Equal(t, frameLengthBytes+msgLengthBytes+len(s1), int(n))
 }
 
+func TestUnmarshalBinaryReaderSizeLimit(t *testing.T) {
+	var cdc = amino.NewCodec()
+
+	var s1 string = "foo"
+	b, err := cdc.MarshalBinary(s1)
+	assert.Nil(t, err)
+	t.Logf("MarshalBinary(s) -> %X", b)
+
+	var s2 string
+	var n int64
+	n, err = cdc.UnmarshalBinaryReader(bytes.NewBuffer(b), &s2, int64(len(b)-1)) // Insufficient limit leads to failure.
+	assert.NotNil(t, err)
+	n, err = cdc.UnmarshalBinaryReader(bytes.NewBuffer(b), &s2, int64(len(b))) // Sufficient limit.
+	assert.NotNil(t, err)
+	assert.Equal(t, s1, s2)
+	frameLengthBytes, msgLengthBytes := 1, 1
+	assert.Equal(t, frameLengthBytes+msgLengthBytes+len(s1), int(n))
+}
+
 func TestUnmarshalBinaryReaderTooLong(t *testing.T) {
 	var cdc = amino.NewCodec()
 

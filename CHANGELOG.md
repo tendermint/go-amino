@@ -4,6 +4,7 @@
 
 BUG FIXES:
  - Fix UnmarshalBinaryReader consuming too much from bufio.
+ - Fix UnmarshalBinaryReader obeying limit.
 
 ## 0.9.1 (Mar 24, 2018)
 
