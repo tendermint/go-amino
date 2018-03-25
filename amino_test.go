@@ -100,3 +100,33 @@ func TestUnmarshalBinaryReaderTooLong(t *testing.T) {
 	_, err = cdc.UnmarshalBinaryReader(bytes.NewBuffer(b), &s2, 1) // 1 byte limit is ridiculous.
 	assert.NotNil(t, err)
 }
+
+func TestUnmarshalBinaryBufferedWritesReads(t *testing.T) {
+	var cdc = amino.NewCodec()
+	var buf = bytes.NewBuffer(nil)
+
+	// Write 3 times.
+	var s1 string = "foo"
+	_, err := cdc.MarshalBinaryWriter(buf, s1)
+	assert.Nil(t, err)
+	_, err = cdc.MarshalBinaryWriter(buf, s1)
+	assert.Nil(t, err)
+	_, err = cdc.MarshalBinaryWriter(buf, s1)
+	assert.Nil(t, err)
+
+	// Read 3 times.
+	var s2 string
+	_, err = cdc.UnmarshalBinaryReader(buf, &s2, 0)
+	assert.Nil(t, err)
+	assert.Equal(t, s1, s2)
+	_, err = cdc.UnmarshalBinaryReader(buf, &s2, 0)
+	assert.Nil(t, err)
+	assert.Equal(t, s1, s2)
+	_, err = cdc.UnmarshalBinaryReader(buf, &s2, 0)
+	assert.Nil(t, err)
+	assert.Equal(t, s1, s2)
+
+	// Reading 4th time fails.
+	_, err = cdc.UnmarshalBinaryReader(buf, &s2, 0)
+	assert.NotNil(t, err)
+}

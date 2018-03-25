@@ -1,7 +1,6 @@
 package amino
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
@@ -195,20 +194,17 @@ func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize in
 	if maxSize < 0 {
 		panic("maxSize cannot be negative.")
 	}
-	var br = bufio.NewReader(r)
 
 	// Read byte-length prefix.
 	var l int64
 	var buf [binary.MaxVarintLen64]byte
-	var byt byte
 	for i := 0; i < len(buf); i++ {
-		byt, err = br.ReadByte()
+		_, err = r.Read(buf[i : i+1])
 		if err != nil {
 			return
 		}
-		buf[i] = byt
 		n += 1
-		if byt&0x80 == 0 {
+		if buf[i]&0x80 == 0 {
 			break
 		}
 	}
@@ -224,7 +220,7 @@ func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize in
 
 	// Read that many bytes.
 	var bz = make([]byte, l, l)
-	_, err = io.ReadFull(br, bz)
+	_, err = io.ReadFull(r, bz)
 	if err != nil {
 		return
 	}

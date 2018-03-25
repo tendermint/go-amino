@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.2 (Mar 24, 2018)
+
+BUG FIXES:
+ - Fix UnmarshalBinaryReader consuming too much from bufio.
+
 ## 0.9.1 (Mar 24, 2018)
 
 BUG FIXES:
