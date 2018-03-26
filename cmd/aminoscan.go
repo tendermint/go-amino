@@ -13,7 +13,7 @@ import (
 
 func main() {
 	if len(os.Args) == 1 {
-		fmt.Println("Usage: aminoscan <HEXBYTES>")
+		fmt.Println(`Usage: aminoscan <STRUCT HEXBYTES>`) // TODO support more options, including support for framing.
 		return
 	}
 	bz := hexDecode(os.Args[1])             // Read input hex bytes.
@@ -22,7 +22,7 @@ func main() {
 	fmt.Println(s, n, err)                  // Print color-encoded bytes s.
 }
 
-func scanAny(typ amino.Typ3, bz []byte) (stop bool, s string, n int, err error) {
+func scanAny(typ amino.Typ3, bz []byte) (term bool, s string, n int, err error) {
 	switch typ {
 	case amino.Typ3_Varint:
 		s, n, err = scanVarint(bz)
@@ -33,7 +33,7 @@ func scanAny(typ amino.Typ3, bz []byte) (stop bool, s string, n int, err error) 
 	case amino.Typ3_Struct:
 		s, n, err = scanStruct(bz)
 	case amino.Typ3_StructTerm:
-		stop = true
+		term = true
 	case amino.Typ3_4Byte:
 		s, n, err = scan4Byte(bz)
 	case amino.Typ3_List:
@@ -124,12 +124,12 @@ FOR_LOOP:
 		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
 			return
 		}
-		var stop bool
-		stop, _s, _n, err = scanAny(typ, bz)
+		var term bool
+		term, _s, _n, err = scanAny(typ, bz)
 		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
 			return
 		}
-		if stop {
+		if term {
 			break FOR_LOOP
 		}
 	}
@@ -242,6 +242,10 @@ func scanInterface(bz []byte) (s string, n int, err error) {
 	} else {
 		fmt.Printf("%v (prefix: %X, typ: %v)\n",
 			s, pb.Bytes(), typ)
+	}
+	_, _s, _n, err := scanAny(typ, bz)
+	if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
+		return
 	}
 	return
 }
