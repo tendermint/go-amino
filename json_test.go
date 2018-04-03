@@ -3,7 +3,6 @@ package amino_test
 import (
 	"bytes"
 	"encoding/json"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -13,9 +12,7 @@ import (
 	"github.com/tendermint/go-amino"
 )
 
-func TestMain(m *testing.M) {
-	// Register the concrete types first.
-	var cdc = amino.NewCodec()
+func registerTransports(cdc *amino.Codec) {
 	cdc.RegisterConcrete(&Transport{}, "our/transport", nil)
 	cdc.RegisterInterface((*Vehicle)(nil), &amino.InterfaceOptions{AlwaysDisambiguate: true})
 	cdc.RegisterInterface((*Asset)(nil), &amino.InterfaceOptions{AlwaysDisambiguate: true})
@@ -23,13 +20,12 @@ func TestMain(m *testing.M) {
 	cdc.RegisterConcrete(insurancePlan(0), "insuranceplan", nil)
 	cdc.RegisterConcrete(Boat(""), "boat", nil)
 	cdc.RegisterConcrete(Plane{}, "plane", nil)
-
-	os.Exit(m.Run())
 }
 
 func TestMarshalJSON(t *testing.T) {
 	t.Parallel()
 	var cdc = amino.NewCodec()
+	registerTransports(cdc)
 	cases := []struct {
 		in      interface{}
 		want    string
@@ -125,6 +121,7 @@ func TestMarshalJSON(t *testing.T) {
 
 func TestMarshalJSONWithMonotonicTime(t *testing.T) {
 	var cdc = amino.NewCodec()
+	registerTransports(cdc)
 
 	type SimpleStruct struct {
 		String string
@@ -242,6 +239,7 @@ func TestUnmarshalFunc(t *testing.T) {
 func TestUnmarshalJSON(t *testing.T) {
 	t.Parallel()
 	var cdc = amino.NewCodec()
+	registerTransports(cdc)
 	cases := []struct {
 		blob    string
 		in      interface{}
@@ -323,6 +321,7 @@ func TestUnmarshalJSON(t *testing.T) {
 
 func TestJSONCodecRoundTrip(t *testing.T) {
 	var cdc = amino.NewCodec()
+	registerTransports(cdc)
 	type allInclusive struct {
 		Tr      Transport `json:"trx"`
 		Vehicle Vehicle   `json:"v,omitempty"`
