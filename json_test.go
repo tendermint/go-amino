@@ -13,10 +13,9 @@ import (
 	"github.com/tendermint/go-amino"
 )
 
-var cdc = amino.NewCodec()
-
 func TestMain(m *testing.M) {
 	// Register the concrete types first.
+	var cdc = amino.NewCodec()
 	cdc.RegisterConcrete(&Transport{}, "our/transport", nil)
 	cdc.RegisterInterface((*Vehicle)(nil), &amino.InterfaceOptions{AlwaysDisambiguate: true})
 	cdc.RegisterInterface((*Asset)(nil), &amino.InterfaceOptions{AlwaysDisambiguate: true})
@@ -30,6 +29,7 @@ func TestMain(m *testing.M) {
 
 func TestMarshalJSON(t *testing.T) {
 	t.Parallel()
+	var cdc = amino.NewCodec()
 	cases := []struct {
 		in      interface{}
 		want    string
@@ -241,6 +241,7 @@ func TestUnmarshalFunc(t *testing.T) {
 
 func TestUnmarshalJSON(t *testing.T) {
 	t.Parallel()
+	var cdc = amino.NewCodec()
 	cases := []struct {
 		blob    string
 		in      interface{}
@@ -321,6 +322,7 @@ func TestUnmarshalJSON(t *testing.T) {
 }
 
 func TestJSONCodecRoundTrip(t *testing.T) {
+	var cdc = amino.NewCodec()
 	type allInclusive struct {
 		Tr      Transport `json:"trx"`
 		Vehicle Vehicle   `json:"v,omitempty"`

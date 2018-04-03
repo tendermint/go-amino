@@ -460,6 +460,10 @@ func decodeDisfixJSON(bz []byte) (df DisfixBytes, data []byte, err error) {
 	}
 
 	// Get data.
+	if len(dfw.Data) == 0 {
+		err = errors.New("Disfix JSON wrapper should have non-empty value field")
+		return
+	}
 	data = dfw.Data
 	return
 }

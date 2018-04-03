@@ -70,17 +70,21 @@ func derefPointers(rv reflect.Value) (drv reflect.Value, isPtr bool, isNilPtr bo
 // Returns isNil=true iff is ultimately nil after (recursive) dereferencing.
 // If isNil=false, erv is set to the non-nil (valid) dereferenced value.
 // Empty non-pointers/non-interfaces or 0-length slices are not nil.
-func isNilSafe(rv reflect.Value) (erv reflect.Value, isNil bool) {
+// 0-length slices will return isEmpty=true.
+func isNilOrEmptySafe(rv reflect.Value) (erv reflect.Value, isNil bool, isEmpty bool) {
 	rv, _, isNilPtr := derefPointers(rv)
 	if isNilPtr {
-		return rv, true
+		return rv, true, false
 	} else {
 		switch rv.Kind() {
-		case reflect.Chan, reflect.Func, reflect.Interface,
-			reflect.Map, reflect.Slice:
-			return rv, rv.IsNil()
+		case reflect.Slice:
+			isNil := rv.IsNil()
+			isEmpty := !isNil && rv.Len() == 0
+			return rv, isNil, isEmpty
+		case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map:
+			return rv, rv.IsNil(), false
 		default:
-			return rv, false
+			return rv, false, false
 		}
 	}
 }

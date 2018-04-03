@@ -88,6 +88,7 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 		require.Nil(t, err,
 			"failed to unmarshal bytes %X: %v\nptr: %v\n",
 			bz, err, spw(ptr))
+
 		require.Equal(t, ptr, ptr2,
 			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
 			spw(ptr), spw(ptr2), bz, bz)
@@ -297,25 +298,17 @@ func spw(o interface{}) string {
 }
 
 var fuzzFuncs = []interface{}{
-	func(bz *[]byte, c fuzz.Continue) {
-		// Prefer nil instead of empty, for deep equality.
-		// (go-amino decoder will always prefer nil).
-		c.Fuzz(bz)
-		if len(*bz) == 0 {
-			*bz = nil
-		}
-	},
 	func(bz **[]byte, c fuzz.Continue) {
 		// Prefer nil instead of empty, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		c.Fuzz(bz)
-		if *bz == nil {
-			return
-		}
-		if len(**bz) == 0 {
+		var s string
+		c.Fuzz(&s)
+		if len(s) == 0 {
 			*bz = nil
+		} else {
+			sbz := []byte(s)
+			*bz = &sbz
 		}
-		return
 	},
 	func(tyme *time.Time, c fuzz.Continue) {
 		// Set time.Unix(_,_) to wipe .wal
