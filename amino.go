@@ -168,6 +168,9 @@ func (cdc *Codec) MustMarshalBinaryBare(o interface{}) []byte {
 // UnmarshalBinary will panic if ptr is a nil-pointer.
 // Returns an error if not all of bz is consumed.
 func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
+	if len(bz) == 0 {
+		return errors.New("UnmarshalBinary cannot decode empty bytes")
+	}
 
 	// Read byte-length prefix.
 	u64, n := binary.Uvarint(bz)
@@ -245,6 +248,10 @@ func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize in
 
 // UnmarshalBinaryBare will panic if ptr is a nil-pointer.
 func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
+	if len(bz) == 0 {
+		return errors.New("UnmarshalBinaryBare cannot decode empty bytes")
+	}
+
 	rv, rt := reflect.ValueOf(ptr), reflect.TypeOf(ptr)
 	if rv.Kind() != reflect.Ptr {
 		panic("Unmarshal expects a pointer")
@@ -293,6 +300,10 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 }
 
 func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
+	if len(bz) == 0 {
+		return errors.New("UnmarshalJSON cannot decode empty bytes")
+	}
+
 	rv := reflect.ValueOf(ptr)
 	if rv.Kind() != reflect.Ptr {
 		return errors.New("UnmarshalJSON expects a pointer")
