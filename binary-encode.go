@@ -301,22 +301,20 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 	}
 	for i := 0; i < rv.Len(); i++ {
 		// Get dereferenced element value and info.
-		var erv, isNil, isEmpty = isNilOrEmptySafe(rv.Index(i))
+		var erv, void = isVoid(rv.Index(i))
 		if typ.IsPointer() {
 			// We must write a byte to denote whether element is nil.
-			if isNil || isEmpty {
-				// Value is nil.
-				// e.g. nil pointer, nil slice, pointer to nil slice, pointer
+			if void {
+				// Value is nil or empty.
+				// e.g. nil pointer, nil/empty slice, pointer to nil/empty slice, pointer
 				// to nil pointer.  Write 0x01 for "is nil".
 				// NOTE: Do not use a pointer to nil/empty slices to denote
 				// existence or not.  We have to make a design choice here, and
-				// we should go with least authority.
+				// here we discourage using pointers to denote existence.
 				_, err = w.Write([]byte{0x01})
 				continue
 			} else {
-				// Value is not nil.  Write 0x00 for "not nil".
-				// NOTE: An empty slice is nil, so any slices here must have
-				// length > 0.
+				// Value is not nil or empty.  Write 0x00 for "not nil/empty".
 				_, err = w.Write([]byte{0x00})
 			}
 		}
@@ -370,10 +368,9 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 	default:
 		for _, field := range info.Fields {
 			// Get dereferenced field value and info.
-			var frv, isNil, isEmpty = isNilOrEmptySafe(rv.Field(field.Index))
-			if isNil || isEmpty {
-				// Do not encode nil fields.
-				// Do not encode empty slices either, as it's functionally equivalent to nil.
+			var frv, void = isVoid(rv.Field(field.Index))
+			if void {
+				// Do not encode nil or empty fields.
 				continue
 			}
 			var finfo *TypeInfo

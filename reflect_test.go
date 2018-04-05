@@ -298,16 +298,25 @@ func spw(o interface{}) string {
 }
 
 var fuzzFuncs = []interface{}{
+	func(s **string, c fuzz.Continue) {
+		// Prefer nil instead of empty, for deep equality.
+		// (go-amino decoder will always prefer nil).
+		s_ := randString(c)
+		if len(s_) == 0 {
+			*s = nil
+		} else {
+			*s = &s_
+		}
+	},
 	func(bz **[]byte, c fuzz.Continue) {
 		// Prefer nil instead of empty, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var s string
-		c.Fuzz(&s)
-		if len(s) == 0 {
+		var bz_ []byte
+		c.Fuzz(&bz_)
+		if len(bz_) == 0 {
 			*bz = nil
 		} else {
-			sbz := []byte(s)
-			*bz = &sbz
+			*bz = &bz_
 		}
 	},
 	func(tyme *time.Time, c fuzz.Continue) {
@@ -358,4 +367,37 @@ var fuzzFuncs = []interface{}{
 		**ptr = new(*byte)
 		***ptr = new(byte)
 	},
+}
+
+//----------------------------------------
+// From https://github.com/google/gofuzz/blob/master/fuzz.go
+// (Apache2.0 License)
+// TODO move to tmlibs/common/random.go?
+
+type charRange struct {
+	first, last rune
+}
+
+// choose returns a random unicode character from the given range, using the
+// given randomness source.
+func (r *charRange) choose(rand fuzz.Continue) rune {
+	count := int64(r.last - r.first)
+	return r.first + rune(rand.Int63n(count))
+}
+
+var unicodeRanges = []charRange{
+	{' ', '~'},           // ASCII characters
+	{'\u00a0', '\u02af'}, // Multi-byte encoded characters
+	{'\u4e00', '\u9fff'}, // Common CJK (even longer encodings)
+}
+
+// randString makes a random string up to 20 characters long. The returned string
+// may include a variety of (valid) UTF-8 encodings.
+func randString(r fuzz.Continue) string {
+	n := r.Intn(19) + 1
+	runes := make([]rune, n)
+	for i := range runes {
+		runes[i] = unicodeRanges[r.Intn(len(unicodeRanges))].choose(r)
+	}
+	return string(runes)
 }

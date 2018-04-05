@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.5 (April 5, 2018)
+
+BREAKING CHANGE:
+ - Skip encoding of "void" (nil/empty) struct fields and list elements, esp empty strings
+
+IMPROVEMENTS:
+ - Better error message with empty inputs
+
+## 0.9.4 (April 3, 2018)
+
+BREAKING CHANGE:
+- Treat empty slices and nil the same in binary
+
+IMPROVEMENTS:
+- Add indenting to aminoscan
+
+BUG FIXES:
+- JSON omitempty fix.
+
 ## 0.9.2 (Mar 24, 2018)
 
 BUG FIXES:
