@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.6 (April 5, 2018)
+
+IMPROVEMENTS:
+ - map[string]<any> support for Amino:JSON
+
 ## 0.9.5 (April 5, 2018)
 
 BREAKING CHANGE:

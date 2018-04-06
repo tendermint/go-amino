@@ -138,7 +138,7 @@ func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
 		}
 	case reflect.String:
 		return Typ3_ByteLength
-	case reflect.Struct:
+	case reflect.Struct, reflect.Map:
 		return Typ3_Struct
 	case reflect.Int64, reflect.Uint64:
 		if opts.BinVarint {
