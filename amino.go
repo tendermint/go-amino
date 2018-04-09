@@ -211,7 +211,7 @@ func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize in
 			break
 		}
 		if n >= maxSize {
-			err = fmt.Errorf("Read overflow, maxSize is %v but uvarint(length-prefix) is itself greater than maxSize.")
+			err = fmt.Errorf("Read overflow, maxSize is %v but uvarint(length-prefix) is itself greater than maxSize.", maxSize)
 		}
 	}
 	u64, _ := binary.Uvarint(buf[:])
@@ -323,6 +323,21 @@ func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
 		return err
 	}
 	return cdc.decodeReflectJSON(bz, info, rv, FieldOptions{})
+}
+
+// MarshalJSONIndent calls json.Indent on the output of cdc.MarshalJSON
+// using the given indent string and an empty prefix.
+func (cdc *Codec) MarshalJSONIndent(o interface{}, indent string) ([]byte, error) {
+	bz, err := cdc.MarshalJSON(o)
+	if err != nil {
+		return nil, err
+	}
+	var out bytes.Buffer
+	err = json.Indent(&out, bz, "", indent)
+	if err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
 }
 
 //----------------------------------------
