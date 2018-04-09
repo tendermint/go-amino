@@ -3,7 +3,6 @@ package amino_test
 import (
 	"bytes"
 	"encoding/json"
-	"os"
 	"reflect"
 	"strings"
 	"testing"
@@ -13,10 +12,7 @@ import (
 	"github.com/tendermint/go-amino"
 )
 
-var cdc = amino.NewCodec()
-
-func TestMain(m *testing.M) {
-	// Register the concrete types first.
+func registerTransports(cdc *amino.Codec) {
 	cdc.RegisterConcrete(&Transport{}, "our/transport", nil)
 	cdc.RegisterInterface((*Vehicle)(nil), &amino.InterfaceOptions{AlwaysDisambiguate: true})
 	cdc.RegisterInterface((*Asset)(nil), &amino.InterfaceOptions{AlwaysDisambiguate: true})
@@ -24,12 +20,12 @@ func TestMain(m *testing.M) {
 	cdc.RegisterConcrete(insurancePlan(0), "insuranceplan", nil)
 	cdc.RegisterConcrete(Boat(""), "boat", nil)
 	cdc.RegisterConcrete(Plane{}, "plane", nil)
-
-	os.Exit(m.Run())
 }
 
 func TestMarshalJSON(t *testing.T) {
 	t.Parallel()
+	var cdc = amino.NewCodec()
+	registerTransports(cdc)
 	cases := []struct {
 		in      interface{}
 		want    string
@@ -125,6 +121,7 @@ func TestMarshalJSON(t *testing.T) {
 
 func TestMarshalJSONWithMonotonicTime(t *testing.T) {
 	var cdc = amino.NewCodec()
+	registerTransports(cdc)
 
 	type SimpleStruct struct {
 		String string
@@ -241,6 +238,8 @@ func TestUnmarshalFunc(t *testing.T) {
 
 func TestUnmarshalJSON(t *testing.T) {
 	t.Parallel()
+	var cdc = amino.NewCodec()
+	registerTransports(cdc)
 	cases := []struct {
 		blob    string
 		in      interface{}
@@ -321,6 +320,8 @@ func TestUnmarshalJSON(t *testing.T) {
 }
 
 func TestJSONCodecRoundTrip(t *testing.T) {
+	var cdc = amino.NewCodec()
+	registerTransports(cdc)
 	type allInclusive struct {
 		Tr      Transport `json:"trx"`
 		Vehicle Vehicle   `json:"v,omitempty"`
@@ -481,4 +482,85 @@ func (p Plane) Move() error { return nil }
 
 func interfacePtr(v interface{}) *interface{} {
 	return &v
+}
+
+//----------------------------------------
+
+func TestMarshalJSONMap(t *testing.T) {
+	var cdc = amino.NewCodec()
+
+	type SimpleStruct struct {
+		Foo int
+		Bar []byte
+	}
+
+	type MapsStruct struct {
+		Map1      map[string]string
+		Map1nil   map[string]string
+		Map1empty map[string]string
+
+		Map2      map[string]SimpleStruct
+		Map2nil   map[string]SimpleStruct
+		Map2empty map[string]SimpleStruct
+
+		Map3      map[string]*SimpleStruct
+		Map3nil   map[string]*SimpleStruct
+		Map3empty map[string]*SimpleStruct
+
+		/*
+			NOT SUPPORTED YET.  FIRST, DEFINE SPEC.
+			Map4      map[int]*SimpleStruct
+			Map4nil   map[int]*SimpleStruct
+			Map4empty map[int]*SimpleStruct
+		*/
+	}
+
+	ms := MapsStruct{
+		Map1:      map[string]string{"foo": "bar"},
+		Map1nil:   (map[string]string)(nil),
+		Map1empty: map[string]string{},
+
+		Map2:      map[string]SimpleStruct{"foo": {Foo: 1, Bar: []byte("bar")}},
+		Map2nil:   (map[string]SimpleStruct)(nil),
+		Map2empty: map[string]SimpleStruct{},
+
+		Map3:      map[string]*SimpleStruct{"foo": &SimpleStruct{Foo: 1, Bar: []byte("bar")}},
+		Map3nil:   (map[string]*SimpleStruct)(nil),
+		Map3empty: map[string]*SimpleStruct{},
+
+		/*
+			Map4:      map[int]*SimpleStruct{123: &SimpleStruct{Foo: 1, Bar: []byte("bar")}},
+			Map4nil:   (map[int]*SimpleStruct)(nil),
+			Map4empty: map[int]*SimpleStruct{},
+		*/
+	}
+
+	// ms2 is expected to be this.
+	ms3 := MapsStruct{
+		Map1:      map[string]string{"foo": "bar"},
+		Map1nil:   map[string]string{},
+		Map1empty: map[string]string{},
+
+		Map2:      map[string]SimpleStruct{"foo": {Foo: 1, Bar: []byte("bar")}},
+		Map2nil:   map[string]SimpleStruct{},
+		Map2empty: map[string]SimpleStruct{},
+
+		Map3:      map[string]*SimpleStruct{"foo": &SimpleStruct{Foo: 1, Bar: []byte("bar")}},
+		Map3nil:   map[string]*SimpleStruct{},
+		Map3empty: map[string]*SimpleStruct{},
+
+		/*
+			Map4:      map[int]*SimpleStruct{123: &SimpleStruct{Foo: 1, Bar: []byte("bar")}},
+			Map4nil:   (map[int]*SimpleStruct)(nil),
+			Map4empty: map[int]*SimpleStruct{},
+		*/
+	}
+
+	b, err := cdc.MarshalJSON(ms)
+	assert.Nil(t, err)
+
+	var ms2 MapsStruct
+	err = cdc.UnmarshalJSON(b, &ms2)
+	assert.Nil(t, err)
+	assert.Equal(t, ms3, ms2)
 }

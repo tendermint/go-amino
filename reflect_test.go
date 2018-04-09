@@ -88,6 +88,7 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 		require.Nil(t, err,
 			"failed to unmarshal bytes %X: %v\nptr: %v\n",
 			bz, err, spw(ptr))
+
 		require.Equal(t, ptr, ptr2,
 			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
 			spw(ptr), spw(ptr2), bz, bz)
@@ -297,25 +298,26 @@ func spw(o interface{}) string {
 }
 
 var fuzzFuncs = []interface{}{
-	func(bz *[]byte, c fuzz.Continue) {
+	func(s **string, c fuzz.Continue) {
 		// Prefer nil instead of empty, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		c.Fuzz(bz)
-		if len(*bz) == 0 {
-			*bz = nil
+		s_ := randString(c)
+		if len(s_) == 0 {
+			*s = nil
+		} else {
+			*s = &s_
 		}
 	},
 	func(bz **[]byte, c fuzz.Continue) {
 		// Prefer nil instead of empty, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		c.Fuzz(bz)
-		if *bz == nil {
-			return
-		}
-		if len(**bz) == 0 {
+		var bz_ []byte
+		c.Fuzz(&bz_)
+		if len(bz_) == 0 {
 			*bz = nil
+		} else {
+			*bz = &bz_
 		}
-		return
 	},
 	func(tyme *time.Time, c fuzz.Continue) {
 		// Set time.Unix(_,_) to wipe .wal
@@ -365,4 +367,37 @@ var fuzzFuncs = []interface{}{
 		**ptr = new(*byte)
 		***ptr = new(byte)
 	},
+}
+
+//----------------------------------------
+// From https://github.com/google/gofuzz/blob/master/fuzz.go
+// (Apache2.0 License)
+// TODO move to tmlibs/common/random.go?
+
+type charRange struct {
+	first, last rune
+}
+
+// choose returns a random unicode character from the given range, using the
+// given randomness source.
+func (r *charRange) choose(rand fuzz.Continue) rune {
+	count := int64(r.last - r.first)
+	return r.first + rune(rand.Int63n(count))
+}
+
+var unicodeRanges = []charRange{
+	{' ', '~'},           // ASCII characters
+	{'\u00a0', '\u02af'}, // Multi-byte encoded characters
+	{'\u4e00', '\u9fff'}, // Common CJK (even longer encodings)
+}
+
+// randString makes a random string up to 20 characters long. The returned string
+// may include a variety of (valid) UTF-8 encodings.
+func randString(r fuzz.Continue) string {
+	n := r.Intn(19) + 1
+	runes := make([]rune, n)
+	for i := range runes {
+		runes[i] = unicodeRanges[r.Intn(len(unicodeRanges))].choose(r)
+	}
+	return string(runes)
 }

@@ -1,7 +1,6 @@
 package amino
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
@@ -104,6 +103,28 @@ func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// MarshalBinaryWriter writes the bytes as would be returned from
+// MarshalBinary to the writer w.
+func (cdc *Codec) MarshalBinaryWriter(w io.Writer, o interface{}) (n int64, err error) {
+	var bz, _n = []byte(nil), int(0)
+	bz, err = cdc.MarshalBinary(o)
+	if err != nil {
+		return 0, err
+	}
+	_n, err = w.Write(bz) // TODO: handle overflow in 32-bit systems.
+	n = int64(_n)
+	return
+}
+
+// Panics if error.
+func (cdc *Codec) MustMarshalBinary(o interface{}) []byte {
+	bz, err := cdc.MarshalBinary(o)
+	if err != nil {
+		panic(err)
+	}
+	return bz
+}
+
 // MarshalBinaryBare encodes the object o according to the Amino spec.
 // MarshalBinaryBare doesn't prefix the byte-length of the encoding,
 // so the caller must handle framing.
@@ -134,10 +155,22 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	return bz, nil
 }
 
+// Panics if error.
+func (cdc *Codec) MustMarshalBinaryBare(o interface{}) []byte {
+	bz, err := cdc.MarshalBinaryBare(o)
+	if err != nil {
+		panic(err)
+	}
+	return bz
+}
+
 // Like UnmarshalBinaryBare, but will first decode the byte-length prefix.
 // UnmarshalBinary will panic if ptr is a nil-pointer.
 // Returns an error if not all of bz is consumed.
 func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
+	if len(bz) == 0 {
+		return errors.New("UnmarshalBinary cannot decode empty bytes")
+	}
 
 	// Read byte-length prefix.
 	u64, n := binary.Uvarint(bz)
@@ -160,36 +193,65 @@ func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
 // Like UnmarshalBinaryBare, but will first read the byte-length prefix.
 // UnmarshalBinaryReader will panic if ptr is a nil-pointer.
 // If maxSize is 0, there is no limit (not recommended).
-func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize int64) error {
+func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize int64) (n int64, err error) {
 	if maxSize < 0 {
 		panic("maxSize cannot be negative.")
 	}
-	var br = bufio.NewReader(r)
 
 	// Read byte-length prefix.
 	var l int64
-	u64, err := binary.ReadUvarint(br)
-	if err != nil {
-		return err
+	var buf [binary.MaxVarintLen64]byte
+	for i := 0; i < len(buf); i++ {
+		_, err = r.Read(buf[i : i+1])
+		if err != nil {
+			return
+		}
+		n += 1
+		if buf[i]&0x80 == 0 {
+			break
+		}
+		if n >= maxSize {
+			err = fmt.Errorf("Read overflow, maxSize is %v but uvarint(length-prefix) is itself greater than maxSize.")
+		}
 	}
-	if maxSize > 0 && u64 > uint64(maxSize) {
-		return fmt.Errorf("Read overflow, maxSize is %v but next message is %v bytes", maxSize, u64)
+	u64, _ := binary.Uvarint(buf[:])
+	if err != nil {
+		return
+	}
+	if maxSize > 0 {
+		if uint64(maxSize) < u64 {
+			err = fmt.Errorf("Read overflow, maxSize is %v but this amino binary object is %v bytes.", maxSize, u64)
+			return
+		}
+		if (maxSize - n) < int64(u64) {
+			err = fmt.Errorf("Read overflow, maxSize is %v but this length-prefixed amino binary object is %v+%v bytes.", maxSize, n, u64)
+			return
+		}
 	}
 	l = int64(u64)
+	if l < 0 {
+		err = fmt.Errorf("Read overflow, this implementation can't read this because, why would anyone have this much data? Hello from 2018.")
+	}
 
 	// Read that many bytes.
 	var bz = make([]byte, l, l)
-	_, err = io.ReadFull(br, bz)
+	_, err = io.ReadFull(r, bz)
 	if err != nil {
-		return err
+		return
 	}
+	n += l
 
 	// Decode.
-	return cdc.UnmarshalBinaryBare(bz, ptr)
+	err = cdc.UnmarshalBinaryBare(bz, ptr)
+	return
 }
 
 // UnmarshalBinaryBare will panic if ptr is a nil-pointer.
 func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
+	if len(bz) == 0 {
+		return errors.New("UnmarshalBinaryBare cannot decode empty bytes")
+	}
+
 	rv, rt := reflect.ValueOf(ptr), reflect.TypeOf(ptr)
 	if rv.Kind() != reflect.Ptr {
 		panic("Unmarshal expects a pointer")
@@ -238,6 +300,10 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 }
 
 func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
+	if len(bz) == 0 {
+		return errors.New("UnmarshalJSON cannot decode empty bytes")
+	}
+
 	rv := reflect.ValueOf(ptr)
 	if rv.Kind() != reflect.Ptr {
 		return errors.New("UnmarshalJSON expects a pointer")

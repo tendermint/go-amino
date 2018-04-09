@@ -67,17 +67,19 @@ func derefPointers(rv reflect.Value) (drv reflect.Value, isPtr bool, isNilPtr bo
 	return
 }
 
-// Returns isNil=true iff is ultimately nil after (recursive) dereferencing.
-// If isNil=false, erv is set to the non-nil (valid) dereferenced value.
-// Empty non-pointers/non-interfaces or 0-length slices are not nil.
-func isNilSafe(rv reflect.Value) (erv reflect.Value, isNil bool) {
+// Returns isVoid=true iff is ultimately nil or empty after (recursive) dereferencing.
+// If isVoid=false, erv is set to the non-nil non-empty valid dereferenced value.
+func isVoid(rv reflect.Value) (erv reflect.Value, isVoid bool) {
 	rv, _, isNilPtr := derefPointers(rv)
 	if isNilPtr {
 		return rv, true
 	} else {
 		switch rv.Kind() {
-		case reflect.Chan, reflect.Func, reflect.Interface,
-			reflect.Map, reflect.Slice:
+		case reflect.String:
+			return rv, rv.Len() == 0
+		case reflect.Chan, reflect.Map, reflect.Slice:
+			return rv, rv.IsNil() || rv.Len() == 0
+		case reflect.Func, reflect.Interface:
 			return rv, rv.IsNil()
 		default:
 			return rv, false
@@ -136,7 +138,7 @@ func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
 		}
 	case reflect.String:
 		return Typ3_ByteLength
-	case reflect.Struct:
+	case reflect.Struct, reflect.Map:
 		return Typ3_Struct
 	case reflect.Int64, reflect.Uint64:
 		if opts.BinVarint {

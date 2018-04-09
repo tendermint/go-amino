@@ -118,6 +118,9 @@ func (cdc *Codec) _encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Val
 	case reflect.Struct:
 		return cdc.encodeReflectJSONStruct(w, info, rv, opts)
 
+	case reflect.Map:
+		return cdc.encodeReflectJSONMap(w, info, rv, opts)
+
 	//----------------------------------------
 	// Signed, Unsigned
 
@@ -350,6 +353,75 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 		writeComma = true
 	}
 	return
+}
+
+// TODO: TEST
+func (cdc *Codec) encodeReflectJSONMap(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+	if printLog {
+		fmt.Println("(e) encodeReflectJSONMap")
+		defer func() {
+			fmt.Printf("(e) -> err: %v\n", err)
+		}()
+	}
+
+	// Part 1.
+	err = writeStr(w, `{`)
+	if err != nil {
+		return
+	}
+	// Part 2.
+	defer func() {
+		if err == nil {
+			err = writeStr(w, `}`)
+		}
+	}()
+
+	// Ensure that the map key type is a string.
+	if rv.Type().Key().Kind() != reflect.String {
+		err = errors.New("encodeReflectJSONMap: map key type must be a string")
+		return
+	}
+
+	var writeComma = false
+	for _, krv := range rv.MapKeys() {
+		// Get dereferenced object value and info.
+		var vrv, _, isNil = derefPointers(rv.MapIndex(krv))
+
+		// Add a comma if we need to.
+		if writeComma {
+			err = writeStr(w, `,`)
+			if err != nil {
+				return
+			}
+			writeComma = false
+		}
+		// Write field name.
+		err = invokeStdlibJSONMarshal(w, krv.Interface())
+		if err != nil {
+			return
+		}
+		// Write colon.
+		err = writeStr(w, `:`)
+		if err != nil {
+			return
+		}
+		// Write field value.
+		if isNil {
+			err = writeStr(w, `null`)
+		} else {
+			var vinfo *TypeInfo
+			vinfo, err = cdc.getTypeInfo_wlock(vrv.Type())
+			if err != nil {
+				return
+			}
+			err = cdc.encodeReflectJSON(w, vinfo, vrv, opts) // pass through opts
+		}
+		if err != nil {
+			return
+		}
+		writeComma = true
+	}
+	return
 
 }
 
@@ -390,7 +462,10 @@ func _fmt(s string, args ...interface{}) string {
 // For json:",omitempty".
 // Returns true for zero values, but also non-nil zero-length slices and strings.
 func isEmpty(rv reflect.Value, zrv reflect.Value) bool {
-	if reflect.DeepEqual(rv, zrv) {
+	if !rv.IsValid() {
+		return true
+	}
+	if reflect.DeepEqual(rv.Interface(), zrv.Interface()) {
 		return true
 	}
 	switch rv.Kind() {

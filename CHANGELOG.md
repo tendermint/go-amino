@@ -1,6 +1,41 @@
 # Changelog
 
-## 0.0.0 (Mar 10, 2018)
+## 0.9.6 (April 5, 2018)
+
+IMPROVEMENTS:
+ - map[string]<any> support for Amino:JSON
+
+## 0.9.5 (April 5, 2018)
+
+BREAKING CHANGE:
+ - Skip encoding of "void" (nil/empty) struct fields and list elements, esp empty strings
+
+IMPROVEMENTS:
+ - Better error message with empty inputs
+
+## 0.9.4 (April 3, 2018)
+
+BREAKING CHANGE:
+- Treat empty slices and nil the same in binary
+
+IMPROVEMENTS:
+- Add indenting to aminoscan
+
+BUG FIXES:
+- JSON omitempty fix.
+
+## 0.9.2 (Mar 24, 2018)
+
+BUG FIXES:
+ - Fix UnmarshalBinaryReader consuming too much from bufio.
+ - Fix UnmarshalBinaryReader obeying limit.
+
+## 0.9.1 (Mar 24, 2018)
+
+BUG FIXES:
+ - Fix UnmarshalBinaryReader returned n
+
+## 0.9.0 (Mar 10, 2018)
 
 BREAKING CHANGE:
  - wire -> amino
