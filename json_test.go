@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tendermint/go-amino"
+	amino "github.com/tendermint/go-amino"
 )
 
 func registerTransports(cdc *amino.Codec) {
@@ -577,7 +577,7 @@ func TestMarshalJSONIndent(t *testing.T) {
 %s"value": "Tesla"
 }`, indent, indent)
 
-	blob, err := cdc.MarshalJSONIndent(obj, "  ")
+	blob, err := cdc.MarshalJSONIndent(obj, "", "  ")
 	assert.Nil(t, err)
 	assert.Equal(t, expected, string(blob))
 }

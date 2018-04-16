@@ -326,14 +326,14 @@ func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
 }
 
 // MarshalJSONIndent calls json.Indent on the output of cdc.MarshalJSON
-// using the given indent string and an empty prefix.
-func (cdc *Codec) MarshalJSONIndent(o interface{}, indent string) ([]byte, error) {
+// using the given prefix and indent string.
+func (cdc *Codec) MarshalJSONIndent(o interface{}, prefix, indent string) ([]byte, error) {
 	bz, err := cdc.MarshalJSON(o)
 	if err != nil {
 		return nil, err
 	}
 	var out bytes.Buffer
-	err = json.Indent(&out, bz, "", indent)
+	err = json.Indent(&out, bz, prefix, indent)
 	if err != nil {
 		return nil, err
 	}
