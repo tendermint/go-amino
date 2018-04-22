@@ -211,7 +211,7 @@ func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize in
 			break
 		}
 		if n >= maxSize {
-			err = fmt.Errorf("Read overflow, maxSize is %v but uvarint(length-prefix) is itself greater than maxSize.")
+			err = fmt.Errorf("Read overflow, maxSize is %v but uvarint(length-prefix) is itself greater than maxSize.", maxSize)
 		}
 	}
 	u64, _ := binary.Uvarint(buf[:])
@@ -247,12 +247,11 @@ func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize in
 }
 
 // Panics if error.
-func (cdc *Codec) MustUnmarshalBinary(o interface{}) []byte {
-	bz, err := cdc.UnmarshalBinary(o)
+func (cdc *Codec) MustUnmarshalBinary(bz []byte, ptr interface{}) {
+	err := cdc.UnmarshalBinary(bz, ptr)
 	if err != nil {
 		panic(err)
 	}
-	return bz
 }
 
 // UnmarshalBinaryBare will panic if ptr is a nil-pointer.
@@ -281,12 +280,11 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 }
 
 // Panics if error.
-func (cdc *Codec) MustUnmarshalBinaryBare(o interface{}) []byte {
-	bz, err := cdc.UnmarshalBinaryBare(o)
+func (cdc *Codec) MustUnmarshalBinaryBare(bz []byte, ptr interface{}) {
+	err := cdc.UnmarshalBinaryBare(bz, ptr)
 	if err != nil {
 		panic(err)
 	}
-	return bz
 }
 
 func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
