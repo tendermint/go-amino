@@ -1,6 +1,7 @@
 package amino
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
@@ -10,9 +11,14 @@ import (
 // Constants
 
 const printLog = false
-
 const RFC3339Millis = "2006-01-02T15:04:05.000Z" // forced microseconds
-var timeType = reflect.TypeOf(time.Time{})
+
+var (
+	timeType            = reflect.TypeOf(time.Time{})
+	jsonMarshalerType   = reflect.TypeOf(new(json.Marshaler)).Elem()
+	jsonUnmarshalerType = reflect.TypeOf(new(json.Unmarshaler)).Elem()
+	errorType           = reflect.TypeOf(new(error)).Elem()
+)
 
 //----------------------------------------
 // encode: see binary-encode.go and json-encode.go
@@ -84,6 +90,15 @@ func isVoid(rv reflect.Value) (erv reflect.Value, isVoid bool) {
 		default:
 			return rv, false
 		}
+	}
+}
+
+func isNil(rv reflect.Value) bool {
+	switch rv.Kind() {
+	case reflect.Interface, reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr, reflect.Slice:
+		return rv.IsNil()
+	default:
+		return false
 	}
 }
 
