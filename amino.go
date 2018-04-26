@@ -246,6 +246,14 @@ func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize in
 	return
 }
 
+// Panics if error.
+func (cdc *Codec) MustUnmarshalBinary(bz []byte, ptr interface{}) {
+	err := cdc.UnmarshalBinary(bz, ptr)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // UnmarshalBinaryBare will panic if ptr is a nil-pointer.
 func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	if len(bz) == 0 {
@@ -269,6 +277,14 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		return fmt.Errorf("Unmarshal didn't read all bytes. Expected to read %v, only read %v", len(bz), n)
 	}
 	return nil
+}
+
+// Panics if error.
+func (cdc *Codec) MustUnmarshalBinaryBare(bz []byte, ptr interface{}) {
+	err := cdc.UnmarshalBinaryBare(bz, ptr)
+	if err != nil {
+		panic(err)
+	}
 }
 
 func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {

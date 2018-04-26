@@ -1,5 +1,12 @@
 # Changelog
 
+## Next
+
+IMPROVEMENTS:
+ - Add MustUnmarshalBinary and MustUnmarshalBinaryBare to the Codec
+   - both methods are analogous to their marshalling counterparts
+   - both methods will panic in case of an error
+
 ## 0.9.6 (April 5, 2018)
 
 IMPROVEMENTS:

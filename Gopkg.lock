@@ -78,12 +78,12 @@
     "common",
     "log"
   ]
-  revision = "1b9b5652a199ab0be2e781393fb275b66377309d"
-  version = "v0.7.0"
+  revision = "2e24b64fc121dcdf1cabceab8dc2f7257675483c"
+  version = "v0.8.1"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1fc16a9931d7e534b7c7fb2745c0289f489bf165cbc77d540c8e6b6d285cc742"
+  inputs-digest = "39df8000374b1ed2d9b5b044c56ac18ece740d6d3aa911648feddeb88fe7a422"
   solver-name = "gps-cdcl"
   solver-version = 1
