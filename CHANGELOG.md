@@ -1,11 +1,12 @@
 # Changelog
 
-## Next
+## 0.9.7 (April 25, 2019)
 
-IMPROVEMENTS:
+FEATURES:
  - Add MustUnmarshalBinary and MustUnmarshalBinaryBare to the Codec
    - both methods are analogous to their marshalling counterparts
    - both methods will panic in case of an error
+ - MarshalJSONIndent
 
 ## 0.9.6 (April 5, 2018)
 
