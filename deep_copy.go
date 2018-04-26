@@ -19,7 +19,7 @@ func DeepCopy(o interface{}) (r interface{}) {
 }
 
 func deepCopy(src, dst reflect.Value) {
-	if isTypedNilReflect(src) {
+	if isNil(src) {
 		return
 	}
 	if callDeepCopy(src, dst) {
@@ -41,7 +41,9 @@ func _deepCopy(src, dst reflect.Value) {
 		return
 
 	case reflect.Interface:
-		deepCopy(src.Elem(), dst.Elem())
+		cpy := reflect.New(src.Elem().Type())
+		deepCopy(src.Elem(), cpy.Elem())
+		dst.Set(cpy.Elem())
 		return
 
 	case reflect.Array:

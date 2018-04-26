@@ -90,3 +90,23 @@ func TestDeepCopyFoo7(t *testing.T) {
 	dcf2 := amino.DeepCopy(dcf1).(*DCFoo7)
 	assert.Equal(t, "good", dcf2.a)
 }
+
+type DCInterface1 struct {
+	Foo interface{}
+}
+
+func TestDeepCopyInterface1(t *testing.T) {
+	dci1 := DCInterface1{Foo: nil}
+	dci2 := amino.DeepCopy(dci1).(DCInterface1)
+	assert.Nil(t, dci2.Foo)
+}
+
+type DCInterface2 struct {
+	Foo interface{}
+}
+
+func TestDeepCopyInterface2(t *testing.T) {
+	dci1 := DCInterface1{Foo: "foo"}
+	dci2 := amino.DeepCopy(dci1).(DCInterface1)
+	assert.Equal(t, "foo", dci2.Foo)
+}

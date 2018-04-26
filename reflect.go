@@ -87,9 +87,9 @@ func isVoid(rv reflect.Value) (erv reflect.Value, isVoid bool) {
 	}
 }
 
-func isTypedNilReflect(rv reflect.Value) bool {
+func isNil(rv reflect.Value) bool {
 	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr, reflect.Slice:
+	case reflect.Interface, reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr, reflect.Slice:
 		return rv.IsNil()
 	default:
 		return false
