@@ -13,16 +13,21 @@ import (
 //----------------------------------------
 // PrefixBytes/DisambBytes/DisfixBytes types
 
+// Lengths
 const (
 	PrefixBytesLen = 4
 	DisambBytesLen = 3
 	DisfixBytesLen = PrefixBytesLen + DisambBytesLen
 )
 
-type PrefixBytes [PrefixBytesLen]byte
-type DisambBytes [DisambBytesLen]byte
-type DisfixBytes [DisfixBytesLen]byte // Disamb+Prefix
+// Prefix types
+type (
+	PrefixBytes [PrefixBytesLen]byte
+	DisambBytes [DisambBytesLen]byte
+	DisfixBytes [DisfixBytesLen]byte // Disamb+Prefix
+)
 
+// Copy into PrefixBytes
 func NewPrefixBytes(prefixBytes []byte) PrefixBytes {
 	pb := PrefixBytes{}
 	copy(pb[:], prefixBytes)
@@ -41,6 +46,11 @@ func (db DisambBytes) Bytes() []byte             { return db[:] }
 func (db DisambBytes) EqualBytes(bz []byte) bool { return bytes.Equal(db[:], bz) }
 func (df DisfixBytes) Bytes() []byte             { return df[:] }
 func (df DisfixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(df[:], bz) }
+
+// Return the DisambBytes and the PrefixBytes for a given name.
+func NameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
+	return nameToDisfix(name)
+}
 
 //----------------------------------------
 // Codec internals
