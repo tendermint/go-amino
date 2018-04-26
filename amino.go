@@ -355,12 +355,3 @@ func (cdc *Codec) MarshalJSONIndent(o interface{}, prefix, indent string) ([]byt
 	}
 	return out.Bytes(), nil
 }
-
-//----------------------------------------
-// Misc.
-
-var (
-	jsonMarshalerType   = reflect.TypeOf(new(json.Marshaler)).Elem()
-	jsonUnmarshalerType = reflect.TypeOf(new(json.Unmarshaler)).Elem()
-	errorType           = reflect.TypeOf(new(error)).Elem()
-)

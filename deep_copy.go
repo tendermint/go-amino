@@ -8,6 +8,13 @@ import (
 //----------------------------------------
 // DeepCopy
 
+// Deeply copies an object.
+// If anything implements `.DeepCopy() <any>` along the way,
+// the result of that function will be used.
+// Otherwise, if it implements `.MarshalAmino() (<any>, error)` and
+// `.UnmarshalAmino(<any>) error`, the pair will be used to copy.
+// If .MarshalAmino() or .UnmarshalAmino() returns an error, this
+// function will panic.
 func DeepCopy(o interface{}) (r interface{}) {
 	if o == nil {
 		return nil
@@ -171,6 +178,7 @@ func callDeepCopy(src, dst reflect.Value) bool {
 }
 
 // Call .MarshalAmino() and .UnmarshalAmino to copy if possible.
+// Panics if .MarshalAmino() or .UnmarshalAmino() return an error.
 // CONTRACT: src and dst are of equal types.
 func callAminoCopy(src, dst reflect.Value) bool {
 	if src.Type() != dst.Type() {
@@ -195,8 +203,16 @@ func callAminoCopy(src, dst reflect.Value) bool {
 	dst.Set(cpy)
 	ma := src.MethodByName("MarshalAmino")
 	ua := dst.MethodByName("UnmarshalAmino")
-	out := ma.Call(nil)[0]
-	ua.Call([]reflect.Value{out})
+	outs := ma.Call(nil)
+	repr, err := outs[0], outs[1]
+	if !err.IsNil() {
+		panic(err.Interface())
+	}
+	outs = ua.Call([]reflect.Value{repr})
+	err = outs[0]
+	if !err.IsNil() {
+		panic(err.Interface())
+	}
 	return true
 }
 
@@ -211,7 +227,10 @@ func canAminoCopy(rv reflect.Value) bool {
 	if ua.Type().NumIn() != 1 {
 		return false
 	}
-	if ua.Type().NumOut() != 0 {
+	if ua.Type().NumOut() != 1 {
+		return false
+	}
+	if ua.Type().Out(0) != errorType {
 		return false
 	}
 	ma := rv.MethodByName("MarshalAmino")
@@ -221,7 +240,10 @@ func canAminoCopy(rv reflect.Value) bool {
 	if ma.Type().NumIn() != 0 {
 		return false
 	}
-	if ma.Type().NumOut() != 1 {
+	if ma.Type().NumOut() != 2 {
+		return false
+	}
+	if ma.Type().Out(1) != errorType {
 		return false
 	}
 	if ua.Type().In(0) != ma.Type().Out(0) {

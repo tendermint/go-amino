@@ -1,6 +1,7 @@
 package amino_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,9 +10,9 @@ import (
 
 type DCFoo1 struct{ a string }
 
-func newDCFoo1(a string) *DCFoo1            { return &DCFoo1{a: a} }
-func (dcf *DCFoo1) MarshalAmino() string    { return dcf.a }
-func (dcf *DCFoo1) UnmarshalAmino(s string) { dcf.a = s }
+func newDCFoo1(a string) *DCFoo1                  { return &DCFoo1{a: a} }
+func (dcf *DCFoo1) MarshalAmino() (string, error) { return dcf.a, nil }
+func (dcf *DCFoo1) UnmarshalAmino(s string) error { dcf.a = s; return nil }
 
 func TestDeepCopyFoo1(t *testing.T) {
 	dcf1 := newDCFoo1("foobar")
@@ -21,9 +22,9 @@ func TestDeepCopyFoo1(t *testing.T) {
 
 type DCFoo2 struct{ a string }
 
-func newDCFoo2(a string) *DCFoo2            { return &DCFoo2{a: a} }
-func (dcf DCFoo2) MarshalAmino() string     { return dcf.a } // Non-pointer receiver
-func (dcf *DCFoo2) UnmarshalAmino(s string) { dcf.a = s }
+func newDCFoo2(a string) *DCFoo2                  { return &DCFoo2{a: a} }
+func (dcf DCFoo2) MarshalAmino() (string, error)  { return dcf.a, nil } // non-pointer receiver
+func (dcf *DCFoo2) UnmarshalAmino(s string) error { dcf.a = s; return nil }
 
 func TestDeepCopyFoo2(t *testing.T) {
 	dcf1 := newDCFoo2("foobar")
@@ -33,9 +34,9 @@ func TestDeepCopyFoo2(t *testing.T) {
 
 type DCFoo3 struct{ a string }
 
-func newDCFoo3(a string) *DCFoo3            { return &DCFoo3{a: a} }
-func (dcf DCFoo3) MarshalAmino() string     { return dcf.a }
-func (dcf *DCFoo3) UnmarshalAmino(s []byte) { dcf.a = string(s) } // Mismatch type
+func newDCFoo3(a string) *DCFoo3                  { return &DCFoo3{a: a} }
+func (dcf DCFoo3) MarshalAmino() (string, error)  { return dcf.a, nil }
+func (dcf *DCFoo3) UnmarshalAmino(s []byte) error { dcf.a = string(s); return nil } // mismatch type
 
 func TestDeepCopyFoo3(t *testing.T) {
 	dcf1 := newDCFoo3("foobar")
@@ -45,10 +46,10 @@ func TestDeepCopyFoo3(t *testing.T) {
 
 type DCFoo4 struct{ a string }
 
-func newDCFoo4(a string) *DCFoo4            { return &DCFoo4{a: a} }
-func (dcf *DCFoo4) DeepCopy() *DCFoo4       { return &DCFoo4{"good"} }
-func (dcf DCFoo4) MarshalAmino() string     { return dcf.a }
-func (dcf *DCFoo4) UnmarshalAmino(s string) { dcf.a = string(s) } // Mismatch type
+func newDCFoo4(a string) *DCFoo4                  { return &DCFoo4{a: a} }
+func (dcf *DCFoo4) DeepCopy() *DCFoo4             { return &DCFoo4{"good"} }
+func (dcf DCFoo4) MarshalAmino() (string, error)  { return dcf.a, nil }
+func (dcf *DCFoo4) UnmarshalAmino(s string) error { dcf.a = string(s); return nil } // mismatch type
 
 func TestDeepCopyFoo4(t *testing.T) {
 	dcf1 := newDCFoo4("foobar")
@@ -58,10 +59,10 @@ func TestDeepCopyFoo4(t *testing.T) {
 
 type DCFoo5 struct{ a string }
 
-func newDCFoo5(a string) *DCFoo5            { return &DCFoo5{a: a} }
-func (dcf DCFoo5) DeepCopy() DCFoo5         { return DCFoo5{"good"} }
-func (dcf DCFoo5) MarshalAmino() string     { return dcf.a }
-func (dcf *DCFoo5) UnmarshalAmino(s string) { dcf.a = string(s) } // Mismatch type
+func newDCFoo5(a string) *DCFoo5                  { return &DCFoo5{a: a} }
+func (dcf DCFoo5) DeepCopy() DCFoo5               { return DCFoo5{"good"} }
+func (dcf DCFoo5) MarshalAmino() (string, error)  { return dcf.a, nil }
+func (dcf *DCFoo5) UnmarshalAmino(s string) error { dcf.a = string(s); return nil } // mismatch type
 
 func TestDeepCopyFoo5(t *testing.T) {
 	dcf1 := newDCFoo5("foobar")
@@ -89,6 +90,28 @@ func TestDeepCopyFoo7(t *testing.T) {
 	dcf1 := newDCFoo7("foobar")
 	dcf2 := amino.DeepCopy(dcf1).(*DCFoo7)
 	assert.Equal(t, "good", dcf2.a)
+}
+
+type DCFoo8 struct{ a string }
+
+func newDCFoo8(a string) *DCFoo8                  { return &DCFoo8{a: a} }
+func (dcf DCFoo8) MarshalAmino() (string, error)  { return "", errors.New("uh oh") } // error
+func (dcf *DCFoo8) UnmarshalAmino(s string) error { dcf.a = string(s); return nil }
+
+func TestDeepCopyFoo8(t *testing.T) {
+	dcf1 := newDCFoo8("foobar")
+	assert.Panics(t, func() { amino.DeepCopy(dcf1) })
+}
+
+type DCFoo9 struct{ a string }
+
+func newDCFoo9(a string) *DCFoo9                  { return &DCFoo9{a: a} }
+func (dcf DCFoo9) MarshalAmino() (string, error)  { return dcf.a, nil }
+func (dcf *DCFoo9) UnmarshalAmino(s string) error { return errors.New("uh oh") } // error
+
+func TestDeepCopyFoo9(t *testing.T) {
+	dcf1 := newDCFoo9("foobar")
+	assert.Panics(t, func() { amino.DeepCopy(dcf1) })
 }
 
 type DCInterface1 struct {
