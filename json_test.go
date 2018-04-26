@@ -3,13 +3,14 @@ package amino_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tendermint/go-amino"
+	amino "github.com/tendermint/go-amino"
 )
 
 func registerTransports(cdc *amino.Codec) {
@@ -563,4 +564,20 @@ func TestMarshalJSONMap(t *testing.T) {
 	err = cdc.UnmarshalJSON(b, &ms2)
 	assert.Nil(t, err)
 	assert.Equal(t, ms3, ms2)
+}
+
+func TestMarshalJSONIndent(t *testing.T) {
+	t.Parallel()
+	var cdc = amino.NewCodec()
+	registerTransports(cdc)
+	obj := Car("Tesla")
+	indent := "  "
+	expected := fmt.Sprintf(`{
+%s"type": "2B2961A431B238",
+%s"value": "Tesla"
+}`, indent, indent)
+
+	blob, err := cdc.MarshalJSONIndent(obj, "", "  ")
+	assert.Nil(t, err)
+	assert.Equal(t, expected, string(blob))
 }
