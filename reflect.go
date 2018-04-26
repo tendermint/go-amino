@@ -87,6 +87,15 @@ func isVoid(rv reflect.Value) (erv reflect.Value, isVoid bool) {
 	}
 }
 
+func isTypedNilReflect(rv reflect.Value) bool {
+	switch rv.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr, reflect.Slice:
+		return rv.IsNil()
+	default:
+		return false
+	}
+}
+
 // constructConcreteType creates the concrete value as
 // well as the corresponding settable value for it.
 // Return irvSet which should be set on caller's interface rv.

@@ -36,6 +36,22 @@ func TestCodecDef(t *testing.T) {
 	}
 }
 
+func TestDeepCopyStruct(t *testing.T) {
+	for _, ptr := range tests.StructTypes {
+		rt := getTypeFromPointer(ptr)
+		name := rt.Name()
+		t.Run(name+":deepcopy", func(t *testing.T) { _testDeepCopy(t, rt) })
+	}
+}
+
+func TestDeepCopyDep(t *testing.T) {
+	for _, ptr := range tests.DefTypes {
+		rt := getTypeFromPointer(ptr)
+		name := rt.Name()
+		t.Run(name+":deepcopy", func(t *testing.T) { _testDeepCopy(t, rt) })
+	}
+}
+
 func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 
 	err := error(nil)
@@ -92,6 +108,35 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 		require.Equal(t, ptr, ptr2,
 			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
 			spw(ptr), spw(ptr2), bz, bz)
+	}
+}
+
+func _testDeepCopy(t *testing.T, rt reflect.Type) {
+
+	err := error(nil)
+	f := fuzz.New()
+	rv := reflect.New(rt)
+	ptr := rv.Interface()
+	rnd := rand.New(rand.NewSource(10))
+	f.RandSource(rnd)
+	f.Funcs(fuzzFuncs...)
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("panic'd:\nreason: %v\n%s\nerr: %v\nrv: %#v\nptr: %v\n",
+				r, debug.Stack(), err, rv, spw(ptr),
+			)
+		}
+	}()
+
+	for i := 0; i < 1e4; i++ {
+		f.Fuzz(ptr)
+
+		ptr2 := DeepCopy(ptr)
+
+		require.Equal(t, ptr, ptr2,
+			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
+			spw(ptr), spw(ptr2))
 	}
 }
 

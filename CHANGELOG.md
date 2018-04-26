@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.8 (April 26, 2018)
+
+NEW FEATURES:
+ - DeepCopy() copies any Amino object (with support for .DeepCopy() and
+   .MarshalAmino/UnmarshalAmino().
+
 ## 0.9.7 (April 25, 2019)
 
 FEATURES:
