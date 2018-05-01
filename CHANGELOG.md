@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.9 (May 1, 2018)
+
+BUG FIXES:
+
+ - MarshalAmino/UnmarshalAmino actually works (sorry!)
+
 ## 0.9.8 (April 26, 2018)
 
 NEW FEATURES:

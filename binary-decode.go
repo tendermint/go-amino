@@ -109,7 +109,10 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 		// Then, decode from repr instance.
 		uwrm := rv.Addr().MethodByName("UnmarshalAmino")
 		uwouts := uwrm.Call([]reflect.Value{rrv})
-		err = uwouts[0].Interface().(error)
+		erri := uwouts[0].Interface()
+		if erri != nil {
+			err = erri.(error)
+		}
 		return
 	}
 

@@ -88,9 +88,9 @@ type ConcreteInfo struct {
 
 	// These fields get set for all concrete types,
 	// even those not manually registered (e.g. are never interface values).
-	IsAminoMarshaler       bool         // Implements AminoMarshal() (<ReprObject>, error).
+	IsAminoMarshaler       bool         // Implements MarshalAmino() (<ReprObject>, error).
 	AminoMarshalReprType   reflect.Type // <ReprType>
-	IsAminoUnmarshaler     bool         // Implements AminoUnmarshal(<ReprObject>) (error).
+	IsAminoUnmarshaler     bool         // Implements UnmarshalAmino(<ReprObject>) (error).
 	AminoUnmarshalReprType reflect.Type // <ReprType>
 }
 
@@ -408,7 +408,7 @@ func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 		info.ConcreteInfo.IsAminoMarshaler = true
 		info.ConcreteInfo.AminoMarshalReprType = marshalAminoReprType(rm)
 	}
-	if rm, ok := rt.MethodByName("UnmarshalAmino"); ok {
+	if rm, ok := reflect.PtrTo(rt).MethodByName("UnmarshalAmino"); ok {
 		info.ConcreteInfo.IsAminoUnmarshaler = true
 		info.ConcreteInfo.AminoUnmarshalReprType = unmarshalAminoReprType(rm)
 	}
@@ -547,8 +547,8 @@ func (ti TypeInfo) String() string {
 		} else {
 			buf.Write([]byte("Registered:false,"))
 		}
-		buf.Write([]byte(fmt.Sprintf("AminoMarshalReprType:\"%X\",", ti.AminoMarshalReprType)))
-		buf.Write([]byte(fmt.Sprintf("AminoUnmarshalReprType:\"%X\",", ti.AminoUnmarshalReprType)))
+		buf.Write([]byte(fmt.Sprintf("AminoMarshalReprType:\"%v\",", ti.AminoMarshalReprType)))
+		buf.Write([]byte(fmt.Sprintf("AminoUnmarshalReprType:\"%v\",", ti.AminoUnmarshalReprType)))
 		if ti.Type.Kind() == reflect.Struct {
 			buf.Write([]byte(fmt.Sprintf("Fields:%v,", ti.Fields)))
 		}
@@ -646,7 +646,7 @@ func unmarshalAminoReprType(rm reflect.Method) (rrt reflect.Type) {
 	if out := rm.Type.Out(0); out != errorType {
 		panic(fmt.Sprintf("UnmarshalAmino should have first output parameter of error type, got %v", out))
 	}
-	rrt = rm.Type.In(0)
+	rrt = rm.Type.In(1)
 	if rrt.Kind() == reflect.Ptr {
 		panic(fmt.Sprintf("Representative objects cannot be pointers; got %v", rrt))
 	}
