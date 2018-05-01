@@ -181,8 +181,9 @@ func toReprObject(rv reflect.Value) (rrv reflect.Value, err error) {
 	}
 	mwouts := mwrm.Call(nil)
 	if !mwouts[1].IsNil() {
-		err = mwouts[1].Interface().(error)
-		if err != nil {
+		erri := mwouts[1].Interface()
+		if erri != nil {
+			err = erri.(error)
 			return
 		}
 	}
