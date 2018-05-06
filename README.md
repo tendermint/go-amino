@@ -249,7 +249,7 @@ guide](https://developers.google.com/protocol-buffers/docs/encoding):
 
 #### The Typ3 Byte
 
-In Amino, the "type" is similarly enocded by 3 bits, called the "typ3". When it
+In Amino, the "type" is similarly encoded by 3 bits, called the "typ3". When it
 appears alone in a byte, it is called a "typ3 byte".
 
 In Amino, `varint` is the Protobuf equivalent of "signed varint" aka `sint32`,
