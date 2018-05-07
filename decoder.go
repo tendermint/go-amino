@@ -182,78 +182,20 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 	return
 }
 
-// DecodeTime decodes seconds (int64) and nanoseconds (int32) since January 1,
-// 1970 UTC, and returns the corresponding time.  If nanoseconds is not in the
-// range [0, 999999999], or if seconds is too large, the behavior is
-// undefined.
+// DecodeTime decodes milliseconds (int64) since January 1, 1970 UTC,
+// and returns the corresponding time.
 // TODO return error if behavior is undefined.
 func DecodeTime(bz []byte) (t time.Time, n int, err error) {
-
-	// TODO: This is a temporary measure until we support MarshalAmino/UnmarshalAmino.
-	// Basically, MarshalAmino on time should return a struct.
-	// This is how that struct would be encoded.
-
-	{ // Decode field number 1 and Typ3 (8Byte).
-		var fieldNum, typ, _n = uint32(0), Typ3(0x00), int(0)
-		fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		if fieldNum != 1 {
-			err = fmt.Errorf("Expected field number 1, got %v", fieldNum)
-			return
-		}
-		if typ != Typ3_8Byte {
-			err = fmt.Errorf("Expected Typ3 bytes <8Bytes> for time field #1, got %X", typ)
-			return
-		}
-	}
-	// Actually read the Int64.
-	var sec, _n = int64(0), int(0)
-	sec, _n, err = DecodeInt64(bz)
+	var millis, _n = int64(0), int(0)
+	millis, _n, err = DecodeInt64(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
 
-	{ // Decode field number 2 and Typ3 (4Byte).
-		var fieldNum, typ, _n = uint32(0), Typ3(0x00), int(0)
-		fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		if fieldNum != 2 {
-			err = fmt.Errorf("Expected field number 2, got %v", fieldNum)
-			return
-		}
-		if typ != Typ3_4Byte {
-			err = fmt.Errorf("Expected Typ3 bytes <4Byte> for time field #2, got %X", typ)
-			return
-		}
-	}
-	// Actually read the Int32.
-	var nsec = int32(0)
-	nsec, _n, err = DecodeInt32(bz)
-	if slide(&bz, &n, _n) && err != nil {
-		return
-	}
-	// Validation check.
-	if nsec < 0 || 999999999 < nsec {
-		err = fmt.Errorf("Invalid time, nanoseconds out of bounds %v", nsec)
-		return
-	}
-	{ // Expect "StructTerm" Typ3 byte.
-		var typ, _n = Typ3(0x00), int(0)
-		typ, _n, err = decodeTyp3(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		if typ != Typ3_StructTerm {
-			err = errors.New(fmt.Sprintf("Expected StructTerm Typ3 byte for time, got %X", typ))
-			return
-		}
-	}
 	// Construct time.
-	t = time.Unix(sec, int64(nsec))
+	var seconds = millis / 1e3
+	var nanos = (millis % 1000) * 1e6
+	t = time.Unix(seconds, nanos)
 	// Strip timezone and monotonic for deep equality.
 	t = t.UTC().Truncate(0)
 	return

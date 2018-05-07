@@ -109,37 +109,14 @@ func EncodeFloat64(w io.Writer, f float64) (err error) {
 	return EncodeUint64(w, math.Float64bits(f))
 }
 
-// EncodeTime writes the number of seconds (int64) and nanoseconds (int32),
-// with millisecond resolution since January 1, 1970 UTC to the Writer as an
-// Int64.
+// EncodeTime writes the number of milliseconds (int64) since
+// January 1, 1970 UTC to the Writer as an Int64.
 // Milliseconds are used to ease compatibility with Javascript,
 // which does not support finer resolution.
 func EncodeTime(w io.Writer, t time.Time) (err error) {
-	var s = t.Unix()
-	var ns = int32(t.Nanosecond()) // this int64 -> int32 is safe.
-
-	// TODO: We are hand-encoding a struct until MarshalAmino/UnmarshalAmino is supported.
-
-	err = encodeFieldNumberAndTyp3(w, 1, Typ3_8Byte)
-	if err != nil {
-		return
-	}
-	err = EncodeInt64(w, s)
-	if err != nil {
-		return
-	}
-
-	err = encodeFieldNumberAndTyp3(w, 2, Typ3_4Byte)
-	if err != nil {
-		return
-	}
-	err = EncodeInt32(w, ns)
-	if err != nil {
-		return
-	}
-
-	err = EncodeByte(w, byte(0x04)) // StructTerm
-	return
+	var millis = t.Unix() * 1e3           // seconds
+	millis += int64(t.Nanosecond()) / 1e6 // add millisecond component
+	return EncodeInt64(w, millis)
 }
 
 func EncodeByteSlice(w io.Writer, bz []byte) (err error) {
