@@ -57,6 +57,13 @@ is often not the logical objects that you really want to use in your
 application, so you end up duplicating the structure in the Protobuf schema file and
 writing translators to and from your logic objects.  Amino can eliminate this extra duplication.
 
+## Amino in the Wild
+
+* Amino:binary spec in [Tendermint](
+https://github.com/tendermint/tendermint/blob/develop/docs/specification/new-spec/encoding.md)
+
+## Amino Spec
+
 ### Interfaces and concrete types
 
 Amino is an encoding library that can handle interfaces (like Protobuf `oneof`)
