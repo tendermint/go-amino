@@ -33,8 +33,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	// Write the disfix wrapper if it is a registered concrete type.
 	if info.Registered {
 		// Part 1:
-		disfix := toDisfix(info.Disamb, info.Prefix)
-		err = writeStr(w, _fmt(`{"type":"%X","value":`, disfix))
+		err = writeStr(w, _fmt(`{"type":"%s","value":`, info.Name))
 		if err != nil {
 			return
 		}
@@ -184,10 +183,9 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 		return
 	}
 
-	// Write disfix wrapper.
+	// Write interface wrapper.
 	// Part 1:
-	disfix := toDisfix(cinfo.Disamb, cinfo.Prefix)
-	err = writeStr(w, _fmt(`{"type":"%X","value":`, disfix))
+	err = writeStr(w, _fmt(`{"type":"%s","value":`, cinfo.Name))
 	if err != nil {
 		return
 	}

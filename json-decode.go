@@ -2,7 +2,6 @@ package amino
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,14 +31,15 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 
 	// Read disfix bytes if registered.
 	if info.Registered {
-		// Strip the disfix bytes after checking it.
-		var disfix DisfixBytes
-		disfix, bz, err = decodeDisfixJSON(bz)
+		// Strip the wrapper after checking it.
+		var name string
+		name, bz, err = decodeInterfaceJSON(bz)
 		if err != nil {
 			return
 		}
-		if !info.GetDisfix().EqualBytes(disfix[:]) {
-			err = fmt.Errorf("Expected disfix bytes %X but got %X", info.GetDisfix(), disfix)
+		if info.Name != name {
+			err = fmt.Errorf("Expected type name %s but got %s",
+				info.Name, name)
 			return
 		}
 	}
@@ -204,21 +204,21 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv refl
 	}
 
 	// Consume disambiguation / prefix info.
-	disfix, bz, err := decodeDisfixJSON(bz)
+	name, bz, err := decodeInterfaceJSON(bz)
 	if err != nil {
 		return
 	}
 
-	// XXX: Check disfix against interface to make sure that it actually
+	// XXX: Check name against interface to make sure that it actually
 	// matches, and return an error if it doesn't.
 
 	// NOTE: Unlike decodeReflectBinaryInterface, we already dealt with nil in _decodeReflectJSON.
-	// NOTE: We also "consumed" the disfix wrapper by replacing `bz` above.
+	// NOTE: We also "consumed" the interface wrapper by replacing `bz` above.
 
 	// Get concrete type info.
-	// NOTE: Unlike decodeReflectBinaryInterface, always disfix.
+	// NOTE: Unlike decodeReflectBinaryInterface, uses the full name string.
 	var cinfo *TypeInfo
-	cinfo, err = cdc.getTypeInfoFromDisfix_rlock(disfix)
+	cinfo, err = cdc.getTypeInfoFromName_rlock(name)
 	if err != nil {
 		return
 	}
@@ -483,17 +483,17 @@ func (cdc *Codec) decodeReflectJSONMap(bz []byte, info *TypeInfo, rv reflect.Val
 // Misc.
 
 type disfixWrapper struct {
-	Disfix string          `json:"type"`
-	Data   json.RawMessage `json:"value"`
+	Name string          `json:"type"`
+	Data json.RawMessage `json:"value"`
 }
 
-// decodeDisfixJSON helps unravel the disfix and
+// decodeInterfaceJSON helps unravel the type name and
 // the stored data, which are expected in the form:
 // {
-//    "type": "XXXXXXXXXXXXXXXXX",
+//    "type": "<canonical concrete type name>",
 //    "value":  {}
 // }
-func decodeDisfixJSON(bz []byte) (df DisfixBytes, data []byte, err error) {
+func decodeInterfaceJSON(bz []byte) (name string, data []byte, err error) {
 	if string(bz) == "null" {
 		panic("yay")
 	}
@@ -503,25 +503,17 @@ func decodeDisfixJSON(bz []byte) (df DisfixBytes, data []byte, err error) {
 		err = fmt.Errorf("Cannot parse disfix JSON wrapper: %v", err)
 		return
 	}
-	dfBytes, err := hex.DecodeString(dfw.Disfix)
-	if err != nil {
-		return
-	}
 
-	// Get disfix.
-	if g, w := len(dfBytes), DisfixBytesLen; g != w {
-		err = fmt.Errorf("Disfix length got=%d want=%d data=%s", g, w, bz)
+	// Get name.
+	if dfw.Name == "" {
+		err = errors.New("JSON encoding of interfaces require non-empty type field.")
 		return
 	}
-	copy(df[:], dfBytes)
-	if (DisfixBytes{}).EqualBytes(df[:]) {
-		err = errors.New("Unexpected zero disfix in JSON")
-		return
-	}
+	name = dfw.Name
 
 	// Get data.
 	if len(dfw.Data) == 0 {
-		err = errors.New("Disfix JSON wrapper should have non-empty value field")
+		err = errors.New("Interface JSON wrapper should have non-empty value field")
 		return
 	}
 	data = dfw.Data

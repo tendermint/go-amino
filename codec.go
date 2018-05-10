@@ -131,12 +131,14 @@ type Codec struct {
 	interfaceInfos   []*TypeInfo
 	concreteInfos    []*TypeInfo
 	disfixToTypeInfo map[DisfixBytes]*TypeInfo
+	nameToTypeInfo   map[string]*TypeInfo
 }
 
 func NewCodec() *Codec {
 	cdc := &Codec{
 		typeInfos:        make(map[reflect.Type]*TypeInfo),
 		disfixToTypeInfo: make(map[DisfixBytes]*TypeInfo),
+		nameToTypeInfo:   make(map[string]*TypeInfo),
 	}
 	return cdc
 }
@@ -254,7 +256,11 @@ func (cdc *Codec) setTypeInfo_nolock(info *TypeInfo) {
 		if existing, ok := cdc.disfixToTypeInfo[disfix]; ok {
 			panic(fmt.Sprintf("disfix <%X> already registered for %v", disfix, existing.Type))
 		}
+		if existing, ok := cdc.nameToTypeInfo[info.Name]; ok {
+			panic(fmt.Sprintf("name <%s> already registered for %v", info.Name, existing.Type))
+		}
 		cdc.disfixToTypeInfo[disfix] = info
+		cdc.nameToTypeInfo[info.Name] = info
 		//cdc.prefixToTypeInfos[prefix] =
 		//	append(cdc.prefixToTypeInfos[prefix], info)
 	}
@@ -308,6 +314,18 @@ func (cdc *Codec) getTypeInfoFromDisfix_rlock(df DisfixBytes) (info *TypeInfo, e
 	info, ok := cdc.disfixToTypeInfo[df]
 	if !ok {
 		err = fmt.Errorf("unrecognized disambiguation+prefix bytes %X", df)
+		return
+	}
+	return
+}
+
+func (cdc *Codec) getTypeInfoFromName_rlock(name string) (info *TypeInfo, err error) {
+	cdc.mtx.RLock()
+	defer cdc.mtx.RUnlock()
+
+	info, ok := cdc.nameToTypeInfo[name]
+	if !ok {
+		err = fmt.Errorf("unrecognized concrete type name %s", name)
 		return
 	}
 	return
