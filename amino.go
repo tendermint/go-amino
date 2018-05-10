@@ -34,7 +34,7 @@ const (
 func (typ Typ3) String() string {
 	switch typ {
 	case Typ3_Varint:
-		return "Varint"
+		return "(U)Varint"
 	case Typ3_8Byte:
 		return "8Byte"
 	case Typ3_ByteLength:

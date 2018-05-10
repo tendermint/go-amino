@@ -16,10 +16,12 @@ func main() {
 		fmt.Println(`Usage: aminoscan <STRUCT HEXBYTES>`) // TODO support more options, including support for framing.
 		return
 	}
-	bz := hexDecode(os.Args[1])             // Read input hex bytes.
+	bz := hexDecode(os.Args[1]) // Read input hex bytes.
+	fmt.Println(cmn.Yellow("## Root Struct (assumed)"))
 	s, n, err := scanStruct(bz, "")         // Assume that it's  struct.
 	s += cmn.Red(fmt.Sprintf("%X", bz[n:])) // Bytes remaining are red.
-	fmt.Println(s, n, err)                  // Print color-encoded bytes s.
+	fmt.Println(cmn.Yellow("  ^-- terminates Root"))
+	fmt.Println(s, n, err) // Print color-encoded bytes s.
 }
 
 func scanAny(typ amino.Typ3, bz []byte, indent string) (term bool, s string, n int, err error) {
@@ -48,7 +50,7 @@ func scanAny(typ amino.Typ3, bz []byte, indent string) (term bool, s string, n i
 
 func scanVarint(bz []byte, indent string) (s string, n int, err error) {
 	if len(bz) == 0 {
-		err = fmt.Errorf("EOF reading Varint")
+		err = fmt.Errorf("EOF reading (U)Varint")
 	}
 	// First try Varint.
 	var i64, okI64 = int64(0), true
