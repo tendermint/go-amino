@@ -294,7 +294,7 @@ func (cdc *Codec) getTypeInfoFromPrefix_rlock(iinfo *TypeInfo, pb PrefixBytes) (
 		return
 	}
 	if len(infos) > 1 {
-		err = fmt.Errorf("Conflicting concrete types registered for %X: e.g. %v and %v.", pb, infos[0].Type, infos[1].Type)
+		err = fmt.Errorf("conflicting concrete types registered for %X: e.g. %v and %v", pb, infos[0].Type, infos[1].Type)
 		return
 	}
 	info = infos[0]
