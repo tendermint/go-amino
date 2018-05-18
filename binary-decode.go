@@ -6,13 +6,14 @@ import (
 	"reflect"
 	"time"
 
+	"encoding/binary"
 	"github.com/davecgh/go-spew/spew"
 )
 
 //----------------------------------------
 // cdc.decodeReflectBinary
 
-// This is the main entrypoint for decoding all types from binary form.  This
+// This is the main entrypoint for decoding all types from binary form. This
 // function calls decodeReflectBinary*, and generally those functions should
 // only call this one, for the prefix bytes are consumed here when present.
 // CONTRACT: rv.CanAddr() is true.
@@ -94,7 +95,7 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 		rv = rv.Elem()
 	}
 
-	// Handle override if a pointer to rv implements UnmarshalAmino.
+	// Handle override if a pointer to rv implements Unmarshal
 	if info.IsAminoUnmarshaler {
 		// First, decode repr instance from bytes.
 		rrv, rinfo := reflect.New(info.AminoUnmarshalReprType).Elem(), (*TypeInfo)(nil)
@@ -695,8 +696,23 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 
 		// Read "StructTerm".
 		// NOTE: In the future, we'll need to break out of a loop
-		// when encoutering an StructTerm typ3 byte.
-		var typ = Typ3(0x00)
+		// when encountering an StructTerm typ3 byte.
+
+		var typ Typ3
+		// we have read all, or do we? consume the rest
+		for len(bz) > 2 && bz[0]&0xF8 != 0 && Typ3(bz[0]) != Typ3_StructTerm {
+			fnum, typ3, _n, _ := decodeFieldNumberAndTyp3(bz)
+			if slide(&bz, &n, _n) && err != nil {
+				return
+			}
+			if fnum > uint32(len(info.Fields)) {
+				// TODO read content but ignore
+				_, _n, err2 := consumeAny(typ3, bz)
+				if slide(&bz, &n, _n) && err2 != nil {
+					return
+				}
+			}
+		}
 		typ, _n, err = decodeTyp3(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
@@ -705,8 +721,133 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 			err = errors.New(fmt.Sprintf("expected StructTerm typ3 byte, got %v", typ))
 			return
 		}
+	}
+	return
+}
+
+// read everything without doing anything with it
+func consumeAny(typ3 Typ3, bz []byte) (term bool, n int, err error) {
+	var _n int
+	switch typ3 {
+	case Typ3_Varint:
+		_, _n, err = DecodeVarint(bz)
+	case Typ3_8Byte:
+		_, _n, err = DecodeInt64(bz)
+	case Typ3_ByteLength:
+		_, _n, err = DecodeUvarint(bz)
+	case Typ3_Struct:
+		n, err = consumeStruct(bz)
+	case Typ3_StructTerm:
+		// don't slide, we'll read this later
+		term = true
+	case Typ3_4Byte:
+		_, _n, err = DecodeInt32(bz)
+	case Typ3_List:
+		_n, err = consumeList(bz)
+	case Typ3_Interface:
+		_n, err = consumeInterface(bz)
+	default:
+		panic("should not happen")
+
+	}
+
+	slide(&bz, &n, _n)
+	return
+}
+
+func consumeStruct(bz []byte) (n int, err error) {
+	var _n, typ = int(0), Typ3(0x00)
+FOR_LOOP:
+	for {
+		typ, _n, err = consumeFieldKey(bz)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+		var term bool
+		term, _n, err = consumeAny(typ, bz)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+		if term {
+			break FOR_LOOP
+		}
+	}
+	return
+}
+
+func consumeInterface(bz []byte) (n int, err error) {
+	_, _, _, typ, _, _, _n, err := DecodeDisambPrefixBytes(bz)
+	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
+	_, _n, err = consumeAny(typ, bz)
+	if slide(&bz, &n, _n) && err != nil {
+		return
+	}
+	return
+}
+
+func consumeList(bz []byte) (n int, err error) {
+	// Read element Typ4.
+	if len(bz) < 1 {
+		err = errors.New("EOF reading list element typ4.")
+		return
+	}
+	var typ = Typ4(bz[0])
+	if typ&0xF0 > 0 {
+		err = errors.New("invalid list element typ4 byte")
+	}
+	if slide(&bz, &n, 1) && err != nil {
+		return
+	}
+	// Read number of elements.
+	var num, _n = uint64(0), int(0)
+	num, _n = binary.Uvarint(bz)
+	if _n < 0 {
+		_n = 0
+		err = errors.New("error decoding list length (uvarint)")
+	}
+	if slide(&bz, &n, _n) && err != nil {
+		return
+	}
+	// Read elements.
+	for i := 0; i < int(num); i++ {
+		// Maybe read nil byte.
+		if typ&0x08 != 0 {
+			if len(bz) == 0 {
+				err = errors.New("EOF reading list nil byte")
+				return
+			}
+			var nb = bz[0]
+			slide(&bz, &n, 1)
+			switch nb {
+			case 0x00:
+			case 0x01:
+				continue
+			default:
+				err = fmt.Errorf("unexpected nil pointer byte %X", nb)
+				return
+			}
+		}
+		// Read element.
+		_, _n, err = consumeAny(typ.Typ3(), bz)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+	}
+	return
+}
+
+func consumeFieldKey(bz []byte) (typ Typ3, n int, err error) {
+	var u64 uint64
+	u64, n = binary.Uvarint(bz)
+	if n < 0 {
+		n = 0
+		err = errors.New("error decoding uvarint")
+		return
+	}
+	typ = Typ3(u64 & 0x07)
+	return
 }
 
 //----------------------------------------
@@ -818,7 +959,7 @@ func decodeTyp3(bz []byte) (typ Typ3, n int, err error) {
 		return
 	}
 	if bz[0]&0xF8 != 0 {
-		err = fmt.Errorf("Invalid typ3 byte")
+		err = fmt.Errorf("invalid typ3 byte: %v", Typ3(bz[0]).String())
 		return
 	}
 	typ = Typ3(bz[0])

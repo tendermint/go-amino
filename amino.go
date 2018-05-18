@@ -274,7 +274,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		return err
 	}
 	if n != len(bz) {
-		return fmt.Errorf("Unmarshal didn't read all bytes. Expected to read %v, only read %v", len(bz), n)
+		return fmt.Errorf("unmarshal didn't read all bytes. Expected to read %v, only read %v", len(bz), n)
 	}
 	return nil
 }
