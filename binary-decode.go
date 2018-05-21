@@ -95,7 +95,7 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 		rv = rv.Elem()
 	}
 
-	// Handle override if a pointer to rv implements Unmarshal
+	// Handle override if a pointer to rv implements UnmarshalAmino.
 	if info.IsAminoUnmarshaler {
 		// First, decode repr instance from bytes.
 		rrv, rinfo := reflect.New(info.AminoUnmarshalReprType).Elem(), (*TypeInfo)(nil)

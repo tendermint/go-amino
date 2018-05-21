@@ -53,3 +53,51 @@ func TestNilSliceEmptySlice(t *testing.T) {
 	assert.Equal(t, abz, bbz, "a != b")
 	assert.Equal(t, abz, cbz, "a != c")
 }
+
+func TestNewFieldBackwardsCompatibility(t *testing.T) {
+	type V1 struct {
+		String  string
+		String2 string
+	}
+
+	type V2 struct {
+		String  string
+		String2 string
+		// new field in V2:
+		Int int
+	}
+
+	type SomeStruct struct {
+		Sth int
+	}
+
+	type V3 struct {
+		String string `json:"string"`
+		// different from V1 starting here:
+		Int  int `json:"int"`
+		Some SomeStruct
+	}
+
+	cdc := amino.NewCodec()
+
+	v2 := V2{String: "hi", String2: "cosmos", Int: 4}
+	bz, err := cdc.MarshalBinaryBare(v2)
+	assert.Nil(t, err, "unexpected error while encoding V2: %v", err)
+
+	var v1 V1
+	err = cdc.UnmarshalBinaryBare(bz, &v1)
+	assert.Nil(t, err, "unexpected error %v", err)
+	assert.Equal(t, v1, V1{"hi", "cosmos"},
+		"backwards compatibility failed: didn't yield expected result ...")
+
+	v3 := V3{String: "tender", Int: 2014, Some: SomeStruct{Sth: 84}}
+	bz2, err := cdc.MarshalBinaryBare(v3)
+	assert.Nil(t, err, "unexpected error")
+
+	err = cdc.UnmarshalBinaryBare(bz2, &v1)
+	// this might change later but we include this case to document the current behaviour:
+	assert.NotNil(t, err, "expected an error here because of changed order of fields")
+
+	// we still expect that decoding worked to some extend (until above error occurred):
+	assert.Equal(t, v1, V1{"tender", "cosmos"})
+}
