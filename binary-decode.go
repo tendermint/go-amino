@@ -631,9 +631,12 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	}
 	_n := 0 // nolint: ineffassign
 
+	// Keep incrementing the last fieldnum. Later, when we support custom fieldtag numbers, we need to store the last
+	// seen field number instead of just incrementing here.
+	var lastFieldNum uint32
+
 	// The "Struct" typ3 doesn't get read here.
 	// It's already implied, either by struct-key or list-element-type-byte.
-
 	switch info.Type {
 
 	case timeType:
@@ -649,6 +652,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	default:
 		// Read each field.
 		for _, field := range info.Fields {
+			lastFieldNum++
 
 			// Get field rv and info.
 			var frv = rv.Field(field.Index)
@@ -671,6 +675,12 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 				// Probably a StructTerm.
 				break
 			}
+			if fieldNum < lastFieldNum {
+				err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fieldNum: %v",
+					fieldNum, lastFieldNum)
+				return
+			}
+
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
@@ -678,12 +688,12 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 			// So in the future, this may not match,
 			// so we will need to remove this sanity check.
 			if field.BinFieldNum != fieldNum {
-				err = errors.New(fmt.Sprintf("expected field number %v, got %v", field.BinFieldNum, fieldNum))
+				err = fmt.Errorf("expected field number %v, got %v", field.BinFieldNum, fieldNum)
 				return
 			}
 			typWanted := typeToTyp4(field.Type, field.FieldOptions).Typ3()
 			if typ != typWanted {
-				err = errors.New(fmt.Sprintf("expected field type %v, got %v", typWanted, typ))
+				err = fmt.Errorf("expected field type %v, got %v", typWanted, typ)
 				return
 			}
 
@@ -694,38 +704,38 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 			}
 		}
 
-		// Read "StructTerm".
-		// NOTE: In the future, we'll need to break out of a loop
-		// when encountering an StructTerm typ3 byte.
-
-		var typ Typ3
+		var _n, fnum = 0, uint32(0)
+		var typ3 Typ3
 		// we have read all, or do we? consume the rest
-		for len(bz) > 2 && bz[0]&0xF8 != 0 && Typ3(bz[0]) != Typ3_StructTerm {
-			fnum, typ3, _n, _ := decodeFieldNumberAndTyp3(bz)
+		for {
+			lastFieldNum++
+
+			fnum, typ3, _n, err = decodeFieldNumberAndTyp3(bz)
+			if typ3 == Typ3_StructTerm {
+				break
+			}
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
-			if fnum > uint32(len(info.Fields)) {
-				// TODO read content but ignore
-				_, _n, err2 := consumeAny(typ3, bz)
-				if slide(&bz, &n, _n) && err2 != nil {
-					return
-				}
+			if fnum < lastFieldNum {
+				err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fieldNum: %v",
+					fnum, lastFieldNum)
+				return
+			}
+
+			_, _n, err = consumeAny(typ3, bz)
+			if slide(&bz, &n, _n) && err != nil {
+				return
 			}
 		}
-		typ, _n, err = decodeTyp3(bz)
 		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		if typ != Typ3_StructTerm {
-			err = errors.New(fmt.Sprintf("expected StructTerm typ3 byte, got %v", typ))
 			return
 		}
 	}
 	return
 }
 
-// read everything without doing anything with it
+// Read everything without doing anything with it. Report errors if they occur.
 func consumeAny(typ3 Typ3, bz []byte) (term bool, n int, err error) {
 	var _n int
 	switch typ3 {
@@ -751,13 +761,16 @@ func consumeAny(typ3 Typ3, bz []byte) (term bool, n int, err error) {
 
 	}
 
+	if err != nil {
+		// do not slide
+		return
+	}
 	slide(&bz, &n, _n)
 	return
 }
 
 func consumeStruct(bz []byte) (n int, err error) {
 	var _n, typ = int(0), Typ3(0x00)
-FOR_LOOP:
 	for {
 		typ, _n, err = consumeFieldKey(bz)
 		if slide(&bz, &n, _n) && err != nil {
@@ -769,7 +782,7 @@ FOR_LOOP:
 			return
 		}
 		if term {
-			break FOR_LOOP
+			return
 		}
 	}
 	return
@@ -905,7 +918,7 @@ func decodeFieldNumberAndTyp3(bz []byte) (num uint32, typ Typ3, n int, err error
 	var num64 uint64
 	num64 = value64 >> 3
 	if num64 > (1<<29 - 1) {
-		err = errors.New(fmt.Sprintf("invalid field num %v", num64))
+		err = fmt.Errorf("invalid field num %v", num64)
 		return
 	}
 	num = uint32(num64)
@@ -921,7 +934,7 @@ func decodeTyp4AndCheck(rt reflect.Type, bz []byte, opts FieldOptions) (ptr bool
 	}
 	var typWanted = typeToTyp4(rt, opts)
 	if typWanted != typ {
-		err = errors.New(fmt.Sprintf("Typ4 mismatch. Expected %v, got %v", typWanted, typ))
+		err = fmt.Errorf("unexpected Typ4. want: %v, got: %v", typWanted, typ)
 		return
 	}
 	ptr = (typ & 0x08) != 0
@@ -931,11 +944,11 @@ func decodeTyp4AndCheck(rt reflect.Type, bz []byte, opts FieldOptions) (ptr bool
 // Read Typ4 byte.
 func decodeTyp4(bz []byte) (typ Typ4, n int, err error) {
 	if len(bz) == 0 {
-		err = errors.New(fmt.Sprintf("EOF reading typ4 byte"))
+		err = errors.New("EOF reading typ4 byte")
 		return
 	}
 	if bz[0]&0xF0 != 0 {
-		err = errors.New(fmt.Sprintf("Invalid non-zero nibble reading typ4 byte"))
+		err = errors.New("invalid non-zero nibble reading typ4 byte")
 		return
 	}
 	typ = Typ4(bz[0])
@@ -947,7 +960,7 @@ func decodeTyp4(bz []byte) (typ Typ4, n int, err error) {
 func checkTyp3(rt reflect.Type, typ Typ3, opts FieldOptions) (err error) {
 	typWanted := typeToTyp3(rt, opts)
 	if typ != typWanted {
-		err = fmt.Errorf("Typ3 mismatch. Expected %v, got %v", typWanted, typ)
+		err = fmt.Errorf("unexpected Typ3. want %v, got %v", typWanted, typ)
 	}
 	return
 }
