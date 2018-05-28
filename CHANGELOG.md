@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.11 (May 27, 2018)
+
+NEW FEATURES:
+
+ - Seal() on a codec to prevent further modifications. #150
+ - Global Marshal/Unmarshal methods on a sealed codec with nothing registered.
+
 ## 0.9.10 (May 10, 2018)
 
 BREAKING CHANGE:
