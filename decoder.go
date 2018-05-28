@@ -200,11 +200,11 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 			return
 		}
 		if fieldNum != 1 {
-			err = fmt.Errorf("Expected field number 1, got %v", fieldNum)
+			err = fmt.Errorf("expected field number 1, got %v", fieldNum)
 			return
 		}
 		if typ != Typ3_8Byte {
-			err = fmt.Errorf("Expected Typ3 bytes <8Bytes> for time field #1, got %X", typ)
+			err = fmt.Errorf("expected Typ3 bytes <8Bytes> for time field #1, got %v", typ)
 			return
 		}
 	}
@@ -222,11 +222,11 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 			return
 		}
 		if fieldNum != 2 {
-			err = fmt.Errorf("Expected field number 2, got %v", fieldNum)
+			err = fmt.Errorf("expected field number 2, got %v", fieldNum)
 			return
 		}
 		if typ != Typ3_4Byte {
-			err = fmt.Errorf("Expected Typ3 bytes <4Byte> for time field #2, got %X", typ)
+			err = fmt.Errorf("expected Typ3 bytes <4Byte> for time field #2, got %v", typ)
 			return
 		}
 	}
@@ -238,7 +238,7 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 	}
 	// Validation check.
 	if nsec < 0 || 999999999 < nsec {
-		err = fmt.Errorf("Invalid time, nanoseconds out of bounds %v", nsec)
+		err = fmt.Errorf("invalid time, nanoseconds out of bounds %v", nsec)
 		return
 	}
 	{ // Expect "StructTerm" Typ3 byte.
@@ -248,7 +248,7 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 			return
 		}
 		if typ != Typ3_StructTerm {
-			err = errors.New(fmt.Sprintf("Expected StructTerm Typ3 byte for time, got %X", typ))
+			err = errors.New(fmt.Sprintf("expected StructTerm Typ3 byte for time, got %v", typ))
 			return
 		}
 	}

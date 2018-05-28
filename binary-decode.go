@@ -677,12 +677,12 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 			// So in the future, this may not match,
 			// so we will need to remove this sanity check.
 			if field.BinFieldNum != fieldNum {
-				err = errors.New(fmt.Sprintf("Expected field number %v, got %v", field.BinFieldNum, fieldNum))
+				err = errors.New(fmt.Sprintf("expected field number %v, got %v", field.BinFieldNum, fieldNum))
 				return
 			}
 			typWanted := typeToTyp4(field.Type, field.FieldOptions).Typ3()
 			if typ != typWanted {
-				err = errors.New(fmt.Sprintf("Expected field type %X, got %X", typWanted, typ))
+				err = errors.New(fmt.Sprintf("expected field type %v, got %v", typWanted, typ))
 				return
 			}
 
@@ -702,7 +702,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 			return
 		}
 		if typ != Typ3_StructTerm {
-			err = errors.New(fmt.Sprintf("Expected StructTerm typ3 byte, got %X", typ))
+			err = errors.New(fmt.Sprintf("expected StructTerm typ3 byte, got %v", typ))
 			return
 		}
 		return
@@ -780,7 +780,7 @@ func decodeTyp4AndCheck(rt reflect.Type, bz []byte, opts FieldOptions) (ptr bool
 	}
 	var typWanted = typeToTyp4(rt, opts)
 	if typWanted != typ {
-		err = errors.New(fmt.Sprintf("Typ4 mismatch.  Expected %X, got %X", typWanted, typ))
+		err = errors.New(fmt.Sprintf("Typ4 mismatch. Expected %v, got %v", typWanted, typ))
 		return
 	}
 	ptr = (typ & 0x08) != 0
@@ -806,7 +806,7 @@ func decodeTyp4(bz []byte) (typ Typ4, n int, err error) {
 func checkTyp3(rt reflect.Type, typ Typ3, opts FieldOptions) (err error) {
 	typWanted := typeToTyp3(rt, opts)
 	if typ != typWanted {
-		err = fmt.Errorf("Typ3 mismatch.  Expected %X, got %X", typWanted, typ)
+		err = fmt.Errorf("Typ3 mismatch. Expected %v, got %v", typWanted, typ)
 	}
 	return
 }
@@ -842,6 +842,6 @@ func decodeNumNilBytes(bz []byte) (numNil int64, n int, err error) {
 		numNil, n = 1, 1
 		return
 	}
-	n, err = 0, fmt.Errorf("Unexpected nil byte %X (sparse lists not supported)", bz[0])
+	n, err = 0, fmt.Errorf("unexpected nil byte, want: either '0x00' or '0x01' got: %X (sparse lists not supported)", bz[0])
 	return
 }
