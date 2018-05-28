@@ -38,7 +38,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 			return
 		}
 		if info.Name != name {
-			err = fmt.Errorf("Expected type name %s but got %s",
+			err = fmt.Errorf("expected type name %s but got %s",
 				info.Name, name)
 			return
 		}
@@ -500,7 +500,7 @@ func decodeInterfaceJSON(bz []byte) (name string, data []byte, err error) {
 	dfw := new(disfixWrapper)
 	err = json.Unmarshal(bz, dfw)
 	if err != nil {
-		err = fmt.Errorf("Cannot parse disfix JSON wrapper: %v", err)
+		err = fmt.Errorf("cannot parse disfix JSON wrapper: %v", err)
 		return
 	}
 
@@ -513,7 +513,7 @@ func decodeInterfaceJSON(bz []byte) (name string, data []byte, err error) {
 
 	// Get data.
 	if len(dfw.Data) == 0 {
-		err = errors.New("Interface JSON wrapper should have non-empty value field")
+		err = errors.New("interface JSON wrapper should have non-empty value field")
 		return
 	}
 	data = dfw.Data
