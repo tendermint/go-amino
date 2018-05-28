@@ -11,6 +11,66 @@ import (
 )
 
 //----------------------------------------
+// Global methods for global sealed codec.
+var gcdc *Codec
+
+func init() {
+	gcdc = NewCodec().Seal()
+}
+
+func MarshalBinary(o interface{}) ([]byte, error) {
+	return gcdc.MarshalBinary(o)
+}
+
+func MarshalBinaryWriter(w io.Writer, o interface{}) (n int64, err error) {
+	return gcdc.MarshalBinaryWriter(w, o)
+}
+
+func MustMarshalBinary(o interface{}) []byte {
+	return gcdc.MustMarshalBinary(o)
+}
+
+func MarshalBinaryBare(o interface{}) ([]byte, error) {
+	return gcdc.MarshalBinaryBare(o)
+}
+
+func MustMarshalBinaryBare(o interface{}) []byte {
+	return gcdc.MustMarshalBinaryBare(o)
+}
+
+func UnmarshalBinary(bz []byte, ptr interface{}) error {
+	return gcdc.UnmarshalBinary(bz, ptr)
+}
+
+func UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize int64) (n int64, err error) {
+	return gcdc.UnmarshalBinaryReader(r, ptr, maxSize)
+}
+
+func MustUnmarshalBinary(bz []byte, ptr interface{}) {
+	gcdc.MustUnmarshalBinary(bz, ptr)
+}
+
+func UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
+	return gcdc.UnmarshalBinaryBare(bz, ptr)
+}
+
+func MustUnmarshalBinaryBare(bz []byte, ptr interface{}) {
+	gcdc.MustUnmarshalBinaryBare(bz, ptr)
+}
+
+func MarshalJSON(o interface{}) ([]byte, error) {
+	return gcdc.MarshalJSON(o)
+}
+
+func UnmarshalJSON(bz []byte, ptr interface{}) error {
+	return gcdc.UnmarshalJSON(bz, ptr)
+}
+
+func MarshalJSONIndent(o interface{}, prefix, indent string) ([]byte, error) {
+	return gcdc.MarshalJSONIndent(o, prefix, indent)
+}
+
+//----------------------------------------
 // Typ3 and Typ4
 
 type Typ3 uint8

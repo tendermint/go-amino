@@ -127,6 +127,7 @@ type FieldOptions struct {
 
 type Codec struct {
 	mtx              sync.RWMutex
+	sealed           bool
 	typeInfos        map[reflect.Type]*TypeInfo
 	interfaceInfos   []*TypeInfo
 	concreteInfos    []*TypeInfo
@@ -136,6 +137,7 @@ type Codec struct {
 
 func NewCodec() *Codec {
 	cdc := &Codec{
+		sealed:           false,
 		typeInfos:        make(map[reflect.Type]*TypeInfo),
 		disfixToTypeInfo: make(map[DisfixBytes]*TypeInfo),
 		nameToTypeInfo:   make(map[string]*TypeInfo),
@@ -148,6 +150,7 @@ func NewCodec() *Codec {
 // Usage:
 // `amino.RegisterInterface((*MyInterface1)(nil), nil)`
 func (cdc *Codec) RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
+	cdc.assertNotSealed()
 
 	// Get reflect.Type from ptr.
 	rt := getTypeFromPointer(ptr)
@@ -202,6 +205,7 @@ func (cdc *Codec) RegisterInterface(ptr interface{}, opts *InterfaceOptions) {
 // Usage:
 // `amino.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)`
 func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOptions) {
+	cdc.assertNotSealed()
 
 	var pointerPreferred bool
 
@@ -236,7 +240,24 @@ func (cdc *Codec) RegisterConcrete(o interface{}, name string, opts *ConcreteOpt
 	}()
 }
 
+func (cdc *Codec) Seal() *Codec {
+	cdc.mtx.Lock()
+	defer cdc.mtx.Unlock()
+
+	cdc.sealed = true
+	return cdc
+}
+
 //----------------------------------------
+
+func (cdc *Codec) assertNotSealed() {
+	cdc.mtx.Lock()
+	defer cdc.mtx.Unlock()
+
+	if cdc.sealed {
+		panic("codec sealed")
+	}
+}
 
 func (cdc *Codec) setTypeInfo_nolock(info *TypeInfo) {
 
