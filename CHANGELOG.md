@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.10 (May 10, 2018)
+
+BREAKING CHANGE:
+
+ - Amino:JSON encoding of interfaces use the registered concrete type name, not the disfix bytes.
+
 ## 0.9.9 (May 1, 2018)
 
 BUG FIXES:
