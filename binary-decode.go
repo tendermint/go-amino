@@ -631,10 +631,6 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	}
 	_n := 0 // nolint: ineffassign
 
-	// Keep incrementing the last fieldnum. Later, when we support custom fieldtag numbers, we need to store the last
-	// seen field number instead of just incrementing here.
-	var lastFieldNum uint32
-
 	// The "Struct" typ3 doesn't get read here.
 	// It's already implied, either by struct-key or list-element-type-byte.
 	switch info.Type {
@@ -650,9 +646,10 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 		return
 
 	default:
+		// Store the last seen field number.
+		var lastFieldNum uint32
 		// Read each field.
 		for _, field := range info.Fields {
-			lastFieldNum++
 
 			// Get field rv and info.
 			var frv = rv.Field(field.Index)
@@ -675,11 +672,12 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 				// Probably a StructTerm.
 				break
 			}
-			if fieldNum < lastFieldNum {
+			if fieldNum <= lastFieldNum {
 				err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fieldNum: %v",
 					fieldNum, lastFieldNum)
 				return
 			}
+			lastFieldNum = fieldNum
 
 			if slide(&bz, &n, _n) && err != nil {
 				return
@@ -708,7 +706,6 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 		var typ3 Typ3
 		// we have read all, or do we? consume the rest
 		for {
-			lastFieldNum++
 
 			fnum, typ3, _n, err = decodeFieldNumberAndTyp3(bz)
 			if typ3 == Typ3_StructTerm {
@@ -717,11 +714,12 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
-			if fnum < lastFieldNum {
+			if fnum <= lastFieldNum {
 				err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fieldNum: %v",
 					fnum, lastFieldNum)
 				return
 			}
+			lastFieldNum = fnum
 
 			_, _n, err = consumeAny(typ3, bz)
 			if slide(&bz, &n, _n) && err != nil {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tendermint/go-amino"
+	"time"
 )
 
 func TestNilSliceEmptySlice(t *testing.T) {
@@ -63,8 +64,9 @@ func TestNewFieldBackwardsCompatibility(t *testing.T) {
 	type V2 struct {
 		String  string
 		String2 string
-		// new field in V2:
-		Int int
+		// new fields in V2:
+		Time time.Time
+		Int  int
 	}
 
 	type SomeStruct struct {
@@ -72,15 +74,15 @@ func TestNewFieldBackwardsCompatibility(t *testing.T) {
 	}
 
 	type V3 struct {
-		String string `json:"string"`
+		String string
 		// different from V1 starting here:
 		Int  int
 		Some SomeStruct
 	}
 
 	cdc := amino.NewCodec()
-
-	v2 := V2{String: "hi", String2: "cosmos", Int: 4}
+	notNow, _ := time.Parse("2006-01-02", "1934-11-09")
+	v2 := V2{String: "hi", String2: "cosmos", Time: notNow, Int: 4}
 	bz, err := cdc.MarshalBinaryBare(v2)
 	assert.Nil(t, err, "unexpected error while encoding V2: %v", err)
 
