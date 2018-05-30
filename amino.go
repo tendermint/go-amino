@@ -212,6 +212,13 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	}
 	bz = buf.Bytes()
 
+	// If registered concrete, prepend prefix+typ3 bytes.
+	if info.Registered {
+		typ := typeToTyp3(rt, FieldOptions{})
+		pb := info.Prefix.WithTyp3(typ).Bytes()
+		bz = append(pb, bz...)
+	}
+
 	return bz, nil
 }
 
@@ -320,15 +327,28 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		return errors.New("UnmarshalBinaryBare cannot decode empty bytes")
 	}
 
-	rv, rt := reflect.ValueOf(ptr), reflect.TypeOf(ptr)
+	rv := reflect.ValueOf(ptr)
 	if rv.Kind() != reflect.Ptr {
 		panic("Unmarshal expects a pointer")
 	}
-	rv, rt = rv.Elem(), rt.Elem()
+	rv = rv.Elem()
+	rt := rv.Type()
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return err
 	}
+	// If registered concrete, consume and verify prefix+typ3 bytes.
+	if info.Registered {
+		typ := typeToTyp3(rt, FieldOptions{})
+		pb := info.Prefix.WithTyp3(typ).Bytes()
+		if len(bz) <= 4 {
+			return fmt.Errorf("UnmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X", pb, bz)
+		} else if !bytes.Equal(bz[:4], pb) {
+			return fmt.Errorf("UnmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X...", pb, bz[:4])
+		}
+		bz = bz[4:]
+	}
+	// Decode contents into rv.
 	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{})
 	if err != nil {
 		return err
@@ -353,24 +373,36 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 		return []byte("null"), nil
 	}
 	rt := rv.Type()
-
-	// Note that we can't yet skip directly
-	// to checking if a type implements
-	// json.Marshaler because in some cases
-	// var s GenericInterface = t1(v1)
-	// var t GenericInterface = t2(v1)
-	// but we need to be able to encode
-	// both s and t disambiguated, so:
-	//    {"type":<disfix>, "value":<data>}
-	// for the above case.
-
 	w := new(bytes.Buffer)
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return nil, err
 	}
+
+	// Write the disfix wrapper if it is a registered concrete type.
+	if info.Registered {
+		// Part 1:
+		err = writeStr(w, _fmt(`{"type":"%s","value":`, info.Name))
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Write the rest from rv.
 	if err := cdc.encodeReflectJSON(w, info, rv, FieldOptions{}); err != nil {
 		return nil, err
+	}
+
+	// disfix wrapper continued...
+	if info.Registered {
+		// Part 2:
+		if err != nil {
+			return nil, err
+		}
+		err = writeStr(w, `}`)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return w.Bytes(), nil
 }
@@ -384,19 +416,24 @@ func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
 	if rv.Kind() != reflect.Ptr {
 		return errors.New("UnmarshalJSON expects a pointer")
 	}
-
-	// If the type implements json.Unmarshaler, just
-	// automatically respect that and skip to it.
-	// if rv.Type().Implements(jsonUnmarshalerType) {
-	// 	return rv.Interface().(json.Unmarshaler).UnmarshalJSON(bz)
-	// }
-
-	// 1. Dereference until we find the first addressable type.
 	rv = rv.Elem()
 	rt := rv.Type()
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return err
+	}
+	// If registered concrete, consume and verify type wrapper.
+	if info.Registered {
+		// Consume type wrapper info.
+		name, bz_, err := decodeInterfaceJSON(bz)
+		if err != nil {
+			return err
+		}
+		// Check name against info.
+		if name != info.Name {
+			return fmt.Errorf("UnmarshalJSON wants to decode a %v but found a %v", info.Name, name)
+		}
+		bz = bz_
 	}
 	return cdc.decodeReflectJSON(bz, info, rv, FieldOptions{})
 }

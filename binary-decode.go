@@ -30,56 +30,6 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 			fmt.Printf("(D) -> n: %v, err: %v\n", n, err)
 		}()
 	}
-
-	// TODO Read the disamb bytes here if necessary.
-	// e.g. rv isn't an interface, and
-	// info.ConcreteType.AlwaysDisambiguate.  But we don't support
-	// this yet.
-
-	// Read prefix+typ3 bytes if registered.
-	if info.Registered {
-		if len(bz) < PrefixBytesLen {
-			err = errors.New("EOF skipping prefix bytes.")
-			return
-		}
-		// Check prefix bytes.
-		prefix3 := NewPrefixBytes(bz[:PrefixBytesLen])
-		var prefix, typ = prefix3.SplitTyp3()
-		if info.Prefix != prefix {
-			panic("should not happen")
-		}
-		// Check that typ3 in prefix bytes is correct.
-		err = checkTyp3(info.Type, typ, opts)
-		if err != nil {
-			return
-		}
-		// Consume prefix.  Yum.
-		bz = bz[PrefixBytesLen:]
-		n += PrefixBytesLen
-	}
-
-	_n := 0
-	_n, err = cdc._decodeReflectBinary(bz, info, rv, opts)
-	slide(&bz, &n, _n)
-	return
-}
-
-// CONTRACT: any immediate disamb/prefix bytes have been consumed/stripped.
-// CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (n int, err error) {
-	if !rv.CanAddr() {
-		panic("rv not addressable")
-	}
-	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
-		panic("should not happen")
-	}
-	if printLog {
-		spew.Printf("(_) _decodeReflectBinary(bz: %X, info: %v, rv: %#v (%v), opts: %v)\n",
-			bz, info, rv.Interface(), rv.Type(), opts)
-		defer func() {
-			fmt.Printf("(_) -> n: %v, err: %v\n", n, err)
-		}()
-	}
 	var _n int
 
 	// TODO consider the binary equivalent of json.Unmarshaller.
@@ -102,7 +52,7 @@ func (cdc *Codec) _decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Val
 		if err != nil {
 			return
 		}
-		_n, err = cdc._decodeReflectBinary(bz, rinfo, rrv, opts)
+		_n, err = cdc.decodeReflectBinary(bz, rinfo, rrv, opts)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
@@ -373,7 +323,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	var crv, irvSet = constructConcreteType(cinfo)
 
 	// Decode into the concrete type.
-	_n, err = cdc._decodeReflectBinary(bz, cinfo, crv, opts)
+	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, opts)
 	if slide(&bz, &n, _n) && err != nil {
 		rv.Set(irvSet) // Helps with debugging
 		return

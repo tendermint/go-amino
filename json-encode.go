@@ -30,41 +30,6 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		}()
 	}
 
-	// Write the disfix wrapper if it is a registered concrete type.
-	if info.Registered {
-		// Part 1:
-		err = writeStr(w, _fmt(`{"type":"%s","value":`, info.Name))
-		if err != nil {
-			return
-		}
-		// Part 2:
-		defer func() {
-			if err != nil {
-				return
-			}
-			err = writeStr(w, `}`)
-		}()
-	}
-
-	err = cdc._encodeReflectJSON(w, info, rv, opts)
-	return
-}
-
-// NOTE: Unlike _encodeReflectBinary, rv may be a pointer.
-// CONTRACT: rv is valid.
-// CONTRACT: any disfix wrapper has already been written.
-func (cdc *Codec) _encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-	if !rv.IsValid() {
-		panic("should not happen")
-	}
-	if printLog {
-		spew.Printf("(_) _encodeReflectJSON(info: %v, rv: %#v (%v), opts: %v)\n",
-			info, rv.Interface(), rv.Type(), opts)
-		defer func() {
-			fmt.Printf("(_) -> err: %v\n", err)
-		}()
-	}
-
 	// Dereference value if pointer.
 	var isNilPtr bool
 	rv, _, isNilPtr = derefPointers(rv)
@@ -99,7 +64,7 @@ func (cdc *Codec) _encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Val
 			return
 		}
 		// Then, encode the repr instance.
-		err = cdc._encodeReflectJSON(w, rinfo, rrv, opts)
+		err = cdc.encodeReflectJSON(w, rinfo, rrv, opts)
 		return
 	}
 
@@ -202,7 +167,7 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 	// Currently, go-amino JSON *always* writes disfix bytes for
 	// all registered concrete types.
 
-	err = cdc._encodeReflectJSON(w, cinfo, crv, opts)
+	err = cdc.encodeReflectJSON(w, cinfo, crv, opts)
 	return
 }
 
