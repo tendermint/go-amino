@@ -259,10 +259,10 @@ func (cdc Codec) PrintTypes(out io.Writer) error {
 	cdc.mtx.RLock()
 	defer cdc.mtx.RUnlock()
 	// print header
-	if _, err := io.WriteString(out, "| Type | Name | Prefix | Notes |\n"); err != nil {
+	if _, err := io.WriteString(out, "| Type | Name | Prefix | Length | Notes |\n"); err != nil {
 		return err
 	}
-	if _, err := io.WriteString(out, "| ---- | ---- | ------ | ----- |\n"); err != nil {
+	if _, err := io.WriteString(out, "| ---- | ---- | ------ | ----- | ------ |\n"); err != nil {
 		return err
 	}
 	// only print concrete types for now (if we want everything, we can iterate over the typeInfos map instead)
@@ -281,9 +281,18 @@ func (cdc Codec) PrintTypes(out io.Writer) error {
 		if _, err := io.WriteString(out, " | "); err != nil {
 			return err
 		}
-		if _, err := io.WriteString(out, fmt.Sprintf("0x%X", i.Prefix)); err != nil {
+		var typ = typeToTyp3(i.Type, FieldOptions{})
+		if _, err := io.WriteString(out, fmt.Sprintf("0x%X", i.Prefix.WithTyp3(typ))); err != nil {
 			return err
 		}
+		if _, err := io.WriteString(out, " | "); err != nil {
+			return err
+		}
+
+		if _, err := io.WriteString(out, getLengthStr(i)); err != nil {
+			return err
+		}
+
 		if _, err := io.WriteString(out, " | "); err != nil {
 			return err
 		}
@@ -293,6 +302,22 @@ func (cdc Codec) PrintTypes(out io.Writer) error {
 	}
 	// finish table
 	return nil
+}
+
+// A heuristic to guess the size of a registered type and return it as a string.
+// If the size is not fixed it returns "variable".
+func getLengthStr(info *TypeInfo) string {
+	switch info.Type.Kind() {
+	case reflect.Array,
+		reflect.Int8,
+		reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Float32, reflect.Float64,
+		reflect.Complex64, reflect.Complex128:
+		s := info.Type.Size()
+		return fmt.Sprintf("0x%X", s)
+	default:
+		return "variable"
+	}
 }
 
 //----------------------------------------
