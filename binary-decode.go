@@ -427,6 +427,14 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return
 			}
+			// Special case when reading default value, prefer nil.
+			if erv.Kind() == reflect.Ptr {
+				_, isDefault := isDefaultValue(erv)
+				if isDefault {
+					erv.Set(reflect.Zero(erv.Type()))
+					continue
+				}
+			}
 		}
 		// Ensure that we read the whole buffer.
 		if len(bz) > 0 {
@@ -572,6 +580,15 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return
 			}
+			// Special case when reading default value, prefer nil.
+			if ert.Kind() == reflect.Ptr {
+				_, isDefault := isDefaultValue(erv)
+				if isDefault {
+					srv = reflect.Append(srv, reflect.Zero(ert))
+					continue
+				}
+			}
+			// Otherwise append to slice.
 			srv = reflect.Append(srv, erv)
 		}
 	} else {
@@ -706,7 +723,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 					err = errors.New(fmt.Sprintf("expected field number %v, got %v", field.BinFieldNum, fieldNum))
 					return
 				}
-				typWanted := typeToTyp3(field.Type, field.FieldOptions)
+				typWanted := typeToTyp3(finfo.Type, field.FieldOptions)
 				if typ != typWanted {
 					err = errors.New(fmt.Sprintf("expected field type %v, got %v", typWanted, typ))
 					return
