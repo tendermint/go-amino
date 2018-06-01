@@ -74,6 +74,28 @@ func derefPointers(rv reflect.Value) (drv reflect.Value, isPtr bool, isNilPtr bo
 	return
 }
 
+// Dereference pointer recursively or return zero value.
+// drv: the final non-pointer value (which is never invalid).
+// isPtr: whether rv.Kind() == reflect.Ptr.
+// isNilPtr: whether a nil pointer at any level.
+func derefPointersZero(rv reflect.Value) (drv reflect.Value, isPtr bool, isNilPtr bool) {
+	for rv.Kind() == reflect.Ptr {
+		isPtr = true
+		if rv.IsNil() {
+			isNilPtr = true
+			rt := rv.Type().Elem()
+			for rt.Kind() == reflect.Ptr {
+				rt = rt.Elem()
+			}
+			drv = reflect.New(rt).Elem()
+			return
+		}
+		rv = rv.Elem()
+	}
+	drv = rv
+	return
+}
+
 // Returns isDefaultValue=true iff is ultimately nil or empty after (recursive)
 // dereferencing. If isDefaultValue=false, erv is set to the non-nil non-empty
 // non-default dereferenced value.
