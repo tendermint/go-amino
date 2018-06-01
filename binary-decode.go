@@ -16,7 +16,7 @@ import (
 // function calls decodeReflectBinary*, and generally those functions should
 // only call this one, for the prefix bytes are consumed here when present.
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -52,7 +52,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		if err != nil {
 			return
 		}
-		_n, err = cdc.decodeReflectBinary(bz, rinfo, rrv, fopts)
+		_n, err = cdc.decodeReflectBinary(bz, rinfo, rrv, fopts, bare)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
@@ -72,7 +72,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	// Complex
 
 	case reflect.Interface:
-		_n, err = cdc.decodeReflectBinaryInterface(bz, info, rv, fopts)
+		_n, err = cdc.decodeReflectBinaryInterface(bz, info, rv, fopts, bare)
 		n += _n
 		return
 
@@ -99,7 +99,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		return
 
 	case reflect.Struct:
-		_n, err = cdc.decodeReflectBinaryStruct(bz, info, rv, fopts)
+		_n, err = cdc.decodeReflectBinaryStruct(bz, info, rv, fopts, bare)
 		n += _n
 		return
 
@@ -269,7 +269,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -287,13 +287,15 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
-	// Read byte-length prefixed byteslice.
-	var buf, _n = []byte(nil), int(0)
-	buf, _n, err = DecodeByteSlice(bz)
-	if slide(&bz, &n, _n) && err != nil {
-		return
+	if !bare {
+		// Read byte-length prefixed byteslice.
+		var buf, _n = []byte(nil), int(0)
+		buf, _n, err = DecodeByteSlice(bz)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+		bz = buf.Bytes()
 	}
-	bz = buf.Bytes()
 
 	// Consume disambiguation / prefix bytes.
 	disamb, hasDisamb, prefix, hasPrefix, _n, err := DecodeDisambPrefixBytes(bz)
@@ -318,7 +320,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	var crv, irvSet = constructConcreteType(cinfo)
 
 	// Decode into the concrete type.
-	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, fopts)
+	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, fopts, true)
 	if slide(&bz, &n, _n) && err != nil {
 		rv.Set(irvSet) // Helps with debugging
 		return
@@ -413,7 +415,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 		// Read elements from buf.
 		for i := 0; i < length; i++ {
 			var erv, _n = rv.Index(i), int(0)
-			_n, err = cdc.decodeReflectBinary(buf, einfo, erv, fopts)
+			_n, err = cdc.decodeReflectBinary(buf, einfo, erv, fopts, false)
 			if slide(&buf, nil, _n) && err != nil {
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return
@@ -451,7 +453,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 				continue
 			}
 			// Normal case, read next non-nil element from bz.
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, fopts)
+			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, fopts, false)
 			if slide(&bz, &n, _n) && err != nil {
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return
@@ -547,7 +549,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 		// Read elements from buf.
 		for {
 			erv := reflect.New(einfo.Type)
-			_n, err = cdc.decodeReflectBinary(buf, einfo, erv, fopts)
+			_n, err = cdc.decodeReflectBinary(buf, einfo, erv, fopts, false)
 			if slide(&buf, nil, _n) && err != nil {
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return
@@ -581,7 +583,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 				continue
 			}
 			// Normal case, read next non-nil element from bz.
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, fopts)
+			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, fopts, false)
 			if slide(&bz, &n, _n) && err != nil {
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return
@@ -594,7 +596,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, _ FieldOptions) (n int, err error) {
+func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, _ FieldOptions, bare bool) (n int, err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -679,7 +681,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 				}
 
 				// Decode field into frv.
-				_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions)
+				_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions, false)
 				if slide(&bz, &n, _n) && err != nil {
 					return
 				}

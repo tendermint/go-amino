@@ -21,7 +21,7 @@ import (
 // The following contracts apply to all similar encode methods.
 // CONTRACT: rv is not a pointer
 // CONTRACT: rv is valid.
-func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
 	if rv.Kind() == reflect.Ptr {
 		panic("should not happen")
 	}
@@ -49,7 +49,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 			return
 		}
 		// Then, encode the repr instance.
-		err = cdc.encodeReflectBinary(w, rinfo, rrv, fopts)
+		err = cdc.encodeReflectBinary(w, rinfo, rrv, fopts, bare)
 		return
 	}
 
@@ -59,7 +59,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	// Complex
 
 	case reflect.Interface:
-		err = cdc.encodeReflectBinaryInterface(w, info, rv, fopts)
+		err = cdc.encodeReflectBinaryInterface(w, info, rv, fopts, bare)
 
 	case reflect.Array:
 		if info.Type.Elem().Kind() == reflect.Uint8 {
@@ -76,7 +76,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		}
 
 	case reflect.Struct:
-		err = cdc.encodeReflectBinaryStruct(w, info, rv, fopts)
+		err = cdc.encodeReflectBinaryStruct(w, info, rv, fopts, bare)
 
 	//----------------------------------------
 	// Signed
@@ -155,7 +155,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryInterface")
 		defer func() {
@@ -216,13 +216,18 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 	}
 
 	// Write actual concrete value.
-	err = cdc.encodeReflectBinary(buf, cinfo, crv, fopts)
+	err = cdc.encodeReflectBinary(buf, cinfo, crv, fopts, true)
 	if err != nil {
 		return
 	}
 
-	// Write byte-length prefixed from buf.
-	err = EncodeByteSlice(w, buf.Bytes())
+	if bare {
+		// Write byteslice without byte-length prefixing.
+		_, err = w.Write(buf.Bytes())
+	} else {
+		// Write byte-length prefixed byteslice.
+		err = EncodeByteSlice(w, buf.Bytes())
+	}
 	return
 }
 
@@ -337,7 +342,7 @@ func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv r
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryBinaryStruct")
 		defer func() {
@@ -385,7 +390,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 					return
 				}
 				// Write field from rv.
-				err = cdc.encodeReflectBinary(buf, finfo, frv, field.FieldOptions)
+				err = cdc.encodeReflectBinary(buf, finfo, frv, field.FieldOptions, false)
 				if err != nil {
 					return
 				}
@@ -393,8 +398,13 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 		}
 	}
 
-	// Write byte-length prefixed byteslice.
-	err = EncodeByteSlice(w, buf.Bytes())
+	if bare {
+		// Write byteslice without byte-length prefixing.
+		_, err = w.Write(buf.Bytes())
+	} else {
+		// Write byte-length prefixed byteslice.
+		err = EncodeByteSlice(w, buf.Bytes())
+	}
 	return
 }
 
