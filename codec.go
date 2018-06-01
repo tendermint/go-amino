@@ -34,14 +34,8 @@ func NewPrefixBytes(prefixBytes []byte) PrefixBytes {
 	return pb
 }
 
-func (pb PrefixBytes) Bytes() []byte                 { return pb[:] }
-func (pb PrefixBytes) EqualBytes(bz []byte) bool     { return bytes.Equal(pb[:], bz) }
-func (pb PrefixBytes) WithTyp3(typ Typ3) PrefixBytes { pb[3] |= byte(typ); return pb }
-func (pb PrefixBytes) SplitTyp3() (PrefixBytes, Typ3) {
-	typ := Typ3(pb[3] & 0x07)
-	pb[3] &= 0xF8
-	return pb, typ
-}
+func (pb PrefixBytes) Bytes() []byte             { return pb[:] }
+func (pb PrefixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(pb[:], bz) }
 func (db DisambBytes) Bytes() []byte             { return db[:] }
 func (db DisambBytes) EqualBytes(bz []byte) bool { return bytes.Equal(db[:], bz) }
 func (df DisfixBytes) Bytes() []byte             { return df[:] }
@@ -657,8 +651,6 @@ func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
 		bz = bz[1:]
 	}
 	copy(pb[:], bz[0:4])
-	// Drop the last 3 bits to make room for the Typ3.
-	pb[3] &= 0xF8
 	return
 }
 

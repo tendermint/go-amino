@@ -163,9 +163,9 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		}()
 	}
 
-	// Special case when rv is nil, write 0x0000.
+	// Special case when rv is nil, write 0x00 to denote an empty byteslice.
 	if rv.IsNil() {
-		_, err = w.Write([]byte{0x00, 0x00})
+		_, err = w.Write([]byte{0x00})
 		return
 	}
 
@@ -192,6 +192,9 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		return
 	}
 
+	// For Proto3 compatibility, encode interfaces as ByteLength.
+	buf := bytes.NewBuffer()
+
 	// Write disambiguation bytes if needed.
 	var needDisamb bool = false
 	if iinfo.AlwaysDisambiguate {
@@ -200,21 +203,26 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		needDisamb = true
 	}
 	if needDisamb {
-		_, err = w.Write(append([]byte{0x00}, cinfo.Disamb[:]...))
+		_, err = buf.Write(append([]byte{0x00}, cinfo.Disamb[:]...))
 		if err != nil {
 			return
 		}
 	}
 
-	// Write prefix+typ3 bytes.
-	var typ = typeToTyp3(crt, fopts)
-	_, err = w.Write(cinfo.Prefix.WithTyp3(typ).Bytes())
+	// Write prefix bytes.
+	_, err = buf.Write(cinfo.Prefix.Bytes())
 	if err != nil {
 		return
 	}
 
 	// Write actual concrete value.
-	err = cdc.encodeReflectBinary(w, cinfo, crv, isRoot, fopts)
+	err = cdc.encodeReflectBinary(buf, cinfo, crv, isRoot, fopts)
+	if err != nil {
+		return
+	}
+
+	// Write byte-length prefixed from buf.
+	err = EncodeByteSlice(w, buf.Bytes())
 	return
 }
 

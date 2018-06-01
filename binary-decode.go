@@ -287,15 +287,17 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
-	// Consume disambiguation / prefix+typ3 bytes.
-	disamb, hasDisamb, prefix, typ, hasPrefix, isNil, _n, err := DecodeDisambPrefixBytes(bz)
+	// Read byte-length prefixed byteslice.
+	var buf, _n = []byte(nil), int(0)
+	buf, _n, err = DecodeByteSlice(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
+	bz = buf.Bytes()
 
-	// Special case for nil.
-	if isNil {
-		rv.Set(iinfo.ZeroValue)
+	// Consume disambiguation / prefix bytes.
+	disamb, hasDisamb, prefix, hasPrefix, _n, err := DecodeDisambPrefixBytes(bz)
+	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
 
@@ -312,12 +314,6 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
-	// Check and consume typ3 byte.
-	err = checkTyp3(cinfo.Type, typ, fopts)
-	if err != nil {
-		return
-	}
-
 	// Construct the concrete type.
 	var crv, irvSet = constructConcreteType(cinfo)
 
@@ -325,6 +321,13 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, isRoot, fopts)
 	if slide(&bz, &n, _n) && err != nil {
 		rv.Set(irvSet) // Helps with debugging
+		return
+	}
+
+	// Earlier, we set bz to the byteslice read from buf.
+	// Ensure that all of bz was consumed.
+	if len(bz) > 0 {
+		err = errors.New("bytes left over after reading interface contents")
 		return
 	}
 
@@ -683,13 +686,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 
 //----------------------------------------
 
-func DecodeDisambPrefixBytes(bz []byte) (db DisambBytes, hasDb bool, pb PrefixBytes, typ Typ3, hasPb bool, isNil bool, n int, err error) {
-	// Special case: nil
-	if len(bz) >= 2 && bz[0] == 0x00 && bz[1] == 0x00 {
-		isNil = true
-		n = 2
-		return
-	}
+func DecodeDisambPrefixBytes(bz []byte) (db DisambBytes, hasDb bool, pb PrefixBytes, hasPb bool, n int, err error) {
 	// Validate
 	if len(bz) < 4 {
 		err = errors.New("EOF while reading prefix bytes.")
@@ -703,7 +700,6 @@ func DecodeDisambPrefixBytes(bz []byte) (db DisambBytes, hasDb bool, pb PrefixBy
 		}
 		copy(db[0:3], bz[1:4])
 		copy(pb[0:4], bz[4:8])
-		pb, typ = pb.SplitTyp3()
 		hasDb = true
 		hasPb = true
 		n = 8
@@ -711,7 +707,6 @@ func DecodeDisambPrefixBytes(bz []byte) (db DisambBytes, hasDb bool, pb PrefixBy
 	} else { // Prefix
 		// General case with no disambiguation
 		copy(pb[0:4], bz[0:4])
-		pb, typ = pb.SplitTyp3()
 		hasDb = false
 		hasPb = true
 		n = 4

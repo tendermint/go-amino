@@ -131,7 +131,7 @@ func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
 func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
 	switch rt.Kind() {
 	case reflect.Interface:
-		return Typ3_Interface
+		return Typ3_ByteLength
 	case reflect.Array, reflect.Slice:
 		return Typ3_ByteLength
 	case reflect.String:
