@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"fmt"
+	"io"
 	"reflect"
 	"strings"
 	"sync"
@@ -246,6 +247,77 @@ func (cdc *Codec) Seal() *Codec {
 
 	cdc.sealed = true
 	return cdc
+}
+
+// PrintTypes writes all registered types in a markdown-style table.
+// The table's header is:
+//
+// | Type  | Name | Prefix | Notes |
+//
+// Where Type is the golang type name and Name is the name the type was registered with.
+func (cdc Codec) PrintTypes(out io.Writer) error {
+	cdc.mtx.RLock()
+	defer cdc.mtx.RUnlock()
+	// print header
+	if _, err := io.WriteString(out, "| Type | Name | Prefix | Length | Notes |\n"); err != nil {
+		return err
+	}
+	if _, err := io.WriteString(out, "| ---- | ---- | ------ | ----- | ------ |\n"); err != nil {
+		return err
+	}
+	// only print concrete types for now (if we want everything, we can iterate over the typeInfos map instead)
+	for _, i := range cdc.concreteInfos {
+		io.WriteString(out, "| ")
+		// TODO(ismail): optionally create a link to code on github:
+		if _, err := io.WriteString(out, i.Type.Name()); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(out, " | "); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(out, i.Name); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(out, " | "); err != nil {
+			return err
+		}
+		var typ = typeToTyp3(i.Type, FieldOptions{})
+		if _, err := io.WriteString(out, fmt.Sprintf("0x%X", i.Prefix.WithTyp3(typ))); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(out, " | "); err != nil {
+			return err
+		}
+
+		if _, err := io.WriteString(out, getLengthStr(i)); err != nil {
+			return err
+		}
+
+		if _, err := io.WriteString(out, " | "); err != nil {
+			return err
+		}
+		// empty notes table data by default // TODO(ismail): make this configurable
+
+		io.WriteString(out, " |\n")
+	}
+	// finish table
+	return nil
+}
+
+// A heuristic to guess the size of a registered type and return it as a string.
+// If the size is not fixed it returns "variable".
+func getLengthStr(info *TypeInfo) string {
+	switch info.Type.Kind() {
+	case reflect.Array,
+		reflect.Int8,
+		reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Float32, reflect.Float64,
+		reflect.Complex64, reflect.Complex128:
+		s := info.Type.Size()
+		return fmt.Sprintf("0x%X", s)
+	default:
+		return "variable"
+	}
 }
 
 //----------------------------------------
