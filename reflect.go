@@ -51,7 +51,9 @@ func slide(bz *[]byte, n *int, _n int) bool {
 		panic(fmt.Sprintf("impossible slide: len:%v _n:%v", len(*bz), _n))
 	}
 	*bz = (*bz)[_n:]
-	*n += _n
+	if n != nil {
+		*n += _n
+	}
 	return true
 }
 
@@ -125,43 +127,17 @@ func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
 	return
 }
 
-// Like typeToTyp4 but include a pointer bit.
-func typeToTyp4(rt reflect.Type, opts FieldOptions) (typ Typ4) {
-
-	// Dereference pointer type.
-	var pointer = false
-	for rt.Kind() == reflect.Ptr {
-		pointer = true
-		rt = rt.Elem()
-	}
-
-	// Call actual logic.
-	typ = Typ4(typeToTyp3(rt, opts))
-
-	// Set pointer bit to 1 if pointer.
-	if pointer {
-		typ |= Typ4_Pointer
-	}
-	return
-}
-
 // CONTRACT: rt.Kind() != reflect.Ptr
 func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
 	switch rt.Kind() {
 	case reflect.Interface:
 		return Typ3_Interface
 	case reflect.Array, reflect.Slice:
-		ert := rt.Elem()
-		switch ert.Kind() {
-		case reflect.Uint8:
-			return Typ3_ByteLength
-		default:
-			return Typ3_List
-		}
+		return Typ3_ByteLength
 	case reflect.String:
 		return Typ3_ByteLength
 	case reflect.Struct, reflect.Map:
-		return Typ3_Struct
+		return Typ3_ByteLength
 	case reflect.Int64, reflect.Uint64:
 		if opts.BinVarint {
 			return Typ3_Varint
