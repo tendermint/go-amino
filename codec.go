@@ -79,12 +79,13 @@ type InterfaceOptions struct {
 type ConcreteInfo struct {
 
 	// These fields are only set when registered (as implementing an interface).
-	Registered       bool        // Registered with RegisterConcrete().
-	PointerPreferred bool        // Deserialize to pointer type if possible.
-	Name             string      // Registered name.
-	Disamb           DisambBytes // Disambiguation bytes derived from name.
-	Prefix           PrefixBytes // Prefix bytes derived from name.
-	ConcreteOptions              // Registration options.
+	Registered       bool // Registered with RegisterConcrete().
+	PointerPreferred bool // Deserialize to pointer type if possible.
+	// NilPreferred     bool        // Deserialize to nil for empty structs if PointerPreferred.
+	Name            string      // Registered name.
+	Disamb          DisambBytes // Disambiguation bytes derived from name.
+	Prefix          PrefixBytes // Prefix bytes derived from name.
+	ConcreteOptions             // Registration options.
 
 	// These fields get set for all concrete types,
 	// even those not manually registered (e.g. are never interface values).

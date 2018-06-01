@@ -1,83 +1,348 @@
-# Amino encoding for Go
+# Amino Spec (and impl for Go)
 
 This software implements Go bindings for the Amino encoding protocol.
 
 Amino is an object encoding specification. Think of it as an object-oriented
 Protobuf3 with native JSON support.
 
-The goal of the Amino encoding protocol is to bring parity between application
-logic objects and persistence objects.
+The goal of the Amino encoding protocol is to bring parity into logic objects
+and persistence objects.
 
-**CAVEAT:** we're still building out the ecosystem, which is currently most
-developed in Go.  But Amino is not just for Go — if you'd like to
-contribute by creating supporting libraries in various languages from scratch,
-or by adapting existing Protobuf3 libraries, please [open an issue on GitHub](https://github.com/tendermint/go-amino/issues)!
+**DISCLAIMER:** We're still building out the ecosystem, which is currently most
+developed in Go.  But Amino is not just for Go — if you'd like to contribute by
+creating supporting libraries in various languages from scratch, or by adapting
+existing Protobuf3 libraries, please [open an issue on
+GitHub](https://github.com/tendermint/go-amino/issues)!
+
 
 # Why Amino?
 
+## Amino Goals
+
+* Bring parity into logic objects and persistent objects
+  by supporting interfaces.
+* Have a unique/deterministic encoding of value.
+* Binary bytes must be decodeable with a schema.
+* Schema must be upgradeable.
+* Sufficient structure must be parseable without a schema.
+* The encoder and decoder logic must be reasonably simple.
+* The serialization must be reasonably compact.
+* A sufficiently compatible JSON format must be maintained (but not general
+  conversion to/from JSON)
+
 ## Amino vs JSON
 
-JavaScript Object Notation (JSON) is human readable, well structured and great for interoperability with Javascript, but it is inefficient.
-Protobuf3, BER, RLP all exist because we need a more compact and efficient binary encoding standard.
-Amino provides efficient binary encoding for complex objects (e.g. embedded objects) that integrate naturally
-with your favorite modern programming language. Additionally, Amino is fully compatible with JSON encoding.
+JavaScript Object Notation (JSON) is human readable, well structured and great
+for interoperability with Javascript, but it is inefficient.  Protobuf3, BER,
+RLP all exist because we need a more compact and efficient binary encoding
+standard.  Amino provides efficient binary encoding for complex objects (e.g.
+embedded objects) that integrate naturally with your favorite modern
+programming language. Additionally, Amino has a fully compatible JSON encoding.
 
 ## Amino vs Protobuf3
 
-Amino wants to be Protobuf4. The bulk of this spec will
-explain how Amino differs from Protobuf3. Here, we will illustrate two key
-selling points for Amino.
+Amino wants to be Protobuf4. The bulk of this spec will explain how Amino
+differs from Protobuf3. Here, we will illustrate two key selling points for
+Amino.
 
-* In Protobuf3, [embedded message are `varint` byte-length prefixed]((https://github.com/tendermint/go-amino/wiki/aminoscan));
-  However, this makes the binary encoding naturally more inefficient, as bytes cannot
-  simply be written to a memory array (buffer) in sequence without allocating a
-  new buffer for each embedded message. Amino is encoded in such a way that the
-  complete structure of the message (not just the top-level structure) can be determined by
-  scanning the byte encoding without any type information other than what is
-  available in the binary bytes. This makes encoding faster with no penalty when
-  decoding.
+* Protobuf3 doesn't support interfaces.  It supports `oneof`, which works as a
+  kind of union type, but it doesn't translate well to "interfaces" and
+"implementations" in modern langauges such as C++ classes, Java
+interfaces/classes, Go interfaces/implementations, and Rust traits.  
 
-* Protobuf3 has `oneof`, but it's clunky.  For example, Go Protobuf's
-  implementation is [excessively verbose](https://github.com/gogo/protobuf/issues/168).
-  But this isn't just an implementation issue. The real problem is that `oneof`
-  doesn't match how modern languages already work to provide `oneof`-like
-  features. Protobuf3's `oneof` support feels more like a (bad) encoding for C union
-  types.  For example, you can't declare a union type and re-use it in Protobuf.
-  
-  What we want is a way to encode *objects*, and a new type to represent a set of object
-  types (often called interfaces).
-  
-  * In C++, classes.  Unions are still useful (e.g. for performance) but not as widely used as classes.
-  * In Java, Java-interfaces and classes.
-  * In Go, the replacement is Golang-interfaces and all (even primitive) types.
-  * Javascript naturally lends itself well to `oneof` support, as it only has a few native types including the ubiquitous Object type.
+If Protobuf supported interfaces, users of externally defined schema files
+would be able to support caller-defined concrete types of an interface.
+Instead, the `oneof` feature of Protobuf3 requires the concrete types to be
+pre-declared in the definition of the `oneof` field.
 
-Protobuf would be better if it were object-oriented. Since it isn't, the generated code
-is often not the logical objects that you really want to use in your
-application, so you end up duplicating the structure in the Protobuf schema file and
-writing translators to and from your logic objects.  Amino can eliminate this extra duplication.
+Protobuf would be better if it supported interfaces/implementations as in most
+modern object-oriented languages. Since it is not, the generated code is often
+not the logical objects that you really want to use in your application, so you
+end up duplicating the structure in the Protobuf schema file and writing
+translators to and from your logic objects.  Amino can eliminate this extra
+duplication and help streamline development from inception to maturity.
+
+* In Protobuf3, [embedded message are `uvarint` byte-length prefixed]((https://github.com/tendermint/go-amino/wiki/aminoscan));
+  However, this makes the binary encoding naturally more inefficient, as bytes
+cannot simply be written to a memory array (buffer) in sequence without
+allocating a new buffer for each embedded message. Amino is encoded in such a
+way that the complete structure of the message (not just the top-level
+structure) can be determined by scanning the byte encoding without any type
+information other than what is available in the binary bytes. This makes
+encoding faster with no penalty when decoding.
+
+* In Protobuf3, lists are encoded as repeated field values.  This makes
+  decoding more expensive than necessary, since it is generally faster to know
+the length of a list/array to allocate prior to decoding to it.
 
 ## Amino in the Wild
 
 * Amino:binary spec in [Tendermint](
 https://github.com/tendermint/tendermint/blob/develop/docs/specification/new-spec/encoding.md)
 
-## Amino Spec
 
-### Interfaces and concrete types
+# Amino Spec
 
-Amino is an encoding library that can handle interfaces (like Protobuf `oneof`)
-exceptionally well.  This is achieved by prefixing bytes before each "concrete
-type".
+## Supported types
 
-A concrete type is some non-interface value (generally a struct) which
-implements the interface to be (de)serialized. Not all structures need to be
-registered as concrete types — only when they will be stored in interface type
-fields (or interface type slices) do they need to be registered.
+Amino supports 7 type families: These are Varint, 4-Byte, 8-Byte, Byte-Length
+(delimited), Struct, List, and Interface types.
 
-### Registering types
+### Varint
 
-To encode and decode an interface, it has to be registered with `codec.RegisterInterface`
+Varints in Amino are like Protobuf Varints.  They can be signed (uvarint) or
+unsigned (varint).  This type is used to encode `bool`, `byte`, `[u]int8`,
+`[u]int16` and optionally varint-encoded `[u]int32` and `[u]int64` numeric
+langauge types.
+
+The binary encoding for signed and unsigned Varints is such that the length is
+self-defined, but the encoding doesn't say whether the type is signed or
+unsigned.  As in Protobuf, signed varints are zig-zag encoded whereas unsigned
+varints are not. The schema is thus required in order to determine the correct
+numeric value.
+
+See https://developers.google.com/protocol-buffers/docs/encoding#varints for
+more information.
+
+### 4-Byte and 8-Byte
+
+These represent fixed-length 4-byte and 8-byte encodings for `[u]int32` and
+[u]int64` numeric langauge types.  They are big-endian encoded.  Like Varint
+and Uvarints, these types may be signed or unsigned, so the schema is required
+to determine the correct numeric value.
+
+### Byte-Length
+
+Byte-Length delimited fields are used to encode `[]byte` and `string` language
+types.
+
+The encoding schema for a Byte-Length types is as follows:
+
+```
+<uvarint(len(bytes))><bytes>
+e.g. <03><66 6f 6f> encodes the string "foo"
+```
+
+### Lists
+
+Lists can hold zero or many items of any single Amino type.
+
+The encoding schema for a List is as follows:
+
+```
+<typ3 of list items><uvarint(len(list))><encoding(first item)>...<encoding(last item)>
+e.g. <00><02><01><03> encodes a List of two Varints, 1 (or -1 if signed) and 3 (or -2).
+e.g. <06><01><00 02 01 03> encodes a List of Lists, with 1 item identical to the above List.
+```
+
+See example 3 below for more information on nillable Lists. The encoding schema
+for a nillable List is as follows:
+
+```
+<typ4 of list items w/ pointer-bit set><uvarint(len(list))>
+	<00, or 01 if first item is nil><encoding(first item)>...
+	<00, or 01 if last item is nil><encoding(last item)>
+```
+
+#### List example 1
+
+A List of Structs with `n` elements is encoded by the byte `0x03` followed by
+the uvarint encoding of `n`, followed by the binary encoding of each element.
+Each Struct element is encoded starting with the first field key, and is
+terminated with the Struct-terminator byte 0x04.
+
+```go
+type Item struct {
+	Number int
+}
+
+type List struct {
+	MyList []Item
+}
+
+list := List{
+	MyList: []Item{
+		Item{1},		// Item #0
+		Item{3},		// Item #1
+	}
+}
+
+bz, err := amino.MarshalBinary(list)
+if err != nil { ... }
+
+// dump bz:
+// BINARY      HEX   NOTE
+// b0000 1110  0x0E  Field number (1) and type (List) for `MyList`
+// b0000 0011  0x03  Type of element (Struct) of `MyList`
+// b0000 0010  0x02  Length of List (uvarint(2))
+//                   `Item` #0
+// b0000 1000  0x08  Field number (1) and type (Varint) for `MyList[0].Number`
+// b0000 0010  0x02  Field value (varint(1))
+// b0000 0100  0x04  StructTerm for `Item #0`
+//                   `Item` #1
+// b0000 1000  0x08  Field number (1) and type (Varint) for `MyList[1].Number`
+// b0000 0110  0x06  Field value (varint(3))
+// b0000 0100  0x04  StructTerm for `Item #1`
+```
+
+#### List example 2
+
+A List of `n` elements [where the elements are List-of-Structs] is encoded by
+the byte `0x06` followed by the uvarint encoding of `n`, followed by the binary
+encoding of each element each which start with the byte `0x03` followed by the
+uvarint encoding of `m` (the size of the first child List item).  Each Struct
+element is encoded starting with the first field key, as in the previous
+example.
+
+```go
+type Item struct {
+	Number int
+}
+
+type List []Item
+
+type ListOfLists struct {
+	MyLists []List
+}
+
+llist := ListOfLists{
+	MyLists: []List{
+		[]Item{			// List #0
+			Item{1},	// Item #0
+			Item{3},	// Item #1
+		},
+	}
+}
+
+bz, err := amino.MarshalBinary(llist)
+if err != nil { ... }
+
+// dump bz:
+// BINARY      HEX   NOTE
+// b0000 1110  0x0E  Field number (1) and type ([]List) for `MyLists`
+// b0000 0110  0x06  Type of element (List) of `MyLists`
+// b0000 0001  0x01  Length of List (uvarint(1))
+//                   `List` #0
+// b0000 0011  0x03  Type of element (Struct) of `MyLists[0]`
+// b0000 0010  0x02  Length of List (uvarint(2))
+//                   `Item` #0
+// b0000 1000  0x08  Field number (1) and type (Varint) for `MyLists[0][0].Number`
+// b0000 0010  0x02  Field value (varint(1))
+// b0000 0100  0x04  StructTerm for `Item #0`
+//                   `Item` #1
+// b0000 1000  0x08  Field number (1) and type (Varint) for `MyLists[0][1].Number`
+// b0000 0110  0x06  Field value (varint(3))
+// b0000 0100  0x04  StructTerm for `Item #1`
+```
+
+#### List example 3 (nilliable List)
+
+Unlike fields of a Struct where nil (or in the future, perhaps zero/empty)
+pointers are denoted by the absence of its encoding (both field key and value),
+elements of a List are encoded without an index or key.  They are just encoded
+one after the other, with no need to prefix each element with a key, index
+number nor typ3 byte.
+
+To declare that the List may contain nil elements (e.g. the List is
+"nillable"), the Lists's element typ4 byte should set the 4th least-significant
+bit (the "pointer bit") to 1.  If (and only if) the pointer bit is 1, each
+element is prefixed by a "nil byte" — a 0x00 byte to declare that a non-nil
+item follows, or a 0x01 byte to declare that the next item is nil.  Note that
+the byte values are flipped (typically 0 is used to denote nil).  This is to
+open the possibility of supporting sparse encoding of nil Lists in the future
+by encoding the number of nil items to skip as a uvarint.
+
+Nil Lists, Interfaces, (and in Go-Amino, nil pointers) are all encoded as nil
+in a nillable List.
+
+NOTE: A nil Interface in a nillable List is encoded with a single byte 0x01,
+while a nil Interface in a non-nillable List is encoded with two bytes 0x0000.
+
+```go
+type Item struct {
+	Number int
+}
+
+type List struct {
+	MyList []*Item
+}
+
+list := List{
+	MyList: []*Item{
+		Item{1},		// Item #0
+		nil,			// Item #1
+	}
+}
+
+bz, err := amino.MarshalBinary(list)
+if err != nil { ... }
+
+// dump bz:
+// BINARY      HEX   NOTE
+// b0000 1110  0x0E  Field number (1) and type (List) for `MyList`
+// b0000 1011  0x03  Type of element (nillable Struct) of `MyList`
+// b0000 0010  0x02  Length of List (uvarint(2))
+// b0000 0000  0x00  Byte to denote non-nil element
+// b0000 1000  0x08  Field number (1) and type (Varint) for `MyList[0].Number`
+// b0000 0010  0x02  Field value (varint(1))
+// b0000 0100  0x04  StructTerm for `Item #0`
+// b0000 0001  0x01  Byte to denote nil element
+```
+
+### Struct
+
+As in Protobuf, each Struct field is keyed by an unsigned Varint with the value
+`(field_number << 3) | field_typ3`, where `field_typ3` is the 3 bit typ3 of the
+field value.  The fields of a Struct are ordered by field number.
+
+All inner Structs end with a Struct-terminator byte 0x04.  Top-level Structs
+(e.g. structs as encoded by cdc.MarshalBinaryBare() in Go-Amino) does not end
+with a Struct-terminator, because top-level Structs can be implicitly
+terminated by the length of the input bytes.
+
+```
+<field_key><field_value> <field_key><field_value>... <Struct_term?>
+e.g. <08><14> <10><28> <20><3C> encodes a Struct with three Varint fields, of
+    values 20 (or 10 if signed) for field #1, 40 (or 20) for #2, and 60 (or 30) for
+    #3 respectively.
+e.g. <0E><06><01><<00><02><01><03>> encodes a Struct with a single field #1
+    which is a List type with one element which is itself a List with two Varints, 
+    1 (or -1 if signed) and 3 (or -2).
+e.g. <0A><<03><66 6F 6F>> <13><<08><01><04>> encodes a Struct with two fields,
+    a string or byteslice ("foo") for field #1, and an inner Struct with a single
+    Varint field with value 1 (or -1 if signed).  Notice the Struct-terminator
+    byte 0x04 which terminates the inner Struct, but not the root Struct.
+```
+
+Time is encoded as a Struct with two fields:
+1. Unix seconds since 1970 as an int64 (may be negative)
+2. Nanoseconds as an int32 (must be non-negative)
+
+### Interface
+
+Amino is an encoding library that can handle Interfaces. This is achieved by
+prefixing bytes before each "concrete type".
+
+A concrete type is a non-Interface type which implements a registered
+Interface. Not all types need to be registered as concrete types — only when
+they will be stored in Interface type fields (or in a List with Interface
+elements) do they need to be registered.  Registration of Interfaces and the
+implementing concrete types should happen upon initialization of the program to
+detect any problems (such as conflicting prefix bytes -- more on that later).
+
+```
+<field_key><field_value> <field_key><field_value>... <Struct_term?>
+```
+
+A concrete type is typically a Struct type, but it doesn't need to be.  The
+last 3 bits of the written prefix bytes are the concrete type's typ3 bits, so a
+scanner can recursively traverse the fields and elements of the value.  A nil
+Interface value is encoded by 2 zero bytes (0x0000) in place of the 4 prefix
+bytes.  As in Protobuf, a nil Struct field value is not encoded at all.
+
+#### Registering types
+
+To encode and decode an Interface, it has to be registered with `codec.RegisterInterface`
 and its respective concrete type implementers should be registered with `codec.RegisterConcrete`
 
 ```go
@@ -88,23 +353,24 @@ amino.RegisterConcrete(MyStruct2{}, "com.tendermint/MyStruct2", nil)
 amino.RegisterConcrete(&MyStruct3{}, "anythingcangoinhereifitsunique", nil)
 ```
 
-Notice that an interface is represented by a nil pointer of that interface.
+Notice that an Interface is represented by a nil pointer of that Interface.
 
-Amino tries to transparently deal with pointers (and pointer-pointers) when it can.
-When it comes to decoding a concrete type into an interface value, Go gives
-the user the option to register the concrete type as a pointer or non-pointer.
-If and only if the value is registered as a pointer the decoded value will be a pointer as well.
-...
+NOTE: Go-Amino tries to transparently deal with pointers (and pointer-pointers)
+when it can.  When it comes to decoding a concrete type into an Interface
+value, Go gives the user the option to register the concrete type as a pointer
+or non-pointer.  If and only if the value is registered as a pointer is the
+decoded value will be a pointer as well.
 
-### Prefix bytes to identify the concrete type
+#### Prefix bytes to identify the concrete type
+
 All registered concrete types are encoded with leading 4 bytes (called "prefix
-bytes"), even when it's not held in an interface field/element.  In this way,
+bytes"), even when it's not held in an Interface field/element.  In this way,
 Amino ensures that concrete types (almost) always have the same canonical
 representation.  The first byte of the prefix bytes must not be a zero byte, and
 the last 3 bits are reserved for the [`typ3` bits](#the-typ3-byte), so there
 are `2^(8x4-3)-2^(8x3-3) = 534,773,760` possible values.
 
-When there are 1024 concrete types registered that implement the same interface,
+When there are 1024 concrete types registered that implement the same Interface,
 the probability of there being a conflict is ~ 0.1%.
 
 This is assuming that all registered concrete types have unique natural names
@@ -148,7 +414,8 @@ escaped with 0x00.
 The 4 prefix bytes always immediately precede the binary encoding of the
 concrete type.
 
-### Computing the prefix and disambiguation bytes
+#### Computing the prefix and disambiguation bytes
+
 To compute the disambiguation bytes, we take `hash := sha256(concreteTypeName)`,
 and drop the leading 0x00 bytes.
 
@@ -175,53 +442,32 @@ The next 4 bytes are called the "prefix bytes" (in square brackets).
 
 We reserve the last 3 bits for the typ3 of the concrete type, so in
 this case the final prefix bytes become `(0xDD & 0xF8) | <typ3-byte>`.
-The type byte for a struct is 0x03, so if the concrete type were a struct,
+The type byte for a Struct is 0x03, so if the concrete type were a Struct,
 the final prefix byte would be `0xDB`.
 
 ```
 > <0xA8 0xFC 0x54> [0xBB 0x9C 9x83 9xDB] // Final <Disamb Bytes> and [Prefix Bytes]
 ```
 
-### Supported types
+## Unsupported types
 
-#### Primary Types
-`uvarint`, `varint`, `byte`, `uint[8,16,32,64]`, `int[8,16,32,64]`, `string`, and `time`.
-
-#### Arrays
-Arrays can hold items of any arbitrary type.  For example, byte-arrays and
-byte-array-arrays are supported.
-
-#### Structs
-Struct fields are encoded by value (without the key name) in the order that they
-are declared in the struct.  In this way it is similar to Apache Avro.
-
-#### Interfaces
-Interfaces are like union types where the value can be any
-non-interface type. The actual value is preceded by a single "type byte" that
-shows which concrete is encoded.
-
-#### Pointers
-Pointers are like optional fields.  The first byte is 0x00 to
-denote a null pointer (i.e. no value), otherwise it is 0x01.
-
-### Supported (but discouraged) types
-
-#### Maps
-In most languages, iteration order is nondeterministic, so in those
-cases Amino (should) provide a standard Map library for compatibility.
-
-#### Floating points
+### Floating points
 Floating point number types are discouraged as [they are generally
 non-deterministic](http://gafferongames.com/networking-for-game-programmers/floating-point-determinism/).
 If you need to use them, use the field tag `amino:"unsafe"`.
 
-### Unsupported types
-
-#### Enums
+### Enums
 Enum types are not supported in all languages, and they're simple enough to
 model as integers anyways.
 
-### Amino vs Protobuf3 in detail
+### Maps
+Maps are not currently supported.  There is an unstable experimental support
+for maps for the Amino:JSON codec, but it shouldn't be relied on.  Ideally,
+each Amino library should decode maps as a List of key-value structs (in the
+case of langauges without generics, the library should maybe provide a custom
+Map implementation).  TODO specify the standard for key-value items.
+
+## Amino vs Protobuf3 in detail
 
 From the [Protocol Buffers encoding
 guide](https://developers.google.com/protocol-buffers/docs/encoding):
@@ -254,7 +500,7 @@ guide](https://developers.google.com/protocol-buffers/docs/encoding):
 > 3) | wire_type – in other words, the last three bits of the number store the
 > wire type.
 
-#### The Typ3 Byte
+### The Typ3 Byte
 
 In Amino, the "type" is similarly encoded by 3 bits, called the "typ3". When it
 appears alone in a byte, it is called a "typ3 byte".
@@ -273,7 +519,7 @@ Typ3 | Meaning          | Used For
 6    | List             | array, slice; followed by element `<typ4-byte>`, then `<uvarint(num-items)>`
 7    | Interface        | registered concrete types; followed by `<prefix-bytes>` or `<disfix-bytes>`, the last byte which ends with the concrete type's `<typ3-byte>`.
 
-#### Structs
+### Structs
 
 Struct fields are encoded in order, and a null/empty/zero field is represented
 by the absence of a field in the encoding, similar to Protobuf. Unlike Protobuf,
@@ -286,191 +532,34 @@ As in Protobuf, each struct field is keyed by a uvarint with the value
 
 When the typ3 bits are represented as a single byte (using the least
 significant bits of the byte), we call it the "typ3 byte".  For example, the
-typ3 byte for a "list" is `0x06`.
-
-In Amino, when encoding elements of a "list" (Go slice or array), the typ3
-byte isn't enough.  Specifically, when the element type of the list is a
-pointer type, the element value may be nil.  We encode the element type of this
-kind of list with a typ4 byte, which is like a typ3 byte, but uses the 4th
-least significant bit to encode the "pointer bit".  In other words, the element
-typ4 byte follows the List typ3 bits--where the List typ3 bits appear as (1)
-the last 3 bits of a struct's field key, (2) the last 3 bits of an interface's
-prefix bytes, or (3) the typ4 byte of a parent list's element type declaration.
+typ3 byte for a List is `0x06`.
 
 Inner structs that are embedded in outer structs are encoded by the field typ3
 "Struct" (e.g. `0x03`).  (In Protobuf3, embedded messages are encoded as
 "Byte-Length (prefixed)".  In Amino, the "Byte-Length" typ3 is only used for
 byteslices and bytearrays.)
 
-#### Lists
+### Lists
 
-Unlike Protobuf, Amino deprecates "repeated fields" in favor of "lists". A list
+Unlike Protobuf, Amino deprecates "repeated fields" in favor of Lists. A List
 is encoded by first writing the typ4 byte of the element type, followed by the
-uvarint encoding of the length of the list, followed by the encoding of each
+uvarint encoding of the length of the List, followed by the encoding of each
 element.
 
-A list of structs with `n` elements is encoded by the byte `0x03` followed by
-the uvarint encoding of `n`, followed by the binary encoding of each element.
-Each struct element is encoded starting with the first field key, and is
-terminated with the `StructTerm` typ3 byte (`0x04`, which could be interpreted
-as a special struct key with field number 0).
+In Amino, when encoding elements of a List (Go slice or array), the typ3
+byte isn't enough.  Specifically, when the element type of the List is a
+pointer type, the element value may be nil.  We encode the element type of this
+kind of List with a typ4 byte, which is like a typ3 byte, but uses the 4th
+least significant bit to encode the "pointer bit".  In other words, the element
+typ4 byte follows the List typ3 bits--where the List typ3 bits appear as (1)
+the last 3 bits of a struct's field key, (2) the last 3 bits of an Interface's
+prefix bytes, or (3) the typ4 byte of a parent List's element type declaration.
 
-```go
-type Item struct {
-	Number int
-}
+### Interfaces and concrete types
 
-type List struct {
-	MyList []Item
-}
+Amino drops support of `oneof` and instead supports Interfaces. See the Amino
+Interface spec in this README for more information on how interfaces work.
 
-list := List{
-	MyList: []Item{
-		Item{1},		// Item #0
-		Item{3},		// Item #1
-	}
-}
-
-bz, err := amino.MarshalBinary(list)
-if err != nil { ... }
-
-// dump bz:
-// BINARY      HEX   NOTE
-// b0000 1110  0x0E  Field number (1) and type (List) for `MyList`
-// b0000 0011  0x03  Type of element (Struct) of `MyList`
-// b0000 0010  0x02  Length of list (uvarint(2))
-//                   `Item` #0
-// b0000 1000  0x08  Field number (1) and type (Varint) for `MyList[0].Number`
-// b0000 0010  0x02  Field value (varint(1))
-// b0000 0100  0x04  StructTerm for `Item #0`
-//                   `Item` #1
-// b0000 1000  0x08  Field number (1) and type (Varint) for `MyList[1].Number`
-// b0000 0110  0x06  Field value (varint(3))
-// b0000 0100  0x04  StructTerm for `Item #1`
-// b0000 0100  0x04  StructTerm for `List`
-```
-
-A list of `n` elements [where the elements are list-of-structs] is encoded by
-the byte `0x06` followed by the uvarint encoding of `n`, followed by the binary
-encoding of each element each which start with the byte `0x03` followed by the
-uvarint encoding of `m` (the size of the first child list item).  Each struct
-element is encoded starting with the first field key, as in the previous
-example.
-
-```go
-type Item struct {
-	Number int
-}
-
-type List []Item
-
-type ListOfLists struct {
-	MyLists []List
-}
-
-llist := ListOfLists{
-	MyLists: []List{
-		[]Item{			// List #0
-			Item{1},	// Item #0
-			Item{3},	// Item #1
-		},
-	}
-}
-
-bz, err := amino.MarshalBinary(llist)
-if err != nil { ... }
-
-// dump bz:
-// BINARY      HEX   NOTE
-// b0000 1110  0x0E  Field number (1) and type ([]List) for `MyLists`
-// b0000 0110  0x06  Type of element (List) of `MyLists`
-// b0000 0001  0x01  Length of list (uvarint(1))
-//                   `List` #0
-// b0000 0011  0x03  Type of element (Struct) of `MyLists[0]`
-// b0000 0010  0x02  Length of list (uvarint(2))
-//                   `Item` #0
-// b0000 1000  0x08  Field number (1) and type (Varint) for `MyLists[0][0].Number`
-// b0000 0010  0x02  Field value (varint(1))
-// b0000 0100  0x04  StructTerm for `Item #0`
-//                   `Item` #1
-// b0000 1000  0x08  Field number (1) and type (Varint) for `MyLists[0][1].Number`
-// b0000 0110  0x06  Field value (varint(3))
-// b0000 0100  0x04  StructTerm for `Item #1`
-// b0000 0100  0x04  StructTerm for `ListOfLists`
-```
-
-Unlike fields of a struct where nil (or in the future, perhaps zero/empty)
-pointers are denoted by the absence of its encoding (both field key and value),
-elements of a list are encoded without an index or key.  They are just encoded
-one after the other, with no need to prefix each element with a key, index
-number nor typ3 byte.
-
-To declare that the List may contain nil elements (e.g. the list "nillable"),
-the Lists's element typ4 byte should set the 4th least-significant bit (the
-"pointer bit") to 1.  If (and only if) the pointer bit is 1, each element is
-prefixed by a "nil byte" — a 0x00 byte to declare that a non-nil item follows,
-or a 0x01 byte to declare that the next item is nil.  Note that the byte values
-are flipped (typically 0 is used to denote nil).  This is to open the
-possibility of supporting sparse encoding of nil lists in the future by
-encoding the number of nil items to skip as a uvarint.
-
-Nil slices, interfaces, and pointers are all encoded as nil in a nillable list.
-
-NOTE: A nil interface in a nillable list is encoded with a single byte 0x01,
-while a nil interface in a non-nillable list is encoded with two bytes 0x0000.
-
-```go
-type Item struct {
-	Number int
-}
-
-type List struct {
-	MyList []*Item
-}
-
-list := List{
-	MyList: []*Item{
-		Item{1},		// Item #0
-		nil,			// Item #1
-	}
-}
-
-bz, err := amino.MarshalBinary(list)
-if err != nil { ... }
-
-// dump bz:
-// BINARY      HEX   NOTE
-// b0000 1110  0x0E  Field number (1) and type (List) for `MyList`
-// b0000 1011  0x03  Type of element (nillable Struct) of `MyList`
-// b0000 0010  0x02  Length of list (uvarint(2))
-// b0000 0000  0x00  Byte to denote non-nil element
-// b0000 1000  0x08  Field number (1) and type (Varint) for `MyList[0].Number`
-// b0000 0010  0x02  Field value (varint(1))
-// b0000 0100  0x04  StructTerm for `Item #0`
-// b0000 0001  0x01  Byte to denote nil element
-// b0000 0100  0x04  StructTerm for `List`
-```
-
-In theory, List encoding could be similar to struct encoding, e.g. by prefixing
-each element with a key that includes the index number. Instead, the Amino
-encoding specified here is more compact for dense lists because the index
-number is implied.
-
-In the future, for sparse lists we could support encoding of more than one nil
-items at a time, which could be even more compact.
-
-NOTE: The current spec makes the byte-length of the input more-or-less
-representative of the amount of memory it takes to decode the input. A 200-byte
-go-amino binary blob shouldn't decode into a 1GB object in memory, but it might
-with sparse encoding, so we should be aware of that.
-
-#### Interfaces
-
-An interface value is typically a `struct`, but it doesn't need to be.  The last
-3 bits of the written prefix bytes are the concrete type's typ3 bits, so a
-scanner can recursively traverse the fields and elements of the value.  A nil
-interface value is encoded by 2 zero bytes (0x0000) in place of the 4 prefix
-bytes.  As in Protobuf, a nil struct field value is not encoded at all.
 
 # Amino in other langauges
 

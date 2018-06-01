@@ -114,7 +114,7 @@ func EncodeFloat64(w io.Writer, f float64) (err error) {
 // Int64.
 // Milliseconds are used to ease compatibility with Javascript,
 // which does not support finer resolution.
-func EncodeTime(w io.Writer, t time.Time) (err error) {
+func EncodeTime(w io.Writer, t time.Time, isRoot bool) (err error) {
 	var s = t.Unix()
 	var ns = int32(t.Nanosecond()) // this int64 -> int32 is safe.
 
@@ -138,7 +138,10 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 		return
 	}
 
-	err = EncodeByte(w, byte(0x04)) // StructTerm
+	if !isRoot {
+		err = EncodeByte(w, byte(0x04)) // StructTerm
+	}
+
 	return
 }
 

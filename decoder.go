@@ -187,7 +187,7 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 // range [0, 999999999], or if seconds is too large, the behavior is
 // undefined.
 // TODO return error if behavior is undefined.
-func DecodeTime(bz []byte) (t time.Time, n int, err error) {
+func DecodeTime(bz []byte, isRoot bool) (t time.Time, n int, err error) {
 
 	// TODO: This is a temporary measure until we support MarshalAmino/UnmarshalAmino.
 	// Basically, MarshalAmino on time should return a struct.
@@ -241,14 +241,15 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 		err = fmt.Errorf("invalid time, nanoseconds out of bounds %v", nsec)
 		return
 	}
-	{ // Expect "StructTerm" Typ3 byte.
+	// If !isRoot, expect "StructTerm" Typ3 byte.
+	if !isRoot {
 		var typ, _n = Typ3(0x00), int(0)
 		typ, _n, err = decodeTyp3(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
 		if typ != Typ3_StructTerm {
-			err = errors.New(fmt.Sprintf("expected StructTerm Typ3 byte for time, got %v", typ))
+			err = errors.New(fmt.Sprintf("expected StructTerm Typ3 byte for non-root time, got %v", typ))
 			return
 		}
 	}

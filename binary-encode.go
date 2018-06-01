@@ -21,7 +21,7 @@ import (
 // The following contracts apply to all similar encode methods.
 // CONTRACT: rv is not a pointer
 // CONTRACT: rv is valid.
-func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, isRoot bool, fopts FieldOptions) (err error) {
 	if rv.Kind() == reflect.Ptr {
 		panic("should not happen")
 	}
@@ -29,8 +29,8 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		panic("should not happen")
 	}
 	if printLog {
-		spew.Printf("(E) encodeReflectBinary(info: %v, rv: %#v (%v), fopts: %v)\n",
-			info, rv.Interface(), rv.Type(), fopts)
+		spew.Printf("(E) encodeReflectBinary(info: %v, rv: %#v (%v), isRoot: %v, fopts: %v)\n",
+			info, rv.Interface(), rv.Type(), isRoot, fopts)
 		defer func() {
 			fmt.Printf("(E) -> err: %v\n", err)
 		}()
@@ -49,7 +49,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 			return
 		}
 		// Then, encode the repr instance.
-		err = cdc.encodeReflectBinary(w, rinfo, rrv, fopts)
+		err = cdc.encodeReflectBinary(w, rinfo, rrv, isRoot, fopts)
 		return
 	}
 
@@ -59,7 +59,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	// Complex
 
 	case reflect.Interface:
-		err = cdc.encodeReflectBinaryInterface(w, info, rv, fopts)
+		err = cdc.encodeReflectBinaryInterface(w, info, rv, isRoot, fopts)
 
 	case reflect.Array:
 		if info.Type.Elem().Kind() == reflect.Uint8 {
@@ -76,7 +76,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		}
 
 	case reflect.Struct:
-		err = cdc.encodeReflectBinaryStruct(w, info, rv, fopts)
+		err = cdc.encodeReflectBinaryStruct(w, info, rv, isRoot, fopts)
 
 	//----------------------------------------
 	// Signed
@@ -155,7 +155,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, isRoot bool, fopts FieldOptions) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryInterface")
 		defer func() {
@@ -214,7 +214,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 	}
 
 	// Write actual concrete value.
-	err = cdc.encodeReflectBinary(w, cinfo, crv, fopts)
+	err = cdc.encodeReflectBinary(w, cinfo, crv, isRoot, fopts)
 	return
 }
 
@@ -272,10 +272,10 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 	}
 	for i := 0; i < rv.Len(); i++ {
 		// Get dereferenced element value and info.
-		var erv, void = isVoid(rv.Index(i))
+		var erv, isDefault = isDefaultValue(rv.Index(i))
 		if typ.IsPointer() {
 			// We must write a byte to denote whether element is nil.
-			if void {
+			if isDefault {
 				// Value is nil or empty.
 				// e.g. nil pointer, nil/empty slice, pointer to nil/empty slice, pointer
 				// to nil pointer.  Write 0x01 for "is nil".
@@ -291,7 +291,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 		}
 		// Write the element value.
 		// It may be a nil interface, but not a nil pointer.
-		err = cdc.encodeReflectBinary(w, einfo, erv, fopts)
+		err = cdc.encodeReflectBinary(w, einfo, erv, false, fopts)
 		if err != nil {
 			return
 		}
@@ -318,7 +318,7 @@ func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv r
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, isRoot bool, fopts FieldOptions) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryBinaryStruct")
 		defer func() {
@@ -333,44 +333,44 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 
 	case timeType:
 		// Special case: time.Time
-		err = EncodeTime(w, rv.Interface().(time.Time))
+		err = EncodeTime(w, rv.Interface().(time.Time), isRoot)
 		return
 
 	default:
 		for _, field := range info.Fields {
-			// Get dereferenced field value and info.
-			var frv, void = isVoid(rv.Field(field.Index))
-			if void {
-				// Do not encode nil or empty fields.
-				continue
-			}
+			// Get type info for field.
 			var finfo *TypeInfo
 			finfo, err = cdc.getTypeInfo_wlock(field.Type)
 			if err != nil {
 				return
 			}
-			// TODO Maybe allow omitempty somehow.
+			// Get dereferenced field value and info.
+			var frv, isDefault = isDefaultValue(rv.Field(field.Index))
+			if isDefault {
+				// Do not encode default value fields.
+				continue
+			}
 			// Write field key (number and type).
 			err = encodeFieldNumberAndTyp3(w, field.BinFieldNum, field.BinTyp3)
 			if err != nil {
 				return
 			}
 			// Write field from rv.
-			err = cdc.encodeReflectBinary(w, finfo, frv, field.FieldOptions)
+			err = cdc.encodeReflectBinary(w, finfo, frv, false, field.FieldOptions)
 			if err != nil {
 				return
 			}
 		}
 
-		// Write "StructTerm".
-		err = EncodeByte(w, byte(Typ3_StructTerm))
-		if err != nil {
-			return
+		// Maybe write "StructTerm".
+		if !isRoot {
+			err = EncodeByte(w, byte(Typ3_StructTerm))
+			if err != nil {
+				return
+			}
 		}
 		return
-
 	}
-
 }
 
 //----------------------------------------

@@ -206,7 +206,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{})
+	err = cdc.encodeReflectBinary(buf, info, rv, true, FieldOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -323,9 +323,6 @@ func (cdc *Codec) MustUnmarshalBinary(bz []byte, ptr interface{}) {
 
 // UnmarshalBinaryBare will panic if ptr is a nil-pointer.
 func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
-	if len(bz) == 0 {
-		return errors.New("UnmarshalBinaryBare cannot decode empty bytes")
-	}
 
 	rv := reflect.ValueOf(ptr)
 	if rv.Kind() != reflect.Ptr {
@@ -349,7 +346,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		bz = bz[4:]
 	}
 	// Decode contents into rv.
-	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{})
+	n, err := cdc.decodeReflectBinary(bz, info, rv, true, FieldOptions{})
 	if err != nil {
 		return err
 	}
