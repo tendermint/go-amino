@@ -280,7 +280,6 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 			// Get dereferenced element value (or zero).
 			var erv, _, _ = derefPointersZero(rv.Index(i))
 			// Write the element value.
-			// It may be a nil interface, but not a nil pointer.
 			err = cdc.encodeReflectBinary(buf, einfo, erv, fopts)
 			if err != nil {
 				return
@@ -307,15 +306,10 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 				}
 			} else {
 				// Write the element value to a buffer.
-				// It may be a nil interface, but not a nil pointer.
-				buf := bytes.NewBuffer()
-				err = cdc.encodeReflectBinary(buf, einfo, erv, fopts)
+				err = cdc.encodeReflectBinary(buf, einfo, erv, fopts, false)
 				if err != nil {
 					return
 				}
-				// Write byte-length prefixed byteslice.
-				err = EncodeByteSlice(w, buf.Bytes())
-				return
 			}
 		}
 	}

@@ -189,13 +189,13 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = cdc.encodeReflectBinary(buf, info, rv, true, FieldOptions{})
+	err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{}, true)
 	if err != nil {
 		return nil, err
 	}
 	bz = buf.Bytes()
 
-	// If registered concrete, prepend prefix+typ3 bytes.
+	// If registered concrete, prepend prefix bytes.
 	if info.Registered {
 		typ := typeToTyp3(rt, FieldOptions{})
 		pb := info.Prefix.Bytes()
@@ -317,7 +317,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	if err != nil {
 		return err
 	}
-	// If registered concrete, consume and verify prefix+typ3 bytes.
+	// If registered concrete, consume and verify prefix bytes.
 	if info.Registered {
 		typ := typeToTyp3(rt, FieldOptions{})
 		pb := info.Prefix.Bytes()
@@ -329,7 +329,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		bz = bz[4:]
 	}
 	// Decode contents into rv.
-	n, err := cdc.decodeReflectBinary(bz, info, rv, true, FieldOptions{})
+	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{}, true)
 	if err != nil {
 		return err
 	}

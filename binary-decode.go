@@ -548,7 +548,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 		}
 		// Read elements from buf.
 		for {
-			erv := reflect.New(einfo.Type)
+			erv := reflect.New(ert).Elem()
 			_n, err = cdc.decodeReflectBinary(buf, einfo, erv, fopts, false)
 			if slide(&buf, nil, _n) && err != nil {
 				err = fmt.Errorf("error reading array contents: %v", err)
@@ -575,11 +575,12 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 				return
 			}
 			// Decode the next ByteLength bytes into erv.
-			erv, _n := reflect.New(einfo.Type), int(0)
+			erv, _n := reflect.New(ert).Elem(), int(0)
 			// Special case if next ByteLength bytes are 0x00, set nil.
 			if len(bz) > 0 && bz[0] == 0x00 {
 				slide(&bz, &n, 1)
 				erv.Set(reflect.Zero(erv.Type()))
+				srv = reflect.Append(srv, erv)
 				continue
 			}
 			// Normal case, read next non-nil element from bz.
@@ -608,13 +609,15 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	}
 	_n := 0 // nolint: ineffassign
 
-	// Read byte-length prefixed byteslice.
-	var buf, _n = []byte(nil), int(0)
-	buf, _n, err = DecodeByteSlice(bz)
-	if slide(&bz, &n, _n) && err != nil {
-		return
+	if !bare {
+		// Read byte-length prefixed byteslice.
+		var buf, _n = []byte(nil), int(0)
+		buf, _n, err = DecodeByteSlice(bz)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+		bz = buf.Bytes()
 	}
-	bz = buf.Bytes()
 
 	switch info.Type {
 
