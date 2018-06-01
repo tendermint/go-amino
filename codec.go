@@ -370,8 +370,11 @@ func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 				// encodeReflectBinaryByte[Slice/Array].
 				unpackedList = false
 			} else {
-				einfo := cdc.getTypeInfo_wlock(ftype.Elem())
-				typ3 := typeToTyp3(einfo.Type, fopts)
+				etype := ftype.Elem()
+				for etype.Kind() == reflect.Ptr {
+					etype = etype.Elem()
+				}
+				typ3 := typeToTyp3(etype, fopts)
 				if typ3 == Typ3_ByteLength {
 					unpackedList = true
 				}

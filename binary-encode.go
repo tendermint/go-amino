@@ -1,6 +1,7 @@
 package amino
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -65,14 +66,14 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		if info.Type.Elem().Kind() == reflect.Uint8 {
 			err = cdc.encodeReflectBinaryByteArray(w, info, rv, fopts)
 		} else {
-			err = cdc.encodeReflectBinaryList(w, info, rv, fopts)
+			err = cdc.encodeReflectBinaryList(w, info, rv, fopts, bare)
 		}
 
 	case reflect.Slice:
 		if info.Type.Elem().Kind() == reflect.Uint8 {
 			err = cdc.encodeReflectBinaryByteSlice(w, info, rv, fopts)
 		} else {
-			err = cdc.encodeReflectBinaryList(w, info, rv, fopts)
+			err = cdc.encodeReflectBinaryList(w, info, rv, fopts, bare)
 		}
 
 	case reflect.Struct:
@@ -193,7 +194,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 	}
 
 	// For Proto3 compatibility, encode interfaces as ByteLength.
-	buf := bytes.NewBuffer()
+	buf := bytes.NewBuffer(nil)
 
 	// Write disambiguation bytes if needed.
 	var needDisamb bool = false
@@ -252,7 +253,7 @@ func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv r
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryList")
 		defer func() {
@@ -268,31 +269,30 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 		return
 	}
 
+	// Proto3 byte-length prefixing incurs alloc cost on the encoder.
+	// Here we incur it for unpacked form for ease of dev.
+	buf := bytes.NewBuffer(nil)
+
 	// If elem is not already a ByteLength type, write in packed form.
 	// This is a Proto wart due to Proto backwards compatibility issues.
 	// Amino2 will probably migrate to use the List typ3.  Please?  :)
 	typ3 := typeToTyp3(einfo.Type, fopts)
 	if typ3 != Typ3_ByteLength {
 		// Write elems in packed form.
-		// JAE: Proto's byte-length prefixing incurs alloc cost on the encoder.
-		buf := bytes.NewBuffer()
 		for i := 0; i < rv.Len(); i++ {
 			// Get dereferenced element value (or zero).
 			var erv, _, _ = derefPointersZero(rv.Index(i))
 			// Write the element value.
-			err = cdc.encodeReflectBinary(buf, einfo, erv, fopts)
+			err = cdc.encodeReflectBinary(buf, einfo, erv, fopts, false)
 			if err != nil {
 				return
 			}
 		}
-		// Write byte-length prefixed byteslice.
-		err = EncodeByteSlice(w, buf.Bytes())
-		return
 	} else {
 		// Write elems in unpacked form.
 		for i := 0; i < rv.Len(); i++ {
-			// Written elements as repeated fields of the parent struct.
-			err = encodeFieldNumberAndTyp3(w, fopts.BinFieldNum, Typ3_ByteLength)
+			// Write elements as repeated fields of the parent struct.
+			err = encodeFieldNumberAndTyp3(buf, fopts.BinFieldNum, Typ3_ByteLength)
 			if err != nil {
 				return
 			}
@@ -300,13 +300,16 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 			var erv, isDefault = isDefaultValue(rv.Index(i))
 			if isDefault {
 				// Nothing to encode, so the length is 0.
-				err = EncodeByte(w, byte(0x00))
+				err = EncodeByte(buf, byte(0x00))
 				if err != nil {
 					return
 				}
 			} else {
-				// Write the element value to a buffer.
-				err = cdc.encodeReflectBinary(buf, einfo, erv, fopts, false)
+				// Write the element value as a ByteLength.
+				// In case of any inner lists in unpacked form.
+				efopts := fopts
+				efopts.BinFieldNum = 1
+				err = cdc.encodeReflectBinary(buf, einfo, erv, efopts, false)
 				if err != nil {
 					return
 				}
@@ -314,6 +317,13 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 		}
 	}
 
+	if bare {
+		// Write byteslice without byte-length prefixing.
+		_, err = w.Write(buf.Bytes())
+	} else {
+		// Write byte-length prefixed byteslice.
+		err = EncodeByteSlice(w, buf.Bytes())
+	}
 	return
 }
 
@@ -346,7 +356,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 
 	// Proto3 incurs a cost in writing non-root structs.
 	// Here we incur it for root structs as well for ease of dev.
-	buf := bytes.NewBuffer()
+	buf := bytes.NewBuffer(nil)
 
 	switch info.Type {
 
@@ -373,13 +383,13 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 			}
 			if field.UnpackedList {
 				// Write repeated field entries for each list item.
-				err = cdc.encodeReflectBinaryList(buf, finfo, frv, field.FieldOptions)
+				err = cdc.encodeReflectBinaryList(buf, finfo, frv, field.FieldOptions, true)
 				if err != nil {
 					return
 				}
 			} else {
 				// Write field key (number and type).
-				err = encodeFieldNumberAndTyp3(buf, field.BinFieldNum, field.BinTyp3)
+				err = encodeFieldNumberAndTyp3(buf, field.BinFieldNum, typeToTyp3(finfo.Type, field.FieldOptions))
 				if err != nil {
 					return
 				}
