@@ -1,6 +1,7 @@
 package amino
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -21,7 +22,7 @@ import (
 // The following contracts apply to all similar encode methods.
 // CONTRACT: rv is not a pointer
 // CONTRACT: rv is valid.
-func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, isRoot bool, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
 	if rv.Kind() == reflect.Ptr {
 		panic("should not happen")
 	}
@@ -29,8 +30,8 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		panic("should not happen")
 	}
 	if printLog {
-		spew.Printf("(E) encodeReflectBinary(info: %v, rv: %#v (%v), isRoot: %v, fopts: %v)\n",
-			info, rv.Interface(), rv.Type(), isRoot, fopts)
+		spew.Printf("(E) encodeReflectBinary(info: %v, rv: %#v (%v), fopts: %v)\n",
+			info, rv.Interface(), rv.Type(), fopts)
 		defer func() {
 			fmt.Printf("(E) -> err: %v\n", err)
 		}()
@@ -49,7 +50,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 			return
 		}
 		// Then, encode the repr instance.
-		err = cdc.encodeReflectBinary(w, rinfo, rrv, isRoot, fopts)
+		err = cdc.encodeReflectBinary(w, rinfo, rrv, fopts, bare)
 		return
 	}
 
@@ -59,24 +60,24 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	// Complex
 
 	case reflect.Interface:
-		err = cdc.encodeReflectBinaryInterface(w, info, rv, isRoot, fopts)
+		err = cdc.encodeReflectBinaryInterface(w, info, rv, fopts, bare)
 
 	case reflect.Array:
 		if info.Type.Elem().Kind() == reflect.Uint8 {
 			err = cdc.encodeReflectBinaryByteArray(w, info, rv, fopts)
 		} else {
-			err = cdc.encodeReflectBinaryList(w, info, rv, fopts)
+			err = cdc.encodeReflectBinaryList(w, info, rv, fopts, bare)
 		}
 
 	case reflect.Slice:
 		if info.Type.Elem().Kind() == reflect.Uint8 {
 			err = cdc.encodeReflectBinaryByteSlice(w, info, rv, fopts)
 		} else {
-			err = cdc.encodeReflectBinaryList(w, info, rv, fopts)
+			err = cdc.encodeReflectBinaryList(w, info, rv, fopts, bare)
 		}
 
 	case reflect.Struct:
-		err = cdc.encodeReflectBinaryStruct(w, info, rv, isRoot, fopts)
+		err = cdc.encodeReflectBinaryStruct(w, info, rv, fopts, bare)
 
 	//----------------------------------------
 	// Signed
@@ -155,7 +156,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, isRoot bool, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryInterface")
 		defer func() {
@@ -163,9 +164,9 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		}()
 	}
 
-	// Special case when rv is nil, write 0x0000.
+	// Special case when rv is nil, write 0x00 to denote an empty byteslice.
 	if rv.IsNil() {
-		_, err = w.Write([]byte{0x00, 0x00})
+		_, err = w.Write([]byte{0x00})
 		return
 	}
 
@@ -192,6 +193,9 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		return
 	}
 
+	// For Proto3 compatibility, encode interfaces as ByteLength.
+	buf := bytes.NewBuffer(nil)
+
 	// Write disambiguation bytes if needed.
 	var needDisamb bool = false
 	if iinfo.AlwaysDisambiguate {
@@ -200,21 +204,31 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		needDisamb = true
 	}
 	if needDisamb {
-		_, err = w.Write(append([]byte{0x00}, cinfo.Disamb[:]...))
+		_, err = buf.Write(append([]byte{0x00}, cinfo.Disamb[:]...))
 		if err != nil {
 			return
 		}
 	}
 
-	// Write prefix+typ3 bytes.
-	var typ = typeToTyp3(crt, fopts)
-	_, err = w.Write(cinfo.Prefix.WithTyp3(typ).Bytes())
+	// Write prefix bytes.
+	_, err = buf.Write(cinfo.Prefix.Bytes())
 	if err != nil {
 		return
 	}
 
 	// Write actual concrete value.
-	err = cdc.encodeReflectBinary(w, cinfo, crv, isRoot, fopts)
+	err = cdc.encodeReflectBinary(buf, cinfo, crv, fopts, true)
+	if err != nil {
+		return
+	}
+
+	if bare {
+		// Write byteslice without byte-length prefixing.
+		_, err = w.Write(buf.Bytes())
+	} else {
+		// Write byte-length prefixed byteslice.
+		err = EncodeByteSlice(w, buf.Bytes())
+	}
 	return
 }
 
@@ -239,7 +253,7 @@ func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv r
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryList")
 		defer func() {
@@ -250,51 +264,65 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 	if ert.Kind() == reflect.Uint8 {
 		panic("should not happen")
 	}
-
-	// Write element Typ4 byte.
-	var typ = typeToTyp4(ert, fopts)
-	err = EncodeByte(w, byte(typ))
+	einfo, err := cdc.getTypeInfo_wlock(ert)
 	if err != nil {
 		return
 	}
 
-	// Write length.
-	err = EncodeUvarint(w, uint64(rv.Len()))
-	if err != nil {
-		return
-	}
+	// Proto3 byte-length prefixing incurs alloc cost on the encoder.
+	// Here we incur it for unpacked form for ease of dev.
+	buf := bytes.NewBuffer(nil)
 
-	// Write elems.
-	var einfo *TypeInfo
-	einfo, err = cdc.getTypeInfo_wlock(ert)
-	if err != nil {
-		return
-	}
-	for i := 0; i < rv.Len(); i++ {
-		// Get dereferenced element value and info.
-		var erv, isDefault = isDefaultValue(rv.Index(i))
-		if typ.IsPointer() {
-			// We must write a byte to denote whether element is nil.
-			if isDefault {
-				// Value is nil or empty.
-				// e.g. nil pointer, nil/empty slice, pointer to nil/empty slice, pointer
-				// to nil pointer.  Write 0x01 for "is nil".
-				// NOTE: Do not use a pointer to nil/empty slices to denote
-				// existence or not.  We have to make a design choice here, and
-				// here we discourage using pointers to denote existence.
-				_, err = w.Write([]byte{0x01})
-				continue
-			} else {
-				// Value is not nil or empty.  Write 0x00 for "not nil/empty".
-				_, err = w.Write([]byte{0x00})
+	// If elem is not already a ByteLength type, write in packed form.
+	// This is a Proto wart due to Proto backwards compatibility issues.
+	// Amino2 will probably migrate to use the List typ3.  Please?  :)
+	typ3 := typeToTyp3(einfo.Type, fopts)
+	if typ3 != Typ3_ByteLength {
+		// Write elems in packed form.
+		for i := 0; i < rv.Len(); i++ {
+			// Get dereferenced element value (or zero).
+			var erv, _, _ = derefPointersZero(rv.Index(i))
+			// Write the element value.
+			err = cdc.encodeReflectBinary(buf, einfo, erv, fopts, false)
+			if err != nil {
+				return
 			}
 		}
-		// Write the element value.
-		// It may be a nil interface, but not a nil pointer.
-		err = cdc.encodeReflectBinary(w, einfo, erv, false, fopts)
-		if err != nil {
-			return
+	} else {
+		// Write elems in unpacked form.
+		for i := 0; i < rv.Len(); i++ {
+			// Write elements as repeated fields of the parent struct.
+			err = encodeFieldNumberAndTyp3(buf, fopts.BinFieldNum, Typ3_ByteLength)
+			if err != nil {
+				return
+			}
+			// Get dereferenced element value and info.
+			var erv, isDefault = isDefaultValue(rv.Index(i))
+			if isDefault {
+				// Nothing to encode, so the length is 0.
+				err = EncodeByte(buf, byte(0x00))
+				if err != nil {
+					return
+				}
+			} else {
+				// Write the element value as a ByteLength.
+				// In case of any inner lists in unpacked form.
+				efopts := fopts
+				efopts.BinFieldNum = 1
+				err = cdc.encodeReflectBinary(buf, einfo, erv, efopts, false)
+				if err != nil {
+					return
+				}
+			}
 		}
+	}
+
+	if bare {
+		// Write byteslice without byte-length prefixing.
+		_, err = w.Write(buf.Bytes())
+	} else {
+		// Write byte-length prefixed byteslice.
+		err = EncodeByteSlice(w, buf.Bytes())
 	}
 	return
 }
@@ -318,7 +346,7 @@ func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv r
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, isRoot bool, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryBinaryStruct")
 		defer func() {
@@ -326,15 +354,18 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 		}()
 	}
 
-	// The "Struct" Typ3 doesn't get written here.
-	// It's already implied, either by struct-key or list-element-type-byte.
+	// Proto3 incurs a cost in writing non-root structs.
+	// Here we incur it for root structs as well for ease of dev.
+	buf := bytes.NewBuffer(nil)
 
 	switch info.Type {
 
 	case timeType:
 		// Special case: time.Time
-		err = EncodeTime(w, rv.Interface().(time.Time), isRoot)
-		return
+		err = EncodeTime(buf, rv.Interface().(time.Time))
+		if err != nil {
+			return
+		}
 
 	default:
 		for _, field := range info.Fields {
@@ -350,27 +381,35 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 				// Do not encode default value fields.
 				continue
 			}
-			// Write field key (number and type).
-			err = encodeFieldNumberAndTyp3(w, field.BinFieldNum, field.BinTyp3)
-			if err != nil {
-				return
-			}
-			// Write field from rv.
-			err = cdc.encodeReflectBinary(w, finfo, frv, false, field.FieldOptions)
-			if err != nil {
-				return
+			if field.UnpackedList {
+				// Write repeated field entries for each list item.
+				err = cdc.encodeReflectBinaryList(buf, finfo, frv, field.FieldOptions, true)
+				if err != nil {
+					return
+				}
+			} else {
+				// Write field key (number and type).
+				err = encodeFieldNumberAndTyp3(buf, field.BinFieldNum, typeToTyp3(finfo.Type, field.FieldOptions))
+				if err != nil {
+					return
+				}
+				// Write field from rv.
+				err = cdc.encodeReflectBinary(buf, finfo, frv, field.FieldOptions, false)
+				if err != nil {
+					return
+				}
 			}
 		}
-
-		// Maybe write "StructTerm".
-		if !isRoot {
-			err = EncodeByte(w, byte(Typ3_StructTerm))
-			if err != nil {
-				return
-			}
-		}
-		return
 	}
+
+	if bare {
+		// Write byteslice without byte-length prefixing.
+		_, err = w.Write(buf.Bytes())
+	} else {
+		// Write byte-length prefixed byteslice.
+		err = EncodeByteSlice(w, buf.Bytes())
+	}
+	return
 }
 
 //----------------------------------------

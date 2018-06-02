@@ -160,7 +160,7 @@ func TestCodecBinaryRegister2(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.Nil(t, err, "correctly registered")
-	assert.Equal(t, []byte{0x0f, 0xe3, 0xda, 0xb8, 0x33, 0x04}, bz,
+	assert.Equal(t, []byte{0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
@@ -171,7 +171,7 @@ func TestCodecBinaryRegister3(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.Nil(t, err, "correctly registered")
-	assert.Equal(t, []byte{0x0f, 0xe3, 0xda, 0xb8, 0x33, 0x04}, bz,
+	assert.Equal(t, []byte{0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
@@ -184,7 +184,7 @@ func TestCodecBinaryRegister4(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.Nil(t, err, "correctly registered")
-	assert.Equal(t, []byte{0x0f, 0x00, 0x12, 0xb5, 0x86, 0xe3, 0xda, 0xb8, 0x33, 0x04}, bz,
+	assert.Equal(t, []byte{0xa, 0x8, 0x0, 0x12, 0xb5, 0x86, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
@@ -217,14 +217,14 @@ func TestCodecBinaryRegister7(t *testing.T) {
 	{ // test tests.Concrete1, no conflict.
 		bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 		assert.Nil(t, err, "correctly registered")
-		assert.Equal(t, []byte{0x0f, 0xe3, 0xda, 0xb8, 0x33, 0x04}, bz,
+		assert.Equal(t, []byte{0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
 			"disfix bytes did not match")
 	}
 
 	{ // test tests.Concrete2, no conflict
 		bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete2{}})
 		assert.Nil(t, err, "correctly registered")
-		assert.Equal(t, []byte{0x0f, 0x6a, 0x9, 0xca, 0x3, 0x04}, bz,
+		assert.Equal(t, []byte{0xa, 0x4, 0x6a, 0x9, 0xca, 0x1}, bz,
 			"disfix bytes did not match")
 	}
 }
@@ -244,7 +244,7 @@ func TestCodecBinaryRegister8(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x2, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
 		"Concrete3 incorrectly serialized")
 
 	var i1 tests.Interface1
@@ -290,7 +290,7 @@ func TestCodecBinaryRegister9(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x02, 0x04, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
 		"Concrete3 incorrectly serialized")
 
 	var i1 tests.Interface1
@@ -310,7 +310,7 @@ func TestCodecBinaryRegister10(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(c3a)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x02, 0x04, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
 		"Concrete3 incorrectly serialized")
 
 	var c3b tests.Concrete3

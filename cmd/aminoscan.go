@@ -225,12 +225,13 @@ func scanList(bz []byte, indent string) (s string, n int, err error) {
 	return
 }
 
+/*
 func scanInterface(bz []byte, indent string) (s string, n int, err error) {
 	db, hasDb, pb, typ, _, isNil, _n, err := amino.DecodeDisambPrefixBytes(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
-	pb3 := pb.WithTyp3(typ)
+	pb3 := pb
 	if isNil {
 		s = cmn.Magenta("0000")
 	} else if hasDb {
@@ -253,6 +254,7 @@ func scanInterface(bz []byte, indent string) (s string, n int, err error) {
 	}
 	return
 }
+*/
 
 //----------------------------------------
 // Misc.

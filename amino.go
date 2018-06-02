@@ -71,10 +71,9 @@ func MarshalJSONIndent(o interface{}, prefix, indent string) ([]byte, error) {
 }
 
 //----------------------------------------
-// Typ3 and Typ4
+// Typ3
 
 type Typ3 uint8
-type Typ4 uint8 // Typ3 | 0x08 (pointer bit)
 
 const (
 	// Typ3 types
@@ -86,9 +85,6 @@ const (
 	Typ3_4Byte      = Typ3(5)
 	Typ3_List       = Typ3(6)
 	Typ3_Interface  = Typ3(7)
-
-	// Typ4 bit
-	Typ4_Pointer = Typ4(0x08)
 )
 
 func (typ Typ3) String() string {
@@ -111,19 +107,6 @@ func (typ Typ3) String() string {
 		return "Interface"
 	default:
 		return fmt.Sprintf("<Invalid Typ3 %X>", byte(typ))
-	}
-}
-
-func (typ Typ4) Typ3() Typ3      { return Typ3(typ & 0x07) }
-func (typ Typ4) IsPointer() bool { return (typ & 0x08) > 0 }
-func (typ Typ4) String() string {
-	if typ&0xF0 != 0 {
-		return fmt.Sprintf("<Invalid Typ4 %X>", byte(typ))
-	}
-	if typ&0x08 != 0 {
-		return "*" + Typ3(typ&0x07).String()
-	} else {
-		return Typ3(typ).String()
 	}
 }
 
@@ -206,16 +189,15 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = cdc.encodeReflectBinary(buf, info, rv, true, FieldOptions{})
+	err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{}, true)
 	if err != nil {
 		return nil, err
 	}
 	bz = buf.Bytes()
 
-	// If registered concrete, prepend prefix+typ3 bytes.
+	// If registered concrete, prepend prefix bytes.
 	if info.Registered {
-		typ := typeToTyp3(rt, FieldOptions{})
-		pb := info.Prefix.WithTyp3(typ).Bytes()
+		pb := info.Prefix.Bytes()
 		bz = append(pb, bz...)
 	}
 
@@ -334,10 +316,9 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	if err != nil {
 		return err
 	}
-	// If registered concrete, consume and verify prefix+typ3 bytes.
+	// If registered concrete, consume and verify prefix bytes.
 	if info.Registered {
-		typ := typeToTyp3(rt, FieldOptions{})
-		pb := info.Prefix.WithTyp3(typ).Bytes()
+		pb := info.Prefix.Bytes()
 		if len(bz) <= 4 {
 			return fmt.Errorf("UnmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X", pb, bz)
 		} else if !bytes.Equal(bz[:4], pb) {
@@ -346,9 +327,9 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		bz = bz[4:]
 	}
 	// Decode contents into rv.
-	n, err := cdc.decodeReflectBinary(bz, info, rv, true, FieldOptions{})
+	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{}, true)
 	if err != nil {
-		return err
+		return fmt.Errorf("Unmarshal failed after %v bytes: %v", n, err)
 	}
 	if n != len(bz) {
 		return fmt.Errorf("Unmarshal didn't read all bytes. Expected to read %v, only read %v", len(bz), n)
