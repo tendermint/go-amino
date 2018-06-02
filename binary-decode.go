@@ -6,13 +6,14 @@ import (
 	"reflect"
 	"time"
 
+	"encoding/binary"
 	"github.com/davecgh/go-spew/spew"
 )
 
 //----------------------------------------
 // cdc.decodeReflectBinary
 
-// This is the main entrypoint for decoding all types from binary form.  This
+// This is the main entrypoint for decoding all types from binary form. This
 // function calls decodeReflectBinary*, and generally those functions should
 // only call this one, for the prefix bytes are consumed here when present.
 // CONTRACT: rv.CanAddr() is true.
@@ -653,6 +654,9 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	}
 	_n := 0 // nolint: ineffassign
 
+  // NOTE: The "Struct" typ3 doesn't get read here.
+	// It's already implied, either by struct-key or list-element-type-byte.
+
 	if !bare {
 		// Read byte-length prefixed byteslice.
 		var buf, _n = []byte(nil), int(0)
@@ -677,6 +681,8 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 		rv.Set(reflect.ValueOf(t))
 
 	default:
+		// Track the last seen field number.
+		var lastFieldNum uint32
 		// Read each field.
 		for _, field := range info.Fields {
 
@@ -711,6 +717,12 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 					continue
 					// Do not slide, we will read it again.
 				}
+        if fieldNum <= lastFieldNum {
+				  err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fieldNum: %v",
+					fieldNum, lastFieldNum)
+				  return
+			  }
+			  lastFieldNum = fieldNum
 				if slide(&bz, &n, _n) && err != nil {
 					return
 				}
@@ -736,15 +748,85 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 				}
 			}
 		}
-	}
 
-	// Earlier, we set bz to the byteslice read from buf.
-	// Ensure that all of bz was consumed.
-	// XXX: After merge with latest develop, I think this check goes away.
-	if len(bz) > 0 {
-		err = errors.New("bytes left over after reading struct contents")
+		var _n, fnum = 0, uint32(0)
+		var typ3 Typ3
+		// Consume any remaining fields.
+		for {
+			fnum, typ3, _n, err = decodeFieldNumberAndTyp3(bz)
+			if typ3 == Typ3_StructTerm {
+				break
+			}
+			if slide(&bz, &n, _n) && err != nil {
+				return
+			}
+			if fnum <= lastFieldNum {
+				err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fieldNum: %v",
+					fnum, lastFieldNum)
+				return
+			}
+			lastFieldNum = fnum
+
+			_, _n, err = consumeAny(typ3, bz)
+			if slide(&bz, &n, _n) && err != nil {
+				return
+			}
+		}
+	}
+	return
+}
+
+//----------------------------------------
+// consume* for skipping struct fields
+
+// Read everything without doing anything with it. Report errors if they occur.
+func consumeAny(typ3 Typ3, bz []byte) (n int, err error) {
+	var _n int
+	switch typ3 {
+	case Typ3_Varint:
+		_, _n, err = DecodeVarint(bz)
+	case Typ3_8Byte:
+		_, _n, err = DecodeInt64(bz)
+	case Typ3_ByteLength:
+		_, _n, err = DecodeUvarint(bz)
+	case Typ3_4Byte:
+		_, _n, err = DecodeInt32(bz)
+	default:
+		panic("should not happen")
+	}
+	if err != nil {
+		// do not slide
 		return
 	}
+	slide(&bz, &n, _n)
+	return
+}
+
+func consumeStruct(bz []byte) (n int, err error) {
+	var _n, typ = int(0), Typ3(0x00)
+	for {
+		typ, _n, err = consumeFieldKey(bz)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+		var term bool
+		_n, err = consumeAny(typ, bz)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+	}
+	return
+}
+
+func consumeFieldKey(bz []byte) (typ Typ3, n int, err error) {
+	var u64 uint64
+	u64, n = binary.Uvarint(bz)
+	if n < 0 {
+		n = 0
+		err = errors.New("error decoding uvarint")
+		return
+	}
+	typ = Typ3(u64 & 0x07)
 	return
 }
 
@@ -795,7 +877,7 @@ func decodeFieldNumberAndTyp3(bz []byte) (num uint32, typ Typ3, n int, err error
 	var num64 uint64
 	num64 = value64 >> 3
 	if num64 > (1<<29 - 1) {
-		err = errors.New(fmt.Sprintf("invalid field num %v", num64))
+		err = fmt.Errorf("invalid field num %v", num64)
 		return
 	}
 	num = uint32(num64)
@@ -806,7 +888,7 @@ func decodeFieldNumberAndTyp3(bz []byte) (num uint32, typ Typ3, n int, err error
 func checkTyp3(rt reflect.Type, typ Typ3, fopts FieldOptions) (err error) {
 	typWanted := typeToTyp3(rt, fopts)
 	if typ != typWanted {
-		err = fmt.Errorf("Typ3 mismatch. Expected %v, got %v", typWanted, typ)
+		err = fmt.Errorf("unexpected Typ3. want %v, got %v", typWanted, typ)
 	}
 	return
 }
@@ -818,7 +900,7 @@ func decodeTyp3(bz []byte) (typ Typ3, n int, err error) {
 		return
 	}
 	if bz[0]&0xF8 != 0 {
-		err = fmt.Errorf("Invalid typ3 byte")
+		err = fmt.Errorf("invalid typ3 byte: %v", Typ3(bz[0]).String())
 		return
 	}
 	typ = Typ3(bz[0])
