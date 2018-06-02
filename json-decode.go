@@ -29,41 +29,6 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		}()
 	}
 
-	// Read disfix bytes if registered.
-	if info.Registered {
-		// Strip the wrapper after checking it.
-		var name string
-		name, bz, err = decodeInterfaceJSON(bz)
-		if err != nil {
-			return
-		}
-		if info.Name != name {
-			err = fmt.Errorf("expected type name %s but got %s",
-				info.Name, name)
-			return
-		}
-	}
-
-	err = cdc._decodeReflectJSON(bz, info, rv, opts)
-	return
-}
-
-// CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-	if !rv.CanAddr() {
-		panic("rv not addressable")
-	}
-	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
-		panic("should not happen")
-	}
-	if printLog {
-		spew.Printf("(_) _decodeReflectJSON(bz: %s, info: %v, rv: %#v (%v), opts: %v)\n",
-			bz, info, rv.Interface(), rv.Type(), opts)
-		defer func() {
-			fmt.Printf("(_) -> err: %v\n", err)
-		}()
-	}
-
 	// Special case for null for either interface, pointer, slice
 	// NOTE: This doesn't match the binary implementation completely.
 	if nullBytes(bz) {
@@ -98,7 +63,7 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 		if err != nil {
 			return
 		}
-		err = cdc._decodeReflectJSON(bz, rinfo, rrv, opts)
+		err = cdc.decodeReflectJSON(bz, rinfo, rrv, opts)
 		if err != nil {
 			return
 		}
@@ -203,16 +168,15 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv refl
 		rv.Set(iinfo.ZeroValue)
 	}
 
-	// Consume disambiguation / prefix info.
+	// Consume type wrapper info.
 	name, bz, err := decodeInterfaceJSON(bz)
 	if err != nil {
 		return
 	}
-
 	// XXX: Check name against interface to make sure that it actually
 	// matches, and return an error if it doesn't.
 
-	// NOTE: Unlike decodeReflectBinaryInterface, we already dealt with nil in _decodeReflectJSON.
+	// NOTE: Unlike decodeReflectBinaryInterface, we already dealt with nil in decodeReflectJSON.
 	// NOTE: We also "consumed" the interface wrapper by replacing `bz` above.
 
 	// Get concrete type info.
@@ -227,7 +191,7 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv refl
 	var crv, irvSet = constructConcreteType(cinfo)
 
 	// Decode into the concrete type.
-	err = cdc._decodeReflectJSON(bz, cinfo, crv, opts)
+	err = cdc.decodeReflectJSON(bz, cinfo, crv, opts)
 	if err != nil {
 		rv.Set(irvSet) // Helps with debugging
 		return

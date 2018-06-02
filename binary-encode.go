@@ -36,35 +36,6 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		}()
 	}
 
-	// Maybe write prefix+typ3 bytes.
-	if info.Registered {
-		var typ = typeToTyp4(info.Type, opts).Typ3()
-		_, err = w.Write(info.Prefix.WithTyp3(typ).Bytes())
-		if err != nil {
-			return
-		}
-	}
-
-	err = cdc._encodeReflectBinary(w, info, rv, opts)
-	return
-}
-
-// CONTRACT: any disamb/prefix+typ3 bytes have already been written.
-func (cdc *Codec) _encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-	if rv.Kind() == reflect.Ptr {
-		panic("should not happen")
-	}
-	if !rv.IsValid() {
-		panic("should not happen")
-	}
-	if printLog {
-		spew.Printf("(_) _encodeReflectBinary(info: %v, rv: %#v (%v), opts: %v)\n",
-			info, rv.Interface(), rv.Type(), opts)
-		defer func() {
-			fmt.Printf("(_) -> err: %v\n", err)
-		}()
-	}
-
 	// Handle override if rv implements json.Marshaler.
 	if info.IsAminoMarshaler {
 		// First, encode rv into repr instance.
@@ -78,7 +49,7 @@ func (cdc *Codec) _encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.V
 			return
 		}
 		// Then, encode the repr instance.
-		err = cdc._encodeReflectBinary(w, rinfo, rrv, opts)
+		err = cdc.encodeReflectBinary(w, rinfo, rrv, opts)
 		return
 	}
 
@@ -243,7 +214,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 	}
 
 	// Write actual concrete value.
-	err = cdc._encodeReflectBinary(w, cinfo, crv, opts)
+	err = cdc.encodeReflectBinary(w, cinfo, crv, opts)
 	return
 }
 
