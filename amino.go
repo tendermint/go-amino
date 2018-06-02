@@ -198,7 +198,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	// If registered concrete, prepend prefix bytes.
 	if info.Registered {
 		pb := info.Prefix.Bytes()
-		bz = append(pb, bz...)
+    bz = append(pb, bz...)
 	}
 
 	return bz, nil
@@ -328,7 +328,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	}
 	// Decode contents into rv.
 	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{}, true)
-	if err != nil {
+  if err != nil {
 		return fmt.Errorf("Unmarshal failed after %v bytes: %v", n, err)
 	}
 	if n != len(bz) {
