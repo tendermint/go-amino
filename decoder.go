@@ -241,17 +241,6 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 		err = fmt.Errorf("invalid time, nanoseconds out of bounds %v", nsec)
 		return
 	}
-	{ // Expect "StructTerm" Typ3 byte.
-		var typ, _n = Typ3(0x00), int(0)
-		typ, _n, err = decodeTyp3(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		if typ != Typ3_StructTerm {
-			err = errors.New(fmt.Sprintf("expected StructTerm Typ3 byte for time, got %v", typ))
-			return
-		}
-	}
 	// Construct time.
 	t = time.Unix(sec, int64(nsec))
 	// Strip timezone and monotonic for deep equality.

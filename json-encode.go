@@ -18,13 +18,13 @@ import (
 // only call this one, for the disfix wrapper is only written here.
 // NOTE: Unlike encodeReflectBinary, rv may be a pointer.
 // CONTRACT: rv is valid.
-func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.IsValid() {
 		panic("should not happen")
 	}
 	if printLog {
-		spew.Printf("(E) encodeReflectJSON(info: %v, rv: %#v (%v), opts: %v)\n",
-			info, rv.Interface(), rv.Type(), opts)
+		spew.Printf("(E) encodeReflectJSON(info: %v, rv: %#v (%v), fopts: %v)\n",
+			info, rv.Interface(), rv.Type(), fopts)
 		defer func() {
 			fmt.Printf("(E) -> err: %v\n", err)
 		}()
@@ -64,7 +64,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 			return
 		}
 		// Then, encode the repr instance.
-		err = cdc.encodeReflectJSON(w, rinfo, rrv, opts)
+		err = cdc.encodeReflectJSON(w, rinfo, rrv, fopts)
 		return
 	}
 
@@ -74,16 +74,16 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	// Complex
 
 	case reflect.Interface:
-		return cdc.encodeReflectJSONInterface(w, info, rv, opts)
+		return cdc.encodeReflectJSONInterface(w, info, rv, fopts)
 
 	case reflect.Array, reflect.Slice:
-		return cdc.encodeReflectJSONList(w, info, rv, opts)
+		return cdc.encodeReflectJSONList(w, info, rv, fopts)
 
 	case reflect.Struct:
-		return cdc.encodeReflectJSONStruct(w, info, rv, opts)
+		return cdc.encodeReflectJSONStruct(w, info, rv, fopts)
 
 	case reflect.Map:
-		return cdc.encodeReflectJSONMap(w, info, rv, opts)
+		return cdc.encodeReflectJSONMap(w, info, rv, fopts)
 
 	//----------------------------------------
 	// Signed, Unsigned
@@ -96,7 +96,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	// Misc
 
 	case reflect.Float64, reflect.Float32:
-		if !opts.Unsafe {
+		if !fopts.Unsafe {
 			return errors.New("Amino.JSON float* support requires `amino:\"unsafe\"`.")
 		}
 		fallthrough
@@ -111,7 +111,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	}
 }
 
-func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectJSONInterface")
 		defer func() {
@@ -167,11 +167,11 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 	// Currently, go-amino JSON *always* writes disfix bytes for
 	// all registered concrete types.
 
-	err = cdc.encodeReflectJSON(w, cinfo, crv, opts)
+	err = cdc.encodeReflectJSON(w, cinfo, crv, fopts)
 	return
 }
 
-func (cdc *Codec) encodeReflectJSONList(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectJSONList(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectJSONList")
 		defer func() {
@@ -229,7 +229,7 @@ func (cdc *Codec) encodeReflectJSONList(w io.Writer, info *TypeInfo, rv reflect.
 			if isNil {
 				err = writeStr(w, `null`)
 			} else {
-				err = cdc.encodeReflectJSON(w, einfo, erv, opts)
+				err = cdc.encodeReflectJSON(w, einfo, erv, fopts)
 			}
 			if err != nil {
 				return
@@ -319,7 +319,7 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 }
 
 // TODO: TEST
-func (cdc *Codec) encodeReflectJSONMap(w io.Writer, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectJSONMap(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectJSONMap")
 		defer func() {
@@ -377,7 +377,7 @@ func (cdc *Codec) encodeReflectJSONMap(w io.Writer, info *TypeInfo, rv reflect.V
 			if err != nil {
 				return
 			}
-			err = cdc.encodeReflectJSON(w, vinfo, vrv, opts) // pass through opts
+			err = cdc.encodeReflectJSON(w, vinfo, vrv, fopts) // pass through fopts
 		}
 		if err != nil {
 			return

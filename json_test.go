@@ -24,7 +24,6 @@ func registerTransports(cdc *amino.Codec) {
 }
 
 func TestMarshalJSON(t *testing.T) {
-	t.Parallel()
 	var cdc = amino.NewCodec()
 	registerTransports(cdc)
 	cases := []struct {
@@ -238,7 +237,6 @@ func TestUnmarshalFunc(t *testing.T) {
 }
 
 func TestUnmarshalJSON(t *testing.T) {
-	t.Parallel()
 	var cdc = amino.NewCodec()
 	registerTransports(cdc)
 	cases := []struct {
@@ -567,7 +565,6 @@ func TestMarshalJSONMap(t *testing.T) {
 }
 
 func TestMarshalJSONIndent(t *testing.T) {
-	t.Parallel()
 	var cdc = amino.NewCodec()
 	registerTransports(cdc)
 	obj := Car("Tesla")

@@ -18,13 +18,13 @@ func main() {
 	}
 	bz := hexDecode(os.Args[1]) // Read input hex bytes.
 	fmt.Println(cmn.Yellow("## Root Struct (assumed)"))
-	s, n, err := scanStruct(bz, "")         // Assume that it's  struct.
+	s, n, err := scanStruct(bz, "", true)   // Assume that it's  struct.
 	s += cmn.Red(fmt.Sprintf("%X", bz[n:])) // Bytes remaining are red.
-	fmt.Println(cmn.Yellow("  ^-- terminates Root"))
+	fmt.Println(cmn.Yellow("## Root Struct END"))
 	fmt.Println(s, n, err) // Print color-encoded bytes s.
 }
 
-func scanAny(typ amino.Typ3, bz []byte, indent string) (term bool, s string, n int, err error) {
+func scanAny(typ amino.Typ3, bz []byte, indent string) (s string, n int, err error) {
 	switch typ {
 	case amino.Typ3_Varint:
 		s, n, err = scanVarint(bz, indent)
@@ -33,9 +33,7 @@ func scanAny(typ amino.Typ3, bz []byte, indent string) (term bool, s string, n i
 	case amino.Typ3_ByteLength:
 		s, n, err = scanByteLength(bz, indent)
 	case amino.Typ3_Struct:
-		s, n, err = scanStruct(bz, indent)
-	case amino.Typ3_StructTerm:
-		term = true
+		s, n, err = scanStruct(bz, indent, false)
 	case amino.Typ3_4Byte:
 		s, n, err = scan4Byte(bz, indent)
 	case amino.Typ3_List:
@@ -50,7 +48,7 @@ func scanAny(typ amino.Typ3, bz []byte, indent string) (term bool, s string, n i
 
 func scanVarint(bz []byte, indent string) (s string, n int, err error) {
 	if len(bz) == 0 {
-		err = fmt.Errorf("EOF reading (U)Varint")
+		err = fmt.Errorf("EOF while reading (U)Varint")
 	}
 	// First try Varint.
 	var i64, okI64 = int64(0), true
@@ -86,7 +84,7 @@ func scanVarint(bz []byte, indent string) (s string, n int, err error) {
 
 func scan8Byte(bz []byte, indent string) (s string, n int, err error) {
 	if len(bz) < 8 {
-		err = errors.New("EOF reading 8byte field.")
+		err = errors.New("EOF while reading 8byte field.")
 		return
 	}
 	n = 8
@@ -106,7 +104,7 @@ func scanByteLength(bz []byte, indent string) (s string, n int, err error) {
 	}
 	length = int(l64)
 	if length >= len(bz) {
-		err = errors.New("EOF reading byte-length delimited.")
+		err = errors.New("EOF while reading byte-length delimited.")
 		return
 	}
 	s = cmn.Cyan(fmt.Sprintf("%X", bz[:_n]))
@@ -118,21 +116,25 @@ func scanByteLength(bz []byte, indent string) (s string, n int, err error) {
 	return
 }
 
-func scanStruct(bz []byte, indent string) (s string, n int, err error) {
+func scanStruct(bz []byte, indent string, isRoot bool) (s string, n int, err error) {
 	var _s, _n, typ = string(""), int(0), amino.Typ3(0x00)
-FOR_LOOP:
 	for {
+		if isRoot && len(bz) == 0 {
+			return
+		}
 		_s, typ, _n, err = scanFieldKey(bz, indent+"  ")
 		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
 			return
 		}
-		var term bool
-		term, _s, _n, err = scanAny(typ, bz, indent+"  ")
-		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
+		if typ == amino.Typ3_StructTerm {
+			if isRoot {
+				err = errors.New("unexpected struct terminator for root object")
+			}
 			return
 		}
-		if term {
-			break FOR_LOOP
+		_s, _n, err = scanAny(typ, bz, indent+"  ")
+		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
+			return
 		}
 	}
 	return
@@ -155,7 +157,7 @@ func scanFieldKey(bz []byte, indent string) (s string, typ amino.Typ3, n int, er
 
 func scan4Byte(bz []byte, indent string) (s string, n int, err error) {
 	if len(bz) < 4 {
-		err = errors.New("EOF reading 4byte field.")
+		err = errors.New("EOF while reading 4byte field.")
 		return
 	}
 	n = 4
@@ -167,7 +169,7 @@ func scan4Byte(bz []byte, indent string) (s string, n int, err error) {
 func scanList(bz []byte, indent string) (s string, n int, err error) {
 	// Read element Typ4.
 	if len(bz) < 1 {
-		err = errors.New("EOF reading list element typ4.")
+		err = errors.New("EOF while reading list element typ4.")
 		return
 	}
 	var typ = amino.Typ4(bz[0])
@@ -196,7 +198,7 @@ func scanList(bz []byte, indent string) (s string, n int, err error) {
 		// Maybe read nil byte.
 		if typ&0x08 != 0 {
 			if len(bz) == 0 {
-				err = errors.New("EOF reading list nil byte")
+				err = errors.New("EOF while reading list nil byte")
 				return
 			}
 			var nb = bz[0]
@@ -215,7 +217,7 @@ func scanList(bz []byte, indent string) (s string, n int, err error) {
 			}
 		}
 		// Read element.
-		_, _s, _n, err = scanAny(typ.Typ3(), bz, indent+"  ")
+		_s, _n, err = scanAny(typ.Typ3(), bz, indent+"  ")
 		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
 			return
 		}
@@ -223,12 +225,13 @@ func scanList(bz []byte, indent string) (s string, n int, err error) {
 	return
 }
 
+/*
 func scanInterface(bz []byte, indent string) (s string, n int, err error) {
 	db, hasDb, pb, typ, _, isNil, _n, err := amino.DecodeDisambPrefixBytes(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
-	pb3 := pb.WithTyp3(typ)
+	pb3 := pb
 	if isNil {
 		s = cmn.Magenta("0000")
 	} else if hasDb {
@@ -245,12 +248,13 @@ func scanInterface(bz []byte, indent string) (s string, n int, err error) {
 		fmt.Printf("%s%s (prefix: %X, typ: %v)\n",
 			indent, s, pb.Bytes(), typ)
 	}
-	_, _s, _n, err := scanAny(typ, bz, indent)
+	_s, _n, err := scanAny(typ, bz, indent)
 	if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
 		return
 	}
 	return
 }
+*/
 
 //----------------------------------------
 // Misc.

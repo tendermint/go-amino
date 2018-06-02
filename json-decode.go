@@ -14,7 +14,7 @@ import (
 // cdc.decodeReflectJSON
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -22,8 +22,8 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		panic("should not happen")
 	}
 	if printLog {
-		spew.Printf("(D) decodeReflectJSON(bz: %s, info: %v, rv: %#v (%v), opts: %v)\n",
-			bz, info, rv.Interface(), rv.Type(), opts)
+		spew.Printf("(D) decodeReflectJSON(bz: %s, info: %v, rv: %#v (%v), fopts: %v)\n",
+			bz, info, rv.Interface(), rv.Type(), fopts)
 		defer func() {
 			fmt.Printf("(D) -> err: %v\n", err)
 		}()
@@ -63,7 +63,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		if err != nil {
 			return
 		}
-		err = cdc.decodeReflectJSON(bz, rinfo, rrv, opts)
+		err = cdc.decodeReflectJSON(bz, rinfo, rrv, fopts)
 		if err != nil {
 			return
 		}
@@ -83,37 +83,37 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	// Complex
 
 	case reflect.Interface:
-		err = cdc.decodeReflectJSONInterface(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONInterface(bz, info, rv, fopts)
 
 	case reflect.Array:
-		err = cdc.decodeReflectJSONArray(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONArray(bz, info, rv, fopts)
 
 	case reflect.Slice:
-		err = cdc.decodeReflectJSONSlice(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONSlice(bz, info, rv, fopts)
 
 	case reflect.Struct:
-		err = cdc.decodeReflectJSONStruct(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONStruct(bz, info, rv, fopts)
 
 	case reflect.Map:
-		err = cdc.decodeReflectJSONMap(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONMap(bz, info, rv, fopts)
 
 	//----------------------------------------
 	// Signed, Unsigned
 
 	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int,
 		reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
-		err = invokeStdlibJSONUnmarshal(bz, rv, opts)
+		err = invokeStdlibJSONUnmarshal(bz, rv, fopts)
 
 	//----------------------------------------
 	// Misc
 
 	case reflect.Float32, reflect.Float64:
-		if !opts.Unsafe {
+		if !fopts.Unsafe {
 			return errors.New("Amino.JSON float* support requires `amino:\"unsafe\"`.")
 		}
 		fallthrough
 	case reflect.Bool, reflect.String:
-		err = invokeStdlibJSONUnmarshal(bz, rv, opts)
+		err = invokeStdlibJSONUnmarshal(bz, rv, fopts)
 
 	//----------------------------------------
 	// Default
@@ -125,7 +125,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	return
 }
 
-func invokeStdlibJSONUnmarshal(bz []byte, rv reflect.Value, opts FieldOptions) error {
+func invokeStdlibJSONUnmarshal(bz []byte, rv reflect.Value, fopts FieldOptions) error {
 	if !rv.CanAddr() && rv.Kind() != reflect.Ptr {
 		panic("rv not addressable nor pointer")
 	}
@@ -143,7 +143,7 @@ func invokeStdlibJSONUnmarshal(bz []byte, rv reflect.Value, opts FieldOptions) e
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -191,7 +191,7 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv refl
 	var crv, irvSet = constructConcreteType(cinfo)
 
 	// Decode into the concrete type.
-	err = cdc.decodeReflectJSON(bz, cinfo, crv, opts)
+	err = cdc.decodeReflectJSON(bz, cinfo, crv, fopts)
 	if err != nil {
 		rv.Set(irvSet) // Helps with debugging
 		return
@@ -205,7 +205,7 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv refl
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONArray(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONArray(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -254,7 +254,7 @@ func (cdc *Codec) decodeReflectJSONArray(bz []byte, info *TypeInfo, rv reflect.V
 		for i := 0; i < length; i++ {
 			erv := rv.Index(i)
 			ebz := rawSlice[i]
-			err = cdc.decodeReflectJSON(ebz, einfo, erv, opts)
+			err = cdc.decodeReflectJSON(ebz, einfo, erv, fopts)
 			if err != nil {
 				return
 			}
@@ -264,7 +264,7 @@ func (cdc *Codec) decodeReflectJSONArray(bz []byte, info *TypeInfo, rv reflect.V
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -320,7 +320,7 @@ func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.V
 		for i := 0; i < length; i++ {
 			erv := srv.Index(i)
 			ebz := rawSlice[i]
-			err = cdc.decodeReflectJSON(ebz, einfo, erv, opts)
+			err = cdc.decodeReflectJSON(ebz, einfo, erv, fopts)
 			if err != nil {
 				return
 			}
@@ -333,7 +333,7 @@ func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.V
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -380,7 +380,7 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 		}
 
 		// Decode into field rv.
-		err = cdc.decodeReflectJSON(valueBytes, finfo, frv, opts)
+		err = cdc.decodeReflectJSON(valueBytes, finfo, frv, fopts)
 		if err != nil {
 			return
 		}
@@ -390,7 +390,7 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONMap(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONMap(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -428,7 +428,7 @@ func (cdc *Codec) decodeReflectJSONMap(bz []byte, info *TypeInfo, rv reflect.Val
 		vrv := reflect.New(mrv.Type().Elem()).Elem()
 
 		// Decode valueBytes into vrv.
-		err = cdc.decodeReflectJSON(valueBytes, vinfo, vrv, opts)
+		err = cdc.decodeReflectJSON(valueBytes, vinfo, vrv, fopts)
 		if err != nil {
 			return
 		}
