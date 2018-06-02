@@ -749,27 +749,26 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 			}
 		}
 
-		var _n, fnum = 0, uint32(0)
-		var typ3 Typ3
-		// Consume any remaining fields.
-		for {
-			fnum, typ3, _n, err = decodeFieldNumberAndTyp3(bz)
-			if typ3 == Typ3_StructTerm {
-				break
-			}
-			if slide(&bz, &n, _n) && err != nil {
-				return
-			}
-			if fnum <= lastFieldNum {
-				err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fieldNum: %v",
-					fnum, lastFieldNum)
-				return
-			}
-			lastFieldNum = fnum
+		if len(bz) > 0 {
+			// Consume any remaining fields.
+			var _n, fnum = 0, uint32(0)
+			var typ3 Typ3
+			for {
+				fnum, typ3, _n, err = decodeFieldNumberAndTyp3(bz)
+				if slide(&bz, &n, _n) && err != nil {
+					return
+				}
+				if fnum <= lastFieldNum {
+					err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fieldNum: %v",
+						fnum, lastFieldNum)
+					return
+				}
+				lastFieldNum = fnum
 
-			_n, err = consumeAny(typ3, bz)
-			if slide(&bz, &n, _n) && err != nil {
-				return
+				_n, err = consumeAny(typ3, bz)
+				if slide(&bz, &n, _n) && err != nil {
+					return
+				}
 			}
 		}
 	}

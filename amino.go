@@ -80,11 +80,11 @@ const (
 	Typ3_Varint     = Typ3(0)
 	Typ3_8Byte      = Typ3(1)
 	Typ3_ByteLength = Typ3(2)
-	Typ3_Struct     = Typ3(3)
-	Typ3_StructTerm = Typ3(4)
-	Typ3_4Byte      = Typ3(5)
-	Typ3_List       = Typ3(6)
-	Typ3_Interface  = Typ3(7)
+	//Typ3_Struct     = Typ3(3)
+	//Typ3_StructTerm = Typ3(4)
+	Typ3_4Byte = Typ3(5)
+	//Typ3_List       = Typ3(6)
+	//Typ3_Interface  = Typ3(7)
 )
 
 func (typ Typ3) String() string {
@@ -95,16 +95,16 @@ func (typ Typ3) String() string {
 		return "8Byte"
 	case Typ3_ByteLength:
 		return "ByteLength"
-	case Typ3_Struct:
-		return "Struct"
-	case Typ3_StructTerm:
-		return "StructTerm"
+	//case Typ3_Struct:
+	//	return "Struct"
+	//case Typ3_StructTerm:
+	//	return "StructTerm"
 	case Typ3_4Byte:
 		return "4Byte"
-	case Typ3_List:
-		return "List"
-	case Typ3_Interface:
-		return "Interface"
+	//case Typ3_List:
+	//	return "List"
+	//case Typ3_Interface:
+	//	return "Interface"
 	default:
 		return fmt.Sprintf("<Invalid Typ3 %X>", byte(typ))
 	}
@@ -198,7 +198,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	// If registered concrete, prepend prefix bytes.
 	if info.Registered {
 		pb := info.Prefix.Bytes()
-    bz = append(pb, bz...)
+		bz = append(pb, bz...)
 	}
 
 	return bz, nil
@@ -328,7 +328,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	}
 	// Decode contents into rv.
 	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{}, true)
-  if err != nil {
+	if err != nil {
 		return fmt.Errorf("Unmarshal failed after %v bytes: %v", n, err)
 	}
 	if n != len(bz) {
