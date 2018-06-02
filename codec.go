@@ -276,8 +276,7 @@ func (cdc Codec) PrintTypes(out io.Writer) error {
 		if _, err := io.WriteString(out, " | "); err != nil {
 			return err
 		}
-		var typ = typeToTyp3(i.Type, FieldOptions{})
-		if _, err := io.WriteString(out, fmt.Sprintf("0x%X", i.Prefix.WithTyp3(typ))); err != nil {
+		if _, err := io.WriteString(out, fmt.Sprintf("0x%X", i.Prefix)); err != nil {
 			return err
 		}
 		if _, err := io.WriteString(out, " | "); err != nil {

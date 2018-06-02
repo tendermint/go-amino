@@ -654,7 +654,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	}
 	_n := 0 // nolint: ineffassign
 
-  // NOTE: The "Struct" typ3 doesn't get read here.
+	// NOTE: The "Struct" typ3 doesn't get read here.
 	// It's already implied, either by struct-key or list-element-type-byte.
 
 	if !bare {
@@ -717,12 +717,12 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 					continue
 					// Do not slide, we will read it again.
 				}
-        if fieldNum <= lastFieldNum {
-				  err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fieldNum: %v",
-					fieldNum, lastFieldNum)
-				  return
-			  }
-			  lastFieldNum = fieldNum
+				if fieldNum <= lastFieldNum {
+					err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fieldNum: %v",
+						fieldNum, lastFieldNum)
+					return
+				}
+				lastFieldNum = fieldNum
 				if slide(&bz, &n, _n) && err != nil {
 					return
 				}
@@ -767,7 +767,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 			}
 			lastFieldNum = fnum
 
-			_, _n, err = consumeAny(typ3, bz)
+			_n, err = consumeAny(typ3, bz)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
@@ -809,7 +809,6 @@ func consumeStruct(bz []byte) (n int, err error) {
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
-		var term bool
 		_n, err = consumeAny(typ, bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
