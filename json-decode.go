@@ -2,7 +2,6 @@ package amino
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +14,7 @@ import (
 // cdc.decodeReflectJSON
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -23,44 +22,10 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		panic("should not happen")
 	}
 	if printLog {
-		spew.Printf("(D) decodeReflectJSON(bz: %s, info: %v, rv: %#v (%v), opts: %v)\n",
-			bz, info, rv.Interface(), rv.Type(), opts)
+		spew.Printf("(D) decodeReflectJSON(bz: %s, info: %v, rv: %#v (%v), fopts: %v)\n",
+			bz, info, rv.Interface(), rv.Type(), fopts)
 		defer func() {
 			fmt.Printf("(D) -> err: %v\n", err)
-		}()
-	}
-
-	// Read disfix bytes if registered.
-	if info.Registered {
-		// Strip the disfix bytes after checking it.
-		var disfix DisfixBytes
-		disfix, bz, err = decodeDisfixJSON(bz)
-		if err != nil {
-			return
-		}
-		if !info.GetDisfix().EqualBytes(disfix[:]) {
-			err = fmt.Errorf("Expected disfix bytes %X but got %X", info.GetDisfix(), disfix)
-			return
-		}
-	}
-
-	err = cdc._decodeReflectJSON(bz, info, rv, opts)
-	return
-}
-
-// CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
-	if !rv.CanAddr() {
-		panic("rv not addressable")
-	}
-	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
-		panic("should not happen")
-	}
-	if printLog {
-		spew.Printf("(_) _decodeReflectJSON(bz: %s, info: %v, rv: %#v (%v), opts: %v)\n",
-			bz, info, rv.Interface(), rv.Type(), opts)
-		defer func() {
-			fmt.Printf("(_) -> err: %v\n", err)
 		}()
 	}
 
@@ -98,7 +63,7 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 		if err != nil {
 			return
 		}
-		err = cdc._decodeReflectJSON(bz, rinfo, rrv, opts)
+		err = cdc.decodeReflectJSON(bz, rinfo, rrv, fopts)
 		if err != nil {
 			return
 		}
@@ -118,37 +83,37 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 	// Complex
 
 	case reflect.Interface:
-		err = cdc.decodeReflectJSONInterface(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONInterface(bz, info, rv, fopts)
 
 	case reflect.Array:
-		err = cdc.decodeReflectJSONArray(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONArray(bz, info, rv, fopts)
 
 	case reflect.Slice:
-		err = cdc.decodeReflectJSONSlice(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONSlice(bz, info, rv, fopts)
 
 	case reflect.Struct:
-		err = cdc.decodeReflectJSONStruct(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONStruct(bz, info, rv, fopts)
 
 	case reflect.Map:
-		err = cdc.decodeReflectJSONMap(bz, info, rv, opts)
+		err = cdc.decodeReflectJSONMap(bz, info, rv, fopts)
 
 	//----------------------------------------
 	// Signed, Unsigned
 
 	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int,
 		reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
-		err = invokeStdlibJSONUnmarshal(bz, rv, opts)
+		err = invokeStdlibJSONUnmarshal(bz, rv, fopts)
 
 	//----------------------------------------
 	// Misc
 
 	case reflect.Float32, reflect.Float64:
-		if !opts.Unsafe {
+		if !fopts.Unsafe {
 			return errors.New("Amino.JSON float* support requires `amino:\"unsafe\"`.")
 		}
 		fallthrough
 	case reflect.Bool, reflect.String:
-		err = invokeStdlibJSONUnmarshal(bz, rv, opts)
+		err = invokeStdlibJSONUnmarshal(bz, rv, fopts)
 
 	//----------------------------------------
 	// Default
@@ -160,7 +125,7 @@ func (cdc *Codec) _decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value
 	return
 }
 
-func invokeStdlibJSONUnmarshal(bz []byte, rv reflect.Value, opts FieldOptions) error {
+func invokeStdlibJSONUnmarshal(bz []byte, rv reflect.Value, fopts FieldOptions) error {
 	if !rv.CanAddr() && rv.Kind() != reflect.Ptr {
 		panic("rv not addressable nor pointer")
 	}
@@ -178,7 +143,7 @@ func invokeStdlibJSONUnmarshal(bz []byte, rv reflect.Value, opts FieldOptions) e
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -203,22 +168,21 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv refl
 		rv.Set(iinfo.ZeroValue)
 	}
 
-	// Consume disambiguation / prefix info.
-	disfix, bz, err := decodeDisfixJSON(bz)
+	// Consume type wrapper info.
+	name, bz, err := decodeInterfaceJSON(bz)
 	if err != nil {
 		return
 	}
-
-	// XXX: Check disfix against interface to make sure that it actually
+	// XXX: Check name against interface to make sure that it actually
 	// matches, and return an error if it doesn't.
 
-	// NOTE: Unlike decodeReflectBinaryInterface, we already dealt with nil in _decodeReflectJSON.
-	// NOTE: We also "consumed" the disfix wrapper by replacing `bz` above.
+	// NOTE: Unlike decodeReflectBinaryInterface, we already dealt with nil in decodeReflectJSON.
+	// NOTE: We also "consumed" the interface wrapper by replacing `bz` above.
 
 	// Get concrete type info.
-	// NOTE: Unlike decodeReflectBinaryInterface, always disfix.
+	// NOTE: Unlike decodeReflectBinaryInterface, uses the full name string.
 	var cinfo *TypeInfo
-	cinfo, err = cdc.getTypeInfoFromDisfix_rlock(disfix)
+	cinfo, err = cdc.getTypeInfoFromName_rlock(name)
 	if err != nil {
 		return
 	}
@@ -227,7 +191,7 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv refl
 	var crv, irvSet = constructConcreteType(cinfo)
 
 	// Decode into the concrete type.
-	err = cdc._decodeReflectJSON(bz, cinfo, crv, opts)
+	err = cdc.decodeReflectJSON(bz, cinfo, crv, fopts)
 	if err != nil {
 		rv.Set(irvSet) // Helps with debugging
 		return
@@ -241,7 +205,7 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv refl
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONArray(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONArray(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -290,7 +254,7 @@ func (cdc *Codec) decodeReflectJSONArray(bz []byte, info *TypeInfo, rv reflect.V
 		for i := 0; i < length; i++ {
 			erv := rv.Index(i)
 			ebz := rawSlice[i]
-			err = cdc.decodeReflectJSON(ebz, einfo, erv, opts)
+			err = cdc.decodeReflectJSON(ebz, einfo, erv, fopts)
 			if err != nil {
 				return
 			}
@@ -300,7 +264,7 @@ func (cdc *Codec) decodeReflectJSONArray(bz []byte, info *TypeInfo, rv reflect.V
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -356,7 +320,7 @@ func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.V
 		for i := 0; i < length; i++ {
 			erv := srv.Index(i)
 			ebz := rawSlice[i]
-			err = cdc.decodeReflectJSON(ebz, einfo, erv, opts)
+			err = cdc.decodeReflectJSON(ebz, einfo, erv, fopts)
 			if err != nil {
 				return
 			}
@@ -369,7 +333,7 @@ func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.V
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -416,7 +380,7 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 		}
 
 		// Decode into field rv.
-		err = cdc.decodeReflectJSON(valueBytes, finfo, frv, opts)
+		err = cdc.decodeReflectJSON(valueBytes, finfo, frv, fopts)
 		if err != nil {
 			return
 		}
@@ -426,7 +390,7 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONMap(bz []byte, info *TypeInfo, rv reflect.Value, opts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONMap(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -464,7 +428,7 @@ func (cdc *Codec) decodeReflectJSONMap(bz []byte, info *TypeInfo, rv reflect.Val
 		vrv := reflect.New(mrv.Type().Elem()).Elem()
 
 		// Decode valueBytes into vrv.
-		err = cdc.decodeReflectJSON(valueBytes, vinfo, vrv, opts)
+		err = cdc.decodeReflectJSON(valueBytes, vinfo, vrv, fopts)
 		if err != nil {
 			return
 		}
@@ -483,45 +447,37 @@ func (cdc *Codec) decodeReflectJSONMap(bz []byte, info *TypeInfo, rv reflect.Val
 // Misc.
 
 type disfixWrapper struct {
-	Disfix string          `json:"type"`
-	Data   json.RawMessage `json:"value"`
+	Name string          `json:"type"`
+	Data json.RawMessage `json:"value"`
 }
 
-// decodeDisfixJSON helps unravel the disfix and
+// decodeInterfaceJSON helps unravel the type name and
 // the stored data, which are expected in the form:
 // {
-//    "type": "XXXXXXXXXXXXXXXXX",
+//    "type": "<canonical concrete type name>",
 //    "value":  {}
 // }
-func decodeDisfixJSON(bz []byte) (df DisfixBytes, data []byte, err error) {
+func decodeInterfaceJSON(bz []byte) (name string, data []byte, err error) {
 	if string(bz) == "null" {
 		panic("yay")
 	}
 	dfw := new(disfixWrapper)
 	err = json.Unmarshal(bz, dfw)
 	if err != nil {
-		err = fmt.Errorf("Cannot parse disfix JSON wrapper: %v", err)
-		return
-	}
-	dfBytes, err := hex.DecodeString(dfw.Disfix)
-	if err != nil {
+		err = fmt.Errorf("cannot parse disfix JSON wrapper: %v", err)
 		return
 	}
 
-	// Get disfix.
-	if g, w := len(dfBytes), DisfixBytesLen; g != w {
-		err = fmt.Errorf("Disfix length got=%d want=%d data=%s", g, w, bz)
+	// Get name.
+	if dfw.Name == "" {
+		err = errors.New("JSON encoding of interfaces require non-empty type field.")
 		return
 	}
-	copy(df[:], dfBytes)
-	if (DisfixBytes{}).EqualBytes(df[:]) {
-		err = errors.New("Unexpected zero disfix in JSON")
-		return
-	}
+	name = dfw.Name
 
 	// Get data.
 	if len(dfw.Data) == 0 {
-		err = errors.New("Disfix JSON wrapper should have non-empty value field")
+		err = errors.New("interface JSON wrapper should have non-empty value field")
 		return
 	}
 	data = dfw.Data

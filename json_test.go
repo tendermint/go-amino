@@ -24,7 +24,6 @@ func registerTransports(cdc *amino.Codec) {
 }
 
 func TestMarshalJSON(t *testing.T) {
-	t.Parallel()
 	var cdc = amino.NewCodec()
 	registerTransports(cdc)
 	cases := []struct {
@@ -36,8 +35,8 @@ func TestMarshalJSON(t *testing.T) {
 		{&noExportedFields{a: 10, b: "foo"}, "{}", ""},
 		{nil, "null", ""},
 		{&oneExportedField{}, `{"A":""}`, ""},
-		{Vehicle(Car("Tesla")), `{"type":"2B2961A431B238","value":"Tesla"}`, ""},
-		{Car("Tesla"), `{"type":"2B2961A431B238","value":"Tesla"}`, ""},
+		{Vehicle(Car("Tesla")), `{"type":"car","value":"Tesla"}`, ""},
+		{Car("Tesla"), `{"type":"car","value":"Tesla"}`, ""},
 		{&oneExportedField{A: "Z"}, `{"A":"Z"}`, ""},
 		{[]string{"a", "bc"}, `["a","bc"]`, ""},
 		{[]interface{}{"a", "bc", 10, 10.93, 1e3}, ``, "Unregistered"},
@@ -64,19 +63,19 @@ func TestMarshalJSON(t *testing.T) {
 		},
 		{
 			Transport{},
-			`{"type":"AEB127E121A6B0","value":{"Vehicle":null,"Capacity":0}}`, "",
+			`{"type":"our/transport","value":{"Vehicle":null,"Capacity":0}}`, "",
 		},
 		{
 			Transport{Vehicle: Car("Bugatti")},
-			`{"type":"AEB127E121A6B0","value":{"Vehicle":{"type":"2B2961A431B238","value":"Bugatti"},"Capacity":0}}`, "",
+			`{"type":"our/transport","value":{"Vehicle":{"type":"car","value":"Bugatti"},"Capacity":0}}`, "",
 		},
 		{
 			BalanceSheet{Assets: []Asset{Car("Corolla"), insurancePlan(1e7)}},
-			`{"assets":[{"type":"2B2961A431B238","value":"Corolla"},{"type":"7DF0BC76182A18","value":10000000}]}`, "",
+			`{"assets":[{"type":"car","value":"Corolla"},{"type":"insuranceplan","value":10000000}]}`, "",
 		},
 		{
 			Transport{Vehicle: Boat("Poseidon"), Capacity: 1789},
-			`{"type":"AEB127E121A6B0","value":{"Vehicle":{"type":"25CDB46D8D2110","value":"Poseidon"},"Capacity":1789}}`, "",
+			`{"type":"our/transport","value":{"Vehicle":{"type":"boat","value":"Poseidon"},"Capacity":1789}}`, "",
 		},
 		{
 			withCustomMarshaler{A: &aPointerField{Foo: intPtr(12)}, F: customJSONMarshaler(10)},
@@ -238,7 +237,6 @@ func TestUnmarshalFunc(t *testing.T) {
 }
 
 func TestUnmarshalJSON(t *testing.T) {
-	t.Parallel()
 	var cdc = amino.NewCodec()
 	registerTransports(cdc)
 	cases := []struct {
@@ -260,10 +258,10 @@ func TestUnmarshalJSON(t *testing.T) {
 			`{"null"}`, new(int), nil, "invalid character",
 		},
 		{
-			`{"type":"AEB127E121A6B0","value":{"Vehicle":null,"Capacity":0}}`, new(Transport), new(Transport), "",
+			`{"type":"our/transport","value":{"Vehicle":null,"Capacity":0}}`, new(Transport), new(Transport), "",
 		},
 		{
-			`{"type":"AEB127E121A6B0","value":{"Vehicle":{"type":"2B2961A431B238","value":"Bugatti"},"Capacity":10}}`,
+			`{"type":"our/transport","value":{"Vehicle":{"type":"car","value":"Bugatti"},"Capacity":10}}`,
 			new(Transport),
 			&Transport{
 				Vehicle:  Car("Bugatti"),
@@ -271,7 +269,7 @@ func TestUnmarshalJSON(t *testing.T) {
 			}, "",
 		},
 		{
-			`{"type":"2B2961A431B238","value":"Bugatti"}`, new(Car), func() *Car { c := Car("Bugatti"); return &c }(), "",
+			`{"type":"car","value":"Bugatti"}`, new(Car), func() *Car { c := Car("Bugatti"); return &c }(), "",
 		},
 		{
 			`[1, 2, 3]`, new([]int), func() interface{} {
@@ -567,13 +565,12 @@ func TestMarshalJSONMap(t *testing.T) {
 }
 
 func TestMarshalJSONIndent(t *testing.T) {
-	t.Parallel()
 	var cdc = amino.NewCodec()
 	registerTransports(cdc)
 	obj := Car("Tesla")
 	indent := "  "
 	expected := fmt.Sprintf(`{
-%s"type": "2B2961A431B238",
+%s"type": "car",
 %s"value": "Tesla"
 }`, indent, indent)
 
