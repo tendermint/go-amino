@@ -2,6 +2,15 @@ syntax = "proto3";
 
 package proto3tests;
 
+message TestInt32Varint {
+    // protobuf will encode this as varint
+    int32 Int32 = 1;
+}
+
+message TestInt32Fixed {
+    fixed32 Fixed32 = 1;
+}
+
 message Test32 {
     fixed32 foo = 1;
     int32 bar = 2;
