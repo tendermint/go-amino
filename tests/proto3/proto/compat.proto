@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package proto3tests;
+
+message Test32 {
+    fixed32 foo = 1;
+    int32 bar = 2;
+}
