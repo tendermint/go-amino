@@ -33,6 +33,10 @@ func EncodeInt64(w io.Writer, i int64) (err error) {
 }
 
 func EncodeVarint(w io.Writer, v uint64) (err error) {
+	// TODO(ismail): this is copy & pasted (slightly modified) from:
+	// https://github.com/golang/protobuf/blob/3a3da3a4e26776cc22a79ef46d5d58477532dede/proto/table_marshal.go#L1285-L1366
+	// find out why it is inlined like this, if we could use the binary package instead, or, clarify copyright
+	// if we want to keep it like this:
 	var b []byte
 	// TODO: make 1-byte (maybe 2-byte) case inline-able, once we
 	// have non-leaf inliner.
