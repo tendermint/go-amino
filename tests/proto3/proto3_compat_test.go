@@ -72,8 +72,12 @@ func TestEncodeAminoDecodeProto(t *testing.T) {
 
 	// in amino we encode golang int32 as fixed size
 	// in protobuf int32 is varint encoded by default
-	// so we cant't just use the line below:
+	// so we cant't just encode the below with amino and
+	// expect the same outcome:
+	//
 	// varint := p3.TestInt32Varint{Int32: 150}
+	//
+	// instead we define a type that will be also be varint encoded in amino:
 	type testInt32Varint struct {
 		Int32 int
 	}
@@ -95,4 +99,13 @@ func TestEncodeAminoDecodeProto(t *testing.T) {
 	pb, err = proto.Marshal(&fixed32)
 	assert.NoError(t, err, "unexpected error")
 	assert.Equal(t, pb, ab, "fixed32 encoding doesn't match")
+
+	byteMsg := pbf.Message{Data: []byte("hello cosmos")}
+	type bm struct{ Data []byte }
+	aminoByteMsg := bm{Data: []byte("hello cosmos")}
+	ab, err = cdc.MarshalBinaryBare(aminoByteMsg)
+	assert.NoError(t, err, "unexpected error")
+	pb, err = proto.Marshal(&byteMsg)
+	assert.NoError(t, err, "unexpected error")
+	assert.Equal(t, pb, ab, "[]byte encoding doesn't match")
 }
