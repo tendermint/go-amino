@@ -55,23 +55,39 @@ func TestEncodeAminoDecodeProto(t *testing.T) {
 	assert.NoError(t, err, "unexpected error")
 	assert.Equal(t, pb, ab, "encoding doesn't match")
 
-	ab, err = cdc.MarshalBinaryBare(p3.Test32{Foo: 150, Bar: 150})
+	// in amino we encode golang int32 as fixed size
+	// in protobuf int32 is varint encoded by default
+	// so we cant't just use the line below:
+	// ab, err = cdc.MarshalBinaryBare(p3.Test32{Foo: 150, Bar: 150})
+	// instead:
+	type test32 struct {
+		Foo int32
+		Bar int
+	}
+	ab, err = cdc.MarshalBinaryBare(test32{Foo: 150, Bar: 150})
 	assert.NoError(t, err, "unexpected error")
 	pb, err = proto.Marshal(&p3.Test32{Foo: 150, Bar: 150})
 	assert.NoError(t, err, "unexpected error")
 	assert.Equal(t, pb, ab, "encoding doesn't match")
 
-	i32 := p3.TestInt32Varint{Int32: 150}
-	ab, err = cdc.MarshalBinaryBare(i32)
+	// in amino we encode golang int32 as fixed size
+	// in protobuf int32 is varint encoded by default
+	// so we cant't just use the line below:
+	// varint := p3.TestInt32Varint{Int32: 150}
+	type testInt32Varint struct {
+		Int32 int
+	}
+	varint := testInt32Varint{Int32: 150}
+	ab, err = cdc.MarshalBinaryBare(varint)
 	assert.NoError(t, err, "unexpected error")
-	pb, err = proto.Marshal(&i32)
+	pb, err = proto.Marshal(&p3.TestInt32Varint{Int32: 150})
 	assert.NoError(t, err, "unexpected error")
 	assert.Equal(t, pb, ab, "varint encoding doesn't match")
 
 	var amToP3 p3.TestInt32Varint
 	err = proto.Unmarshal(ab, &amToP3)
 	assert.NoError(t, err, "unexpected error")
-	assert.Equal(t, i32, amToP3)
+	assert.Equal(t, uint64(varint.Int32), uint64(amToP3.Int32))
 
 	fixed32 := p3.TestInt32Fixed{Fixed32: 150}
 	ab, err = cdc.MarshalBinaryBare(fixed32)
