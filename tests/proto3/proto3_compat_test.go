@@ -101,7 +101,12 @@ func TestEncodeAminoDecodeProto(t *testing.T) {
 	assert.Equal(t, pb, ab, "fixed32 encoding doesn't match")
 
 	byteMsg := pbf.Message{Data: []byte("hello cosmos")}
-	type bm struct{ Data []byte }
+	type bm struct {
+		Name       string
+		Hilarity   pbf.Message_Humour
+		HeightInCm uint32
+		Data       []byte
+	}
 	aminoByteMsg := bm{Data: []byte("hello cosmos")}
 	ab, err = cdc.MarshalBinaryBare(aminoByteMsg)
 	assert.NoError(t, err, "unexpected error")
