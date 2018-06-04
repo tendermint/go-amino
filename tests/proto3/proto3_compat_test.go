@@ -113,4 +113,15 @@ func TestEncodeAminoDecodeProto(t *testing.T) {
 	pb, err = proto.Marshal(&byteMsg)
 	assert.NoError(t, err, "unexpected error")
 	assert.Equal(t, pb, ab, "[]byte encoding doesn't match")
+
+	// there is no way to varsize encode (u)int64 in amino?
+	type testUInt64Varint struct {
+		Int64 uint64
+	}
+	varint64 := testUInt64Varint{Int64: 150}
+	ab, err = cdc.MarshalBinaryBare(varint64)
+	assert.NoError(t, err, "unexpected error")
+	pb, err = proto.Marshal(&p3.TestFixedInt64{Int64: 150})
+	assert.NoError(t, err, "unexpected error")
+	assert.Equal(t, pb, ab, "varint64 encoding doesn't match")
 }

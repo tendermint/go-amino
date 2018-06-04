@@ -15,3 +15,11 @@ message Test32 {
     fixed32 foo = 1;
     int32 bar = 2;
 }
+
+message TestFixedInt64 {
+    fixed64 Int64 = 1;
+}
+
+message TestSFixedSInt64 {
+    sfixed64 SInt64 = 1;
+}
