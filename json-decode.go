@@ -32,11 +32,8 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	// Special case for null for either interface, pointer, slice
 	// NOTE: This doesn't match the binary implementation completely.
 	if nullBytes(bz) {
-		switch rv.Kind() {
-		case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Array:
-			rv.Set(reflect.Zero(rv.Type()))
-			return
-		}
+		rv.Set(reflect.Zero(rv.Type()))
+		return
 	}
 
 	// Dereference-and-construct pointers all the way.
@@ -100,8 +97,19 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	//----------------------------------------
 	// Signed, Unsigned
 
-	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int,
-		reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
+	case reflect.Int64, reflect.Int:
+		fallthrough
+	case reflect.Uint64, reflect.Uint:
+		if bz[0] != '"' || bz[len(bz)-1] != '"' {
+			err = fmt.Errorf("invalid character -- Amino:JSON int/int64/uint/uint64 expects quoted values for javascript numeric support, got: %v.", string(bz))
+			if err != nil {
+				return
+			}
+		}
+		bz = bz[1 : len(bz)-1]
+		fallthrough
+	case reflect.Int32, reflect.Int16, reflect.Int8,
+		reflect.Uint32, reflect.Uint16, reflect.Uint8:
 		err = invokeStdlibJSONUnmarshal(bz, rv, fopts)
 
 	//----------------------------------------
@@ -109,7 +117,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 
 	case reflect.Float32, reflect.Float64:
 		if !fopts.Unsafe {
-			return errors.New("Amino.JSON float* support requires `amino:\"unsafe\"`.")
+			return errors.New("Amino:JSON float* support requires `amino:\"unsafe\"`.")
 		}
 		fallthrough
 	case reflect.Bool, reflect.String:
@@ -458,9 +466,6 @@ type disfixWrapper struct {
 //    "value":  {}
 // }
 func decodeInterfaceJSON(bz []byte) (name string, data []byte, err error) {
-	if string(bz) == "null" {
-		panic("yay")
-	}
 	dfw := new(disfixWrapper)
 	err = json.Unmarshal(bz, dfw)
 	if err != nil {

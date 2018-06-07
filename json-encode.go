@@ -88,8 +88,16 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	//----------------------------------------
 	// Signed, Unsigned
 
-	case reflect.Int64, reflect.Int32, reflect.Int16, reflect.Int8, reflect.Int,
-		reflect.Uint64, reflect.Uint32, reflect.Uint16, reflect.Uint8, reflect.Uint:
+	case reflect.Int64, reflect.Int:
+		_, err = fmt.Fprintf(w, `"%d"`, rv.Int()) // JS can't handle int64
+		return
+
+	case reflect.Uint64, reflect.Uint:
+		_, err = fmt.Fprintf(w, `"%d"`, rv.Uint()) // JS can't handle uint64
+		return
+
+	case reflect.Int32, reflect.Int16, reflect.Int8,
+		reflect.Uint32, reflect.Uint16, reflect.Uint8:
 		return invokeStdlibJSONMarshal(w, rv.Interface())
 
 	//----------------------------------------
