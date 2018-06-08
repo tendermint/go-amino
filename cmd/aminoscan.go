@@ -32,14 +32,8 @@ func scanAny(typ amino.Typ3, bz []byte, indent string) (s string, n int, err err
 		s, n, err = scan8Byte(bz, indent)
 	case amino.Typ3_ByteLength:
 		s, n, err = scanByteLength(bz, indent)
-	case amino.Typ3_Struct:
-		s, n, err = scanStruct(bz, indent, false)
 	case amino.Typ3_4Byte:
 		s, n, err = scan4Byte(bz, indent)
-	case amino.Typ3_List:
-		s, n, err = scanList(bz, indent)
-	case amino.Typ3_Interface:
-		s, n, err = scanInterface(bz, indent)
 	default:
 		panic("should not happen")
 	}
@@ -126,12 +120,6 @@ func scanStruct(bz []byte, indent string, isRoot bool) (s string, n int, err err
 		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
 			return
 		}
-		if typ == amino.Typ3_StructTerm {
-			if isRoot {
-				err = errors.New("unexpected struct terminator for root object")
-			}
-			return
-		}
 		_s, _n, err = scanAny(typ, bz, indent+"  ")
 		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
 			return
@@ -166,6 +154,7 @@ func scan4Byte(bz []byte, indent string) (s string, n int, err error) {
 	return
 }
 
+/*
 func scanList(bz []byte, indent string) (s string, n int, err error) {
 	// Read element Typ4.
 	if len(bz) < 1 {
@@ -224,6 +213,7 @@ func scanList(bz []byte, indent string) (s string, n int, err error) {
 	}
 	return
 }
+*/
 
 /*
 func scanInterface(bz []byte, indent string) (s string, n int, err error) {
