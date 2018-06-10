@@ -110,7 +110,7 @@ func DecodeUint32(bz []byte) (u uint32, n int, err error) {
 		err = errors.New("EOF decoding uint32")
 		return
 	}
-	u = binary.BigEndian.Uint32(bz[:size])
+	u = binary.LittleEndian.Uint32(bz[:size])
 	n = size
 	return
 }

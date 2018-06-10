@@ -11,31 +11,113 @@ import (
 // Signed
 
 func EncodeInt8(w io.Writer, i int8) (err error) {
-	return EncodeVarint(w, int64(i))
+	return EncodeVarint(w, uint64(i))
 }
 
 func EncodeInt16(w io.Writer, i int16) (err error) {
-	return EncodeVarint(w, int64(i))
+	return EncodeVarint(w, uint64(i))
 }
 
 func EncodeInt32(w io.Writer, i int32) (err error) {
 	var buf [4]byte
-	binary.BigEndian.PutUint32(buf[:], uint32(i))
+	binary.LittleEndian.PutUint32(buf[:], uint32(i))
 	_, err = w.Write(buf[:])
 	return
 }
 
 func EncodeInt64(w io.Writer, i int64) (err error) {
 	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], uint64(i))
+	binary.LittleEndian.PutUint64(buf[:], uint64(i))
 	_, err = w.Write(buf[:])
 	return err
 }
 
-func EncodeVarint(w io.Writer, i int64) (err error) {
-	var buf [10]byte
-	n := binary.PutVarint(buf[:], i)
-	_, err = w.Write(buf[0:n])
+func EncodeVarint(w io.Writer, v uint64) (err error) {
+	// TODO(ismail): this is copy & pasted (slightly modified) from:
+	// https://github.com/golang/protobuf/blob/3a3da3a4e26776cc22a79ef46d5d58477532dede/proto/table_marshal.go#L1285-L1366
+	// find out why it is inlined like this, if we could use the binary package instead, or, clarify copyright
+	// if we want to keep it like this:
+	var b []byte
+	// TODO: make 1-byte (maybe 2-byte) case inline-able, once we
+	// have non-leaf inliner.
+	switch {
+	case v < 1<<7:
+		b = append(b, byte(v))
+	case v < 1<<14:
+		b = append(b,
+			byte(v&0x7f|0x80),
+			byte(v>>7))
+	case v < 1<<21:
+		b = append(b,
+			byte(v&0x7f|0x80),
+			byte((v>>7)&0x7f|0x80),
+			byte(v>>14))
+	case v < 1<<28:
+		b = append(b,
+			byte(v&0x7f|0x80),
+			byte((v>>7)&0x7f|0x80),
+			byte((v>>14)&0x7f|0x80),
+			byte(v>>21))
+	case v < 1<<35:
+		b = append(b,
+			byte(v&0x7f|0x80),
+			byte((v>>7)&0x7f|0x80),
+			byte((v>>14)&0x7f|0x80),
+			byte((v>>21)&0x7f|0x80),
+			byte(v>>28))
+	case v < 1<<42:
+		b = append(b,
+			byte(v&0x7f|0x80),
+			byte((v>>7)&0x7f|0x80),
+			byte((v>>14)&0x7f|0x80),
+			byte((v>>21)&0x7f|0x80),
+			byte((v>>28)&0x7f|0x80),
+			byte(v>>35))
+	case v < 1<<49:
+		b = append(b,
+			byte(v&0x7f|0x80),
+			byte((v>>7)&0x7f|0x80),
+			byte((v>>14)&0x7f|0x80),
+			byte((v>>21)&0x7f|0x80),
+			byte((v>>28)&0x7f|0x80),
+			byte((v>>35)&0x7f|0x80),
+			byte(v>>42))
+	case v < 1<<56:
+		b = append(b,
+			byte(v&0x7f|0x80),
+			byte((v>>7)&0x7f|0x80),
+			byte((v>>14)&0x7f|0x80),
+			byte((v>>21)&0x7f|0x80),
+			byte((v>>28)&0x7f|0x80),
+			byte((v>>35)&0x7f|0x80),
+			byte((v>>42)&0x7f|0x80),
+			byte(v>>49))
+	case v < 1<<63:
+		b = append(b,
+			byte(v&0x7f|0x80),
+			byte((v>>7)&0x7f|0x80),
+			byte((v>>14)&0x7f|0x80),
+			byte((v>>21)&0x7f|0x80),
+			byte((v>>28)&0x7f|0x80),
+			byte((v>>35)&0x7f|0x80),
+			byte((v>>42)&0x7f|0x80),
+			byte((v>>49)&0x7f|0x80),
+			byte(v>>56))
+	default:
+		b = append(b,
+			byte(v&0x7f|0x80),
+			byte((v>>7)&0x7f|0x80),
+			byte((v>>14)&0x7f|0x80),
+			byte((v>>21)&0x7f|0x80),
+			byte((v>>28)&0x7f|0x80),
+			byte((v>>35)&0x7f|0x80),
+			byte((v>>42)&0x7f|0x80),
+			byte((v>>49)&0x7f|0x80),
+			byte((v>>56)&0x7f|0x80),
+			1)
+	}
+
+	_, err = w.Write(b)
 	return
 }
 
@@ -62,14 +144,14 @@ func EncodeUint16(w io.Writer, u uint16) (err error) {
 
 func EncodeUint32(w io.Writer, u uint32) (err error) {
 	var buf [4]byte
-	binary.BigEndian.PutUint32(buf[:], u)
+	binary.LittleEndian.PutUint32(buf[:], u)
 	_, err = w.Write(buf[:])
 	return
 }
 
 func EncodeUint64(w io.Writer, u uint64) (err error) {
 	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], u)
+	binary.LittleEndian.PutUint64(buf[:], u)
 	_, err = w.Write(buf[:])
 	return
 }

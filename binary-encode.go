@@ -84,12 +84,14 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 
 	case reflect.Int64:
 		if fopts.BinVarint {
-			err = EncodeVarint(w, rv.Int())
+			err = EncodeVarint(w, uint64(rv.Int()))
 		} else {
 			err = EncodeInt64(w, rv.Int())
 		}
 
 	case reflect.Int32:
+		// TODO: default in protobuf would still be varint encoding
+		// only if explicitly defined as fixed32 would it be fixed encoded
 		err = EncodeInt32(w, int32(rv.Int()))
 
 	case reflect.Int16:
@@ -99,7 +101,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		err = EncodeInt8(w, int8(rv.Int()))
 
 	case reflect.Int:
-		err = EncodeVarint(w, rv.Int())
+		err = EncodeVarint(w, uint64(rv.Int()))
 
 	//----------------------------------------
 	// Unsigned
