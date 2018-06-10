@@ -109,14 +109,14 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 
 	case reflect.Int64:
 		var num int64
-		if fopts.BinVarint {
-			num, _n, err = DecodeVarint(bz)
+		if fopts.BinFixed64 {
+			num, _n, err = DecodeInt64(bz)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
 			rv.SetInt(num)
 		} else {
-			num, _n, err = DecodeInt64(bz)
+			num, _n, err = DecodeVarint(bz)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
@@ -125,12 +125,21 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		return
 
 	case reflect.Int32:
-		var num int32
-		num, _n, err = DecodeInt32(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
+		if fopts.BinFixed32 {
+			var num int32
+			num, _n, err = DecodeInt32(bz)
+			if slide(&bz, &n, _n) && err != nil {
+				return
+			}
+			rv.SetInt(int64(num))
+		} else {
+			var num int64
+			num, _n, err = DecodeVarint(bz)
+			if slide(&bz, &n, _n) && err != nil {
+				return
+			}
+			rv.SetInt(int64(num))
 		}
-		rv.SetInt(int64(num))
 		return
 
 	case reflect.Int16:
@@ -165,14 +174,14 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 
 	case reflect.Uint64:
 		var num uint64
-		if fopts.BinVarint {
-			num, _n, err = DecodeUvarint(bz)
+		if fopts.BinFixed64 {
+			num, _n, err = DecodeUint64(bz)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
 			rv.SetUint(num)
 		} else {
-			num, _n, err = DecodeUint64(bz)
+			num, _n, err = DecodeUvarint(bz)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
@@ -181,12 +190,21 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		return
 
 	case reflect.Uint32:
-		var num uint32
-		num, _n, err = DecodeUint32(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
+		if fopts.BinFixed32 {
+			var num uint32
+			num, _n, err = DecodeUint32(bz)
+			if slide(&bz, &n, _n) && err != nil {
+				return
+			}
+			rv.SetUint(uint64(num))
+		} else {
+			var num uint64
+			num, _n, err = DecodeUvarint(bz)
+			if slide(&bz, &n, _n) && err != nil {
+				return
+			}
+			rv.SetUint(uint64(num))
 		}
-		rv.SetUint(uint64(num))
 		return
 
 	case reflect.Uint16:

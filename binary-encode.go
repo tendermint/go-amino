@@ -83,14 +83,18 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	// Signed
 
 	case reflect.Int64:
-		if fopts.BinVarint {
-			err = EncodeVarint(w, rv.Int())
-		} else {
+		if fopts.BinFixed64 {
 			err = EncodeInt64(w, rv.Int())
+		} else {
+			err = EncodeVarint(w, rv.Int())
 		}
 
 	case reflect.Int32:
-		err = EncodeInt32(w, int32(rv.Int()))
+		if fopts.BinFixed32 {
+			err = EncodeInt32(w, int32(rv.Int()))
+		} else {
+			err = EncodeVarint(w, rv.Int())
+		}
 
 	case reflect.Int16:
 		err = EncodeInt16(w, int16(rv.Int()))
@@ -105,14 +109,18 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	// Unsigned
 
 	case reflect.Uint64:
-		if fopts.BinVarint {
-			err = EncodeUvarint(w, rv.Uint())
-		} else {
+		if fopts.BinFixed64 {
 			err = EncodeUint64(w, rv.Uint())
+		} else {
+			err = EncodeUvarint(w, rv.Uint())
 		}
 
 	case reflect.Uint32:
-		err = EncodeUint32(w, uint32(rv.Uint()))
+		if fopts.BinFixed32 {
+			err = EncodeUint32(w, uint32(rv.Uint()))
+		} else {
+			err = EncodeUvarint(w, rv.Uint())
+		}
 
 	case reflect.Uint16:
 		err = EncodeUint16(w, uint16(rv.Uint()))

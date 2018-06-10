@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.0-rc2 (June 10, 2018)
+
+BREAKING CHANGE:
+
+ - 100% Proto3 compatibility for primitive types, repeated fields, and embedded structs/messages.
+ - BigEndian -> LittleEndian
+ - [u]int[64/32] is (signed) Varint by default, "fixed32" and "fixed64" to use 4 and 8 byte types.
+ - Amino:JSON [u]int64 and ints are strings.
+
 ## 0.9.11 (May 27, 2018)
 
 NEW FEATURES:

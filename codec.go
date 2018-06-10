@@ -113,7 +113,8 @@ type FieldInfo struct {
 type FieldOptions struct {
 	JSONName      string // (JSON) field name
 	JSONOmitEmpty bool   // (JSON) omitempty
-	BinVarint     bool   // (Binary) Use length-prefixed encoding for (u)int64.
+	BinFixed64    bool   // (Binary) Encode as fixed64
+	BinFixed32    bool   // (Binary) Encode as fixed32
 	BinFieldNum   uint32 // (Binary) max 1<<29-1
 	Unsafe        bool   // e.g. if this field is a float.
 }
@@ -497,8 +498,10 @@ func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, fopts
 	}
 
 	// Parse binary tags.
-	if binTag == "varint" { // TODO: extend
-		fopts.BinVarint = true
+	if binTag == "fixed64" { // TODO: extend
+		fopts.BinFixed64 = true
+	} else if binTag == "fixed32" {
+		fopts.BinFixed32 = true
 	}
 
 	// Parse amino tags.
