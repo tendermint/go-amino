@@ -24,7 +24,6 @@ func registerTransports(cdc *amino.Codec) {
 }
 
 func TestMarshalJSON(t *testing.T) {
-	t.Parallel()
 	var cdc = amino.NewCodec()
 	registerTransports(cdc)
 	cases := []struct {
@@ -32,71 +31,74 @@ func TestMarshalJSON(t *testing.T) {
 		want    string
 		wantErr string
 	}{
-		{&noFields{}, "{}", ""},
-		{&noExportedFields{a: 10, b: "foo"}, "{}", ""},
-		{nil, "null", ""},
-		{&oneExportedField{}, `{"A":""}`, ""},
-		{Vehicle(Car("Tesla")), `{"type":"2B2961A431B238","value":"Tesla"}`, ""},
-		{Car("Tesla"), `{"type":"2B2961A431B238","value":"Tesla"}`, ""},
-		{&oneExportedField{A: "Z"}, `{"A":"Z"}`, ""},
-		{[]string{"a", "bc"}, `["a","bc"]`, ""},
-		{[]interface{}{"a", "bc", 10, 10.93, 1e3}, ``, "Unregistered"},
-		{aPointerField{Foo: new(int), Name: "name"}, `{"Foo":0,"nm":"name"}`, ""},
+		{&noFields{}, "{}", ""},                        // #0
+		{&noExportedFields{a: 10, b: "foo"}, "{}", ""}, // #1
+		{nil, "null", ""},                              // #2
+		{&oneExportedField{}, `{"A":""}`, ""},          // #3
+		{Vehicle(Car("Tesla")),
+			`{"type":"car","value":"Tesla"}`, ""}, // #4
+		{Car("Tesla"), `{"type":"car","value":"Tesla"}`, ""}, // #5
+		{&oneExportedField{A: "Z"}, `{"A":"Z"}`, ""},         // #6
+		{[]string{"a", "bc"}, `["a","bc"]`, ""},              // #7
+		{[]interface{}{"a", "bc", 10, 10.93, 1e3},
+			``, "Unregistered"}, // #8
+		{aPointerField{Foo: new(int), Name: "name"},
+			`{"Foo":"0","nm":"name"}`, ""}, // #9
 		{
 			aPointerFieldAndEmbeddedField{intPtr(11), "ap", nil, &oneExportedField{A: "foo"}},
-			`{"Foo":11,"nm":"ap","bz":{"A":"foo"}}`, "",
-		},
-
+			`{"Foo":"11","nm":"ap","bz":{"A":"foo"}}`, "",
+		}, // #10
 		{
 			doublyEmbedded{
 				Inner: &aPointerFieldAndEmbeddedField{
 					intPtr(11), "ap", nil, &oneExportedField{A: "foo"},
 				},
 			},
-			`{"Inner":{"Foo":11,"nm":"ap","bz":{"A":"foo"}},"year":0}`, "",
-		},
-
+			`{"Inner":{"Foo":"11","nm":"ap","bz":{"A":"foo"}},"year":0}`, "",
+		}, // #11
 		{
 			struct{}{}, `{}`, "",
-		},
+		}, // #12
 		{
-			struct{ A int }{A: 10}, `{"A":10}`, "",
-		},
+			struct{ A int }{A: 10}, `{"A":"10"}`, "",
+		}, // #13
 		{
 			Transport{},
-			`{"type":"AEB127E121A6B0","value":{"Vehicle":null,"Capacity":0}}`, "",
-		},
+			`{"type":"our/transport","value":{"Vehicle":null,"Capacity":"0"}}`, "",
+		}, // #14
 		{
 			Transport{Vehicle: Car("Bugatti")},
-			`{"type":"AEB127E121A6B0","value":{"Vehicle":{"type":"2B2961A431B238","value":"Bugatti"},"Capacity":0}}`, "",
-		},
+			`{"type":"our/transport","value":{"Vehicle":{"type":"car","value":"Bugatti"},"Capacity":"0"}}`, "",
+		}, // #15
 		{
 			BalanceSheet{Assets: []Asset{Car("Corolla"), insurancePlan(1e7)}},
-			`{"assets":[{"type":"2B2961A431B238","value":"Corolla"},{"type":"7DF0BC76182A18","value":10000000}]}`, "",
-		},
+			`{"assets":[{"type":"car","value":"Corolla"},{"type":"insuranceplan","value":"10000000"}]}`, "",
+		}, // #16
 		{
 			Transport{Vehicle: Boat("Poseidon"), Capacity: 1789},
-			`{"type":"AEB127E121A6B0","value":{"Vehicle":{"type":"25CDB46D8D2110","value":"Poseidon"},"Capacity":1789}}`, "",
-		},
+			`{"type":"our/transport","value":{"Vehicle":{"type":"boat","value":"Poseidon"},"Capacity":"1789"}}`, "",
+		}, // #17
 		{
 			withCustomMarshaler{A: &aPointerField{Foo: intPtr(12)}, F: customJSONMarshaler(10)},
-			`{"fx":"Tendermint","A":{"Foo":12}}`, "",
-		},
+			`{"fx":"Tendermint","A":{"Foo":"12"}}`, "",
+		}, // #18
 		{
 			func() json.Marshaler { v := customJSONMarshaler(10); return &v }(),
 			`"Tendermint"`, "",
-		},
+		}, // #19
 
 		// We don't yet support interface pointer registration i.e. `*interface{}`
-		{interfacePtr("a"), "", "Unregistered interface interface {}"},
-
-		{&fp{"Foo", 10}, "<FP-MARSHALJSON>", ""},
-		{(*fp)(nil), "null", ""},
+		{
+			interfacePtr("a"), "", "Unregistered interface interface {}",
+		}, // #20
+		{&fp{"Foo", 10}, "<FP-MARSHALJSON>", ""}, // #21
+		{(*fp)(nil), "null", ""},                 // #22
 		{struct {
 			FP      *fp
 			Package string
 		}{FP: &fp{"Foo", 10}, Package: "bytes"},
-			`{"FP":<FP-MARSHALJSON>,"Package":"bytes"}`, ""},
+			`{"FP":<FP-MARSHALJSON>,"Package":"bytes"}`, "",
+		}, // #23,
 	}
 
 	for i, tt := range cases {
@@ -238,7 +240,6 @@ func TestUnmarshalFunc(t *testing.T) {
 }
 
 func TestUnmarshalJSON(t *testing.T) {
-	t.Parallel()
 	var cdc = amino.NewCodec()
 	registerTransports(cdc)
 	cases := []struct {
@@ -247,55 +248,63 @@ func TestUnmarshalJSON(t *testing.T) {
 		want    interface{}
 		wantErr string
 	}{
-		{
-			"null", 2, nil, "expects a pointer",
+		{ // #0
+			`null`, 2, nil, "expects a pointer",
 		},
-		{
-			"null", new(int), new(int), "",
+		{ // #1
+			`null`, new(int), new(int), "",
 		},
-		{
-			"2", new(int), intPtr(2), "",
+		{ // #2
+			`"2"`, new(int), intPtr(2), "",
 		},
-		{
+		{ // #3
 			`{"null"}`, new(int), nil, "invalid character",
 		},
-		{
-			`{"type":"AEB127E121A6B0","value":{"Vehicle":null,"Capacity":0}}`, new(Transport), new(Transport), "",
+		{ // #4
+			`{"type":"our/transport","value":{"Vehicle":null,"Capacity":"0"}}`, new(Transport), new(Transport), "",
 		},
-		{
-			`{"type":"AEB127E121A6B0","value":{"Vehicle":{"type":"2B2961A431B238","value":"Bugatti"},"Capacity":10}}`,
+		{ // #5
+			`{"type":"our/transport","value":{"Vehicle":{"type":"car","value":"Bugatti"},"Capacity":"10"}}`,
 			new(Transport),
 			&Transport{
 				Vehicle:  Car("Bugatti"),
 				Capacity: 10,
 			}, "",
 		},
-		{
-			`{"type":"2B2961A431B238","value":"Bugatti"}`, new(Car), func() *Car { c := Car("Bugatti"); return &c }(), "",
+		{ // #6
+			`{"type":"car","value":"Bugatti"}`, new(Car), func() *Car { c := Car("Bugatti"); return &c }(), "",
 		},
-		{
-			`[1, 2, 3]`, new([]int), func() interface{} {
+		{ // #7
+			`["1", "2", "3"]`, new([]int), func() interface{} {
 				v := []int{1, 2, 3}
 				return &v
 			}(), "",
 		},
-		{
+		{ // #8
 			`["1", "2", "3"]`, new([]string), func() interface{} {
 				v := []string{"1", "2", "3"}
 				return &v
 			}(), "",
 		},
-		{
-			`[1, "2", ["foo", "bar"]]`, new([]interface{}), nil, "Unregistered",
+		{ // #9
+			`[1, "2", ["foo", "bar"]]`,
+			new([]interface{}), nil, "Unregistered",
 		},
-		{
+		{ // #10
 			`2.34`, floatPtr(2.34), nil, "float* support requires",
 		},
-
-		{"<FooBar>", new(fp), &fp{"<FooBar>", 0}, ""},
-		{"10", new(fp), &fp{Name: "10"}, ""},
-		{`{"PC":125,"FP":"10"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `"10"`}}, ""},
-		{`{"PC":125,"FP":"<FP-FOO>"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `"<FP-FOO>"`}}, ""},
+		{ // #11
+			"<FooBar>", new(fp), &fp{"<FooBar>", 0}, "",
+		},
+		{ // #12
+			"10", new(fp), &fp{Name: "10"}, "",
+		},
+		{ // #13
+			`{"PC":"125","FP":"10"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `"10"`}}, "",
+		},
+		{ // #14
+			`{"PC":"125","FP":"<FP-FOO>"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `"<FP-FOO>"`}}, "",
+		},
 	}
 
 	for i, tt := range cases {
@@ -423,7 +432,7 @@ type aPointerField struct {
 
 type doublyEmbedded struct {
 	Inner *aPointerFieldAndEmbeddedField
-	Year  int64 `json:"year"`
+	Year  int32 `json:"year"`
 }
 
 type aPointerFieldAndEmbeddedField struct {
@@ -567,13 +576,12 @@ func TestMarshalJSONMap(t *testing.T) {
 }
 
 func TestMarshalJSONIndent(t *testing.T) {
-	t.Parallel()
 	var cdc = amino.NewCodec()
 	registerTransports(cdc)
 	obj := Car("Tesla")
 	indent := "  "
 	expected := fmt.Sprintf(`{
-%s"type": "2B2961A431B238",
+%s"type": "car",
 %s"value": "Tesla"
 }`, indent, indent)
 

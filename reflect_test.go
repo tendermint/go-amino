@@ -36,6 +36,22 @@ func TestCodecDef(t *testing.T) {
 	}
 }
 
+func TestDeepCopyStruct(t *testing.T) {
+	for _, ptr := range tests.StructTypes {
+		rt := getTypeFromPointer(ptr)
+		name := rt.Name()
+		t.Run(name+":deepcopy", func(t *testing.T) { _testDeepCopy(t, rt) })
+	}
+}
+
+func TestDeepCopyDep(t *testing.T) {
+	for _, ptr := range tests.DefTypes {
+		rt := getTypeFromPointer(ptr)
+		name := rt.Name()
+		t.Run(name+":deepcopy", func(t *testing.T) { _testDeepCopy(t, rt) })
+	}
+}
+
 func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 
 	err := error(nil)
@@ -95,6 +111,35 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 	}
 }
 
+func _testDeepCopy(t *testing.T, rt reflect.Type) {
+
+	err := error(nil)
+	f := fuzz.New()
+	rv := reflect.New(rt)
+	ptr := rv.Interface()
+	rnd := rand.New(rand.NewSource(10))
+	f.RandSource(rnd)
+	f.Funcs(fuzzFuncs...)
+
+	defer func() {
+		if r := recover(); r != nil {
+			t.Fatalf("panic'd:\nreason: %v\n%s\nerr: %v\nrv: %#v\nptr: %v\n",
+				r, debug.Stack(), err, rv, spw(ptr),
+			)
+		}
+	}()
+
+	for i := 0; i < 1e4; i++ {
+		f.Fuzz(ptr)
+
+		ptr2 := DeepCopy(ptr)
+
+		require.Equal(t, ptr, ptr2,
+			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
+			spw(ptr), spw(ptr2))
+	}
+}
+
 //----------------------------------------
 // Register/interface tests
 
@@ -115,7 +160,7 @@ func TestCodecBinaryRegister2(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.Nil(t, err, "correctly registered")
-	assert.Equal(t, []byte{0x0f, 0xe3, 0xda, 0xb8, 0x33, 0x04, 0x04}, bz,
+	assert.Equal(t, []byte{0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
@@ -126,7 +171,7 @@ func TestCodecBinaryRegister3(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.Nil(t, err, "correctly registered")
-	assert.Equal(t, []byte{0x0f, 0xe3, 0xda, 0xb8, 0x33, 0x04, 0x04}, bz,
+	assert.Equal(t, []byte{0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
@@ -139,7 +184,7 @@ func TestCodecBinaryRegister4(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.Nil(t, err, "correctly registered")
-	assert.Equal(t, []byte{0x0f, 0x00, 0x12, 0xb5, 0x86, 0xe3, 0xda, 0xb8, 0x33, 0x04, 0x04}, bz,
+	assert.Equal(t, []byte{0xa, 0x8, 0x0, 0x12, 0xb5, 0x86, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
@@ -172,14 +217,14 @@ func TestCodecBinaryRegister7(t *testing.T) {
 	{ // test tests.Concrete1, no conflict.
 		bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 		assert.Nil(t, err, "correctly registered")
-		assert.Equal(t, []byte{0x0f, 0xe3, 0xda, 0xb8, 0x33, 0x04, 0x04}, bz,
+		assert.Equal(t, []byte{0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
 			"disfix bytes did not match")
 	}
 
 	{ // test tests.Concrete2, no conflict
 		bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete2{}})
 		assert.Nil(t, err, "correctly registered")
-		assert.Equal(t, []byte{0x0f, 0x6a, 0x9, 0xca, 0x3, 0x04, 0x04}, bz,
+		assert.Equal(t, []byte{0xa, 0x4, 0x6a, 0x9, 0xca, 0x1}, bz,
 			"disfix bytes did not match")
 	}
 }
@@ -199,7 +244,7 @@ func TestCodecBinaryRegister8(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x2, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
 		"Concrete3 incorrectly serialized")
 
 	var i1 tests.Interface1
@@ -221,7 +266,7 @@ func TestCodecJSONRegister8(t *testing.T) {
 	// But that's OK, JSON still writes the disfix bytes by default.
 	bz, err := cdc.MarshalJSON(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte(`{"type":"43FAF453372100","value":"MDEyMw=="}`),
+	assert.Equal(t, []byte(`{"type":"Concrete3","value":"MDEyMw=="}`),
 		bz, "Concrete3 incorrectly serialized")
 
 	var i1 tests.Interface1
@@ -245,7 +290,7 @@ func TestCodecBinaryRegister9(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x02, 0x04, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
 		"Concrete3 incorrectly serialized")
 
 	var i1 tests.Interface1
@@ -265,7 +310,7 @@ func TestCodecBinaryRegister10(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(c3a)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x02, 0x04, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
 		"Concrete3 incorrectly serialized")
 
 	var c3b tests.Concrete3
@@ -298,8 +343,145 @@ func spw(o interface{}) string {
 }
 
 var fuzzFuncs = []interface{}{
+	func(i **int8, c fuzz.Continue) {
+		// Prefer nil instead of zero, for deep equality.
+		// (go-amino decoder will always prefer nil).
+		var i_ int8
+		c.Fuzz(&i_)
+		if i_ == 0 {
+			*i = nil
+		} else {
+			*i = &i_
+		}
+	},
+	func(i **int16, c fuzz.Continue) {
+		// Prefer nil instead of zero, for deep equality.
+		// (go-amino decoder will always prefer nil).
+		var i_ int16
+		c.Fuzz(&i_)
+		if i_ == 0 {
+			*i = nil
+		} else {
+			*i = &i_
+		}
+	},
+	func(i **int32, c fuzz.Continue) {
+		// Prefer nil instead of zero, for deep equality.
+		// (go-amino decoder will always prefer nil).
+		var i_ int32
+		c.Fuzz(&i_)
+		if i_ == 0 {
+			*i = nil
+		} else {
+			*i = &i_
+		}
+	},
+	func(i **int64, c fuzz.Continue) {
+		// Prefer nil instead of zero, for deep equality.
+		// (go-amino decoder will always prefer nil).
+		var i_ int64
+		c.Fuzz(&i_)
+		if i_ == 0 {
+			*i = nil
+		} else {
+			*i = &i_
+		}
+	},
+	func(i **int, c fuzz.Continue) {
+		// Prefer nil instead of zero, for deep equality.
+		// (go-amino decoder will always prefer nil).
+		var i_ int
+		c.Fuzz(&i_)
+		if i_ == 0 {
+			*i = nil
+		} else {
+			*i = &i_
+		}
+	},
+	func(ui **uint8, c fuzz.Continue) {
+		// Prefer nil instead of zero, for deep equality.
+		// (go-amino decoder will always prefer nil).
+		var ui_ uint8
+		c.Fuzz(&ui_)
+		if ui_ == 0 {
+			*ui = nil
+		} else {
+			*ui = &ui_
+		}
+	},
+	func(ptr ***uint8, c fuzz.Continue) {
+		// Prefer nil instead of zero, for deep equality.
+		// (go-amino decoder will always prefer nil).
+		var ui_ uint8
+		c.Fuzz(&ui_)
+		if ui_ == 0 {
+			*ptr = nil
+		} else {
+			*ptr = new(*uint8)
+			**ptr = new(uint8)
+			***ptr = ui_
+		}
+	},
+	func(ptr ****uint8, c fuzz.Continue) {
+		// Prefer nil instead of zero, for deep equality.
+		// (go-amino decoder will always prefer nil).
+		var ui_ uint8
+		c.Fuzz(&ui_)
+		if ui_ == 0 {
+			*ptr = nil
+		} else {
+			*ptr = new(**uint8)
+			**ptr = new(*uint8)
+			***ptr = new(uint8)
+			****ptr = ui_
+		}
+	},
+	func(ui **uint16, c fuzz.Continue) {
+		// Prefer nil instead of zero, for deep equality.
+		// (go-amino decoder will always prefer nil).
+		var ui_ uint16
+		c.Fuzz(&ui_)
+		if ui_ == 0 {
+			*ui = nil
+		} else {
+			*ui = &ui_
+		}
+	},
+	func(ui **uint32, c fuzz.Continue) {
+		// Prefer nil instead of zero, for deep equality.
+		// (go-amino decoder will always prefer nil).
+		var ui_ uint32
+		c.Fuzz(&ui_)
+		if ui_ == 0 {
+			*ui = nil
+		} else {
+			*ui = &ui_
+		}
+	},
+	func(ui **uint64, c fuzz.Continue) {
+		// Prefer nil instead of zero, for deep equality.
+		// (go-amino decoder will always prefer nil).
+		var ui_ uint64
+		c.Fuzz(&ui_)
+		if ui_ == 0 {
+			*ui = nil
+		} else {
+			*ui = &ui_
+		}
+	},
+	func(ui **uint, c fuzz.Continue) {
+		// Prefer nil instead of zero, for deep equality.
+		// (go-amino decoder will always prefer nil).
+		var ui_ uint
+		c.Fuzz(&ui_)
+		if ui_ == 0 {
+			*ui = nil
+		} else {
+			*ui = &ui_
+		}
+	},
 	func(s **string, c fuzz.Continue) {
-		// Prefer nil instead of empty, for deep equality.
+		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
 		s_ := randString(c)
 		if len(s_) == 0 {
@@ -309,7 +491,7 @@ var fuzzFuncs = []interface{}{
 		}
 	},
 	func(bz **[]byte, c fuzz.Continue) {
-		// Prefer nil instead of empty, for deep equality.
+		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
 		var bz_ []byte
 		c.Fuzz(&bz_)
@@ -340,32 +522,6 @@ var fuzzFuncs = []interface{}{
 		}
 		// Strip timezone and monotonic for deep equality.
 		*tyme = tyme.UTC().Truncate(time.Millisecond)
-	},
-
-	// For testing nested pointers...
-	func(ptr **byte, c fuzz.Continue) {
-		if c.Intn(5) == 0 {
-			*ptr = nil
-			return
-		}
-		*ptr = new(byte)
-	},
-	func(ptr ***byte, c fuzz.Continue) {
-		if c.Intn(5) == 0 {
-			*ptr = nil
-			return
-		}
-		*ptr = new(*byte)
-		**ptr = new(byte)
-	},
-	func(ptr ****byte, c fuzz.Continue) {
-		if c.Intn(5) == 0 {
-			*ptr = nil
-			return
-		}
-		*ptr = new(**byte)
-		**ptr = new(*byte)
-		***ptr = new(byte)
 	},
 }
 

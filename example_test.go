@@ -65,7 +65,7 @@ func Example() {
 	fmt.Printf("Decoded successfully: %v\n", *bm == *bm2)
 
 	// Output:
-	// Encoded: 0D740613630A0341424310C80104 (err: <nil>)
+	// Encoded: 0C740613650A0341424310C801 (err: <nil>)
 	// Decoded: &{ABC 100} (err: <nil>)
 	// Decoded successfully: true
 }
