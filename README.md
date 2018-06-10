@@ -3,7 +3,8 @@
 This software implements Go bindings for the Amino encoding protocol.
 
 Amino is an object encoding specification. It is a subset of Proto3 with
-an extension for interface support.
+an extension for interface support.  See the [Proto3 spec](https://developers.google.com/protocol-buffers/docs/proto3)
+for more information on Proto3, which Amino is largely compatible with (but not with Proto2).
 
 The goal of the Amino encoding protocol is to bring parity into logic objects
 and persistence objects.
@@ -81,12 +82,6 @@ they will be stored in Interface type fields (or in a List with Interface
 elements) do they need to be registered.  Registration of Interfaces and the
 implementing concrete types should happen upon initialization of the program to
 detect any problems (such as conflicting prefix bytes -- more on that later).
-
-```
-<field_key><field_value> <field_key><field_value>... <Struct_term?>
-```
-
-A concrete type is typically a Struct type, but it doesn't need to be.
 
 #### Registering types
 
