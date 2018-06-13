@@ -385,8 +385,8 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 			}
 			// Get dereferenced field value and info.
 			var frv, isDefault = isDefaultValue(rv.Field(field.Index))
-			if isDefault {
-				// Do not encode default value fields.
+			if isDefault && !fopts.WriteEmpty {
+				// Do not encode default value fields (only if `amino:"write_empty"` is set).
 				continue
 			}
 			if field.UnpackedList {
@@ -396,6 +396,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 					return
 				}
 			} else {
+				lBefore := buf.Len()
 				// Write field key (number and type).
 				err = encodeFieldNumberAndTyp3(buf, field.BinFieldNum, typeToTyp3(finfo.Type, field.FieldOptions))
 				if err != nil {
@@ -405,6 +406,11 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 				err = cdc.encodeReflectBinary(buf, finfo, frv, field.FieldOptions, false)
 				if err != nil {
 					return
+				}
+				lAfter := buf.Len()
+				if lAfter == lBefore+1 && !fopts.WriteEmpty && buf.Bytes()[buf.Len()-1] == 0x00 {
+					// rollback one byte
+					buf.Truncate(buf.Len() - 1)
 				}
 			}
 		}
