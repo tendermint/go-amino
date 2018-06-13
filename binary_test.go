@@ -116,9 +116,15 @@ func TestWriteEmpty(t *testing.T) {
 	b, err := cdc.MarshalBinaryBare(Inner{})
 	assert.NoError(t, err)
 	assert.Equal(t, b, []byte(nil), "empty struct should be encoded as empty bytes")
+	var inner Inner
+	cdc.UnmarshalBinaryBare(b, &inner)
+	assert.Equal(t, Inner{}, inner, "")
 
 	b, err = cdc.MarshalBinaryBare(SomeStruct{})
 	assert.NoError(t, err)
 	assert.Equal(t, b, []byte(nil), "empty structs should be encoded as empty bytes")
-	t.Log(b)
+	var outer SomeStruct
+	cdc.UnmarshalBinaryBare(b, &outer)
+	assert.Equal(t, SomeStruct{}, outer, "")
+
 }

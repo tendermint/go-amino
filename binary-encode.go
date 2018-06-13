@@ -408,9 +408,10 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 					return
 				}
 				lAfter := buf.Len()
-				if lAfter == lBefore+1 && !fopts.WriteEmpty && buf.Bytes()[buf.Len()-1] == 0x00 {
-					// rollback one byte
-					buf.Truncate(buf.Len() - 1)
+
+				if lAfter == lBefore+2 && !fopts.WriteEmpty && buf.Bytes()[buf.Len()-1] == 0x00 {
+					// rollback typ3/fieldnum and last byte if empty:
+					buf.Truncate(buf.Len() - 2)
 				}
 			}
 		}
