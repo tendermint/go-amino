@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.10.0-rc2 (June 10, 2018)
+## 0.10.0 (June 12, 2018)
 
 BREAKING CHANGE:
 
@@ -8,6 +8,7 @@ BREAKING CHANGE:
  - BigEndian -> LittleEndian
  - [u]int[64/32] is (signed) Varint by default, "fixed32" and "fixed64" to use 4 and 8 byte types.
  - Amino:JSON [u]int64 and ints are strings.
+ - Enforce UTC timezone for JSON encoding of time.
 
 ## 0.9.11 (May 27, 2018)
 

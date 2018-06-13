@@ -63,8 +63,13 @@ func DecodeInt64(bz []byte) (i int64, n int, err error) {
 
 func DecodeVarint(bz []byte) (i int64, n int, err error) {
 	i, n = binary.Varint(bz)
-	if n < 0 {
-		n = 0
+	if n == 0 {
+		// buf too small
+		err = errors.New("buffer too small")
+	} else if n < 0 {
+		// value larger than 64 bits (overflow)
+		// and -n is the number of bytes read
+		n = -n
 		err = errors.New("EOF decoding varint")
 	}
 	return
@@ -128,8 +133,13 @@ func DecodeUint64(bz []byte) (u uint64, n int, err error) {
 
 func DecodeUvarint(bz []byte) (u uint64, n int, err error) {
 	u, n = binary.Uvarint(bz)
-	if n <= 0 {
-		n = 0
+	if n == 0 {
+		// buf too small
+		err = errors.New("buffer too small")
+	} else if n < 0 {
+		// value larger than 64 bits (overflow)
+		// and -n is the number of bytes read
+		n = -n
 		err = errors.New("EOF decoding uvarint")
 	}
 	return

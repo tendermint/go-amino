@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"time"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -40,6 +41,13 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		return
 	}
 
+	// Special case:
+	if rv.Type() == timeType {
+		// Amino time strips the timezone.
+		// NOTE: This must be done before json.Marshaler override below.
+		ct := rv.Interface().(time.Time).Round(0).UTC()
+		rv = reflect.ValueOf(ct)
+	}
 	// Handle override if rv implements json.Marshaler.
 	if rv.CanAddr() { // Try pointer first.
 		if rv.Addr().Type().Implements(jsonMarshalerType) {
