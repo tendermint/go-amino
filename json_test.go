@@ -122,7 +122,7 @@ func TestMarshalJSON(t *testing.T) {
 	}
 }
 
-func TestMarshalJSONWithMonotonicTime(t *testing.T) {
+func TestMarshalJSONTime(t *testing.T) {
 	var cdc = amino.NewCodec()
 	registerTransports(cdc)
 
@@ -135,7 +135,7 @@ func TestMarshalJSONWithMonotonicTime(t *testing.T) {
 	s := SimpleStruct{
 		String: "hello",
 		Bytes:  []byte("goodbye"),
-		Time:   time.Now().UTC().Truncate(time.Millisecond), // strip monotonic and timezone.
+		Time:   time.Now().Round(0).UTC(), // strip monotonic.
 	}
 
 	b, err := cdc.MarshalJSON(s)

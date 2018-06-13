@@ -102,8 +102,8 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 			panic("should not happen")
 		}
 		require.Nil(t, err,
-			"failed to unmarshal bytes %X: %v\nptr: %v\n",
-			bz, err, spw(ptr))
+			"failed to unmarshal bytes %X (%s): %v\nptr: %v\n",
+			bz, bz, err, spw(ptr))
 
 		require.Equal(t, ptr, ptr2,
 			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
@@ -521,7 +521,8 @@ var fuzzFuncs = []interface{}{
 			*tyme = time.Unix(s, ns)
 		}
 		// Strip timezone and monotonic for deep equality.
-		*tyme = tyme.UTC().Truncate(time.Millisecond)
+		// Also set to UTC.
+		*tyme = tyme.Truncate(0).UTC()
 	},
 }
 
