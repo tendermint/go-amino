@@ -3,8 +3,7 @@ syntax = "proto3";
 package proto3tests;
 
 message TestInt32Varint {
-    // protobuf will encode this as varint
-    int32 Int32 = 1;
+    sint32 Int32 = 1;
 }
 
 message TestInt32Fixed {
@@ -13,7 +12,7 @@ message TestInt32Fixed {
 
 message Test32 {
     fixed32 foo = 1;
-    int32 bar = 2;
+    sint32 bar = 2;
 }
 
 message TestFixedInt64 {
