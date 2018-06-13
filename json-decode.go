@@ -46,6 +46,20 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		rv = rv.Elem()
 	}
 
+	// Special case:
+	if rv.Type() == timeType {
+		// Amino time strips the timezone, so must end with Z.
+		if len(bz) >= 2 && bz[0] == '"' && bz[len(bz)-1] == '"' {
+			if bz[len(bz)-2] != 'Z' {
+				err = fmt.Errorf("Amino:JSON time must be UTC and end with 'Z' but got %s.", bz)
+				return
+			}
+		} else {
+			err = fmt.Errorf("Amino:JSON time must be an RFC3339Nano string, but got %s.", bz)
+			return
+		}
+	}
+
 	// Handle override if a pointer to rv implements json.Unmarshaler.
 	if rv.Addr().Type().Implements(jsonUnmarshalerType) {
 		err = rv.Addr().Interface().(json.Unmarshaler).UnmarshalJSON(bz)
