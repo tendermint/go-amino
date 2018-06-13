@@ -807,7 +807,8 @@ func consumeAny(typ3 Typ3, bz []byte) (n int, err error) {
 	case Typ3_4Byte:
 		_, _n, err = DecodeInt32(bz)
 	default:
-		panic("should not happen")
+		err = fmt.Errorf("invalid typ3 bytes %v", typ3)
+		return
 	}
 	if err != nil {
 		// do not slide
