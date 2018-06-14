@@ -506,8 +506,14 @@ func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, fopts
 	}
 
 	// Parse amino tags.
-	if aminoTag == "unsafe" {
-		fopts.Unsafe = true
+	aminoTags := strings.Split(aminoTag, ",")
+	for _, aminoTag := range aminoTags {
+		if aminoTag == "unsafe" {
+			fopts.Unsafe = true
+		}
+		if aminoTag == "write_empty" {
+			fopts.WriteEmpty = true
+		}
 	}
 
 	return

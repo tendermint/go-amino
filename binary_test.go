@@ -126,5 +126,26 @@ func TestWriteEmpty(t *testing.T) {
 	var outer SomeStruct
 	cdc.UnmarshalBinaryBare(b, &outer)
 	assert.Equal(t, SomeStruct{}, outer, "")
+}
 
+func TestForceWriteEmpty(t *testing.T) {
+	type InnerWriteEmpty struct {
+		// sth. that isn't zero-len if default, e.g. fixed32:
+		ValIn int32 `amino:"write_empty" binary:"fixed32"`
+	}
+
+	type OuterWriteEmpty struct {
+		In  InnerWriteEmpty `amino:"write_empty"`
+		Val int             `amino:"write_empty" binary:"fixed32"`
+	}
+
+	cdc := amino.NewCodec()
+
+	b, err := cdc.MarshalBinaryBare(OuterWriteEmpty{})
+	assert.NoError(t, err)
+	assert.NotZero(t, len(b), "amino:\"write_empty\" did not work")
+
+	b, err = cdc.MarshalBinaryBare(InnerWriteEmpty{})
+	assert.NoError(t, err)
+	assert.NotZero(t, len(b), "amino:\"write_empty\" did not work")
 }

@@ -28,6 +28,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	}
 	if !rv.IsValid() {
 		panic("should not happen")
+		// TODO(ismail): make this clearer
 	}
 	if printLog {
 		spew.Printf("(E) encodeReflectBinary(info: %v, rv: %#v (%v), fopts: %v)\n",
@@ -385,7 +386,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 			}
 			// Get dereferenced field value and info.
 			var frv, isDefault = isDefaultValue(rv.Field(field.Index))
-			if isDefault && !fopts.WriteEmpty {
+			if isDefault && !fopts.WriteEmpty && field.Index != 0 {
 				// Do not encode default value fields (only if `amino:"write_empty"` is set).
 				continue
 			}
@@ -409,7 +410,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 				}
 				lAfter := buf.Len()
 
-				if lAfter == lBefore+2 && !fopts.WriteEmpty && buf.Bytes()[buf.Len()-1] == 0x00 {
+				if !fopts.WriteEmpty && lAfter == lBefore+2 && buf.Bytes()[buf.Len()-1] == 0x00 {
 					// rollback typ3/fieldnum and last byte if empty:
 					buf.Truncate(buf.Len() - 2)
 				}
