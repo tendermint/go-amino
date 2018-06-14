@@ -1,5 +1,4 @@
 vendor
-.glide
 *.sw[op]
 fuzz_binary-fuzz.zip
 tests/fuzz/json/corpus
