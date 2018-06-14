@@ -386,7 +386,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 			}
 			// Get dereferenced field value and info.
 			var frv, isDefault = isDefaultValue(rv.Field(field.Index))
-			if isDefault && !fopts.WriteEmpty && field.Index != 0 {
+			if isDefault && !fopts.WriteEmpty {
 				// Do not encode default value fields (only if `amino:"write_empty"` is set).
 				continue
 			}
