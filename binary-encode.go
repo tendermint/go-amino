@@ -24,11 +24,10 @@ import (
 // CONTRACT: rv is valid.
 func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
 	if rv.Kind() == reflect.Ptr {
-		panic("should not happen")
+		panic("not allowed to be called with a reflect.Ptr")
 	}
 	if !rv.IsValid() {
-		panic("should not happen")
-		// TODO(ismail): make this clearer
+		panic("not allowed to be called with invalid / zero Value")
 	}
 	if printLog {
 		spew.Printf("(E) encodeReflectBinary(info: %v, rv: %#v (%v), fopts: %v)\n",
