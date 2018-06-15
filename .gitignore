@@ -1,5 +1,4 @@
 vendor
-.glide
 *.sw[op]
 fuzz_binary-fuzz.zip
 tests/fuzz/json/corpus
@@ -9,3 +8,4 @@ fuzz_json-fuzz.zip
 tests/fuzz/binary/corpus
 tests/fuzz/binary/crashers
 tests/fuzz/binary/suppressions
+aminoscan

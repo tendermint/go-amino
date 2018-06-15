@@ -1,3 +1,4 @@
-package wire
+package amino
 
-const Version = "0.7.2"
+// Version
+const Version = "0.10.1"

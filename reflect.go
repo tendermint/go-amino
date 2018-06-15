@@ -1,6 +1,7 @@
-package wire
+package amino
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
@@ -9,10 +10,14 @@ import (
 //----------------------------------------
 // Constants
 
-var timeType = reflect.TypeOf(time.Time{})
-
-const RFC3339Millis = "2006-01-02T15:04:05.000Z" // forced microseconds
 const printLog = false
+
+var (
+	timeType            = reflect.TypeOf(time.Time{})
+	jsonMarshalerType   = reflect.TypeOf(new(json.Marshaler)).Elem()
+	jsonUnmarshalerType = reflect.TypeOf(new(json.Unmarshaler)).Elem()
+	errorType           = reflect.TypeOf(new(error)).Elem()
+)
 
 //----------------------------------------
 // encode: see binary-encode.go and json-encode.go
@@ -35,7 +40,7 @@ func checkUnsafe(field FieldInfo) {
 	}
 	switch field.Type.Kind() {
 	case reflect.Float32, reflect.Float64:
-		panic("floating point types are unsafe for go-wire")
+		panic("floating point types are unsafe for go-amino")
 	}
 }
 
@@ -46,31 +51,86 @@ func slide(bz *[]byte, n *int, _n int) bool {
 		panic(fmt.Sprintf("impossible slide: len:%v _n:%v", len(*bz), _n))
 	}
 	*bz = (*bz)[_n:]
-	*n += _n
+	if n != nil {
+		*n += _n
+	}
 	return true
 }
 
-// Dereference pointer transparently for interface iinfo.
-// This also works for pointer-pointers.
-func derefForInterface(crv reflect.Value, iinfo *TypeInfo) (reflect.Value, error) {
-	if iinfo.Type.Kind() != reflect.Interface {
-		panic("derefForInterface() expects interface type info")
-	}
-	// NOTE: Encoding pointer-pointers only work for no-method interfaces like
-	// `interface{}`.
-	for crv.Kind() == reflect.Ptr {
-		crv = crv.Elem()
-		if crv.Kind() == reflect.Interface {
-			err := fmt.Errorf("Unexpected interface-pointer of type *%v for registered interface %v. Not supported yet.", crv.Type(), iinfo.Type)
-			return crv, err
+// Dereference pointer recursively.
+// drv: the final non-pointer value (which may be invalid).
+// isPtr: whether rv.Kind() == reflect.Ptr.
+// isNilPtr: whether a nil pointer at any level.
+func derefPointers(rv reflect.Value) (drv reflect.Value, isPtr bool, isNilPtr bool) {
+	for rv.Kind() == reflect.Ptr {
+		isPtr = true
+		if rv.IsNil() {
+			isNilPtr = true
+			return
 		}
-		if !crv.IsValid() {
-			err := fmt.Errorf("Illegal nil-pointer of type %v for registered interface %v. "+
-				"For compatibility with other languages, nil-pointer interface values are forbidden.", crv.Type(), iinfo.Type)
-			return crv, err
+		rv = rv.Elem()
+	}
+	drv = rv
+	return
+}
+
+// Dereference pointer recursively or return zero value.
+// drv: the final non-pointer value (which is never invalid).
+// isPtr: whether rv.Kind() == reflect.Ptr.
+// isNilPtr: whether a nil pointer at any level.
+func derefPointersZero(rv reflect.Value) (drv reflect.Value, isPtr bool, isNilPtr bool) {
+	for rv.Kind() == reflect.Ptr {
+		isPtr = true
+		if rv.IsNil() {
+			isNilPtr = true
+			rt := rv.Type().Elem()
+			for rt.Kind() == reflect.Ptr {
+				rt = rt.Elem()
+			}
+			drv = reflect.New(rt).Elem()
+			return
+		}
+		rv = rv.Elem()
+	}
+	drv = rv
+	return
+}
+
+// Returns isDefaultValue=true iff is ultimately nil or empty after (recursive)
+// dereferencing. If isDefaultValue=false, erv is set to the non-nil non-empty
+// non-default dereferenced value.
+// A zero/empty struct is not considered default.
+func isDefaultValue(rv reflect.Value) (erv reflect.Value, isDefaultValue bool) {
+	rv, _, isNilPtr := derefPointers(rv)
+	if isNilPtr {
+		return rv, true
+	} else {
+		switch rv.Kind() {
+		case reflect.Bool:
+			return rv, rv.Bool() == false
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			return rv, rv.Int() == 0
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			return rv, rv.Uint() == 0
+		case reflect.String:
+			return rv, rv.Len() == 0
+		case reflect.Chan, reflect.Map, reflect.Slice:
+			return rv, rv.IsNil() || rv.Len() == 0
+		case reflect.Func, reflect.Interface:
+			return rv, rv.IsNil()
+		default:
+			return rv, false
 		}
 	}
-	return crv, nil
+}
+
+func isNil(rv reflect.Value) bool {
+	switch rv.Kind() {
+	case reflect.Interface, reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr, reflect.Slice:
+		return rv.IsNil()
+	default:
+		return false
+	}
 }
 
 // constructConcreteType creates the concrete value as
@@ -89,66 +149,56 @@ func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
 	return
 }
 
-// Like typeToTyp4 but include a pointer bit.
-func typeToTyp4(rt reflect.Type, opts FieldOptions) (typ Typ4) {
-
-	// Transparently "dereference" pointer type.
-	var pointer = false
-	for rt.Kind() == reflect.Ptr {
-		pointer = true
-		rt = rt.Elem()
-	}
-
-	// Call actual logic.
-	typ = Typ4(typeToTyp3(rt, opts))
-
-	// Set pointer bit to 1 if pointer.
-	if pointer {
-		typ |= Typ4_Pointer
-	}
-	return
-}
-
 // CONTRACT: rt.Kind() != reflect.Ptr
 func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
 	switch rt.Kind() {
 	case reflect.Interface:
-		return Typ3_Interface
+		return Typ3_ByteLength
 	case reflect.Array, reflect.Slice:
-		ert := rt.Elem()
-		switch ert.Kind() {
-		case reflect.Uint8:
-			return Typ3_ByteLength
-		default:
-			return Typ3_List
-		}
+		return Typ3_ByteLength
 	case reflect.String:
 		return Typ3_ByteLength
-	case reflect.Struct:
-		return Typ3_Struct
+	case reflect.Struct, reflect.Map:
+		return Typ3_ByteLength
 	case reflect.Int64, reflect.Uint64:
-		if opts.BinVarint {
+		if opts.BinFixed64 {
+			return Typ3_8Byte
+		} else {
 			return Typ3_Varint
 		}
-		return Typ3_8Byte
-	case reflect.Float64:
-		return Typ3_8Byte
-	case reflect.Int32, reflect.Uint32, reflect.Float32:
-		return Typ3_4Byte
+	case reflect.Int32, reflect.Uint32:
+		if opts.BinFixed32 {
+			return Typ3_4Byte
+		} else {
+			return Typ3_Varint
+		}
 	case reflect.Int16, reflect.Int8, reflect.Int,
 		reflect.Uint16, reflect.Uint8, reflect.Uint, reflect.Bool:
 		return Typ3_Varint
+	case reflect.Float64:
+		return Typ3_8Byte
+	case reflect.Float32:
+		return Typ3_4Byte
 	default:
 		panic(fmt.Sprintf("unsupported field type %v", rt))
 	}
 }
 
-func isNilSafe(rv reflect.Value) bool {
-	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface,
-		reflect.Map, reflect.Ptr, reflect.Slice:
-		return rv.IsNil()
-	default:
-		return false
+func toReprObject(rv reflect.Value) (rrv reflect.Value, err error) {
+	var mwrm reflect.Value
+	if rv.CanAddr() {
+		mwrm = rv.Addr().MethodByName("MarshalAmino")
+	} else {
+		mwrm = rv.MethodByName("MarshalAmino")
 	}
+	mwouts := mwrm.Call(nil)
+	if !mwouts[1].IsNil() {
+		erri := mwouts[1].Interface()
+		if erri != nil {
+			err = erri.(error)
+			return
+		}
+	}
+	rrv = mwouts[0]
+	return
 }

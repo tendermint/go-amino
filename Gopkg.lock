@@ -30,14 +30,15 @@
   version = "v1.7.0"
 
 [[projects]]
-  name = "github.com/gogo/protobuf"
+  name = "github.com/golang/protobuf"
   packages = [
-    "gogoproto",
     "proto",
-    "protoc-gen-gogo/descriptor"
+    "proto/proto3_proto",
+    "proto/test_proto",
+    "ptypes/any"
   ]
-  revision = "1adfc126b41513cc696b209667c8656ea7aac67c"
-  version = "v1.0.0"
+  revision = "b4deda0973fb4c70b50d226b1af49f3da59f5265"
+  version = "v1.1.0"
 
 [[projects]]
   branch = "master"
@@ -69,8 +70,8 @@
     "assert",
     "require"
   ]
-  revision = "12b6f73e6084dad08a7c6e575284b177ecafbc71"
-  version = "v1.2.1"
+  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
+  version = "v1.2.2"
 
 [[projects]]
   name = "github.com/tendermint/tmlibs"
@@ -78,12 +79,12 @@
     "common",
     "log"
   ]
-  revision = "1b9b5652a199ab0be2e781393fb275b66377309d"
-  version = "v0.7.0"
+  revision = "fb7ec62b2925f48de159aeea73b254ae8c58a738"
+  version = "v0.9.0-rc1"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1fc16a9931d7e534b7c7fb2745c0289f489bf165cbc77d540c8e6b6d285cc742"
+  inputs-digest = "b874b7663e460be50de5399e2e5c81d6cb520d6157f5f9cc317ee9abd239ec3f"
   solver-name = "gps-cdcl"
   solver-version = 1

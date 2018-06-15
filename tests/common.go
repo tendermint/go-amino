@@ -66,6 +66,25 @@ type SlicesStruct struct {
 	TimeSl    []time.Time
 }
 
+type SliceSlicesStruct struct {
+	Int8SlSl    [][]int8
+	Int16SlSl   [][]int16
+	Int32SlSl   [][]int32
+	Int64SlSl   [][]int64
+	VarintSlSl  [][]int64 `binary:"varint"`
+	IntSlSl     [][]int
+	ByteSlSl    [][]byte
+	Uint8SlSl   [][]uint8
+	Uint16SlSl  [][]uint16
+	Uint32SlSl  [][]uint32
+	Uint64SlSl  [][]uint64
+	UvarintSlSl [][]uint64 `binary:"varint"`
+	UintSlSl    [][]uint
+	StringSlSl  [][]string
+	BytesSlSl   [][][]byte
+	TimeSlSl    [][]time.Time
+}
+
 type PointersStruct struct {
 	Int8Pt    *int8
 	Int16Pt   *int16
@@ -83,6 +102,25 @@ type PointersStruct struct {
 	StringPt  *string
 	BytesPt   *[]byte
 	TimePt    *time.Time
+}
+
+type PointerSlicesStruct struct {
+	Int8PtSl    []*int8
+	Int16PtSl   []*int16
+	Int32PtSl   []*int32
+	Int64PtSl   []*int64
+	VarintPtSl  []*int64 `binary:"varint"`
+	IntPtSl     []*int
+	BytePtSl    []*byte
+	Uint8PtSl   []*uint8
+	Uint16PtSl  []*uint16
+	Uint32PtSl  []*uint32
+	Uint64PtSl  []*uint64
+	UvarintPtSl []*uint64 `binary:"varint"`
+	UintPtSl    []*uint
+	StringPtSl  []*string
+	BytesPtSl   []*[]byte
+	TimePtSl    []*time.Time
 }
 
 // NOTE: See registered fuzz funcs for *byte, **byte, and ***byte.
@@ -146,7 +184,9 @@ var StructTypes = []interface{}{
 	(*ShortArraysStruct)(nil),
 	(*ArraysStruct)(nil),
 	(*SlicesStruct)(nil),
+	(*SliceSlicesStruct)(nil),
 	(*PointersStruct)(nil),
+	(*PointerSlicesStruct)(nil),
 	(*NestedPointersStruct)(nil),
 	(*ComplexSt)(nil),
 	(*EmbeddedSt1)(nil),

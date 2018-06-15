@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/tendermint/go-wire"
-	"github.com/tendermint/go-wire/tests"
+	"github.com/tendermint/go-amino"
+	"github.com/tendermint/go-amino/tests"
 )
 
 func main() {
@@ -129,7 +129,7 @@ func main() {
 		{PrField: ps, ArField: as, SlField: ss, PtField: pts1},
 	}
 
-	cdc := wire.NewCodec()
+	cdc := amino.NewCodec()
 	cdc.RegisterConcrete(&tests.ComplexSt{}, "com.tendermint/complex_st", nil)
 	cdc.RegisterConcrete(&tests.PrimitivesStruct{}, "com.tendermint/primitive_st", nil)
 	cdc.RegisterConcrete(&tests.ArraysStruct{}, "com.tendermint/arrays_st", nil)

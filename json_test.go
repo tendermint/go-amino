@@ -1,105 +1,104 @@
-package wire_test
+package amino_test
 
 import (
 	"bytes"
 	"encoding/json"
-	"os"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tendermint/go-wire"
+	amino "github.com/tendermint/go-amino"
 )
 
-var cdc = wire.NewCodec()
-
-func TestMain(m *testing.M) {
-	// Register the concrete types first.
+func registerTransports(cdc *amino.Codec) {
 	cdc.RegisterConcrete(&Transport{}, "our/transport", nil)
-	cdc.RegisterInterface((*Vehicle)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
-	cdc.RegisterInterface((*Asset)(nil), &wire.InterfaceOptions{AlwaysDisambiguate: true})
+	cdc.RegisterInterface((*Vehicle)(nil), &amino.InterfaceOptions{AlwaysDisambiguate: true})
+	cdc.RegisterInterface((*Asset)(nil), &amino.InterfaceOptions{AlwaysDisambiguate: true})
 	cdc.RegisterConcrete(Car(""), "car", nil)
 	cdc.RegisterConcrete(insurancePlan(0), "insuranceplan", nil)
 	cdc.RegisterConcrete(Boat(""), "boat", nil)
 	cdc.RegisterConcrete(Plane{}, "plane", nil)
-
-	os.Exit(m.Run())
 }
 
 func TestMarshalJSON(t *testing.T) {
-	t.Parallel()
+	var cdc = amino.NewCodec()
+	registerTransports(cdc)
 	cases := []struct {
 		in      interface{}
 		want    string
 		wantErr string
 	}{
-		{&noFields{}, "{}", ""},
-		{&noExportedFields{a: 10, b: "foo"}, "{}", ""},
-		{nil, "null", ""},
-		{&oneExportedField{}, `{"A":""}`, ""},
-		{Vehicle(Car("Tesla")), `{"_df":"2B2961A431B238","_v":"Tesla"}`, ""},
-		{Car("Tesla"), `{"_df":"2B2961A431B238","_v":"Tesla"}`, ""},
-		{&oneExportedField{A: "Z"}, `{"A":"Z"}`, ""},
-		{[]string{"a", "bc"}, `["a","bc"]`, ""},
-		{[]interface{}{"a", "bc", 10, 10.93, 1e3}, ``, "Unregistered"},
-		{aPointerField{Foo: new(int), Name: "name"}, `{"Foo":0,"nm":"name"}`, ""},
+		{&noFields{}, "{}", ""},                        // #0
+		{&noExportedFields{a: 10, b: "foo"}, "{}", ""}, // #1
+		{nil, "null", ""},                              // #2
+		{&oneExportedField{}, `{"A":""}`, ""},          // #3
+		{Vehicle(Car("Tesla")),
+			`{"type":"car","value":"Tesla"}`, ""}, // #4
+		{Car("Tesla"), `{"type":"car","value":"Tesla"}`, ""}, // #5
+		{&oneExportedField{A: "Z"}, `{"A":"Z"}`, ""},         // #6
+		{[]string{"a", "bc"}, `["a","bc"]`, ""},              // #7
+		{[]interface{}{"a", "bc", 10, 10.93, 1e3},
+			``, "Unregistered"}, // #8
+		{aPointerField{Foo: new(int), Name: "name"},
+			`{"Foo":"0","nm":"name"}`, ""}, // #9
 		{
 			aPointerFieldAndEmbeddedField{intPtr(11), "ap", nil, &oneExportedField{A: "foo"}},
-			`{"Foo":11,"nm":"ap","bz":{"A":"foo"}}`, "",
-		},
-
+			`{"Foo":"11","nm":"ap","bz":{"A":"foo"}}`, "",
+		}, // #10
 		{
 			doublyEmbedded{
 				Inner: &aPointerFieldAndEmbeddedField{
 					intPtr(11), "ap", nil, &oneExportedField{A: "foo"},
 				},
 			},
-			`{"Inner":{"Foo":11,"nm":"ap","bz":{"A":"foo"}},"year":0}`, "",
-		},
-
+			`{"Inner":{"Foo":"11","nm":"ap","bz":{"A":"foo"}},"year":0}`, "",
+		}, // #11
 		{
 			struct{}{}, `{}`, "",
-		},
+		}, // #12
 		{
-			struct{ A int }{A: 10}, `{"A":10}`, "",
-		},
+			struct{ A int }{A: 10}, `{"A":"10"}`, "",
+		}, // #13
 		{
 			Transport{},
-			`{"_df":"AEB127E121A6B0","_v":{"Vehicle":null,"Capacity":0}}`, "",
-		},
+			`{"type":"our/transport","value":{"Vehicle":null,"Capacity":"0"}}`, "",
+		}, // #14
 		{
 			Transport{Vehicle: Car("Bugatti")},
-			`{"_df":"AEB127E121A6B0","_v":{"Vehicle":{"_df":"2B2961A431B238","_v":"Bugatti"},"Capacity":0}}`, "",
-		},
+			`{"type":"our/transport","value":{"Vehicle":{"type":"car","value":"Bugatti"},"Capacity":"0"}}`, "",
+		}, // #15
 		{
 			BalanceSheet{Assets: []Asset{Car("Corolla"), insurancePlan(1e7)}},
-			`{"assets":[{"_df":"2B2961A431B238","_v":"Corolla"},{"_df":"7DF0BC76182A18","_v":10000000}]}`, "",
-		},
+			`{"assets":[{"type":"car","value":"Corolla"},{"type":"insuranceplan","value":"10000000"}]}`, "",
+		}, // #16
 		{
 			Transport{Vehicle: Boat("Poseidon"), Capacity: 1789},
-			`{"_df":"AEB127E121A6B0","_v":{"Vehicle":{"_df":"25CDB46D8D2110","_v":"Poseidon"},"Capacity":1789}}`, "",
-		},
+			`{"type":"our/transport","value":{"Vehicle":{"type":"boat","value":"Poseidon"},"Capacity":"1789"}}`, "",
+		}, // #17
 		{
 			withCustomMarshaler{A: &aPointerField{Foo: intPtr(12)}, F: customJSONMarshaler(10)},
-			`{"fx":"Tendermint","A":{"Foo":12}}`, "",
-		},
+			`{"fx":"Tendermint","A":{"Foo":"12"}}`, "",
+		}, // #18
 		{
 			func() json.Marshaler { v := customJSONMarshaler(10); return &v }(),
 			`"Tendermint"`, "",
-		},
+		}, // #19
 
 		// We don't yet support interface pointer registration i.e. `*interface{}`
-		{interfacePtr("a"), "", "Unregistered interface interface {}"},
-
-		{&fp{"Foo", 10}, "<FP-MARSHALJSON>", ""},
-		{(*fp)(nil), "null", ""},
+		{
+			interfacePtr("a"), "", "Unregistered interface interface {}",
+		}, // #20
+		{&fp{"Foo", 10}, "<FP-MARSHALJSON>", ""}, // #21
+		{(*fp)(nil), "null", ""},                 // #22
 		{struct {
 			FP      *fp
 			Package string
 		}{FP: &fp{"Foo", 10}, Package: "bytes"},
-			`{"FP":<FP-MARSHALJSON>,"Package":"bytes"}`, ""},
+			`{"FP":<FP-MARSHALJSON>,"Package":"bytes"}`, "",
+		}, // #23,
 	}
 
 	for i, tt := range cases {
@@ -123,8 +122,9 @@ func TestMarshalJSON(t *testing.T) {
 	}
 }
 
-func TestMarshalJSONWithMonotonicTime(t *testing.T) {
-	var cdc = wire.NewCodec()
+func TestMarshalJSONTime(t *testing.T) {
+	var cdc = amino.NewCodec()
+	registerTransports(cdc)
 
 	type SimpleStruct struct {
 		String string
@@ -135,7 +135,7 @@ func TestMarshalJSONWithMonotonicTime(t *testing.T) {
 	s := SimpleStruct{
 		String: "hello",
 		Bytes:  []byte("goodbye"),
-		Time:   time.Now().UTC().Truncate(time.Millisecond), // strip monotonic and timezone.
+		Time:   time.Now().Round(0).UTC(), // strip monotonic.
 	}
 
 	b, err := cdc.MarshalJSON(s)
@@ -173,7 +173,7 @@ func TestUnmarshalMap(t *testing.T) {
 	binBytes := []byte(`dontcare`)
 	jsonBytes := []byte(`{"2": 2}`)
 	obj := new(map[string]int)
-	cdc := wire.NewCodec()
+	cdc := amino.NewCodec()
 	// Binary doesn't support decoding to a map...
 	assert.Panics(t, func() {
 		err := cdc.UnmarshalBinary(binBytes, &obj)
@@ -208,7 +208,7 @@ func TestUnmarshalFunc(t *testing.T) {
 	binBytes := []byte(`dontcare`)
 	jsonBytes := []byte(`"dontcare"`)
 	obj := func() {}
-	cdc := wire.NewCodec()
+	cdc := amino.NewCodec()
 	// Binary doesn't support decoding to a func...
 	assert.Panics(t, func() {
 		err := cdc.UnmarshalBinary(binBytes, &obj)
@@ -240,62 +240,71 @@ func TestUnmarshalFunc(t *testing.T) {
 }
 
 func TestUnmarshalJSON(t *testing.T) {
-	t.Parallel()
+	var cdc = amino.NewCodec()
+	registerTransports(cdc)
 	cases := []struct {
 		blob    string
 		in      interface{}
 		want    interface{}
 		wantErr string
 	}{
-		{
-			"null", 2, nil, "expects a pointer",
+		{ // #0
+			`null`, 2, nil, "expects a pointer",
 		},
-		{
-			"null", new(int), new(int), "",
+		{ // #1
+			`null`, new(int), new(int), "",
 		},
-		{
-			"2", new(int), intPtr(2), "",
+		{ // #2
+			`"2"`, new(int), intPtr(2), "",
 		},
-		{
+		{ // #3
 			`{"null"}`, new(int), nil, "invalid character",
 		},
-		{
-			`{"_df":"AEB127E121A6B0","_v":{"Vehicle":null,"Capacity":0}}`, new(Transport), new(Transport), "",
+		{ // #4
+			`{"type":"our/transport","value":{"Vehicle":null,"Capacity":"0"}}`, new(Transport), new(Transport), "",
 		},
-		{
-			`{"_df":"AEB127E121A6B0","_v":{"Vehicle":{"_df":"2B2961A431B238","_v":"Bugatti"},"Capacity":10}}`,
+		{ // #5
+			`{"type":"our/transport","value":{"Vehicle":{"type":"car","value":"Bugatti"},"Capacity":"10"}}`,
 			new(Transport),
 			&Transport{
 				Vehicle:  Car("Bugatti"),
 				Capacity: 10,
 			}, "",
 		},
-		{
-			`{"_df":"2B2961A431B238","_v":"Bugatti"}`, new(Car), func() *Car { c := Car("Bugatti"); return &c }(), "",
+		{ // #6
+			`{"type":"car","value":"Bugatti"}`, new(Car), func() *Car { c := Car("Bugatti"); return &c }(), "",
 		},
-		{
-			`[1, 2, 3]`, new([]int), func() interface{} {
+		{ // #7
+			`["1", "2", "3"]`, new([]int), func() interface{} {
 				v := []int{1, 2, 3}
 				return &v
 			}(), "",
 		},
-		{
+		{ // #8
 			`["1", "2", "3"]`, new([]string), func() interface{} {
 				v := []string{"1", "2", "3"}
 				return &v
 			}(), "",
 		},
-		{
-			`[1, "2", ["foo", "bar"]]`, new([]interface{}), nil, "Unregistered",
+		{ // #9
+			`[1, "2", ["foo", "bar"]]`,
+			new([]interface{}), nil, "Unregistered",
 		},
-		{
+		{ // #10
 			`2.34`, floatPtr(2.34), nil, "float* support requires",
 		},
-
-		{"<FooBar>", new(fp), &fp{"<FooBar>", 0}, ""},
-		{"10", new(fp), &fp{Name: "10"}, ""},
-		{`{"PC":125,"FP":"10"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `"10"`}}, ""},
-		{`{"PC":125,"FP":"<FP-FOO>"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `"<FP-FOO>"`}}, ""},
+		{ // #11
+			"<FooBar>", new(fp), &fp{"<FooBar>", 0}, "",
+		},
+		{ // #12
+			"10", new(fp), &fp{Name: "10"}, "",
+		},
+		{ // #13
+			`{"PC":"125","FP":"10"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `"10"`}}, "",
+		},
+		{ // #14
+			`{"PC":"125","FP":"<FP-FOO>"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `"<FP-FOO>"`}}, "",
+		},
 	}
 
 	for i, tt := range cases {
@@ -321,6 +330,8 @@ func TestUnmarshalJSON(t *testing.T) {
 }
 
 func TestJSONCodecRoundTrip(t *testing.T) {
+	var cdc = amino.NewCodec()
+	registerTransports(cdc)
 	type allInclusive struct {
 		Tr      Transport `json:"trx"`
 		Vehicle Vehicle   `json:"v,omitempty"`
@@ -421,7 +432,7 @@ type aPointerField struct {
 
 type doublyEmbedded struct {
 	Inner *aPointerFieldAndEmbeddedField
-	Year  int64 `json:"year"`
+	Year  int32 `json:"year"`
 }
 
 type aPointerFieldAndEmbeddedField struct {
@@ -481,4 +492,100 @@ func (p Plane) Move() error { return nil }
 
 func interfacePtr(v interface{}) *interface{} {
 	return &v
+}
+
+//----------------------------------------
+
+func TestMarshalJSONMap(t *testing.T) {
+	var cdc = amino.NewCodec()
+
+	type SimpleStruct struct {
+		Foo int
+		Bar []byte
+	}
+
+	type MapsStruct struct {
+		Map1      map[string]string
+		Map1nil   map[string]string
+		Map1empty map[string]string
+
+		Map2      map[string]SimpleStruct
+		Map2nil   map[string]SimpleStruct
+		Map2empty map[string]SimpleStruct
+
+		Map3      map[string]*SimpleStruct
+		Map3nil   map[string]*SimpleStruct
+		Map3empty map[string]*SimpleStruct
+
+		/*
+			NOT SUPPORTED YET.  FIRST, DEFINE SPEC.
+			Map4      map[int]*SimpleStruct
+			Map4nil   map[int]*SimpleStruct
+			Map4empty map[int]*SimpleStruct
+		*/
+	}
+
+	ms := MapsStruct{
+		Map1:      map[string]string{"foo": "bar"},
+		Map1nil:   (map[string]string)(nil),
+		Map1empty: map[string]string{},
+
+		Map2:      map[string]SimpleStruct{"foo": {Foo: 1, Bar: []byte("bar")}},
+		Map2nil:   (map[string]SimpleStruct)(nil),
+		Map2empty: map[string]SimpleStruct{},
+
+		Map3:      map[string]*SimpleStruct{"foo": &SimpleStruct{Foo: 1, Bar: []byte("bar")}},
+		Map3nil:   (map[string]*SimpleStruct)(nil),
+		Map3empty: map[string]*SimpleStruct{},
+
+		/*
+			Map4:      map[int]*SimpleStruct{123: &SimpleStruct{Foo: 1, Bar: []byte("bar")}},
+			Map4nil:   (map[int]*SimpleStruct)(nil),
+			Map4empty: map[int]*SimpleStruct{},
+		*/
+	}
+
+	// ms2 is expected to be this.
+	ms3 := MapsStruct{
+		Map1:      map[string]string{"foo": "bar"},
+		Map1nil:   map[string]string{},
+		Map1empty: map[string]string{},
+
+		Map2:      map[string]SimpleStruct{"foo": {Foo: 1, Bar: []byte("bar")}},
+		Map2nil:   map[string]SimpleStruct{},
+		Map2empty: map[string]SimpleStruct{},
+
+		Map3:      map[string]*SimpleStruct{"foo": &SimpleStruct{Foo: 1, Bar: []byte("bar")}},
+		Map3nil:   map[string]*SimpleStruct{},
+		Map3empty: map[string]*SimpleStruct{},
+
+		/*
+			Map4:      map[int]*SimpleStruct{123: &SimpleStruct{Foo: 1, Bar: []byte("bar")}},
+			Map4nil:   (map[int]*SimpleStruct)(nil),
+			Map4empty: map[int]*SimpleStruct{},
+		*/
+	}
+
+	b, err := cdc.MarshalJSON(ms)
+	assert.Nil(t, err)
+
+	var ms2 MapsStruct
+	err = cdc.UnmarshalJSON(b, &ms2)
+	assert.Nil(t, err)
+	assert.Equal(t, ms3, ms2)
+}
+
+func TestMarshalJSONIndent(t *testing.T) {
+	var cdc = amino.NewCodec()
+	registerTransports(cdc)
+	obj := Car("Tesla")
+	indent := "  "
+	expected := fmt.Sprintf(`{
+%s"type": "car",
+%s"value": "Tesla"
+}`, indent, indent)
+
+	blob, err := cdc.MarshalJSONIndent(obj, "", "  ")
+	assert.Nil(t, err)
+	assert.Equal(t, expected, string(blob))
 }

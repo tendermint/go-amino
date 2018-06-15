@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package wire_test
+package amino_test
 
 import (
 	"fmt"
 
-	wire "github.com/tendermint/go-wire"
+	"github.com/tendermint/go-amino"
 )
 
 func Example() {
@@ -44,7 +44,7 @@ func Example() {
 		Peers int
 	}
 
-	var cdc = wire.NewCodec()
+	var cdc = amino.NewCodec()
 	cdc.RegisterInterface((*Message)(nil), nil)
 	cdc.RegisterConcrete(&bcMessage{}, "bcMessage", nil)
 	cdc.RegisterConcrete(&bcResponse{}, "bcResponse", nil)
@@ -65,7 +65,7 @@ func Example() {
 	fmt.Printf("Decoded successfully: %v\n", *bm == *bm2)
 
 	// Output:
-	// Encoded: 0D740613630A0341424310C80104 (err: <nil>)
+	// Encoded: 0C740613650A0341424310C801 (err: <nil>)
 	// Decoded: &{ABC 100} (err: <nil>)
 	// Decoded successfully: true
 }
