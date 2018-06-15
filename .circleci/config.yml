@@ -18,7 +18,7 @@ jobs:
               name: test
               command: |
                 go version
-                cd $PROJECT_PATH && make get_tools && make get_vendor_deps && make test
+                make get_tools && make get_vendor_deps && make test
     - save_cache:
         key: v1-dep-{{ .Branch }}
         paths:
