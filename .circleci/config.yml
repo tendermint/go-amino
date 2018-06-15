@@ -18,6 +18,8 @@ jobs:
       - run:
               name: test
               command: |
+                export PATH="$GOBIN:$PATH"
+                go env
                 go version
                 make get_tools && make get_vendor_deps && make test
       - save_cache:
