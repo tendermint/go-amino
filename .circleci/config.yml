@@ -4,9 +4,9 @@ jobs:
   build:
     working_directory: /go/src/github.com/tendermint/go-amino
     docker:
-    - image: circleci/golang:1.10.3
-      environment:
-        GOBIN: /tmp/workspace/bin
+      - image: circleci/golang:1.10.3
+    environment:
+      GOBIN: /tmp/workspace/bin
     steps:
       - run: mkdir -p /tmp/workspace/bin
       - run: mkdir -p /tmp/workspace/profiles
