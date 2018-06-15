@@ -1,12 +1,13 @@
 version: 2
-
 jobs:
   build:
-    working_directory: /go/src/github.com/tendermint/go-amino
     docker:
       - image: circleci/golang:1.10.3
-    environment:
-      GOBIN: /tmp/workspace/bin
+        environment:
+          GOBIN: /tmp/workspace/bin
+
+    working_directory: /go/src/github.com/tendermint/go-amino
+
     steps:
       - run: mkdir -p /tmp/workspace/bin
       - run: mkdir -p /tmp/workspace/profiles
@@ -19,7 +20,7 @@ jobs:
               command: |
                 go version
                 make get_tools && make get_vendor_deps && make test
-    - save_cache:
-        key: v1-dep-{{ .Branch }}
-        paths:
-        - /go/pkg
+      - save_cache:
+          key: v1-dep-{{ .Branch }}
+          paths:
+            - /go/pkg
