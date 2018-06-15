@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.1 (TBD)
+
+FEATURE:
+
+ - [aminoscan] aminoscan --color will print ASCII bytes in different colors
+
 ## 0.10.0 (June 12, 2018)
 
 BREAKING CHANGE:
