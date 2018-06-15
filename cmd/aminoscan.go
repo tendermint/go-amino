@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 
@@ -12,10 +13,43 @@ import (
 )
 
 func main() {
+	// Print help.
 	if len(os.Args) == 1 {
-		fmt.Println(`Usage: aminoscan <STRUCT HEXBYTES>`) // TODO support more options, including support for framing.
+		fmt.Println(`Usage: aminoscan <STRUCT HEXBYTES> or --help`)
 		return
 	}
+
+	// Parse flags...
+	var colorize bool
+	flgs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	flgs.BoolVar(&colorize, "color", false, "Just print the colored bytes and exit.")
+	err := flgs.Parse(os.Args[1:])
+	if err == flag.ErrHelp {
+		fmt.Println(`Usage: aminoscan <STRUCT HEXBYTES> or --help
+		
+		You can also use aminoscan to print "colored" bytes.  This view will
+		try to display bytes in ascii in a different color if it happens to be
+		a printable character.
+
+		> aminoscan --color <HEXBYTES>`)
+		return
+	} else if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// If we just want to show colored bytes...
+	if colorize {
+		if flgs.Arg(0) == "" {
+			fmt.Println(`Usage: aminoscan --color <HEXBYTES>`)
+			return
+		}
+		bz := hexDecode(flgs.Arg(0))
+		fmt.Println(cmn.ColoredBytes(bz, cmn.Green, cmn.Blue))
+		return
+	}
+
+	// Parse struct Amino bytes.
 	bz := hexDecode(os.Args[1]) // Read input hex bytes.
 	fmt.Println(cmn.Yellow("## Root Struct (assumed)"))
 	s, n, err := scanStruct(bz, "", true)   // Assume that it's  struct.

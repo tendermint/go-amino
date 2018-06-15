@@ -750,12 +750,14 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 				// So in the future, this may not match,
 				// so we will need to remove this sanity check.
 				if field.BinFieldNum != fnum {
-					err = errors.New(fmt.Sprintf("expected field number %v, got %v", field.BinFieldNum, fnum))
+					err = errors.New(fmt.Sprintf("expected field # %v of %v, got %v",
+						field.BinFieldNum, info.Type, fnum))
 					return
 				}
 				typWanted := typeToTyp3(finfo.Type, field.FieldOptions)
 				if typ != typWanted {
-					err = errors.New(fmt.Sprintf("expected field type %v, got %v", typWanted, typ))
+					err = errors.New(fmt.Sprintf("expected field type %v for # %v of %v, got %v",
+						typWanted, fnum, info.Type, typ))
 					return
 				}
 
