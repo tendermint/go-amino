@@ -319,7 +319,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	// If registered concrete, consume and verify prefix bytes.
 	if info.Registered {
 		pb := info.Prefix.Bytes()
-		if len(bz) <= 4 {
+		if len(bz) < 4 {
 			return fmt.Errorf("UnmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X", pb, bz)
 		} else if !bytes.Equal(bz[:4], pb) {
 			return fmt.Errorf("UnmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X...", pb, bz[:4])
