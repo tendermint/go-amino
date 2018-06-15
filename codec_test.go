@@ -97,7 +97,6 @@ func TestMarshalUnmarshalBinaryPointer4(t *testing.T) {
 
 }
 
-
 func TestDecodeInt8(t *testing.T) {
 	// DecodeInt8 uses binary.Varint so we need to make
 	// sure that all the values out of the range of [-128, 127]
@@ -121,7 +120,7 @@ func TestDecodeInt8(t *testing.T) {
 	buf := make([]byte, 10)
 	for i, tt := range tests {
 		n := binary.PutVarint(buf, tt.in)
-		gotI8, gotN, err := wire.DecodeInt8(buf[:n])
+		gotI8, gotN, err := amino.DecodeInt8(buf[:n])
 		if tt.wantErr != "" {
 			if err == nil {
 				t.Errorf("#%d expected error=%q", i, tt.wantErr)
@@ -169,7 +168,7 @@ func TestDecodeInt16(t *testing.T) {
 	buf := make([]byte, 10)
 	for i, tt := range tests {
 		n := binary.PutVarint(buf, tt.in)
-		gotI16, gotN, err := wire.DecodeInt16(buf[:n])
+		gotI16, gotN, err := amino.DecodeInt16(buf[:n])
 		if tt.wantErr != "" {
 			if err == nil {
 				t.Errorf("#%d in=(%X) expected error=%q", i, tt.in, tt.wantErr)
@@ -202,17 +201,17 @@ func TestEncodeDecodeString(t *testing.T) {
 
 	// Encoding phase
 	buf1 := new(bytes.Buffer)
-	if err := wire.EncodeByteSlice(buf1, b1); err != nil {
+	if err := amino.EncodeByteSlice(buf1, b1); err != nil {
 		t.Fatalf("EncodeByteSlice(b1) = %v", err)
 	}
 	buf2 := new(bytes.Buffer)
-	if err := wire.EncodeByteSlice(buf2, b2); err != nil {
+	if err := amino.EncodeByteSlice(buf2, b2); err != nil {
 		t.Fatalf("EncodeByteSlice(b2) = %v", err)
 	}
 
 	// Decoding phase
 	e1 := buf1.Bytes()
-	dec1, n, err := wire.DecodeByteSlice(e1)
+	dec1, n, err := amino.DecodeByteSlice(e1)
 	if err != nil {
 		t.Errorf("DecodeByteSlice(e1) = %v", err)
 	}
@@ -220,7 +219,7 @@ func TestEncodeDecodeString(t *testing.T) {
 		t.Errorf("e1: length:: got = %d want = %d", g, w)
 	}
 	e2 := buf2.Bytes()
-	dec2, n, err := wire.DecodeByteSlice(e2)
+	dec2, n, err := amino.DecodeByteSlice(e2)
 	if err != nil {
 		t.Errorf("DecodeByteSlice(e2) = %v", err)
 	}
@@ -235,6 +234,7 @@ func TestEncodeDecodeString(t *testing.T) {
 	if js != s {
 		t.Errorf("got string=%q want=%q", js, s)
 	}
+}
 
 func TestCodecSeal(t *testing.T) {
 
