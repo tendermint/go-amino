@@ -409,7 +409,6 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 				}
 				lAfter := buf.Len()
 
-				// TODO(ismail): make sure this always correct
 				if !fopts.WriteEmpty && lAfter == lBefore+2 && buf.Bytes()[buf.Len()-1] == 0x00 {
 					// rollback typ3/fieldnum and last byte if empty:
 					buf.Truncate(buf.Len() - 2)
