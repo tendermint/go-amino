@@ -2,6 +2,7 @@ package amino
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"math"
 	"time"
@@ -117,10 +118,10 @@ func EncodeFloat64(w io.Writer, f float64) (err error) {
 func EncodeTime(w io.Writer, t time.Time) (err error) {
 	var s = t.Unix()
 	var ns = int32(t.Nanosecond()) // this int64 -> int32 is safe.
-
+	fmt.Printf("s: %d , ns: %d\n", s, ns)
 	// TODO: We are hand-encoding a struct until MarshalAmino/UnmarshalAmino is supported.
 	// skip if default/zero value:
-	if s != 0 {
+	if s != int64(0) {
 		err = encodeFieldNumberAndTyp3(w, 1, Typ3_8Byte)
 		if err != nil {
 			return
@@ -131,7 +132,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 		}
 	}
 	// skip if default/zero value:
-	if ns != 0 {
+	if ns != int32(0) {
 		err = encodeFieldNumberAndTyp3(w, 2, Typ3_4Byte)
 		if err != nil {
 			return

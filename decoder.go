@@ -65,7 +65,7 @@ func DecodeVarint(bz []byte) (i int64, n int, err error) {
 	i, n = binary.Varint(bz)
 	if n == 0 {
 		// buf too small
-		err = errors.New("buffer too small")
+		err = errors.New("varint buffer too small")
 	} else if n < 0 {
 		// value larger than 64 bits (overflow)
 		// and -n is the number of bytes read
@@ -198,54 +198,23 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 // undefined.
 // TODO return error if behavior is undefined.
 func DecodeTime(bz []byte) (t time.Time, n int, err error) {
-
 	// TODO: This is a temporary measure until we support MarshalAmino/UnmarshalAmino.
 	// Basically, MarshalAmino on time should return a struct.
 	// This is how that struct would be encoded.
-
-	{ // Decode field number 1 and Typ3 (8Byte).
-		var fieldNum, typ, _n = uint32(0), Typ3(0x00), int(0)
-		fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		if fieldNum != 1 {
-			err = fmt.Errorf("expected field number 1, got %v", fieldNum)
-			return
-		}
-		if typ != Typ3_8Byte {
-			err = fmt.Errorf("expected Typ3 bytes <8Bytes> for time field #1, got %v", typ)
-			return
-		}
-	}
-	// Actually read the Int64.
-	var sec, _n = int64(0), int(0)
-	sec, _n, err = DecodeInt64(bz)
-	if slide(&bz, &n, _n) && err != nil {
+	var sec int64
+	if len(bz) == 0 {
 		return
 	}
-
-	{ // Decode field number 2 and Typ3 (4Byte).
-		var fieldNum, typ, _n = uint32(0), Typ3(0x00), int(0)
-		fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		if fieldNum != 2 {
-			err = fmt.Errorf("expected field number 2, got %v", fieldNum)
-			return
-		}
-		if typ != Typ3_4Byte {
-			err = fmt.Errorf("expected Typ3 bytes <4Byte> for time field #2, got %v", typ)
-			return
-		}
-	}
-	// Actually read the Int32.
-	var nsec = int32(0)
-	nsec, _n, err = DecodeInt32(bz)
-	if slide(&bz, &n, _n) && err != nil {
+	sec, n, err = decodeSeconds(&bz)
+	if err != nil {
 		return
 	}
+	err, nsec := decodeNanos(&bz, &n)
+	if err != nil {
+		return
+	}
+	fmt.Printf("dec: s: %d , ns: %d\n", sec, nsec)
+
 	// Validation check.
 	if nsec < 0 || 999999999 < nsec {
 		err = fmt.Errorf("invalid time, nanoseconds out of bounds %v", nsec)
@@ -255,6 +224,59 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 	t = time.Unix(sec, int64(nsec))
 	// Strip timezone and monotonic for deep equality.
 	t = t.UTC().Truncate(0)
+	return
+}
+
+func decodeSeconds(bz *[]byte) (int64, int, error) {
+	_n := int(0)
+	var n int
+	// Optionally decode field number 1 and Typ3 (8Byte).
+	var fieldNum, typ = uint32(0), Typ3(0x00)
+	// only slide if we need to:
+	// Actually read the Int64.
+	var err error
+	fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(*bz)
+	if err != nil {
+		fmt.Println("COULDN'T read seconds")
+		return 0, n, err
+	}
+	if fieldNum == 1 && typ == Typ3_8Byte {
+		slide(bz, &n, _n)
+		_n = 0
+		sec, _n, err := DecodeInt64(*bz)
+		if slide(bz, &n, _n) && err != nil {
+			return 0, n, err
+		} else {
+			return sec, n, err
+		}
+	} else if fieldNum == 2 && typ == Typ3_4Byte {
+		// skip: do not slide, no error, will read again
+		return 0, n, nil
+	} else {
+		return 0, n, fmt.Errorf("expected field number 1 <8Bytes> or field number 2 <4Bytes> , got %v", fieldNum)
+	}
+}
+
+func decodeNanos(bz *[]byte, n *int) (err error, nsec int32) {
+	// Optionally decode field number 2 and Typ3 (4Byte).
+	var fieldNum, typ, _n = uint32(0), Typ3(0x00), int(0)
+	fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(*bz)
+	if err != nil {
+		fmt.Println("COULDN'T read nanos")
+		return
+	}
+	if fieldNum == 2 && typ == Typ3_4Byte {
+		fmt.Println("Nanos")
+		slide(bz, n, _n)
+		fmt.Println("slided (nanos)", _n)
+		_n = 0
+		// Actually read the Int32.
+		nsec, _n, err = DecodeInt32(*bz)
+		if slide(bz, n, _n) && err != nil {
+			return
+		}
+		fmt.Println("slided again (nanos)", _n)
+	}
 	return
 }
 

@@ -661,6 +661,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, _ FieldOptions, bare bool) (n int, err error) {
+	fmt.Println("DECODER")
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -692,10 +693,16 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	case timeType:
 		// Special case: time.Time
 		var t time.Time
+		//fmt.Println("decode time")
+		//fmt.Println(hex.Dump(bz))
+		fmt.Println("do we see")
 		t, _n, err = DecodeTime(bz)
+		fmt.Println(_n)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
+		//fmt.Println("decode time (remaining buffer)")
+		//fmt.Println(hex.Dump(bz))
 		rv.Set(reflect.ValueOf(t))
 
 	default:
