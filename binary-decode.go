@@ -661,7 +661,6 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflect.Value, _ FieldOptions, bare bool) (n int, err error) {
-	fmt.Println("DECODER")
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -693,16 +692,10 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	case timeType:
 		// Special case: time.Time
 		var t time.Time
-		//fmt.Println("decode time")
-		//fmt.Println(hex.Dump(bz))
-		fmt.Println("do we see")
 		t, _n, err = DecodeTime(bz)
-		fmt.Println(_n)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
-		//fmt.Println("decode time (remaining buffer)")
-		//fmt.Println(hex.Dump(bz))
 		rv.Set(reflect.ValueOf(t))
 
 	default:
@@ -710,7 +703,6 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 		var lastFieldNum uint32
 		// Read each field.
 		for _, field := range info.Fields {
-
 			// Get field rv and info.
 			var frv = rv.Field(field.Index)
 			var finfo *TypeInfo
@@ -721,7 +713,13 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 
 			// We're done if we've consumed all the bytes.
 			if len(bz) == 0 {
-				frv.Set(reflect.Zero(frv.Type()))
+				if field.Type == timeType {
+					// TODO(ismail): find a better way to get Epoch ...
+					tm, _ := time.Parse("2006-01-02 15:04:05 +0000 UTC", "1970-01-01 00:00:00 +0000 UTC")
+					frv.Set(reflect.ValueOf(tm))
+				} else {
+					frv.Set(reflect.Zero(frv.Type()))
+				}
 				continue
 			}
 
@@ -767,7 +765,6 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 						typWanted, fnum, info.Type, typ))
 					return
 				}
-
 				// Decode field into frv.
 				_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions, false)
 				if slide(&bz, &n, _n) && err != nil {

@@ -198,6 +198,8 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 // undefined.
 // TODO return error if behavior is undefined.
 func DecodeTime(bz []byte) (t time.Time, n int, err error) {
+	// TODO(ismail): do not modify bz here, let the caller do this
+	t, _ = time.Parse("2006-01-02 15:04:05 +0000 UTC", "1970-01-01 00:00:00 +0000 UTC")
 	// TODO: This is a temporary measure until we support MarshalAmino/UnmarshalAmino.
 	// Basically, MarshalAmino on time should return a struct.
 	// This is how that struct would be encoded.
@@ -213,7 +215,6 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 	if err != nil {
 		return
 	}
-	fmt.Printf("dec: s: %d , ns: %d\n", sec, nsec)
 
 	// Validation check.
 	if nsec < 0 || 999999999 < nsec {
@@ -237,7 +238,6 @@ func decodeSeconds(bz *[]byte) (int64, int, error) {
 	var err error
 	fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(*bz)
 	if err != nil {
-		fmt.Println("COULDN'T read seconds")
 		return 0, n, err
 	}
 	if fieldNum == 1 && typ == Typ3_8Byte {
@@ -262,20 +262,16 @@ func decodeNanos(bz *[]byte, n *int) (err error, nsec int32) {
 	var fieldNum, typ, _n = uint32(0), Typ3(0x00), int(0)
 	fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(*bz)
 	if err != nil {
-		fmt.Println("COULDN'T read nanos")
 		return
 	}
 	if fieldNum == 2 && typ == Typ3_4Byte {
-		fmt.Println("Nanos")
 		slide(bz, n, _n)
-		fmt.Println("slided (nanos)", _n)
 		_n = 0
 		// Actually read the Int32.
 		nsec, _n, err = DecodeInt32(*bz)
 		if slide(bz, n, _n) && err != nil {
 			return
 		}
-		fmt.Println("slided again (nanos)", _n)
 	}
 	return
 }

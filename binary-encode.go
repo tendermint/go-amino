@@ -9,7 +9,6 @@ import (
 	"reflect"
 	"time"
 
-	"encoding/hex"
 	"github.com/davecgh/go-spew/spew"
 )
 
@@ -371,13 +370,10 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 
 	case timeType:
 		// Special case: time.Time
-		fmt.Println("time")
-		fmt.Println(hex.Dump(buf.Bytes()))
 		err = EncodeTime(buf, rv.Interface().(time.Time))
 		if err != nil {
 			return
 		}
-		fmt.Println(hex.Dump(buf.Bytes()))
 
 	default:
 		for _, field := range info.Fields {
