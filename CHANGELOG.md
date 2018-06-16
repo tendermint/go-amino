@@ -1,10 +1,13 @@
 # Changelog
 
-## 0.10.1 (TBD)
+## 0.10.1 (June 15, 2018)
 
 FEATURE:
 
  - [aminoscan] aminoscan --color will print ASCII bytes in different colors
+ 
+BUG FIXES:
+ - do not err if prefix bytes are exactly 4 (for registered types) 
 
 ## 0.10.0 (June 12, 2018)
 
