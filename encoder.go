@@ -2,7 +2,6 @@ package amino
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"math"
 	"time"
@@ -118,7 +117,6 @@ func EncodeFloat64(w io.Writer, f float64) (err error) {
 func EncodeTime(w io.Writer, t time.Time) (err error) {
 	var s = t.Unix()
 	var ns = int32(t.Nanosecond()) // this int64 -> int32 is safe.
-	fmt.Printf("s: %d , ns: %d\n", s, ns)
 	// TODO: We are hand-encoding a struct until MarshalAmino/UnmarshalAmino is supported.
 	// skip if default/zero value:
 	if s != int64(0) {

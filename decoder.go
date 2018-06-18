@@ -65,7 +65,7 @@ func DecodeVarint(bz []byte) (i int64, n int, err error) {
 	i, n = binary.Varint(bz)
 	if n == 0 {
 		// buf too small
-		err = errors.New("varint buffer too small")
+		err = errors.New("buffer too small")
 	} else if n < 0 {
 		// value larger than 64 bits (overflow)
 		// and -n is the number of bytes read
@@ -198,8 +198,7 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 // undefined.
 // TODO return error if behavior is undefined.
 func DecodeTime(bz []byte) (t time.Time, n int, err error) {
-	// TODO(ismail): do not modify bz here, let the caller do this
-	t, _ = time.Parse("2006-01-02 15:04:05 +0000 UTC", "1970-01-01 00:00:00 +0000 UTC")
+	t = zeroTime
 	// TODO: This is a temporary measure until we support MarshalAmino/UnmarshalAmino.
 	// Basically, MarshalAmino on time should return a struct.
 	// This is how that struct would be encoded.
@@ -211,7 +210,7 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 	if err != nil {
 		return
 	}
-	err, nsec := decodeNanos(&bz, &n)
+	nsec, err := decodeNanos(&bz, &n)
 	if err != nil {
 		return
 	}
@@ -229,14 +228,10 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 }
 
 func decodeSeconds(bz *[]byte) (int64, int, error) {
-	_n := int(0)
-	var n int
 	// Optionally decode field number 1 and Typ3 (8Byte).
-	var fieldNum, typ = uint32(0), Typ3(0x00)
 	// only slide if we need to:
-	// Actually read the Int64.
-	var err error
-	fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(*bz)
+	n := 0
+	fieldNum, typ, _n, err := decodeFieldNumberAndTyp3(*bz)
 	if err != nil {
 		return 0, n, err
 	}
@@ -257,23 +252,25 @@ func decodeSeconds(bz *[]byte) (int64, int, error) {
 	}
 }
 
-func decodeNanos(bz *[]byte, n *int) (err error, nsec int32) {
+func decodeNanos(bz *[]byte, n *int) (int32, error) {
 	// Optionally decode field number 2 and Typ3 (4Byte).
-	var fieldNum, typ, _n = uint32(0), Typ3(0x00), int(0)
-	fieldNum, typ, _n, err = decodeFieldNumberAndTyp3(*bz)
+	//var fieldNum, typ, _n = uint32(0), Typ3(0x00), int(0)
+	fieldNum, typ, _n, err := decodeFieldNumberAndTyp3(*bz)
 	if err != nil {
-		return
+		return 0, err
 	}
 	if fieldNum == 2 && typ == Typ3_4Byte {
 		slide(bz, n, _n)
 		_n = 0
 		// Actually read the Int32.
-		nsec, _n, err = DecodeInt32(*bz)
+		nsec, _n, err := DecodeInt32(*bz)
 		if slide(bz, n, _n) && err != nil {
-			return
+			return 0, err
 		}
+		return nsec, nil
 	}
-	return
+	// skip over (no error)
+	return 0, nil
 }
 
 func DecodeByteSlice(bz []byte) (bz2 []byte, n int, err error) {

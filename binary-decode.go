@@ -714,9 +714,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 			// We're done if we've consumed all the bytes.
 			if len(bz) == 0 {
 				if field.Type == timeType {
-					// TODO(ismail): find a better way to get Epoch ...
-					tm, _ := time.Parse("2006-01-02 15:04:05 +0000 UTC", "1970-01-01 00:00:00 +0000 UTC")
-					frv.Set(reflect.ValueOf(tm))
+					frv.Set(reflect.ValueOf(zeroTime))
 				} else {
 					frv.Set(reflect.Zero(frv.Type()))
 				}

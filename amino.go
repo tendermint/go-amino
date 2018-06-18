@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"time"
 )
 
 //----------------------------------------
@@ -86,6 +87,9 @@ const (
 	//Typ3_List       = Typ3(6)
 	//Typ3_Interface  = Typ3(7)
 )
+
+// we use this time to init. a zero value (opposed to reflect.Zero which gives time.Time{} / 01-01-01 00:00:00)
+var zeroTime, _ = time.Parse("2006-01-02 15:04:05 +0000 UTC", "1970-01-01 00:00:00 +0000 UTC")
 
 func (typ Typ3) String() string {
 	switch typ {
