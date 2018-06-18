@@ -119,7 +119,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 	var ns = int32(t.Nanosecond()) // this int64 -> int32 is safe.
 	// TODO: We are hand-encoding a struct until MarshalAmino/UnmarshalAmino is supported.
 	// skip if default/zero value:
-	if s != int64(0) {
+	if s != 0 {
 		err = encodeFieldNumberAndTyp3(w, 1, Typ3_8Byte)
 		if err != nil {
 			return
@@ -130,7 +130,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 		}
 	}
 	// skip if default/zero value:
-	if ns != int32(0) {
+	if ns != 0 {
 		err = encodeFieldNumberAndTyp3(w, 2, Typ3_4Byte)
 		if err != nil {
 			return
