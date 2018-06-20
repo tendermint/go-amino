@@ -254,7 +254,6 @@ func decodeSeconds(bz *[]byte) (int64, int, error) {
 
 func decodeNanos(bz *[]byte, n *int) (int32, error) {
 	// Optionally decode field number 2 and Typ3 (4Byte).
-	//var fieldNum, typ, _n = uint32(0), Typ3(0x00), int(0)
 	fieldNum, typ, _n, err := decodeFieldNumberAndTyp3(*bz)
 	if err != nil {
 		return 0, err

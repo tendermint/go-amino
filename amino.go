@@ -15,8 +15,21 @@ import (
 // Global methods for global sealed codec.
 var gcdc *Codec
 
+// we use this time to init. a zero value (opposed to reflect.Zero which gives time.Time{} / 01-01-01 00:00:00)
+var zeroTime time.Time
+
+const (
+	unixEpochStr = "1970-01-01 00:00:00 +0000 UTC"
+	epochFmt     = "2006-01-02 15:04:05 +0000 UTC"
+)
+
 func init() {
 	gcdc = NewCodec().Seal()
+	var err error
+	zeroTime, err = time.Parse(epochFmt, unixEpochStr)
+	if err != nil {
+		panic("couldn't parse Zero value for time")
+	}
 }
 
 func MarshalBinary(o interface{}) ([]byte, error) {
@@ -87,9 +100,6 @@ const (
 	//Typ3_List       = Typ3(6)
 	//Typ3_Interface  = Typ3(7)
 )
-
-// we use this time to init. a zero value (opposed to reflect.Zero which gives time.Time{} / 01-01-01 00:00:00)
-var zeroTime, _ = time.Parse("2006-01-02 15:04:05 +0000 UTC", "1970-01-01 00:00:00 +0000 UTC")
 
 func (typ Typ3) String() string {
 	switch typ {
