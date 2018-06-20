@@ -1,11 +1,11 @@
 # Changelog
 
-## 0.11.0
+## 0.11.0 (June 19, 2018)
 
 BREAKING CHANGE:
  
  - Do not encode zero values in `EncodeTime` 
- (to match proto3's behaviour) (#178)
+ (to match proto3's behaviour) (#178, #190)
  - Do not encode empty structs, unless explicitly enforced 
  via `amino:"write_empty"` (to match proto3's behaviour) (#179) 
  
