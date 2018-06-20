@@ -483,7 +483,12 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 			// Special case if next ByteLength bytes are 0x00, set nil.
 			if len(bz) > 0 && bz[0] == 0x00 {
 				slide(&bz, &n, 1)
-				erv.Set(reflect.Zero(erv.Type()))
+				if erv.Type() == timeType {
+					erv.Set(reflect.ValueOf(zeroTime))
+				} else {
+					erv.Set(reflect.Zero(erv.Type()))
+
+				}
 				continue
 			}
 			// Normal case, read next non-nil element from bz.
@@ -639,7 +644,11 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 			// Special case if next ByteLength bytes are 0x00, set nil.
 			if len(bz) > 0 && bz[0] == 0x00 {
 				slide(&bz, &n, 1)
-				erv.Set(reflect.Zero(erv.Type()))
+				if erv.Type() == timeType {
+					erv.Set(reflect.ValueOf(zeroTime))
+				} else {
+					erv.Set(reflect.Zero(erv.Type()))
+				}
 				srv = reflect.Append(srv, erv)
 				continue
 			}
