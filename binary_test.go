@@ -103,3 +103,51 @@ func TestNewFieldBackwardsCompatibility(t *testing.T) {
 	// we still expect that decoding worked to some extend (until above error occurred):
 	assert.Equal(t, v1, V1{"tender", "cosmos"})
 }
+
+func TestWriteEmpty(t *testing.T) {
+	type Inner struct {
+		Val int
+	}
+	type SomeStruct struct {
+		Inner Inner
+	}
+
+	cdc := amino.NewCodec()
+	b, err := cdc.MarshalBinaryBare(Inner{})
+	assert.NoError(t, err)
+	assert.Equal(t, b, []byte(nil), "empty struct should be encoded as empty bytes")
+	var inner Inner
+	cdc.UnmarshalBinaryBare(b, &inner)
+	assert.Equal(t, Inner{}, inner, "")
+
+	b, err = cdc.MarshalBinaryBare(SomeStruct{})
+	assert.NoError(t, err)
+	assert.Equal(t, b, []byte(nil), "empty structs should be encoded as empty bytes")
+	var outer SomeStruct
+	cdc.UnmarshalBinaryBare(b, &outer)
+	assert.Equal(t, SomeStruct{}, outer, "")
+}
+
+func TestForceWriteEmpty(t *testing.T) {
+	type InnerWriteEmpty struct {
+		// sth. that isn't zero-len if default, e.g. fixed32:
+		ValIn int32 `amino:"write_empty" binary:"fixed32"`
+	}
+
+	type OuterWriteEmpty struct {
+		In  InnerWriteEmpty `amino:"write_empty"`
+		Val int             `amino:"write_empty" binary:"fixed32"`
+	}
+
+	cdc := amino.NewCodec()
+
+	b, err := cdc.MarshalBinaryBare(OuterWriteEmpty{})
+	assert.NoError(t, err)
+	assert.NotZero(t, len(b), "amino:\"write_empty\" did not work")
+
+	b, err = cdc.MarshalBinaryBare(InnerWriteEmpty{})
+	assert.NoError(t, err)
+	t.Log(b)
+	// TODO(ismail): this alone won't be encoded:
+	//assert.NotZero(t, len(b), "amino:\"write_empty\" did not work")
+}
