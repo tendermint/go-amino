@@ -703,6 +703,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 		var lastFieldNum uint32
 		// Read each field.
 		for _, field := range info.Fields {
+
 			// Get field rv and info.
 			var frv = rv.Field(field.Index)
 			var finfo *TypeInfo
@@ -713,11 +714,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 
 			// We're done if we've consumed all the bytes.
 			if len(bz) == 0 {
-				if field.Type == timeType {
-					frv.Set(reflect.ValueOf(zeroTime))
-				} else {
-					frv.Set(reflect.Zero(frv.Type()))
-				}
+				frv.Set(reflect.Zero(frv.Type()))
 				continue
 			}
 
@@ -763,6 +760,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 						typWanted, fnum, info.Type, typ))
 					return
 				}
+
 				// Decode field into frv.
 				_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions, false)
 				if slide(&bz, &n, _n) && err != nil {
