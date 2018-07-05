@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"runtime/debug"
 	"time"
 )
 
@@ -66,9 +65,6 @@ func DecodeVarint(bz []byte) (i int64, n int, err error) {
 	i, n = binary.Varint(bz)
 	if n == 0 {
 		// buf too small
-
-		debug.PrintStack()
-
 		err = errors.New("buffer too small")
 	} else if n < 0 {
 		// value larger than 64 bits (overflow)
