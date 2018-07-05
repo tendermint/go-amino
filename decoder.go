@@ -213,9 +213,7 @@ func DecodeTime(bz []byte) (time.Time, int, error) {
 	}
 	nsec, _n, err := decodeNanos(bz)
 	if slide(&bz, &n, _n) && err != nil {
-		// this means there are no nano seconds found
-		// TODO(ismail): it would be better if we could differentiate between the error types here
-		// and make sure we only ignore this err if it is equal to a few particular cases
+		return t, n, err
 	}
 
 	// Validation check.
@@ -230,9 +228,8 @@ func DecodeTime(bz []byte) (time.Time, int, error) {
 }
 
 func decodeSeconds(bz []byte) (int64, int, error) {
-	// Optionally decode field number 1 and Typ3 (8Byte).
-	// only slide if we need to:
 	n := 0
+	// Decode field number 1 and Typ3 (8Byte for seconds or 4Byte for nanos).
 	fieldNum, typ, _n, err := decodeFieldNumberAndTyp3(bz)
 	if err != nil {
 		return 0, n, err
@@ -247,7 +244,7 @@ func decodeSeconds(bz []byte) (int64, int, error) {
 		slide(&bz, &n, _n)
 		return sec, n, err
 	} else if fieldNum == 2 && typ == Typ3_4Byte {
-		// skip: do not slide, no error, will read again (nano seconds)
+		// Skip (and do not slide). This will be read again.
 		return 0, n, nil
 	}
 	return 0, n, fmt.Errorf("expected field number 1 <8Bytes> or field number 2 <4Bytes> , got %v", fieldNum)
@@ -258,7 +255,8 @@ func decodeNanos(bz []byte) (int32, int, error) {
 	// Optionally decode field number 2 and Typ3 (4Byte).
 	fieldNum, typ, _n, err := decodeFieldNumberAndTyp3(bz)
 	if err != nil {
-		// do not slide, we might just have reached the end here
+		// Do not slide. We might just have reached the end here.
+		// Otherwise this will be read again (outside of DecodeTime).
 		return 0, n, nil
 	}
 	if fieldNum == 2 && typ == Typ3_4Byte {
@@ -272,7 +270,7 @@ func decodeNanos(bz []byte) (int32, int, error) {
 		slide(&bz, &n, _n)
 		return nsec, n, nil
 	}
-	// skip over (no error)
+	// Skip over (no error).
 	return 0, n, nil
 }
 

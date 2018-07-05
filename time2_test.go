@@ -41,7 +41,7 @@ func TestDecodeSkippedFieldsInTime(t *testing.T) {
 		TimeAr [4]time.Time
 	}
 	st := tArr{
-		TimeAr: [4]time.Time{time.Time{}, t2, t3, t4},
+		TimeAr: [4]time.Time{{}, t2, t3, t4},
 	}
 	b, err = cdc.MarshalBinary(st)
 	assert.NoError(t, err)
@@ -63,5 +63,4 @@ func TestDecodeSkippedFieldsInTime(t *testing.T) {
 	err = cdc.UnmarshalBinary(b, &tPtrStr)
 	assert.NoError(t, err)
 	assert.Equal(t, ztp, tPtrStr)
-
 }
