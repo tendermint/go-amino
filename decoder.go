@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"runtime/debug"
 	"time"
 )
 
@@ -65,6 +66,9 @@ func DecodeVarint(bz []byte) (i int64, n int, err error) {
 	i, n = binary.Varint(bz)
 	if n == 0 {
 		// buf too small
+
+		debug.PrintStack()
+
 		err = errors.New("buffer too small")
 	} else if n < 0 {
 		// value larger than 64 bits (overflow)
@@ -239,17 +243,17 @@ func decodeSeconds(bz *[]byte) (int64, int, error) {
 		slide(bz, &n, _n)
 		_n = 0
 		sec, _n, err := DecodeInt64(*bz)
-		if slide(bz, &n, _n) && err != nil {
-			return 0, n, err
-		} else {
-			return sec, n, err
+		if err != nil {
+			return 0, 0, err
 		}
+		slide(bz, &n, _n)
+		return sec, n, err
+
 	} else if fieldNum == 2 && typ == Typ3_4Byte {
 		// skip: do not slide, no error, will read again
 		return 0, n, nil
-	} else {
-		return 0, n, fmt.Errorf("expected field number 1 <8Bytes> or field number 2 <4Bytes> , got %v", fieldNum)
 	}
+	return 0, n, fmt.Errorf("expected field number 1 <8Bytes> or field number 2 <4Bytes> , got %v", fieldNum)
 }
 
 func decodeNanos(bz *[]byte, n *int) (int32, error) {

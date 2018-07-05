@@ -444,3 +444,19 @@ func (cdc *Codec) MarshalJSONIndent(o interface{}, prefix, indent string) ([]byt
 	}
 	return out.Bytes(), nil
 }
+
+// Returns the default value of a type. For a time type or a pointer(s) to
+// time, the default value is not zero (or nil), but the time value of
+// 1970-01-01 00:00:00 +0000 UTC
+func defaultValue(rt reflect.Type) reflect.Value {
+	if rt == timeType {
+		return reflect.ValueOf(zeroTime)
+	}
+	if rt.Kind() == reflect.Ptr && rt.Elem() == timeType {
+		tPtr := reflect.New(timeType)
+		tPtr.Elem().Set(reflect.ValueOf(zeroTime))
+		return tPtr
+	}
+
+	return reflect.Zero(rt)
+}

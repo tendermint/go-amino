@@ -32,7 +32,7 @@ func TestDecodeSkippedFieldsInTime(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, testTime{Time: tm2}, ti)
 
-	t1, _ := time.Parse("2006-01-02 15:04:05 +0000 UTC", "1970-01-01 00:00:11.577968799 +0000 UTC")
+	//t1, _ := time.Parse("2006-01-02 15:04:05 +0000 UTC", "1970-01-01 00:00:11.577968799 +0000 UTC")
 	t2, _ := time.Parse("2006-01-02 15:04:05 +0000 UTC", "2078-07-10 15:44:58.406865636 +0000 UTC")
 	t3, _ := time.Parse("2006-01-02 15:04:05 +0000 UTC", "1970-01-01 00:00:00 +0000 UTC")
 	t4, _ := time.Parse("2006-01-02 15:04:05 +0000 UTC", "1970-01-01 00:00:14.48251984 +0000 UTC")
@@ -41,7 +41,7 @@ func TestDecodeSkippedFieldsInTime(t *testing.T) {
 		TimeAr [4]time.Time
 	}
 	st := tArr{
-		TimeAr: [4]time.Time{t1, t2, t3, t4},
+		TimeAr: [4]time.Time{time.Time{}, t2, t3, t4},
 	}
 	b, err = cdc.MarshalBinary(st)
 	assert.NoError(t, err)
@@ -50,4 +50,18 @@ func TestDecodeSkippedFieldsInTime(t *testing.T) {
 	err = cdc.UnmarshalBinary(b, &tStruct)
 	assert.NoError(t, err)
 	assert.Equal(t, st, tStruct)
+
+	type timePtr struct {
+		TimePtr *time.Time
+	}
+
+	ztp := timePtr{&tm}
+	b, err = cdc.MarshalBinary(ztp)
+	assert.NoError(t, err)
+
+	var tPtrStr timePtr
+	err = cdc.UnmarshalBinary(b, &tPtrStr)
+	assert.NoError(t, err)
+	assert.Equal(t, ztp, tPtrStr)
+
 }
