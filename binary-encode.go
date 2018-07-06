@@ -103,12 +103,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		err = EncodeInt8(w, int8(rv.Int()))
 
 	case reflect.Int:
-		buf := new(bytes.Buffer)
-		err = EncodeVarint(buf, rv.Int())
-		if err == nil {
-			_, err = w.Write(buf.Bytes())
-		}
-		//err = EncodeVarint(w, rv.Int())
+		err = EncodeVarint(w, rv.Int())
 
 	//----------------------------------------
 	// Unsigned
