@@ -103,7 +103,12 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		err = EncodeInt8(w, int8(rv.Int()))
 
 	case reflect.Int:
-		err = EncodeVarint(w, rv.Int())
+		buf := new(bytes.Buffer)
+		err = EncodeVarint(buf, rv.Int())
+		if err == nil {
+			_, err = w.Write(buf.Bytes())
+		}
+		//err = EncodeVarint(w, rv.Int())
 
 	//----------------------------------------
 	// Unsigned
@@ -396,23 +401,26 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 					return
 				}
 			} else {
-				lBefore := buf.Len()
+				lBeforeKey := buf.Len()
 				// Write field key (number and type).
 				err = encodeFieldNumberAndTyp3(buf, field.BinFieldNum, typeToTyp3(finfo.Type, field.FieldOptions))
 				if err != nil {
 					return
 				}
-				// Write field from rv.
+				lBeforeValue := buf.Len()
+
+				// Write field value from rv.
 				err = cdc.encodeReflectBinary(buf, finfo, frv, field.FieldOptions, false)
 				if err != nil {
 					return
 				}
-				lAfter := buf.Len()
+				lAfterValue := buf.Len()
 
-				if !fopts.WriteEmpty && lAfter == lBefore+2 && buf.Bytes()[buf.Len()-1] == 0x00 {
+				if !fopts.WriteEmpty && lBeforeValue == lAfterValue-1 && buf.Bytes()[buf.Len()-1] == 0x00 {
 					// rollback typ3/fieldnum and last byte if empty:
-					buf.Truncate(buf.Len() - 2)
+					buf.Truncate(lBeforeKey)
 				}
+
 			}
 		}
 	}

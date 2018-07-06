@@ -198,21 +198,23 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 // undefined.
 // TODO return error if behavior is undefined.
 func DecodeTime(bz []byte) (t time.Time, n int, err error) {
+	// Defensively set default to to zeroTime (1970, not 0001)
 	t = zeroTime
-	// TODO: This is a temporary measure until we support MarshalAmino/UnmarshalAmino.
-	// Basically, MarshalAmino on time should return a struct.
-	// This is how that struct would be encoded.
+
+	// Read sec and nanosec.
 	var sec int64
-	if len(bz) == 0 {
-		return
+	var nsec int32
+	if len(bz) > 0 {
+		sec, n, err = decodeSeconds(&bz)
+		if err != nil {
+			return
+		}
 	}
-	sec, n, err = decodeSeconds(&bz)
-	if err != nil {
-		return
-	}
-	nsec, err := decodeNanos(&bz, &n)
-	if err != nil {
-		return
+	if len(bz) > 0 {
+		nsec, err = decodeNanos(&bz, &n)
+		if err != nil {
+			return
+		}
 	}
 
 	// Validation check.
@@ -220,6 +222,7 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 		err = fmt.Errorf("invalid time, nanoseconds out of bounds %v", nsec)
 		return
 	}
+
 	// Construct time.
 	t = time.Unix(sec, int64(nsec))
 	// Strip timezone and monotonic for deep equality.

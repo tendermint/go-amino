@@ -1,11 +1,13 @@
 package amino_test
 
 import (
+	"fmt"
 	"testing"
+
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tendermint/go-amino"
-	"time"
 )
 
 func TestNilSliceEmptySlice(t *testing.T) {
@@ -150,4 +152,25 @@ func TestForceWriteEmpty(t *testing.T) {
 	t.Log(b)
 	// TODO(ismail): this alone won't be encoded:
 	//assert.NotZero(t, len(b), "amino:\"write_empty\" did not work")
+}
+
+func TestStructSlice(t *testing.T) {
+	type Foo struct {
+		A int
+		B int
+	}
+
+	type Foos []Foo
+
+	f := Foos{Foo{100, 101}, Foo{102, 103}}
+
+	cdc := amino.NewCodec()
+
+	bz, err := cdc.MarshalBinaryBare(f)
+	assert.NoError(t, err)
+	assert.Equal(t, "0A0608C80110CA010A0608CC0110CE01", fmt.Sprintf("%X", bz))
+	t.Log(bz)
+	var f2 Foos
+	cdc.UnmarshalBinaryBare(bz, &f2)
+	assert.Equal(t, f, f2)
 }
