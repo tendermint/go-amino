@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.1 (July 17, 2018)
+
+IMPROVEMENTS:
+ - Remove dependency on tmlibs/common
+
 ## 0.11.0 (June 19, 2018)
 
 BREAKING CHANGE:
