@@ -9,7 +9,6 @@ import (
 	"os"
 
 	"github.com/tendermint/go-amino"
-	cmn "github.com/tendermint/tmlibs/common"
 )
 
 func main() {
@@ -45,16 +44,16 @@ func main() {
 			return
 		}
 		bz := hexDecode(flgs.Arg(0))
-		fmt.Println(cmn.ColoredBytes(bz, cmn.Green, cmn.Blue))
+		fmt.Println(ColoredBytes(bz, Green, Blue))
 		return
 	}
 
 	// Parse struct Amino bytes.
 	bz := hexDecode(os.Args[1]) // Read input hex bytes.
-	fmt.Println(cmn.Yellow("## Root Struct (assumed)"))
-	s, n, err := scanStruct(bz, "", true)   // Assume that it's  struct.
-	s += cmn.Red(fmt.Sprintf("%X", bz[n:])) // Bytes remaining are red.
-	fmt.Println(cmn.Yellow("## Root Struct END"))
+	fmt.Println(Yellow("## Root Struct (assumed)"))
+	s, n, err := scanStruct(bz, "", true) // Assume that it's  struct.
+	s += Red(fmt.Sprintf("%X", bz[n:]))   // Bytes remaining are red.
+	fmt.Println(Yellow("## Root Struct END"))
 	fmt.Println(s, n, err) // Print color-encoded bytes s.
 }
 
@@ -98,7 +97,7 @@ func scanVarint(bz []byte, indent string) (s string, n int, err error) {
 		return
 	}
 	// s is the same either way.
-	s = cmn.Cyan(fmt.Sprintf("%X", bz[:n]))
+	s = Cyan(fmt.Sprintf("%X", bz[:n]))
 	fmt.Printf("%s%s (", indent, s)
 	if okI64 {
 		fmt.Printf("i64:%v ", i64)
@@ -116,7 +115,7 @@ func scan8Byte(bz []byte, indent string) (s string, n int, err error) {
 		return
 	}
 	n = 8
-	s = cmn.Blue(fmt.Sprintf("%X", bz[:8]))
+	s = Blue(fmt.Sprintf("%X", bz[:8]))
 	fmt.Printf("%s%s\n", indent, s)
 	return
 }
@@ -135,10 +134,10 @@ func scanByteLength(bz []byte, indent string) (s string, n int, err error) {
 		err = errors.New("EOF while reading byte-length delimited.")
 		return
 	}
-	s = cmn.Cyan(fmt.Sprintf("%X", bz[:_n]))
+	s = Cyan(fmt.Sprintf("%X", bz[:_n]))
 	slide(&bz, &n, _n)
 	// Read the remaining bytes.
-	s += cmn.Green(fmt.Sprintf("%X", bz[:length]))
+	s += Green(fmt.Sprintf("%X", bz[:length]))
 	slide(&bz, &n, length)
 	fmt.Printf("%s%s (%v bytes)\n", indent, s, length)
 	return
@@ -183,7 +182,7 @@ func scan4Byte(bz []byte, indent string) (s string, n int, err error) {
 		return
 	}
 	n = 4
-	s = cmn.Blue(fmt.Sprintf("%X", bz[:4]))
+	s = Blue(fmt.Sprintf("%X", bz[:4]))
 	fmt.Printf("%s%s\n", indent, s)
 	return
 }
@@ -210,7 +209,7 @@ func scanList(bz []byte, indent string) (s string, n int, err error) {
 		_n = 0
 		err = errors.New("error decoding list length (uvarint)")
 	}
-	s += cmn.Cyan(fmt.Sprintf("%X", bz[:_n]))
+	s += Cyan(fmt.Sprintf("%X", bz[:_n]))
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
@@ -257,11 +256,11 @@ func scanInterface(bz []byte, indent string) (s string, n int, err error) {
 	}
 	pb3 := pb
 	if isNil {
-		s = cmn.Magenta("0000")
+		s = Magenta("0000")
 	} else if hasDb {
-		s = cmn.Magenta(fmt.Sprintf("%X%X", db.Bytes(), pb3.Bytes()))
+		s = Magenta(fmt.Sprintf("%X%X", db.Bytes(), pb3.Bytes()))
 	} else {
-		s = cmn.Magenta(fmt.Sprintf("%X", pb3.Bytes()))
+		s = Magenta(fmt.Sprintf("%X", pb3.Bytes()))
 	}
 	if isNil {
 		fmt.Printf("%s%s (nil interface)\n", indent, s)
