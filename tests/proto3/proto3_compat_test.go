@@ -113,3 +113,29 @@ func TestEncodeAminoDecodeProto(t *testing.T) {
 	assert.NoError(t, err, "unexpected error")
 	assert.Equal(t, pb, ab, "varint64 encoding doesn't match")
 }
+
+func TestProto3CompatPtrs(t *testing.T) {
+	cdc := amino.NewCodec()
+	s := p3.SomeStruct{}
+
+	ab, err := cdc.MarshalBinaryBare(s)
+	assert.NoError(t, err)
+
+	pb, err := proto.Marshal(&s)
+	assert.NoError(t, err)
+	assert.Equal(t, ab, pb)
+	assert.Zero(t, len(ab), "expected an empty encoding for a nil pointer")
+	t.Log(ab)
+
+	s2 := p3.SomeStruct{Emb: &p3.EmbeddedStruct{}}
+
+	ab, err = cdc.MarshalBinaryBare(s2)
+	assert.NoError(t, err)
+
+	pb, err = proto.Marshal(&s2)
+	assert.NoError(t, err)
+	assert.Equal(t, ab, pb)
+
+	assert.NotZero(t, len(ab), "expected a non-empty encoding for a non-nil pointer to an empty struct")
+	t.Log(ab)
+}
