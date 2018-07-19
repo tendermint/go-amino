@@ -384,14 +384,17 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 				return
 			}
 			// Get dereferenced field value and info.
-			var frv, isDefault = isDefaultValue(rv.Field(field.Index))
+			var frv = rv.Field(field.Index)
+			var frvIsPtr = frv.Kind() == reflect.Ptr
+			var dfrv, isDefault = isDefaultValue(frv)
 			if isDefault && !fopts.WriteEmpty {
-				// Do not encode default value fields (only if `amino:"write_empty"` is set).
+				// Do not encode default value fields
+				// (except when `amino:"write_empty"` is set).
 				continue
 			}
 			if field.UnpackedList {
 				// Write repeated field entries for each list item.
-				err = cdc.encodeReflectBinaryList(buf, finfo, frv, field.FieldOptions, true)
+				err = cdc.encodeReflectBinaryList(buf, finfo, dfrv, field.FieldOptions, true)
 				if err != nil {
 					return
 				}
@@ -405,14 +408,15 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 				lBeforeValue := buf.Len()
 
 				// Write field value from rv.
-				err = cdc.encodeReflectBinary(buf, finfo, frv, field.FieldOptions, false)
+				err = cdc.encodeReflectBinary(buf, finfo, dfrv, field.FieldOptions, false)
 				if err != nil {
 					return
 				}
 				lAfterValue := buf.Len()
 
-				if !fopts.WriteEmpty && lBeforeValue == lAfterValue-1 && buf.Bytes()[buf.Len()-1] == 0x00 {
-					// rollback typ3/fieldnum and last byte if empty:
+				if !frvIsPtr && !fopts.WriteEmpty && lBeforeValue == lAfterValue-1 && buf.Bytes()[buf.Len()-1] == 0x00 {
+					// rollback typ3/fieldnum and last byte if
+					// not a pointer and empty:
 					buf.Truncate(lBeforeKey)
 				}
 

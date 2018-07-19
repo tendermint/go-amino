@@ -117,7 +117,7 @@ type FieldOptions struct {
 	BinFixed32    bool   // (Binary) Encode as fixed32
 	BinFieldNum   uint32 // (Binary) max 1<<29-1
 	Unsafe        bool   // e.g. if this field is a float.
-	WriteEmpty    bool   // write empty structs, default is to skip them
+	WriteEmpty    bool   // write empty structs and lists (default false except for pointers)
 }
 
 //----------------------------------------

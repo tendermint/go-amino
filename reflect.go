@@ -96,10 +96,12 @@ func derefPointersZero(rv reflect.Value) (drv reflect.Value, isPtr bool, isNilPt
 	return
 }
 
-// Returns isDefaultValue=true iff is ultimately nil or empty after (recursive)
-// dereferencing. If isDefaultValue=false, erv is set to the non-nil non-empty
-// non-default dereferenced value.
-// A zero/empty struct is not considered default for this function.
+// Returns isDefaultValue=true iff is ultimately nil or empty
+// after (recursive) dereferencing.
+// If isDefaultValue=false, erv is set to the non-nil non-default
+// dereferenced value.
+// A zero/empty struct is not considered default for this
+// function.
 func isDefaultValue(rv reflect.Value) (erv reflect.Value, isDefaultValue bool) {
 	rv, _, isNilPtr := derefPointers(rv)
 	if isNilPtr {
