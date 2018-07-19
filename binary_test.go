@@ -117,14 +117,14 @@ func TestWriteEmpty(t *testing.T) {
 	cdc := amino.NewCodec()
 	b, err := cdc.MarshalBinaryBare(Inner{})
 	assert.NoError(t, err)
-	assert.Equal(t, b, []byte(nil), "empty struct should be encoded as empty bytes")
+	assert.Equal(t, b, []byte{}, "empty struct should be encoded as empty bytes")
 	var inner Inner
 	cdc.UnmarshalBinaryBare(b, &inner)
 	assert.Equal(t, Inner{}, inner, "")
 
 	b, err = cdc.MarshalBinaryBare(SomeStruct{})
 	assert.NoError(t, err)
-	assert.Equal(t, b, []byte(nil), "empty structs should be encoded as empty bytes")
+	assert.Equal(t, b, []byte{}, "empty structs should be encoded as empty bytes")
 	var outer SomeStruct
 	cdc.UnmarshalBinaryBare(b, &outer)
 	assert.Equal(t, SomeStruct{}, outer, "")
