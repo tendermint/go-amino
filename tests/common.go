@@ -5,6 +5,9 @@ import "time"
 //----------------------------------------
 // Struct types
 
+type EmptyStruct struct {
+}
+
 type PrimitivesStruct struct {
 	Int8    int8
 	Int16   int16
@@ -22,6 +25,7 @@ type PrimitivesStruct struct {
 	String  string
 	Bytes   []byte
 	Time    time.Time
+	Empty   EmptyStruct
 }
 
 type ShortArraysStruct struct {
@@ -45,6 +49,7 @@ type ArraysStruct struct {
 	StringAr  [4]string
 	BytesAr   [4][]byte
 	TimeAr    [4]time.Time
+	EmptyAr   [4]EmptyStruct
 }
 
 type SlicesStruct struct {
@@ -64,6 +69,7 @@ type SlicesStruct struct {
 	StringSl  []string
 	BytesSl   [][]byte
 	TimeSl    []time.Time
+	EmptySl   []EmptyStruct
 }
 
 type SliceSlicesStruct struct {
@@ -83,6 +89,7 @@ type SliceSlicesStruct struct {
 	StringSlSl  [][]string
 	BytesSlSl   [][][]byte
 	TimeSlSl    [][]time.Time
+	EmptySlSl   [][]EmptyStruct
 }
 
 type PointersStruct struct {
@@ -102,6 +109,7 @@ type PointersStruct struct {
 	StringPt  *string
 	BytesPt   *[]byte
 	TimePt    *time.Time
+	EmptyPt   *EmptyStruct
 }
 
 type PointerSlicesStruct struct {
@@ -121,6 +129,7 @@ type PointerSlicesStruct struct {
 	StringPtSl  []*string
 	BytesPtSl   []*[]byte
 	TimePtSl    []*time.Time
+	EmptyPtSl   []*EmptyStruct
 }
 
 // NOTE: See registered fuzz funcs for *byte, **byte, and ***byte.
@@ -153,6 +162,7 @@ type EmbeddedSt3 struct {
 	*ArraysStruct
 	*SlicesStruct
 	*PointersStruct
+	*EmptyStruct
 }
 
 type EmbeddedSt4 struct {
@@ -180,6 +190,7 @@ type EmbeddedSt5 struct {
 }
 
 var StructTypes = []interface{}{
+	(*EmptyStruct)(nil),
 	(*PrimitivesStruct)(nil),
 	(*ShortArraysStruct)(nil),
 	(*ArraysStruct)(nil),
