@@ -197,7 +197,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 
 	// Encode Amino:binary bytes.
 	var bz []byte
-	buf := bytes.NewBuffer([]byte{})
+	buf := new(bytes.Buffer)
 	rt := rv.Type()
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
