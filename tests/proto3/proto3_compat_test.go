@@ -1,6 +1,6 @@
 // +build extensive_tests
 
-// only built if manually enforced
+// only built if manually enforced (via the build tag above)
 package proto3
 
 import (
