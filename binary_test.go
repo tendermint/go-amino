@@ -175,7 +175,7 @@ func TestStructSlice(t *testing.T) {
 	assert.Equal(t, f, f2)
 }
 
-func TestStructPointerSlice(t *testing.T) {
+func TestStructPointerSlice1(t *testing.T) {
 	cdc := amino.NewCodec()
 
 	type Foo struct {
@@ -192,7 +192,45 @@ func TestStructPointerSlice(t *testing.T) {
 		D: "j",
 	}
 	bz, err := cdc.MarshalBinary(f)
-	assert.Error(t, err, "we don't support encoding nil elements of a slice/array")
+	assert.NoError(t, err)
+
+	var f2 Foo
+	err = cdc.UnmarshalBinary(bz, &f2)
+	assert.Nil(t, err)
+
+	assert.Equal(t, f, f2)
+	assert.Nil(t, f2.C[0])
+
+	var f3 = Foo{
+		A: "k",
+		B: 2,
+		C: []*Foo{&Foo{}, &Foo{}, &Foo{}},
+		D: "j",
+	}
+	bz2, err := cdc.MarshalBinary(f3)
+	assert.NoError(t, err)
+	assert.Equal(t, bz, bz2, "empty slices should be decoded to nil unless empty_elements")
+}
+
+// Like TestStructPointerSlice2, but with EmptyElements.
+func TestStructPointerSlice2(t *testing.T) {
+	cdc := amino.NewCodec()
+
+	type Foo struct {
+		A string
+		B int
+		C []*Foo `amino:"empty_elements"`
+		D string // exposed
+	}
+
+	var f = Foo{
+		A: "k",
+		B: 2,
+		C: []*Foo{nil, nil, nil},
+		D: "j",
+	}
+	bz, err := cdc.MarshalBinary(f)
+	assert.Error(t, err, "nil elements of a slice/array not supported when empty_elements field tag set.")
 
 	f.C = []*Foo{&Foo{}, &Foo{}, &Foo{}}
 	bz, err = cdc.MarshalBinary(f)

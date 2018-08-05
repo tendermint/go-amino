@@ -484,9 +484,14 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 			}
 			// Decode the next ByteLength bytes into erv.
 			var erv = rv.Index(i)
-			// Special case if next ByteLength bytes are 0x00, and erv is not a
-			// struct pointer:
-			if !isErtStructPointer && (len(bz) > 0 && bz[0] == 0x00) {
+			// Special case if:
+			//  * next ByteLength bytes are 0x00, and
+			//  * - erv is not a struct pointer, or
+			//    - field option doesn't have EmptyElements set
+			// (the condition below uses demorgan's law)
+			if (len(bz) > 0 && bz[0] == 0x00) &&
+				!(isErtStructPointer && fopts.EmptyElements) {
+
 				slide(&bz, &n, 1)
 				erv.Set(defaultValue(erv.Type()))
 				continue
@@ -645,9 +650,14 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 			}
 			// Decode the next ByteLength bytes into erv.
 			erv, _n := reflect.New(ert).Elem(), int(0)
-			// Special case if next ByteLength bytes are 0x00, and erv is not a
-			// struct pointer:
-			if !isErtStructPointer && (len(bz) > 0 && bz[0] == 0x00) {
+			// Special case if:
+			//  * next ByteLength bytes are 0x00, and
+			//  * - erv is not a struct pointer, or
+			//    - field option doesn't have EmptyElements set
+			// (the condition below uses demorgan's law)
+			if (len(bz) > 0 && bz[0] == 0x00) &&
+				!(isErtStructPointer && fopts.EmptyElements) {
+
 				slide(&bz, &n, 1)
 				erv.Set(defaultValue(erv.Type()))
 				srv = reflect.Append(srv, erv)

@@ -54,7 +54,7 @@ func TestMarshalAminoBinary(t *testing.T) {
 	var f = Foo{
 		a: "K",
 		b: 2,
-		c: []*Foo{&Foo{}, &Foo{}, &Foo{}},
+		c: []*Foo{nil, nil, nil},
 		D: "J",
 	}
 	bz, err := cdc.MarshalBinary(f)
@@ -81,7 +81,7 @@ func TestMarshalAminoJSON(t *testing.T) {
 	var f = Foo{
 		a: "K",
 		b: 2,
-		c: []*Foo{&Foo{}, &Foo{}, &Foo{}},
+		c: []*Foo{nil, nil, nil},
 		D: "J",
 	}
 	bz, err := cdc.MarshalJSON(f)

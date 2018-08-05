@@ -531,10 +531,11 @@ var fuzzFuncs = []interface{}{
 			// Prefer nil over empty slice.
 			*esz = nil
 		default:
-			// Slice of struct pointers should not be nil.
+			// Slice of empty struct pointers should be nil,
+			// since we don't set amino:"empty_elements".
 			*esz = make([]*tests.EmptyStruct, n)
 			for i := 0; i < n; i++ {
-				(*esz)[i] = &tests.EmptyStruct{}
+				(*esz)[i] = nil
 			}
 		}
 	},
