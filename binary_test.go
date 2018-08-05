@@ -174,3 +174,34 @@ func TestStructSlice(t *testing.T) {
 	cdc.UnmarshalBinaryBare(bz, &f2)
 	assert.Equal(t, f, f2)
 }
+
+func TestStructPointerSlice(t *testing.T) {
+	cdc := amino.NewCodec()
+
+	type Foo struct {
+		A string
+		B int
+		C []*Foo
+		D string // exposed
+	}
+
+	var f = Foo{
+		A: "k",
+		B: 2,
+		C: []*Foo{nil, nil, nil},
+		D: "j",
+	}
+	bz, err := cdc.MarshalBinary(f)
+	assert.Error(t, err, "we don't support encoding nil elements of a slice/array")
+
+	f.C = []*Foo{&Foo{}, &Foo{}, &Foo{}}
+	bz, err = cdc.MarshalBinary(f)
+	assert.NoError(t, err)
+
+	var f2 Foo
+	err = cdc.UnmarshalBinary(bz, &f2)
+	assert.Nil(t, err)
+
+	assert.Equal(t, f, f2)
+	assert.NotNil(t, f2.C[0])
+}
