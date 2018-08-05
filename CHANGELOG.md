@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.0 (August 4, 2018)
+
+BREAKING CHANGE:
+ - Write empty (non-nil) struct pointers, unless (is list element and empty_elements isn't set) #206
+
 ## 0.11.1 (July 17, 2018)
 
 IMPROVEMENTS:
