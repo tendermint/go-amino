@@ -524,6 +524,20 @@ var fuzzFuncs = []interface{}{
 		// Also set to UTC.
 		*tyme = tyme.Truncate(0).UTC()
 	},
+	func(esz *[]*tests.EmptyStruct, c fuzz.Continue) {
+		n := c.Intn(4)
+		switch n {
+		case 0:
+			// Prefer nil over empty slice.
+			*esz = nil
+		default:
+			// Slice of struct pointers should not be nil.
+			*esz = make([]*tests.EmptyStruct, n)
+			for i := 0; i < n; i++ {
+				(*esz)[i] = &tests.EmptyStruct{}
+			}
+		}
+	},
 }
 
 //----------------------------------------

@@ -297,6 +297,9 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 			}
 		}
 	} else {
+		// NOTE: ert is for the element value, while einfo.Type is dereferenced.
+		isErtStructPointer := ert.Kind() == reflect.Ptr && einfo.Type.Kind() == reflect.Struct
+
 		// Write elems in unpacked form.
 		for i := 0; i < rv.Len(); i++ {
 			// Write elements as repeated fields of the parent struct.
@@ -307,6 +310,15 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 			// Get dereferenced element value and info.
 			var erv, isDefault = isDefaultValue(rv.Index(i))
 			if isDefault {
+				// Special case when rv is a struct pointer.
+				if isErtStructPointer {
+					// NOTE: Not sure what to do here, but for future-proofing,
+					// we explicitly fail on nil pointers, just like
+					// Proto3's Golang client does.
+					// This also makes it easier to upgrade to Amino2
+					// which would enable the encoding of nil structs.
+					return errors.New("Amino1 doesn't support nil struct pointers")
+				}
 				// Nothing to encode, so the length is 0.
 				err = EncodeByte(buf, byte(0x00))
 				if err != nil {
