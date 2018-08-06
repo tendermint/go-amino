@@ -15,7 +15,7 @@ import (
 //----------------------------------------
 // cdc.encodeReflectBinary
 
-// This is the main entrypoint for encoding all types in binary form.  This
+// This is the main entry point for encoding all types in binary form.  This
 // function calls encodeReflectBinary*, and generally those functions should
 // only call this one, for the prefix bytes are only written here.
 // The value may be a nil interface, but not a nil pointer.

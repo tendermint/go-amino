@@ -162,7 +162,7 @@ func defaultValue(rt reflect.Type) (rv reflect.Value) {
 		}
 	}
 
-	// Just return ithe default Go zero object.
+	// Just return the default Go zero object.
 	// Return an empty struct.
 	return reflect.Zero(rt)
 }

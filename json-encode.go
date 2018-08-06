@@ -14,7 +14,7 @@ import (
 //----------------------------------------
 // cdc.encodeReflectJSON
 
-// This is the main entrypoint for encoding all types in json form.  This
+// This is the main entry point for encoding all types in json form.  This
 // function calls encodeReflectJSON*, and generally those functions should
 // only call this one, for the disfix wrapper is only written here.
 // NOTE: Unlike encodeReflectBinary, rv may be a pointer.

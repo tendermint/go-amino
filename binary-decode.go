@@ -13,7 +13,7 @@ import (
 //----------------------------------------
 // cdc.decodeReflectBinary
 
-// This is the main entrypoint for decoding all types from binary form. This
+// This is the main entry point for decoding all types from binary form. This
 // function calls decodeReflectBinary*, and generally those functions should
 // only call this one, for the prefix bytes are consumed here when present.
 // CONTRACT: rv.CanAddr() is true.
