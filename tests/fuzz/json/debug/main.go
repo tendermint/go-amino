@@ -13,5 +13,5 @@ func main() {
 	cdc := amino.NewCodec()
 	cst := tests.ComplexSt{}
 	err := cdc.UnmarshalJSON(bz, &cst)
-	fmt.Println("Expected a panic but did not. (err: %v)", err)
+	fmt.Printf("Expected a panic but did not. (err: %v)", err)
 }

@@ -1,11 +1,13 @@
 package amino_test
 
 import (
+	"fmt"
 	"testing"
+
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/tendermint/go-amino"
-	"time"
 )
 
 func TestNilSliceEmptySlice(t *testing.T) {
@@ -102,4 +104,142 @@ func TestNewFieldBackwardsCompatibility(t *testing.T) {
 
 	// we still expect that decoding worked to some extend (until above error occurred):
 	assert.Equal(t, v1, V1{"tender", "cosmos"})
+}
+
+func TestWriteEmpty(t *testing.T) {
+	type Inner struct {
+		Val int
+	}
+	type SomeStruct struct {
+		Inner Inner
+	}
+
+	cdc := amino.NewCodec()
+	b, err := cdc.MarshalBinaryBare(Inner{})
+	assert.NoError(t, err)
+	assert.Equal(t, b, []byte(nil), "empty struct should be encoded as empty bytes")
+	var inner Inner
+	cdc.UnmarshalBinaryBare(b, &inner)
+	assert.Equal(t, Inner{}, inner, "")
+
+	b, err = cdc.MarshalBinaryBare(SomeStruct{})
+	assert.NoError(t, err)
+	assert.Equal(t, b, []byte(nil), "empty structs should be encoded as empty bytes")
+	var outer SomeStruct
+	cdc.UnmarshalBinaryBare(b, &outer)
+	assert.Equal(t, SomeStruct{}, outer, "")
+}
+
+func TestForceWriteEmpty(t *testing.T) {
+	type InnerWriteEmpty struct {
+		// sth. that isn't zero-len if default, e.g. fixed32:
+		ValIn int32 `amino:"write_empty" binary:"fixed32"`
+	}
+
+	type OuterWriteEmpty struct {
+		In  InnerWriteEmpty `amino:"write_empty"`
+		Val int             `amino:"write_empty" binary:"fixed32"`
+	}
+
+	cdc := amino.NewCodec()
+
+	b, err := cdc.MarshalBinaryBare(OuterWriteEmpty{})
+	assert.NoError(t, err)
+	assert.NotZero(t, len(b), "amino:\"write_empty\" did not work")
+
+	b, err = cdc.MarshalBinaryBare(InnerWriteEmpty{})
+	assert.NoError(t, err)
+	t.Log(b)
+	// TODO(ismail): this alone won't be encoded:
+	//assert.NotZero(t, len(b), "amino:\"write_empty\" did not work")
+}
+
+func TestStructSlice(t *testing.T) {
+	type Foo struct {
+		A int
+		B int
+	}
+
+	type Foos []Foo
+
+	f := Foos{Foo{100, 101}, Foo{102, 103}}
+
+	cdc := amino.NewCodec()
+
+	bz, err := cdc.MarshalBinaryBare(f)
+	assert.NoError(t, err)
+	assert.Equal(t, "0A0608C80110CA010A0608CC0110CE01", fmt.Sprintf("%X", bz))
+	t.Log(bz)
+	var f2 Foos
+	cdc.UnmarshalBinaryBare(bz, &f2)
+	assert.Equal(t, f, f2)
+}
+
+func TestStructPointerSlice1(t *testing.T) {
+	cdc := amino.NewCodec()
+
+	type Foo struct {
+		A string
+		B int
+		C []*Foo
+		D string // exposed
+	}
+
+	var f = Foo{
+		A: "k",
+		B: 2,
+		C: []*Foo{nil, nil, nil},
+		D: "j",
+	}
+	bz, err := cdc.MarshalBinary(f)
+	assert.NoError(t, err)
+
+	var f2 Foo
+	err = cdc.UnmarshalBinary(bz, &f2)
+	assert.Nil(t, err)
+
+	assert.Equal(t, f, f2)
+	assert.Nil(t, f2.C[0])
+
+	var f3 = Foo{
+		A: "k",
+		B: 2,
+		C: []*Foo{&Foo{}, &Foo{}, &Foo{}},
+		D: "j",
+	}
+	bz2, err := cdc.MarshalBinary(f3)
+	assert.NoError(t, err)
+	assert.Equal(t, bz, bz2, "empty slices should be decoded to nil unless empty_elements")
+}
+
+// Like TestStructPointerSlice2, but with EmptyElements.
+func TestStructPointerSlice2(t *testing.T) {
+	cdc := amino.NewCodec()
+
+	type Foo struct {
+		A string
+		B int
+		C []*Foo `amino:"empty_elements"`
+		D string // exposed
+	}
+
+	var f = Foo{
+		A: "k",
+		B: 2,
+		C: []*Foo{nil, nil, nil},
+		D: "j",
+	}
+	bz, err := cdc.MarshalBinary(f)
+	assert.Error(t, err, "nil elements of a slice/array not supported when empty_elements field tag set.")
+
+	f.C = []*Foo{&Foo{}, &Foo{}, &Foo{}}
+	bz, err = cdc.MarshalBinary(f)
+	assert.NoError(t, err)
+
+	var f2 Foo
+	err = cdc.UnmarshalBinary(bz, &f2)
+	assert.Nil(t, err)
+
+	assert.Equal(t, f, f2)
+	assert.NotNil(t, f2.C[0])
 }
