@@ -13,12 +13,12 @@ IMPROVEMENTS:
 ## 0.11.0 (June 19, 2018)
 
 BREAKING CHANGE:
- 
- - Do not encode zero values in `EncodeTime` 
+
+ - Do not encode zero values in `EncodeTime`
  (to match proto3's behaviour) (#178, #190)
- - Do not encode empty structs, unless explicitly enforced 
- via `amino:"write_empty"` (to match proto3's behaviour) (#179) 
- 
+ - Do not encode empty structs, unless explicitly enforced
+ via `amino:"write_empty"` (to match proto3's behaviour) (#179)
+
 IMPROVEMENTS:
  - DecodeInt{8, 16} negative limit checks (#125)
 
@@ -27,9 +27,9 @@ IMPROVEMENTS:
 FEATURE:
 
  - [aminoscan] aminoscan --color will print ASCII bytes in different colors
- 
+
 BUG FIXES:
- - do not err if prefix bytes are exactly 4 (for registered types) 
+ - do not err if prefix bytes are exactly 4 (for registered types)
 
 ## 0.10.0 (June 12, 2018)
 
