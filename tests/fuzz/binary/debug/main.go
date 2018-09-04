@@ -12,6 +12,6 @@ func main() {
 	bz := []byte("\a\x1a\x05\x1a\x01\x80\xf7\x00")
 	cdc := amino.NewCodec()
 	cst := tests.ComplexSt{}
-	err := cdc.UnmarshalBinary(bz, &cst)
+	err := cdc.UnmarshalBinaryLengthPrefixed(bz, &cst)
 	fmt.Printf("Expected a panic but did not. (err: %v)", err)
 }

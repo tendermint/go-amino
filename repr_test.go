@@ -57,13 +57,13 @@ func TestMarshalAminoBinary(t *testing.T) {
 		c: []*Foo{nil, nil, nil},
 		D: "J",
 	}
-	bz, err := cdc.MarshalBinary(f)
+	bz, err := cdc.MarshalBinaryLengthPrefixed(f)
 	assert.Nil(t, err)
 
 	t.Logf("bz %X", bz)
 
 	var f2 Foo
-	err = cdc.UnmarshalBinary(bz, &f2)
+	err = cdc.UnmarshalBinaryLengthPrefixed(bz, &f2)
 	assert.Nil(t, err)
 
 	assert.Equal(t, f, f2)

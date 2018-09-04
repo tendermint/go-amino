@@ -16,19 +16,19 @@ func TestDecodeSkippedFieldsInTime(t *testing.T) {
 	tm, err := time.Parse("2006-01-02 15:04:05 +0000 UTC", "1970-01-01 00:00:00 +0000 UTC")
 	assert.NoError(t, err)
 
-	b, err := cdc.MarshalBinary(testTime{Time: tm})
+	b, err := cdc.MarshalBinaryLengthPrefixed(testTime{Time: tm})
 	assert.NoError(t, err)
 	var ti testTime
-	err = cdc.UnmarshalBinary(b, &ti)
+	err = cdc.UnmarshalBinaryLengthPrefixed(b, &ti)
 	assert.NoError(t, err)
 	assert.Equal(t, testTime{Time: tm}, ti)
 
 	tm2, err := time.Parse("2006-01-02 15:04:05 +0000 UTC", "1970-01-01 00:00:01.978131102 +0000 UTC")
 	assert.NoError(t, err)
 
-	b, err = cdc.MarshalBinary(testTime{Time: tm2})
+	b, err = cdc.MarshalBinaryLengthPrefixed(testTime{Time: tm2})
 	assert.NoError(t, err)
-	err = cdc.UnmarshalBinary(b, &ti)
+	err = cdc.UnmarshalBinaryLengthPrefixed(b, &ti)
 	assert.NoError(t, err)
 	assert.Equal(t, testTime{Time: tm2}, ti)
 
@@ -43,11 +43,11 @@ func TestDecodeSkippedFieldsInTime(t *testing.T) {
 	st := tArr{
 		TimeAr: [4]time.Time{t1, t2, t3, t4},
 	}
-	b, err = cdc.MarshalBinary(st)
+	b, err = cdc.MarshalBinaryLengthPrefixed(st)
 	assert.NoError(t, err)
 
 	var tStruct tArr
-	err = cdc.UnmarshalBinary(b, &tStruct)
+	err = cdc.UnmarshalBinaryLengthPrefixed(b, &tStruct)
 	assert.NoError(t, err)
 	assert.Equal(t, st, tStruct)
 }

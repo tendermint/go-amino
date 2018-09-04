@@ -13,14 +13,14 @@ func TestReadByteSliceEquality(t *testing.T) {
 
 	// Write a byteslice
 	var testBytes = []byte("ThisIsSomeTestArray")
-	encoded, err = cdc.MarshalBinary(testBytes)
+	encoded, err = cdc.MarshalBinaryLengthPrefixed(testBytes)
 	if err != nil {
 		t.Error(err.Error())
 	}
 
 	// Read the byteslice, should return the same byteslice
 	var testBytes2 []byte
-	err = cdc.UnmarshalBinary(encoded, &testBytes2)
+	err = cdc.UnmarshalBinaryLengthPrefixed(encoded, &testBytes2)
 	if err != nil {
 		t.Error(err.Error())
 	}

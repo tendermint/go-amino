@@ -32,44 +32,44 @@ func init() {
 	}
 }
 
-func MarshalBinary(o interface{}) ([]byte, error) {
-	return gcdc.MarshalBinary(o)
+func MarshalBinaryLengthPrefixed(o interface{}) ([]byte, error) {
+	return gcdc.MarshalBinaryLengthPrefixed(o)
 }
 
-func MarshalBinaryWriter(w io.Writer, o interface{}) (n int64, err error) {
-	return gcdc.MarshalBinaryWriter(w, o)
+func MarshalBinaryLengthPrefixedWriter(w io.Writer, o interface{}) (n int64, err error) {
+	return gcdc.MarshalBinaryLengthPrefixedWriter(w, o)
+}
+
+func MustMarshalBinaryLengthPrefixed(o interface{}) []byte {
+	return gcdc.MustMarshalBinaryLengthPrefixed(o)
+}
+
+func MarshalBinary(o interface{}) ([]byte, error) {
+	return gcdc.MarshalBinary(o)
 }
 
 func MustMarshalBinary(o interface{}) []byte {
 	return gcdc.MustMarshalBinary(o)
 }
 
-func MarshalBinaryBare(o interface{}) ([]byte, error) {
-	return gcdc.MarshalBinaryBare(o)
+func UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) error {
+	return gcdc.UnmarshalBinaryLengthPrefixed(bz, ptr)
 }
 
-func MustMarshalBinaryBare(o interface{}) []byte {
-	return gcdc.MustMarshalBinaryBare(o)
+func UnmarshalBinaryLengthPrefixedReader(r io.Reader, ptr interface{}, maxSize int64) (n int64, err error) {
+	return gcdc.UnmarshalBinaryLengthPrefixedReader(r, ptr, maxSize)
+}
+
+func MustUnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) {
+	gcdc.MustUnmarshalBinaryLengthPrefixed(bz, ptr)
 }
 
 func UnmarshalBinary(bz []byte, ptr interface{}) error {
 	return gcdc.UnmarshalBinary(bz, ptr)
 }
 
-func UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize int64) (n int64, err error) {
-	return gcdc.UnmarshalBinaryReader(r, ptr, maxSize)
-}
-
 func MustUnmarshalBinary(bz []byte, ptr interface{}) {
 	gcdc.MustUnmarshalBinary(bz, ptr)
-}
-
-func UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
-	return gcdc.UnmarshalBinaryBare(bz, ptr)
-}
-
-func MustUnmarshalBinaryBare(bz []byte, ptr interface{}) {
-	gcdc.MustUnmarshalBinaryBare(bz, ptr)
 }
 
 func MarshalJSON(o interface{}) ([]byte, error) {
@@ -127,20 +127,20 @@ func (typ Typ3) String() string {
 //----------------------------------------
 // *Codec methods
 
-// MarshalBinary encodes the object o according to the Amino spec,
+// MarshalBinaryLengthPrefixed encodes the object o according to the Amino spec,
 // but prefixed by a uvarint encoding of the object to encode.
-// Use MarshalBinaryBare if you don't want byte-length prefixing.
+// Use MarshalBinary if you don't want byte-length prefixing.
 //
-// For consistency, MarshalBinary will first dereference pointers
-// before encoding.  MarshalBinary will panic if o is a nil-pointer,
+// For consistency, MarshalBinaryLengthPrefixed will first dereference pointers
+// before encoding.  MarshalBinaryLengthPrefixed will panic if o is a nil-pointer,
 // or if o is invalid.
-func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
+func (cdc *Codec) MarshalBinaryLengthPrefixed(o interface{}) ([]byte, error) {
 
 	// Write the bytes here.
 	var buf = new(bytes.Buffer)
 
 	// Write the bz without length-prefixing.
-	bz, err := cdc.MarshalBinaryBare(o)
+	bz, err := cdc.MarshalBinary(o)
 	if err != nil {
 		return nil, err
 	}
@@ -160,11 +160,11 @@ func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// MarshalBinaryWriter writes the bytes as would be returned from
-// MarshalBinary to the writer w.
-func (cdc *Codec) MarshalBinaryWriter(w io.Writer, o interface{}) (n int64, err error) {
+// MarshalBinaryLengthPrefixedWriter writes the bytes as would be returned from
+// MarshalBinaryLengthPrefixed to the writer w.
+func (cdc *Codec) MarshalBinaryLengthPrefixedWriter(w io.Writer, o interface{}) (n int64, err error) {
 	var bz, _n = []byte(nil), int(0)
-	bz, err = cdc.MarshalBinary(o)
+	bz, err = cdc.MarshalBinaryLengthPrefixed(o)
 	if err != nil {
 		return 0, err
 	}
@@ -174,24 +174,24 @@ func (cdc *Codec) MarshalBinaryWriter(w io.Writer, o interface{}) (n int64, err 
 }
 
 // Panics if error.
-func (cdc *Codec) MustMarshalBinary(o interface{}) []byte {
-	bz, err := cdc.MarshalBinary(o)
+func (cdc *Codec) MustMarshalBinaryLengthPrefixed(o interface{}) []byte {
+	bz, err := cdc.MarshalBinaryLengthPrefixed(o)
 	if err != nil {
 		panic(err)
 	}
 	return bz
 }
 
-// MarshalBinaryBare encodes the object o according to the Amino spec.
-// MarshalBinaryBare doesn't prefix the byte-length of the encoding,
+// MarshalBinary encodes the object o according to the Amino spec.
+// MarshalBinary doesn't prefix the byte-length of the encoding,
 // so the caller must handle framing.
-func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
+func (cdc *Codec) MarshalBinary(o interface{}) ([]byte, error) {
 
 	// Dereference value if pointer.
 	var rv, _, isNilPtr = derefPointers(reflect.ValueOf(o))
 	if isNilPtr {
 		// NOTE: You can still do so by calling
-		// `.MarshalBinary(struct{ *SomeType })` or so on.
+		// `.MarshalBinaryLengthPrefixed(struct{ *SomeType })` or so on.
 		panic("MarshalBinary cannot marshal a nil pointer directly. Try wrapping in a struct?")
 	}
 
@@ -219,20 +219,20 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 }
 
 // Panics if error.
-func (cdc *Codec) MustMarshalBinaryBare(o interface{}) []byte {
-	bz, err := cdc.MarshalBinaryBare(o)
+func (cdc *Codec) MustMarshalBinary(o interface{}) []byte {
+	bz, err := cdc.MarshalBinary(o)
 	if err != nil {
 		panic(err)
 	}
 	return bz
 }
 
-// Like UnmarshalBinaryBare, but will first decode the byte-length prefix.
-// UnmarshalBinary will panic if ptr is a nil-pointer.
+// Like UnmarshalBinary, but will first decode the byte-length prefix.
+// UnmarshalBinaryLengthPrefixed will panic if ptr is a nil-pointer.
 // Returns an error if not all of bz is consumed.
-func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
+func (cdc *Codec) UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) error {
 	if len(bz) == 0 {
-		return errors.New("UnmarshalBinary cannot decode empty bytes")
+		return errors.New("UnmarshalBinaryLengthPrefixed cannot decode empty bytes")
 	}
 
 	// Read byte-length prefix.
@@ -241,22 +241,22 @@ func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
 		return fmt.Errorf("Error reading msg byte-length prefix: got code %v", n)
 	}
 	if u64 > uint64(len(bz)-n) {
-		return fmt.Errorf("Not enough bytes to read in UnmarshalBinary, want %v more bytes but only have %v",
+		return fmt.Errorf("Not enough bytes to read in UnmarshalBinaryLengthPrefixed, want %v more bytes but only have %v",
 			u64, len(bz)-n)
 	} else if u64 < uint64(len(bz)-n) {
-		return fmt.Errorf("Bytes left over in UnmarshalBinary, should read %v more bytes but have %v",
+		return fmt.Errorf("Bytes left over in UnmarshalBinaryLengthPrefixed, should read %v more bytes but have %v",
 			u64, len(bz)-n)
 	}
 	bz = bz[n:]
 
 	// Decode.
-	return cdc.UnmarshalBinaryBare(bz, ptr)
+	return cdc.UnmarshalBinary(bz, ptr)
 }
 
-// Like UnmarshalBinaryBare, but will first read the byte-length prefix.
-// UnmarshalBinaryReader will panic if ptr is a nil-pointer.
+// Like UnmarshalBinary, but will first read the byte-length prefix.
+// UnmarshalBinaryLengthPrefixedReader will panic if ptr is a nil-pointer.
 // If maxSize is 0, there is no limit (not recommended).
-func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize int64) (n int64, err error) {
+func (cdc *Codec) UnmarshalBinaryLengthPrefixedReader(r io.Reader, ptr interface{}, maxSize int64) (n int64, err error) {
 	if maxSize < 0 {
 		panic("maxSize cannot be negative.")
 	}
@@ -305,20 +305,20 @@ func (cdc *Codec) UnmarshalBinaryReader(r io.Reader, ptr interface{}, maxSize in
 	n += l
 
 	// Decode.
-	err = cdc.UnmarshalBinaryBare(bz, ptr)
+	err = cdc.UnmarshalBinary(bz, ptr)
 	return
 }
 
 // Panics if error.
-func (cdc *Codec) MustUnmarshalBinary(bz []byte, ptr interface{}) {
-	err := cdc.UnmarshalBinary(bz, ptr)
+func (cdc *Codec) MustUnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) {
+	err := cdc.UnmarshalBinaryLengthPrefixed(bz, ptr)
 	if err != nil {
 		panic(err)
 	}
 }
 
-// UnmarshalBinaryBare will panic if ptr is a nil-pointer.
-func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
+// UnmarshalBinary will panic if ptr is a nil-pointer.
+func (cdc *Codec) UnmarshalBinary(bz []byte, ptr interface{}) error {
 
 	rv := reflect.ValueOf(ptr)
 	if rv.Kind() != reflect.Ptr {
@@ -334,9 +334,9 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	if info.Registered {
 		pb := info.Prefix.Bytes()
 		if len(bz) < 4 {
-			return fmt.Errorf("UnmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X", pb, bz)
+			return fmt.Errorf("UnmarshalBinary expected to read prefix bytes %X (since it is registered concrete) but got %X", pb, bz)
 		} else if !bytes.Equal(bz[:4], pb) {
-			return fmt.Errorf("UnmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X...", pb, bz[:4])
+			return fmt.Errorf("UnmarshalBinary expected to read prefix bytes %X (since it is registered concrete) but got %X...", pb, bz[:4])
 		}
 		bz = bz[4:]
 	}
@@ -352,8 +352,8 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 }
 
 // Panics if error.
-func (cdc *Codec) MustUnmarshalBinaryBare(bz []byte, ptr interface{}) {
-	err := cdc.UnmarshalBinaryBare(bz, ptr)
+func (cdc *Codec) MustUnmarshalBinary(bz []byte, ptr interface{}) {
+	err := cdc.UnmarshalBinary(bz, ptr)
 	if err != nil {
 		panic(err)
 	}

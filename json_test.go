@@ -176,16 +176,16 @@ func TestUnmarshalMap(t *testing.T) {
 	cdc := amino.NewCodec()
 	// Binary doesn't support decoding to a map...
 	assert.Panics(t, func() {
-		err := cdc.UnmarshalBinary(binBytes, &obj)
+		err := cdc.UnmarshalBinaryLengthPrefixed(binBytes, &obj)
 		assert.Fail(t, "should have paniced but got err: %v", err)
 	})
 	assert.Panics(t, func() {
-		err := cdc.UnmarshalBinary(binBytes, obj)
+		err := cdc.UnmarshalBinaryLengthPrefixed(binBytes, obj)
 		assert.Fail(t, "should have paniced but got err: %v", err)
 	})
 	// ... nor encoding it.
 	assert.Panics(t, func() {
-		bz, err := cdc.MarshalBinary(obj)
+		bz, err := cdc.MarshalBinaryLengthPrefixed(obj)
 		assert.Fail(t, "should have paniced but got bz: %X err: %v", bz, err)
 	})
 	// JSON doesn't support decoding to a map...
@@ -211,16 +211,16 @@ func TestUnmarshalFunc(t *testing.T) {
 	cdc := amino.NewCodec()
 	// Binary doesn't support decoding to a func...
 	assert.Panics(t, func() {
-		err := cdc.UnmarshalBinary(binBytes, &obj)
+		err := cdc.UnmarshalBinaryLengthPrefixed(binBytes, &obj)
 		assert.Fail(t, "should have paniced but got err: %v", err)
 	})
 	assert.Panics(t, func() {
-		err := cdc.UnmarshalBinary(binBytes, obj)
+		err := cdc.UnmarshalBinaryLengthPrefixed(binBytes, obj)
 		assert.Fail(t, "should have paniced but got err: %v", err)
 	})
 	// ... nor encoding it.
 	assert.Panics(t, func() {
-		bz, err := cdc.MarshalBinary(obj)
+		bz, err := cdc.MarshalBinaryLengthPrefixed(obj)
 		assert.Fail(t, "should have paniced but got bz: %X err: %v", bz, err)
 	})
 	// JSON doesn't support decoding to a func...
