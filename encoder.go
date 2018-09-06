@@ -121,22 +121,22 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 	// TODO: We are hand-encoding a struct until MarshalAmino/UnmarshalAmino is supported.
 	// skip if default/zero value:
 	if s != 0 {
-		err = encodeFieldNumberAndTyp3(w, 1, Typ3_8Byte)
+		err = encodeFieldNumberAndTyp3(w, 1, Typ3_Varint)
 		if err != nil {
 			return
 		}
-		err = EncodeInt64(w, s)
+		err = EncodeVarint(w, s)
 		if err != nil {
 			return
 		}
 	}
 	// skip if default/zero value:
 	if ns != 0 {
-		err = encodeFieldNumberAndTyp3(w, 2, Typ3_4Byte)
+		err = encodeFieldNumberAndTyp3(w, 2, Typ3_Varint)
 		if err != nil {
 			return
 		}
-		err = EncodeInt32(w, ns)
+		err = EncodeVarint(w, int64(ns))
 		if err != nil {
 			return
 		}
