@@ -49,9 +49,9 @@ func TestNilSliceEmptySlice(t *testing.T) {
 		F: []*[]int{&eei},
 	}
 
-	abz := cdc.MustMarshalBinaryLengthPrefixed(a)
-	bbz := cdc.MustMarshalBinaryLengthPrefixed(b)
-	cbz := cdc.MustMarshalBinaryLengthPrefixed(c)
+	abz := cdc.MustMarshalBinary(a)
+	bbz := cdc.MustMarshalBinary(b)
+	cbz := cdc.MustMarshalBinary(c)
 
 	assert.Equal(t, abz, bbz, "a != b")
 	assert.Equal(t, abz, cbz, "a != c")
@@ -85,20 +85,20 @@ func TestNewFieldBackwardsCompatibility(t *testing.T) {
 	cdc := amino.NewCodec()
 	notNow, _ := time.Parse("2006-01-02", "1934-11-09")
 	v2 := V2{String: "hi", String2: "cosmos", Time: notNow, Int: 4}
-	bz, err := cdc.MarshalBinary(v2)
+	bz, err := cdc.MarshalBinaryBare(v2)
 	assert.Nil(t, err, "unexpected error while encoding V2: %v", err)
 
 	var v1 V1
-	err = cdc.UnmarshalBinary(bz, &v1)
+	err = cdc.UnmarshalBinaryBare(bz, &v1)
 	assert.Nil(t, err, "unexpected error %v", err)
 	assert.Equal(t, v1, V1{"hi", "cosmos"},
 		"backwards compatibility failed: didn't yield expected result ...")
 
 	v3 := V3{String: "tender", Int: 2014, Some: SomeStruct{Sth: 84}}
-	bz2, err := cdc.MarshalBinary(v3)
+	bz2, err := cdc.MarshalBinaryBare(v3)
 	assert.Nil(t, err, "unexpected error")
 
-	err = cdc.UnmarshalBinary(bz2, &v1)
+	err = cdc.UnmarshalBinaryBare(bz2, &v1)
 	// this might change later but we include this case to document the current behaviour:
 	assert.NotNil(t, err, "expected an error here because of changed order of fields")
 
@@ -115,18 +115,18 @@ func TestWriteEmpty(t *testing.T) {
 	}
 
 	cdc := amino.NewCodec()
-	b, err := cdc.MarshalBinary(Inner{})
+	b, err := cdc.MarshalBinaryBare(Inner{})
 	assert.NoError(t, err)
 	assert.Equal(t, b, []byte(nil), "empty struct should be encoded as empty bytes")
 	var inner Inner
-	cdc.UnmarshalBinary(b, &inner)
+	cdc.UnmarshalBinaryBare(b, &inner)
 	assert.Equal(t, Inner{}, inner, "")
 
-	b, err = cdc.MarshalBinary(SomeStruct{})
+	b, err = cdc.MarshalBinaryBare(SomeStruct{})
 	assert.NoError(t, err)
 	assert.Equal(t, b, []byte(nil), "empty structs should be encoded as empty bytes")
 	var outer SomeStruct
-	cdc.UnmarshalBinary(b, &outer)
+	cdc.UnmarshalBinaryBare(b, &outer)
 	assert.Equal(t, SomeStruct{}, outer, "")
 }
 
@@ -143,11 +143,11 @@ func TestForceWriteEmpty(t *testing.T) {
 
 	cdc := amino.NewCodec()
 
-	b, err := cdc.MarshalBinary(OuterWriteEmpty{})
+	b, err := cdc.MarshalBinaryBare(OuterWriteEmpty{})
 	assert.NoError(t, err)
 	assert.NotZero(t, len(b), "amino:\"write_empty\" did not work")
 
-	b, err = cdc.MarshalBinary(InnerWriteEmpty{})
+	b, err = cdc.MarshalBinaryBare(InnerWriteEmpty{})
 	assert.NoError(t, err)
 	t.Log(b)
 	// TODO(ismail): this alone won't be encoded:
@@ -166,12 +166,12 @@ func TestStructSlice(t *testing.T) {
 
 	cdc := amino.NewCodec()
 
-	bz, err := cdc.MarshalBinary(f)
+	bz, err := cdc.MarshalBinaryBare(f)
 	assert.NoError(t, err)
 	assert.Equal(t, "0A0608C80110CA010A0608CC0110CE01", fmt.Sprintf("%X", bz))
 	t.Log(bz)
 	var f2 Foos
-	cdc.UnmarshalBinary(bz, &f2)
+	cdc.UnmarshalBinaryBare(bz, &f2)
 	assert.Equal(t, f, f2)
 }
 
@@ -191,11 +191,11 @@ func TestStructPointerSlice1(t *testing.T) {
 		C: []*Foo{nil, nil, nil},
 		D: "j",
 	}
-	bz, err := cdc.MarshalBinaryLengthPrefixed(f)
+	bz, err := cdc.MarshalBinary(f)
 	assert.NoError(t, err)
 
 	var f2 Foo
-	err = cdc.UnmarshalBinaryLengthPrefixed(bz, &f2)
+	err = cdc.UnmarshalBinary(bz, &f2)
 	assert.Nil(t, err)
 
 	assert.Equal(t, f, f2)
@@ -207,7 +207,7 @@ func TestStructPointerSlice1(t *testing.T) {
 		C: []*Foo{&Foo{}, &Foo{}, &Foo{}},
 		D: "j",
 	}
-	bz2, err := cdc.MarshalBinaryLengthPrefixed(f3)
+	bz2, err := cdc.MarshalBinary(f3)
 	assert.NoError(t, err)
 	assert.Equal(t, bz, bz2, "empty slices should be decoded to nil unless empty_elements")
 }
@@ -229,15 +229,15 @@ func TestStructPointerSlice2(t *testing.T) {
 		C: []*Foo{nil, nil, nil},
 		D: "j",
 	}
-	bz, err := cdc.MarshalBinaryLengthPrefixed(f)
+	bz, err := cdc.MarshalBinary(f)
 	assert.Error(t, err, "nil elements of a slice/array not supported when empty_elements field tag set.")
 
 	f.C = []*Foo{&Foo{}, &Foo{}, &Foo{}}
-	bz, err = cdc.MarshalBinaryLengthPrefixed(f)
+	bz, err = cdc.MarshalBinary(f)
 	assert.NoError(t, err)
 
 	var f2 Foo
-	err = cdc.UnmarshalBinaryLengthPrefixed(bz, &f2)
+	err = cdc.UnmarshalBinary(bz, &f2)
 	assert.Nil(t, err)
 
 	assert.Equal(t, f, f2)

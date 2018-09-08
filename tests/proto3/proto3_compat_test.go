@@ -21,7 +21,7 @@ func TestFixed32Roundtrip(t *testing.T) {
 	type testi32 struct {
 		Int32 int32 `binary:"fixed32"`
 	}
-	ab, err := cdc.MarshalBinary(testi32{Int32: 150})
+	ab, err := cdc.MarshalBinaryBare(testi32{Int32: 150})
 	assert.NoError(t, err, "unexpected error")
 
 	pb, err := proto.Marshal(&p3.TestInt32Fixed{Fixed32: 150})
@@ -35,7 +35,7 @@ func TestFixed32Roundtrip(t *testing.T) {
 	err = proto.Unmarshal(ab, &pt)
 	assert.NoError(t, err, "unexpected error")
 
-	err = cdc.UnmarshalBinary(pb, &att)
+	err = cdc.UnmarshalBinaryBare(pb, &att)
 	assert.NoError(t, err, "unexpected error")
 
 	assert.Equal(t, uint32(att.Int32), pt.Foo)
@@ -48,7 +48,7 @@ func TestVarintZigzagRoundtrip(t *testing.T) {
 		Int32 int `binary:"varint"`
 	}
 	varint := testInt32Varint{Int32: 6000000}
-	ab, err := cdc.MarshalBinary(varint)
+	ab, err := cdc.MarshalBinaryBare(varint)
 	assert.NoError(t, err, "unexpected error")
 	pb, err := proto.Marshal(&p3.TestInt32Varint{Int32: 6000000})
 	assert.NoError(t, err, "unexpected error")
@@ -59,7 +59,7 @@ func TestVarintZigzagRoundtrip(t *testing.T) {
 	err = proto.Unmarshal(ab, &amToP3)
 	assert.NoError(t, err, "unexpected error")
 
-	err = cdc.UnmarshalBinary(pb, &p3ToAm)
+	err = cdc.UnmarshalBinaryBare(pb, &p3ToAm)
 	assert.NoError(t, err, "unexpected error")
 
 	assert.EqualValues(t, varint.Int32, amToP3.Int32)
@@ -71,7 +71,7 @@ func TestMixedFixedVarintRoudtrip(t *testing.T) {
 		Foo int32 `binary:"fixed32"`
 		Bar int   `binary:"varint"`
 	}
-	ab, err := cdc.MarshalBinary(test32{Foo: 150, Bar: 150})
+	ab, err := cdc.MarshalBinaryBare(test32{Foo: 150, Bar: 150})
 	assert.NoError(t, err, "unexpected error")
 	pb, err := proto.Marshal(&p3.Test32{Foo: 150, Bar: 150})
 	assert.NoError(t, err, "unexpected error")
@@ -82,13 +82,13 @@ func TestMixedFixedVarintRoudtrip(t *testing.T) {
 	err = proto.Unmarshal(ab, &amToP3)
 	assert.NoError(t, err, "unexpected error")
 
-	err = cdc.UnmarshalBinary(pb, &p3ToAm)
+	err = cdc.UnmarshalBinaryBare(pb, &p3ToAm)
 	assert.NoError(t, err, "unexpected error")
 
 	assert.EqualValues(t, p3ToAm.Foo, amToP3.Foo)
 
 	// same as above but with skipped fields:
-	ab, err = cdc.MarshalBinary(test32{})
+	ab, err = cdc.MarshalBinaryBare(test32{})
 	assert.NoError(t, err, "unexpected error")
 	pb, err = proto.Marshal(&p3.Test32{})
 	assert.NoError(t, err, "unexpected error")
@@ -97,7 +97,7 @@ func TestMixedFixedVarintRoudtrip(t *testing.T) {
 	err = proto.Unmarshal(ab, &amToP3)
 	assert.NoError(t, err, "unexpected error")
 
-	err = cdc.UnmarshalBinary(pb, &p3ToAm)
+	err = cdc.UnmarshalBinaryBare(pb, &p3ToAm)
 	assert.NoError(t, err, "unexpected error")
 
 	assert.EqualValues(t, p3ToAm.Foo, amToP3.Foo)
@@ -113,7 +113,7 @@ func TestFixedU64Roundtrip(t *testing.T) {
 
 	pvint64 := p3.TestFixedInt64{Int64: 150}
 	avint64 := testFixed64Uint{Int64: 150}
-	ab, err := cdc.MarshalBinary(avint64)
+	ab, err := cdc.MarshalBinaryBare(avint64)
 	assert.NoError(t, err, "unexpected error")
 
 	pb, err := proto.Marshal(&pvint64)
@@ -126,7 +126,7 @@ func TestFixedU64Roundtrip(t *testing.T) {
 	err = proto.Unmarshal(ab, &amToP3)
 	assert.NoError(t, err, "unexpected error")
 
-	err = cdc.UnmarshalBinary(pb, &p3ToAm)
+	err = cdc.UnmarshalBinaryBare(pb, &p3ToAm)
 	assert.NoError(t, err, "unexpected error")
 
 	assert.EqualValues(t, p3ToAm, amToP3)
@@ -136,7 +136,7 @@ func TestProto3CompatPtrsRoundtrip(t *testing.T) {
 	cdc := amino.NewCodec()
 	s := p3.SomeStruct{}
 
-	ab, err := cdc.MarshalBinary(s)
+	ab, err := cdc.MarshalBinaryBare(s)
 	assert.NoError(t, err)
 
 	pb, err := proto.Marshal(&s)
@@ -150,7 +150,7 @@ func TestProto3CompatPtrsRoundtrip(t *testing.T) {
 	err = proto.Unmarshal(ab, &amToP3)
 	assert.NoError(t, err, "unexpected error")
 
-	err = cdc.UnmarshalBinary(pb, &p3ToAm)
+	err = cdc.UnmarshalBinaryBare(pb, &p3ToAm)
 	assert.NoError(t, err, "unexpected error")
 
 	assert.EqualValues(t, p3ToAm, amToP3)
@@ -158,7 +158,7 @@ func TestProto3CompatPtrsRoundtrip(t *testing.T) {
 
 	s2 := p3.SomeStruct{Emb: &p3.EmbeddedStruct{}}
 
-	ab, err = cdc.MarshalBinary(s2)
+	ab, err = cdc.MarshalBinaryBare(s2)
 	assert.NoError(t, err)
 
 	pb, err = proto.Marshal(&s2)
@@ -168,7 +168,7 @@ func TestProto3CompatPtrsRoundtrip(t *testing.T) {
 	err = proto.Unmarshal(ab, &amToP3)
 	assert.NoError(t, err, "unexpected error")
 
-	err = cdc.UnmarshalBinary(pb, &p3ToAm)
+	err = cdc.UnmarshalBinaryBare(pb, &p3ToAm)
 	assert.NoError(t, err, "unexpected error")
 
 	assert.EqualValues(t, p3ToAm, amToP3)

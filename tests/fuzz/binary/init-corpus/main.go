@@ -136,7 +136,7 @@ func main() {
 	cdc.RegisterConcrete(&tests.SlicesStruct{}, "com.tendermint/slices_st", nil)
 
 	for i, seed := range seeds {
-		blob, err := cdc.MarshalBinaryLengthPrefixed(seed)
+		blob, err := cdc.MarshalBinary(seed)
 		if err != nil {
 			log.Fatalf("Failed to marshalBinary on seed: %d", i)
 		}
