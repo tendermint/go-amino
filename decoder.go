@@ -242,8 +242,8 @@ func decodeSeconds(bz *[]byte) (int64, int, error) {
 		// if seconds where negative before casting them to uint64, we yield
 		// the original signed value:
 		res := int64(sec)
-		if res < minSeconds || res > maxSeconds {
-			return 0, n, InvalidTimeErr(fmt.Sprintf("seconds have to be > %d and <= %d, got: %d",
+		if res < minSeconds || res >= maxSeconds {
+			return 0, n, InvalidTimeErr(fmt.Sprintf("seconds have to be > %d and < %d, got: %d",
 				minSeconds, maxSeconds, res))
 		}
 		return res, n, err
@@ -271,7 +271,7 @@ func decodeNanos(bz *[]byte, n *int) (int32, error) {
 			return 0, err
 		}
 		// Validation check.
-		if nsec < 0 || 999999999 < nsec {
+		if nsec < 0 || maxNanos < nsec {
 			return 0, InvalidTimeErr(fmt.Sprintf("nanoseconds not in interval [0, 999999999] %v", nsec))
 		}
 		// this cast from uint64 to int32 is OK, due to above restriction:

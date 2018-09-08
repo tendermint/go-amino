@@ -138,8 +138,8 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 	// TODO: We are hand-encoding a struct until MarshalAmino/UnmarshalAmino is supported.
 	// skip if default/zero value:
 	if s != 0 {
-		if s < minSeconds || s > maxSeconds {
-			return InvalidTimeErr(fmt.Sprintf("seconds have to be > %d and <= %d, got: %d",
+		if s < minSeconds || s >= maxSeconds {
+			return InvalidTimeErr(fmt.Sprintf("seconds have to be > %d and < %d, got: %d",
 				minSeconds, maxSeconds, s))
 		}
 		err = encodeFieldNumberAndTyp3(w, 1, Typ3_Varint)

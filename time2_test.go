@@ -68,12 +68,14 @@ func TestMinMaxTimeEncode(t *testing.T) {
 	tErr := time.Unix(minSeconds-1, 0)
 	_, err = cdc.MarshalBinaryBare(tErr)
 	assert.Error(t, err)
-	assert.IsType(t, InvalidTimeErr("invalid time: seconds have to be > -62135596800 and <= 253402300800, got: -62135596801"), err)
+	assert.IsType(t, InvalidTimeErr(""), err)
+	t.Log(err)
 
-	tErrMaxSec := time.Unix(maxSeconds+1, 0)
+	tErrMaxSec := time.Unix(maxSeconds, 0)
 	_, err = cdc.MarshalBinaryBare(tErrMaxSec)
 	assert.Error(t, err)
-	assert.IsType(t, InvalidTimeErr("invalid time: seconds have to be > -62135596800 and <= 253402300800, got: -62135596801"), err)
+	assert.IsType(t, InvalidTimeErr(""), err)
+	t.Log(err)
 
 	tMaxNs := time.Unix(0, maxNanos)
 	_, err = cdc.MarshalBinaryBare(tMaxNs)
