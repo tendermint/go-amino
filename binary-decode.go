@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"time"
 
-	"encoding/binary"
 	"github.com/davecgh/go-spew/spew"
 )
 
@@ -835,33 +834,6 @@ func consumeAny(typ3 Typ3, bz []byte) (n int, err error) {
 		return
 	}
 	slide(&bz, &n, _n)
-	return
-}
-
-func consumeStruct(bz []byte) (n int, err error) {
-	var _n, typ = int(0), Typ3(0x00)
-	for {
-		typ, _n, err = consumeFieldKey(bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-		_n, err = consumeAny(typ, bz)
-		if slide(&bz, &n, _n) && err != nil {
-			return
-		}
-	}
-	return
-}
-
-func consumeFieldKey(bz []byte) (typ Typ3, n int, err error) {
-	var u64 uint64
-	u64, n = binary.Uvarint(bz)
-	if n < 0 {
-		n = 0
-		err = errors.New("error decoding uvarint")
-		return
-	}
-	typ = Typ3(u64 & 0x07)
 	return
 }
 
