@@ -235,12 +235,19 @@ func decodeSeconds(bz *[]byte) (int64, int, error) {
 	if fieldNum == 1 && typ == Typ3_Varint {
 		slide(bz, &n, _n)
 		_n = 0
-		sec, _n, err := DecodeVarint(*bz)
+		sec, _n, err := DecodeUvarint(*bz)
 		if slide(bz, &n, _n) && err != nil {
 			return 0, n, err
-		} else {
-			return sec, n, err
 		}
+		// if seconds where negative before casting them to uint64, we yield
+		// the original signed value:
+		res := int64(sec)
+		if res < minSeconds || res > maxSeconds {
+			return 0, n, InvalidTimeErr(fmt.Sprintf("seconds have to be > %d and <= %d, got: %d",
+				minSeconds, maxSeconds, res))
+		}
+		return res, n, err
+
 	} else if fieldNum == 2 && typ == Typ3_Varint {
 		// skip: do not slide, no error, will read again
 		return 0, n, nil
@@ -259,15 +266,15 @@ func decodeNanos(bz *[]byte, n *int) (int32, error) {
 		slide(bz, n, _n)
 		_n = 0
 		// Actually read the Int32.
-		nsec, _n, err := DecodeVarint(*bz)
+		nsec, _n, err := DecodeUvarint(*bz)
 		if slide(bz, n, _n) && err != nil {
 			return 0, err
 		}
 		// Validation check.
 		if nsec < 0 || 999999999 < nsec {
-			return 0, fmt.Errorf("invalid time, nanoseconds out of bounds %v", nsec)
+			return 0, InvalidTimeErr(fmt.Sprintf("nanoseconds not in interval [0, 999999999] %v", nsec))
 		}
-		// this downcast is OK, due to above restriction / validation
+		// this cast from uint64 to int32 is OK, due to above restriction:
 		return int32(nsec), nil
 	}
 	// skip over (no error)

@@ -1,5 +1,13 @@
 # Changelog
 
+## Pending
+
+BREAKING CHANGE:
+ - time.Time: validate seconds since 1970 are in valid range during encoding [-62135596800, 253402300800] 
+ - time.Time: match encoding of time.Time to protobuf's well known type [Timestamp]
+ 
+[Timestamp]: https://github.com/protocolbuffers/protobuf/blob/d2980062c859649523d5fd51d6b55ab310e47482/src/google/protobuf/timestamp.proto#L123-L135
+
 ## 0.12.0 (August 4, 2018)
 
 BREAKING CHANGE:
