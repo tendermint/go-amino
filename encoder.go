@@ -83,6 +83,9 @@ func EncodeUvarint(w io.Writer, u uint64) (err error) {
 }
 
 func UvarintSize(u uint64) int {
+	if u == 0 {
+		return 1
+	}
 	return (bits.Len64(u) + 6) / 7
 }
 

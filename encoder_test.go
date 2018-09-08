@@ -13,37 +13,42 @@ func TestUvarintSize(t *testing.T) {
 		want int
 	}{
 		{
-			"1 bit",
-			1,
+			"0 bit",
+			0,
 			1,
 		},
 		{
-			"6 bit",
+			"1 bit",
+			1 << 0,
+			1,
+		},
+		{
+			"6 bits",
 			1 << 5,
 			1,
 		},
 		{
-			"7 bit",
+			"7 bits",
 			1 << 6,
 			1,
 		},
 		{
-			"8 bit",
+			"8 bits",
 			1 << 7,
 			2,
 		},
 		{
-			"62 bit",
+			"62 bits",
 			1 << 61,
 			9,
 		},
 		{
-			"63 bit",
+			"63 bits",
 			1 << 62,
 			9,
 		},
 		{
-			"64 bit",
+			"64 bits",
 			1 << 63,
 			10,
 		},
