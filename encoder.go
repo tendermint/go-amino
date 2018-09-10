@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
+	"math/bits"
 	"time"
 )
 
@@ -82,9 +83,10 @@ func EncodeUvarint(w io.Writer, u uint64) (err error) {
 }
 
 func UvarintSize(u uint64) int {
-	var buf [10]byte
-	n := binary.PutUvarint(buf[:], u)
-	return n
+	if u == 0 {
+		return 1
+	}
+	return (bits.Len64(u) + 6) / 7
 }
 
 //----------------------------------------
