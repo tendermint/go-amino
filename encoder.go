@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"io"
 	"math"
+	"math/bits"
 	"time"
 )
 
@@ -20,14 +21,14 @@ func EncodeInt16(w io.Writer, i int16) (err error) {
 
 func EncodeInt32(w io.Writer, i int32) (err error) {
 	var buf [4]byte
-	binary.BigEndian.PutUint32(buf[:], uint32(i))
+	binary.LittleEndian.PutUint32(buf[:], uint32(i))
 	_, err = w.Write(buf[:])
 	return
 }
 
 func EncodeInt64(w io.Writer, i int64) (err error) {
 	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], uint64(i))
+	binary.LittleEndian.PutUint64(buf[:], uint64(i))
 	_, err = w.Write(buf[:])
 	return err
 }
@@ -62,14 +63,14 @@ func EncodeUint16(w io.Writer, u uint16) (err error) {
 
 func EncodeUint32(w io.Writer, u uint32) (err error) {
 	var buf [4]byte
-	binary.BigEndian.PutUint32(buf[:], u)
+	binary.LittleEndian.PutUint32(buf[:], u)
 	_, err = w.Write(buf[:])
 	return
 }
 
 func EncodeUint64(w io.Writer, u uint64) (err error) {
 	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], u)
+	binary.LittleEndian.PutUint64(buf[:], u)
 	_, err = w.Write(buf[:])
 	return
 }
@@ -82,9 +83,10 @@ func EncodeUvarint(w io.Writer, u uint64) (err error) {
 }
 
 func UvarintSize(u uint64) int {
-	var buf [10]byte
-	n := binary.PutUvarint(buf[:], u)
-	return n
+	if u == 0 {
+		return 1
+	}
+	return (bits.Len64(u) + 6) / 7
 }
 
 //----------------------------------------
@@ -119,26 +121,29 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 	var ns = int32(t.Nanosecond()) // this int64 -> int32 is safe.
 
 	// TODO: We are hand-encoding a struct until MarshalAmino/UnmarshalAmino is supported.
+	// skip if default/zero value:
+	if s != 0 {
+		err = encodeFieldNumberAndTyp3(w, 1, Typ3_8Byte)
+		if err != nil {
+			return
+		}
+		err = EncodeInt64(w, s)
+		if err != nil {
+			return
+		}
+	}
+	// skip if default/zero value:
+	if ns != 0 {
+		err = encodeFieldNumberAndTyp3(w, 2, Typ3_4Byte)
+		if err != nil {
+			return
+		}
+		err = EncodeInt32(w, ns)
+		if err != nil {
+			return
+		}
+	}
 
-	err = encodeFieldNumberAndTyp3(w, 1, Typ3_8Byte)
-	if err != nil {
-		return
-	}
-	err = EncodeInt64(w, s)
-	if err != nil {
-		return
-	}
-
-	err = encodeFieldNumberAndTyp3(w, 2, Typ3_4Byte)
-	if err != nil {
-		return
-	}
-	err = EncodeInt32(w, ns)
-	if err != nil {
-		return
-	}
-
-	err = EncodeByte(w, byte(0x04)) // StructTerm
 	return
 }
 

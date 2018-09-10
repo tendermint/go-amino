@@ -43,7 +43,7 @@ func (f *Foo) UnmarshalAmino(repr []pair) error {
 	return nil
 }
 
-func TestMarshalAmino(t *testing.T) {
+func TestMarshalAminoBinary(t *testing.T) {
 
 	cdc := NewCodec()
 	cdc.RegisterInterface((*interface{})(nil), nil)
@@ -61,4 +61,38 @@ func TestMarshalAmino(t *testing.T) {
 	assert.Nil(t, err)
 
 	t.Logf("bz %X", bz)
+
+	var f2 Foo
+	err = cdc.UnmarshalBinary(bz, &f2)
+	assert.Nil(t, err)
+
+	assert.Equal(t, f, f2)
+	assert.Equal(t, f.a, f2.a) // In case the above doesn't check private fields?
+}
+
+func TestMarshalAminoJSON(t *testing.T) {
+
+	cdc := NewCodec()
+	cdc.RegisterInterface((*interface{})(nil), nil)
+	cdc.RegisterConcrete(string(""), "string", nil)
+	cdc.RegisterConcrete(int(0), "int", nil)
+	cdc.RegisterConcrete(([]*Foo)(nil), "[]*Foo", nil)
+
+	var f = Foo{
+		a: "K",
+		b: 2,
+		c: []*Foo{nil, nil, nil},
+		D: "J",
+	}
+	bz, err := cdc.MarshalJSON(f)
+	assert.Nil(t, err)
+
+	t.Logf("bz %X", bz)
+
+	var f2 Foo
+	err = cdc.UnmarshalJSON(bz, &f2)
+	assert.Nil(t, err)
+
+	assert.Equal(t, f, f2)
+	assert.Equal(t, f.a, f2.a) // In case the above doesn't check private fields?
 }

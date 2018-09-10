@@ -4,51 +4,78 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 
 	"github.com/tendermint/go-amino"
-	cmn "github.com/tendermint/tmlibs/common"
 )
 
 func main() {
+	// Print help.
 	if len(os.Args) == 1 {
-		fmt.Println("Usage: aminoscan <HEXBYTES>")
+		fmt.Println(`Usage: aminoscan <STRUCT HEXBYTES> or --help`)
 		return
 	}
-	bz := hexDecode(os.Args[1])             // Read input hex bytes.
-	s, n, err := scanStruct(bz)             // Assume that it's  struct.
-	s += cmn.Red(fmt.Sprintf("%X", bz[n:])) // Bytes remaining are red.
-	fmt.Println(s, n, err)                  // Print color-encoded bytes s.
+
+	// Parse flags...
+	var colorize bool
+	flgs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	flgs.BoolVar(&colorize, "color", false, "Just print the colored bytes and exit.")
+	err := flgs.Parse(os.Args[1:])
+	if err == flag.ErrHelp {
+		fmt.Println(`Usage: aminoscan <STRUCT HEXBYTES> or --help
+		
+		You can also use aminoscan to print "colored" bytes.  This view will
+		try to display bytes in ascii in a different color if it happens to be
+		a printable character.
+
+		> aminoscan --color <HEXBYTES>`)
+		return
+	} else if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// If we just want to show colored bytes...
+	if colorize {
+		if flgs.Arg(0) == "" {
+			fmt.Println(`Usage: aminoscan --color <HEXBYTES>`)
+			return
+		}
+		bz := hexDecode(flgs.Arg(0))
+		fmt.Println(ColoredBytes(bz, Green, Blue))
+		return
+	}
+
+	// Parse struct Amino bytes.
+	bz := hexDecode(os.Args[1]) // Read input hex bytes.
+	fmt.Println(Yellow("## Root Struct (assumed)"))
+	s, n, err := scanStruct(bz, "", true) // Assume that it's  struct.
+	s += Red(fmt.Sprintf("%X", bz[n:]))   // Bytes remaining are red.
+	fmt.Println(Yellow("## Root Struct END"))
+	fmt.Println(s, n, err) // Print color-encoded bytes s.
 }
 
-func scanAny(typ amino.Typ3, bz []byte) (stop bool, s string, n int, err error) {
+func scanAny(typ amino.Typ3, bz []byte, indent string) (s string, n int, err error) {
 	switch typ {
 	case amino.Typ3_Varint:
-		s, n, err = scanVarint(bz)
+		s, n, err = scanVarint(bz, indent)
 	case amino.Typ3_8Byte:
-		s, n, err = scan8Byte(bz)
+		s, n, err = scan8Byte(bz, indent)
 	case amino.Typ3_ByteLength:
-		s, n, err = scanByteLength(bz)
-	case amino.Typ3_Struct:
-		s, n, err = scanStruct(bz)
-	case amino.Typ3_StructTerm:
-		stop = true
+		s, n, err = scanByteLength(bz, indent)
 	case amino.Typ3_4Byte:
-		s, n, err = scan4Byte(bz)
-	case amino.Typ3_List:
-		s, n, err = scanList(bz)
-	case amino.Typ3_Interface:
-		s, n, err = scanInterface(bz)
+		s, n, err = scan4Byte(bz, indent)
 	default:
 		panic("should not happen")
 	}
 	return
 }
 
-func scanVarint(bz []byte) (s string, n int, err error) {
+func scanVarint(bz []byte, indent string) (s string, n int, err error) {
 	if len(bz) == 0 {
-		err = fmt.Errorf("EOF reading Varint")
+		err = fmt.Errorf("EOF while reading (U)Varint")
 	}
 	// First try Varint.
 	var i64, okI64 = int64(0), true
@@ -70,8 +97,8 @@ func scanVarint(bz []byte) (s string, n int, err error) {
 		return
 	}
 	// s is the same either way.
-	s = cmn.Cyan(fmt.Sprintf("%X", bz[:n]))
-	fmt.Printf("%v (", s)
+	s = Cyan(fmt.Sprintf("%X", bz[:n]))
+	fmt.Printf("%s%s (", indent, s)
 	if okI64 {
 		fmt.Printf("i64:%v ", i64)
 	}
@@ -82,18 +109,18 @@ func scanVarint(bz []byte) (s string, n int, err error) {
 	return
 }
 
-func scan8Byte(bz []byte) (s string, n int, err error) {
+func scan8Byte(bz []byte, indent string) (s string, n int, err error) {
 	if len(bz) < 8 {
-		err = errors.New("EOF reading 8byte field.")
+		err = errors.New("EOF while reading 8byte field.")
 		return
 	}
 	n = 8
-	s = cmn.Blue(fmt.Sprintf("%X", bz[:8]))
-	fmt.Printf("%v\n", s)
+	s = Blue(fmt.Sprintf("%X", bz[:8]))
+	fmt.Printf("%s%s\n", indent, s)
 	return
 }
 
-func scanByteLength(bz []byte) (s string, n int, err error) {
+func scanByteLength(bz []byte, indent string) (s string, n int, err error) {
 	// Read the length.
 	var length, l64, _n = int(0), uint64(0), int(0)
 	l64, _n = binary.Uvarint(bz)
@@ -104,39 +131,37 @@ func scanByteLength(bz []byte) (s string, n int, err error) {
 	}
 	length = int(l64)
 	if length >= len(bz) {
-		err = errors.New("EOF reading byte-length delimited.")
+		err = errors.New("EOF while reading byte-length delimited.")
 		return
 	}
-	s = cmn.Cyan(fmt.Sprintf("%X", bz[:_n]))
+	s = Cyan(fmt.Sprintf("%X", bz[:_n]))
 	slide(&bz, &n, _n)
 	// Read the remaining bytes.
-	s += cmn.Green(fmt.Sprintf("%X", bz[:length]))
+	s += Green(fmt.Sprintf("%X", bz[:length]))
 	slide(&bz, &n, length)
-	fmt.Printf("%v (%v bytes)\n", s, length)
+	fmt.Printf("%s%s (%v bytes)\n", indent, s, length)
 	return
 }
 
-func scanStruct(bz []byte) (s string, n int, err error) {
+func scanStruct(bz []byte, indent string, isRoot bool) (s string, n int, err error) {
 	var _s, _n, typ = string(""), int(0), amino.Typ3(0x00)
-FOR_LOOP:
 	for {
-		_s, typ, _n, err = scanFieldKey(bz)
+		if isRoot && len(bz) == 0 {
+			return
+		}
+		_s, typ, _n, err = scanFieldKey(bz, indent+"  ")
 		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
 			return
 		}
-		var stop bool
-		stop, _s, _n, err = scanAny(typ, bz)
+		_s, _n, err = scanAny(typ, bz, indent+"  ")
 		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
 			return
-		}
-		if stop {
-			break FOR_LOOP
 		}
 	}
 	return
 }
 
-func scanFieldKey(bz []byte) (s string, typ amino.Typ3, n int, err error) {
+func scanFieldKey(bz []byte, indent string) (s string, typ amino.Typ3, n int, err error) {
 	var u64 uint64
 	u64, n = binary.Uvarint(bz)
 	if n < 0 {
@@ -147,25 +172,26 @@ func scanFieldKey(bz []byte) (s string, typ amino.Typ3, n int, err error) {
 	typ = amino.Typ3(u64 & 0x07)
 	var number uint32 = uint32(u64 >> 3)
 	s = fmt.Sprintf("%X", bz[:n])
-	fmt.Printf("%v @%v %v\n", s, number, typ)
+	fmt.Printf("%s%s @%v %v\n", indent, s, number, typ)
 	return
 }
 
-func scan4Byte(bz []byte) (s string, n int, err error) {
+func scan4Byte(bz []byte, indent string) (s string, n int, err error) {
 	if len(bz) < 4 {
-		err = errors.New("EOF reading 4byte field.")
+		err = errors.New("EOF while reading 4byte field.")
 		return
 	}
 	n = 4
-	s = cmn.Blue(fmt.Sprintf("%X", bz[:4]))
-	fmt.Printf("%v\n", s)
+	s = Blue(fmt.Sprintf("%X", bz[:4]))
+	fmt.Printf("%s%s\n", indent, s)
 	return
 }
 
-func scanList(bz []byte) (s string, n int, err error) {
+/*
+func scanList(bz []byte, indent string) (s string, n int, err error) {
 	// Read element Typ4.
 	if len(bz) < 1 {
-		err = errors.New("EOF reading list element typ4.")
+		err = errors.New("EOF while reading list element typ4.")
 		return
 	}
 	var typ = amino.Typ4(bz[0])
@@ -183,18 +209,18 @@ func scanList(bz []byte) (s string, n int, err error) {
 		_n = 0
 		err = errors.New("error decoding list length (uvarint)")
 	}
-	s += cmn.Cyan(fmt.Sprintf("%X", bz[:_n]))
+	s += Cyan(fmt.Sprintf("%X", bz[:_n]))
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
-	fmt.Printf("%v of %v with %v items\n", s, typ, num)
+	fmt.Printf("%s%s of %v with %v items\n", indent, s, typ, num)
 	// Read elements.
 	var _s string
 	for i := 0; i < int(num); i++ {
 		// Maybe read nil byte.
 		if typ&0x08 != 0 {
 			if len(bz) == 0 {
-				err = errors.New("EOF reading list nil byte")
+				err = errors.New("EOF while reading list nil byte")
 				return
 			}
 			var nb = bz[0]
@@ -202,10 +228,10 @@ func scanList(bz []byte) (s string, n int, err error) {
 			switch nb {
 			case 0x00:
 				s += "00"
-				fmt.Printf("00 (not nil)\n")
+				fmt.Printf("%s00 (not nil)\n", indent)
 			case 0x01:
 				s += "01" // Is nil (NOTE: reverse logic)
-				fmt.Printf("01 (is nil)\n")
+				fmt.Printf("%s01 (is nil)\n", indent)
 				continue
 			default:
 				err = fmt.Errorf("Unexpected nil pointer byte %X", nb)
@@ -213,38 +239,45 @@ func scanList(bz []byte) (s string, n int, err error) {
 			}
 		}
 		// Read element.
-		_, _s, _n, err = scanAny(typ.Typ3(), bz)
+		_s, _n, err = scanAny(typ.Typ3(), bz, indent+"  ")
 		if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
 			return
 		}
 	}
 	return
 }
+*/
 
-func scanInterface(bz []byte) (s string, n int, err error) {
+/*
+func scanInterface(bz []byte, indent string) (s string, n int, err error) {
 	db, hasDb, pb, typ, _, isNil, _n, err := amino.DecodeDisambPrefixBytes(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
-	pb3 := pb.WithTyp3(typ)
+	pb3 := pb
 	if isNil {
-		s = cmn.Magenta("0000")
+		s = Magenta("0000")
 	} else if hasDb {
-		s = cmn.Magenta(fmt.Sprintf("%X%X", db.Bytes(), pb3.Bytes()))
+		s = Magenta(fmt.Sprintf("%X%X", db.Bytes(), pb3.Bytes()))
 	} else {
-		s = cmn.Magenta(fmt.Sprintf("%X", pb3.Bytes()))
+		s = Magenta(fmt.Sprintf("%X", pb3.Bytes()))
 	}
 	if isNil {
-		fmt.Printf("%v (nil interface)\n", s)
+		fmt.Printf("%s%s (nil interface)\n", indent, s)
 	} else if hasDb {
-		fmt.Printf("%v (disamb: %X, prefix: %X, typ: %v)\n",
-			s, db.Bytes(), pb.Bytes(), typ)
+		fmt.Printf("%s%s (disamb: %X, prefix: %X, typ: %v)\n",
+			indent, s, db.Bytes(), pb.Bytes(), typ)
 	} else {
-		fmt.Printf("%v (prefix: %X, typ: %v)\n",
-			s, pb.Bytes(), typ)
+		fmt.Printf("%s%s (prefix: %X, typ: %v)\n",
+			indent, s, pb.Bytes(), typ)
+	}
+	_s, _n, err := scanAny(typ, bz, indent)
+	if slide(&bz, &n, _n) && concat(&s, _s) && err != nil {
+		return
 	}
 	return
 }
+*/
 
 //----------------------------------------
 // Misc.
