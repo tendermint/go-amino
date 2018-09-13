@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestEBufferBasic(t *testing.T) {
+func TestBasic(t *testing.T) {
 	// NOTE: the max cap must be sufficiently large.
 	for cap := 0; cap < 20; cap++ {
 		t.Run(fmt.Sprintf("cap-%v", cap), func(t *testing.T) {
@@ -35,7 +35,7 @@ func TestEBufferBasic(t *testing.T) {
 	}
 }
 
-func TestEBufferRes(t *testing.T) {
+func TestRes(t *testing.T) {
 	// NOTE: the max cap must be sufficiently large.
 	for cap := 0; cap < 20; cap++ {
 		t.Run(fmt.Sprintf("cap-%v", cap), func(t *testing.T) {
@@ -71,7 +71,7 @@ func TestEBufferRes(t *testing.T) {
 	}
 }
 
-func TestEBufferTruncate1(t *testing.T) {
+func TestTruncate1(t *testing.T) {
 	ebuf := NewEBuffer(0)
 	ebuf.Append([]byte("abc"))
 	_ = ebuf.Reserve(10)
@@ -82,7 +82,7 @@ func TestEBufferTruncate1(t *testing.T) {
 	testEBufferTruncateCompact(t, ebuf)
 }
 
-func TestEBufferTruncate2(t *testing.T) {
+func TestTruncate2(t *testing.T) {
 	ebuf := NewEBuffer(0)
 	ebuf.Append([]byte("abc"))
 	res1 := ebuf.Reserve(10)
@@ -99,7 +99,7 @@ func TestEBufferTruncate2(t *testing.T) {
 	testEBufferTruncateCompact(t, ebuf)
 }
 
-func TestEBufferTruncate3(t *testing.T) {
+func TestTruncate3(t *testing.T) {
 	ebuf := NewEBuffer(0)
 	ebuf.Append([]byte("abc"))
 	res1 := ebuf.Reserve(10)
@@ -116,7 +116,7 @@ func TestEBufferTruncate3(t *testing.T) {
 	testEBufferTruncateCompact(t, ebuf)
 }
 
-func TestEBufferTruncate4(t *testing.T) {
+func TestTruncate4(t *testing.T) {
 	ebuf := NewEBuffer(0)
 	ebuf.Append([]byte("abc"))
 	_ = ebuf.Reserve(10) // not used
@@ -153,4 +153,36 @@ func testEBufferTruncateCompact(t *testing.T, ebuf *EBuffer) {
 	assert.Panics(t, func() { ebuf3.Truncate(length + 1) })
 	ebuf4 := ebuf.Copy()
 	assert.Panics(t, func() { ebuf4.Truncate(-1) })
+}
+
+func TestPeekLastByte1(t *testing.T) {
+	ebuf := NewEBuffer(0)
+	ebuf.Append([]byte("abc"))
+	_ = ebuf.Reserve(10) // not used
+	res1 := ebuf.Reserve(10)
+	_ = ebuf.Reserve(10) // not used
+	ebuf.Append([]byte("def"))
+	ebuf.Edit(res1, []byte("XXX")) // should have no effect
+	_ = ebuf.Reserve(10)           // not used, should have no effect
+
+	assert.Equal(t, byte('f'), ebuf.PeekLastByte())
+}
+
+func TestPeekLastByte2(t *testing.T) {
+	ebuf := NewEBuffer(0)
+	ebuf.Append([]byte("abc"))
+	res1 := ebuf.Reserve(10)
+	ebuf.Edit(res1, []byte{0xFF})
+	_ = ebuf.Reserve(10) // not used, should have no effect
+
+	assert.Equal(t, byte(0xFF), ebuf.PeekLastByte())
+}
+
+func TestPeekLastByte3(t *testing.T) {
+	ebuf := NewEBuffer(0)
+	ebuf.Append([]byte("abc"))
+	res1 := ebuf.Reserve(10)
+	ebuf.Edit(res1, []byte{0xFF, 0xEE})
+
+	assert.Equal(t, byte(0xEE), ebuf.PeekLastByte())
 }

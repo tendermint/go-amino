@@ -151,3 +151,23 @@ func (eb *EBuffer) Compact() []byte {
 
 	return newbuf
 }
+
+// NOTE: Used for skipping empty struct field values.
+func (eb *EBuffer) PeekLastByte() byte {
+	var end int = len(eb.buf)
+	for i := len(eb.resz) - 1; i >= 0; i-- {
+		res := eb.resz[i]
+		if (res.pos + res.len) < end {
+			break // last byte is not a reservation
+		}
+		if res.used == 0 {
+			end = res.pos
+			continue
+		} else if res.used == -1 {
+			panic("should not happen") // sanity check
+		} else {
+			return eb.buf[res.pos+res.used-1]
+		}
+	}
+	return eb.buf[end-1]
+}
