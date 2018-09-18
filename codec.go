@@ -359,7 +359,6 @@ func (cdc *Codec) setTypeInfo_nolock(info *TypeInfo) {
 
 func (cdc *Codec) getTypeInfo_wlock(rt reflect.Type) (info *TypeInfo, err error) {
 	cdc.mtx.Lock() // requires wlock because we might set.
-	defer cdc.mtx.Unlock()
 
 	// Dereference pointer type.
 	for rt.Kind() == reflect.Ptr {
@@ -370,12 +369,14 @@ func (cdc *Codec) getTypeInfo_wlock(rt reflect.Type) (info *TypeInfo, err error)
 	if !ok {
 		if rt.Kind() == reflect.Interface {
 			err = fmt.Errorf("Unregistered interface %v", rt)
+			cdc.mtx.Unlock()
 			return
 		}
 
 		info = cdc.newTypeInfoUnregistered(rt)
 		cdc.setTypeInfo_nolock(info)
 	}
+	cdc.mtx.Unlock()
 	return info, nil
 }
 
@@ -383,42 +384,46 @@ func (cdc *Codec) getTypeInfo_wlock(rt reflect.Type) (info *TypeInfo, err error)
 // concrete type with prefix bytes pb.
 func (cdc *Codec) getTypeInfoFromPrefix_rlock(iinfo *TypeInfo, pb PrefixBytes) (info *TypeInfo, err error) {
 	cdc.mtx.RLock()
-	defer cdc.mtx.RUnlock()
 
 	infos, ok := iinfo.Implementers[pb]
 	if !ok {
 		err = fmt.Errorf("unrecognized prefix bytes %X", pb)
+		cdc.mtx.RUnlock()
 		return
 	}
 	if len(infos) > 1 {
 		err = fmt.Errorf("conflicting concrete types registered for %X: e.g. %v and %v", pb, infos[0].Type, infos[1].Type)
+		cdc.mtx.RUnlock()
 		return
 	}
 	info = infos[0]
+	cdc.mtx.RUnlock()
 	return
 }
 
 func (cdc *Codec) getTypeInfoFromDisfix_rlock(df DisfixBytes) (info *TypeInfo, err error) {
 	cdc.mtx.RLock()
-	defer cdc.mtx.RUnlock()
 
 	info, ok := cdc.disfixToTypeInfo[df]
 	if !ok {
 		err = fmt.Errorf("unrecognized disambiguation+prefix bytes %X", df)
+		cdc.mtx.RUnlock()
 		return
 	}
+	cdc.mtx.RUnlock()
 	return
 }
 
 func (cdc *Codec) getTypeInfoFromName_rlock(name string) (info *TypeInfo, err error) {
 	cdc.mtx.RLock()
-	defer cdc.mtx.RUnlock()
 
 	info, ok := cdc.nameToTypeInfo[name]
 	if !ok {
 		err = fmt.Errorf("unrecognized concrete type name %s", name)
+		cdc.mtx.RUnlock()
 		return
 	}
+	cdc.mtx.RUnlock()
 	return
 }
 
