@@ -1,5 +1,12 @@
 # Changelog
 
+## Pending
+
+IMPROVEMENTS:
+  - Add `MustUnmarshalJSON` and `MustMarshalJSON` that panic if an error occurs ([#228])
+
+[#228]: https://github.com/tendermint/go-amino/pull/228
+
 ## 0.12.0 (August 4, 2018)
 
 BREAKING CHANGE:
