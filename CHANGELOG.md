@@ -8,6 +8,11 @@ BREAKING CHANGE:
  
 [Timestamp]: https://github.com/protocolbuffers/protobuf/blob/d2980062c859649523d5fd51d6b55ab310e47482/src/google/protobuf/timestamp.proto#L123-L135
 
+IMPROVEMENTS:
+  - Add `MustUnmarshalJSON` and `MustMarshalJSON` that panic if an error occurs ([#228])
+
+[#228]: https://github.com/tendermint/go-amino/pull/228
+
 ## 0.12.0 (August 4, 2018)
 
 BREAKING CHANGE:

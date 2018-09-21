@@ -399,6 +399,15 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 	return w.Bytes(), nil
 }
 
+// MustMarshalJSON panics if an error occurs. Besides tha behaves exactly like MarshalJSON.
+func (cdc *Codec) MustMarshalJSON(o interface{}) []byte {
+	bz, err := cdc.MarshalJSON(o)
+	if err != nil {
+		panic(err)
+	}
+	return bz
+}
+
 func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
 	if len(bz) == 0 {
 		return errors.New("UnmarshalJSON cannot decode empty bytes")
@@ -428,6 +437,13 @@ func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
 		bz = bz_
 	}
 	return cdc.decodeReflectJSON(bz, info, rv, FieldOptions{})
+}
+
+// MustUnmarshalJSON panics if an error occurs. Besides tha behaves exactly like UnmarshalJSON.
+func (cdc *Codec) MustUnmarshalJSON(bz []byte, ptr interface{}) {
+	if err := cdc.UnmarshalJSON(bz, ptr); err != nil {
+		panic(err)
+	}
 }
 
 // MarshalJSONIndent calls json.Indent on the output of cdc.MarshalJSON

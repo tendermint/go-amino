@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	amino "github.com/tendermint/go-amino"
+	"github.com/stretchr/testify/require"
+
+	"github.com/tendermint/go-amino"
 )
 
 func registerTransports(cdc *amino.Codec) {
@@ -492,6 +494,30 @@ func (p Plane) Move() error { return nil }
 
 func interfacePtr(v interface{}) *interface{} {
 	return &v
+}
+
+// Test to ensure that Amino codec's time encoding/decoding roundtrip
+// produces the same result as the standard library json's.
+func TestAminoJSONTimeEncodeDecodeRoundTrip(t *testing.T) {
+	loc, _ := time.LoadLocation("America/Los_Angeles")
+	din := time.Date(2008, 9, 15, 14, 13, 12, 11109876, loc).Round(time.Millisecond).UTC()
+
+	cdc := amino.NewCodec()
+	blobAmino, err := cdc.MarshalJSON(din)
+	require.Nil(t, err, "amino.Codec.MarshalJSON should succeed")
+	var tAminoOut time.Time
+	require.Nil(t, cdc.UnmarshalJSON(blobAmino, &tAminoOut), "amino.Codec.UnmarshalJSON should succeed")
+	require.NotEqual(t, tAminoOut, time.Time{}, "amino.marshaled definitely isn't equal to zero time")
+	require.Equal(t, tAminoOut, din, "expecting marshaled in to be equal to marshaled out")
+
+	blobStdlib, err := json.Marshal(din)
+	require.Nil(t, err, "json.Marshal should succeed")
+	var tStdlibOut time.Time
+	require.Nil(t, json.Unmarshal(blobStdlib, &tStdlibOut), "json.Unmarshal should succeed")
+	require.NotEqual(t, tStdlibOut, time.Time{}, "stdlib.marshaled definitely isn't equal to zero time")
+	require.Equal(t, tStdlibOut, din, "expecting stdlib.marshaled to be equal to time in")
+
+	require.Equal(t, tAminoOut, tStdlibOut, "expecting amino.unmarshaled to be equal to json.unmarshaled")
 }
 
 //----------------------------------------
