@@ -1,6 +1,6 @@
 # Changelog
 
-## Pending
+## 0.13.0
 
 BREAKING CHANGE:
  - `time.Time`: validate seconds since 1970 are in valid range during encoding; i.e. in the interval [-62135596800, 253402300800)
