@@ -2,6 +2,7 @@ package amino
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"math"
 	"math/bits"
@@ -111,9 +112,25 @@ func EncodeFloat64(w io.Writer, f float64) (err error) {
 	return EncodeUint64(w, math.Float64bits(f))
 }
 
+const (
+	// seconds of 01-01-0001
+	minSeconds = -62135596800
+	// seconds of 10000-01-01
+	maxSeconds = 253402300800
+
+	// nanos have to be in interval: [0, 999999999]
+	maxNanos = 999999999
+)
+
+type InvalidTimeErr string
+
+func (e InvalidTimeErr) Error() string {
+	return "invalid time: " + string(e)
+}
+
 // EncodeTime writes the number of seconds (int64) and nanoseconds (int32),
 // with millisecond resolution since January 1, 1970 UTC to the Writer as an
-// Int64.
+// UInt64.
 // Milliseconds are used to ease compatibility with Javascript,
 // which does not support finer resolution.
 func EncodeTime(w io.Writer, t time.Time) (err error) {
@@ -123,22 +140,33 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 	// TODO: We are hand-encoding a struct until MarshalAmino/UnmarshalAmino is supported.
 	// skip if default/zero value:
 	if s != 0 {
-		err = encodeFieldNumberAndTyp3(w, 1, Typ3_8Byte)
+		if s < minSeconds || s >= maxSeconds {
+			return InvalidTimeErr(fmt.Sprintf("seconds have to be > %d and < %d, got: %d",
+				minSeconds, maxSeconds, s))
+		}
+		err = encodeFieldNumberAndTyp3(w, 1, Typ3_Varint)
 		if err != nil {
 			return
 		}
-		err = EncodeInt64(w, s)
+		err = EncodeUvarint(w, uint64(s))
 		if err != nil {
 			return
 		}
 	}
 	// skip if default/zero value:
 	if ns != 0 {
-		err = encodeFieldNumberAndTyp3(w, 2, Typ3_4Byte)
+		// do not encode if not in interval [0, 999999999]
+		if ns < 0 || ns > maxNanos {
+			// we could as well panic here:
+			// time.Time.Nanosecond() guarantees nanos to be in [0, 999,999,999]
+			return InvalidTimeErr(fmt.Sprintf("nanosecons have to be >= 0 and <= %v, got: %d",
+				maxNanos, s))
+		}
+		err = encodeFieldNumberAndTyp3(w, 2, Typ3_Varint)
 		if err != nil {
 			return
 		}
-		err = EncodeInt32(w, ns)
+		err = EncodeUvarint(w, uint64(ns))
 		if err != nil {
 			return
 		}

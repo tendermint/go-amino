@@ -254,7 +254,7 @@ func (cdc *Codec) Seal() *Codec {
 // | Type  | Name | Prefix | Notes |
 //
 // Where Type is the golang type name and Name is the name the type was registered with.
-func (cdc Codec) PrintTypes(out io.Writer) error {
+func (cdc *Codec) PrintTypes(out io.Writer) error {
 	cdc.mtx.RLock()
 	defer cdc.mtx.RUnlock()
 	// print header

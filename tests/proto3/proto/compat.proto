@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package proto3tests;
 
+import "google/protobuf/timestamp.proto";
+
 message TestInt32Varint {
     sint32 Int32 = 1;
 }
@@ -30,4 +32,16 @@ message EmbeddedStruct {
 message SomeStruct {
     // proto3 autom. turns this into a pointer ...
     EmbeddedStruct emb = 1;
+}
+
+message ProtoGotTime {
+    google.protobuf.Timestamp T = 1;
+}
+
+message TestInt32 {
+    int32 Int32 = 1;
+}
+
+message TestInt64 {
+    int64 Int64 = 1;
 }
