@@ -265,7 +265,6 @@ func decodeNanos(bz *[]byte, n *int) (int32, error) {
 	if fieldNum == 2 && typ == Typ3_Varint {
 		slide(bz, n, _n)
 		_n = 0
-		// Actually read the Int32.
 		nsec, _n, err := DecodeUvarint(*bz)
 		if slide(bz, n, _n) && err != nil {
 			return 0, err
