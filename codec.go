@@ -358,6 +358,9 @@ func (cdc *Codec) setTypeInfo_nolock(info *TypeInfo) {
 }
 
 func (cdc *Codec) getTypeInfo_wlock(rt reflect.Type) (info *TypeInfo, err error) {
+	// We do not use defer cdc.mtx.Unlock() here due to performance overhead of
+	// defer in go1.11 (and prior versions). Ensure new code paths unlock the
+	// mutex.
 	cdc.mtx.Lock() // requires wlock because we might set.
 
 	// Dereference pointer type.
@@ -383,6 +386,9 @@ func (cdc *Codec) getTypeInfo_wlock(rt reflect.Type) (info *TypeInfo, err error)
 // iinfo: TypeInfo for the interface for which we must decode a
 // concrete type with prefix bytes pb.
 func (cdc *Codec) getTypeInfoFromPrefix_rlock(iinfo *TypeInfo, pb PrefixBytes) (info *TypeInfo, err error) {
+	// We do not use defer cdc.mtx.Unlock() here due to performance overhead of
+	// defer in go1.11 (and prior versions). Ensure new code paths unlock the
+	// mutex.
 	cdc.mtx.RLock()
 
 	infos, ok := iinfo.Implementers[pb]
@@ -402,6 +408,9 @@ func (cdc *Codec) getTypeInfoFromPrefix_rlock(iinfo *TypeInfo, pb PrefixBytes) (
 }
 
 func (cdc *Codec) getTypeInfoFromDisfix_rlock(df DisfixBytes) (info *TypeInfo, err error) {
+	// We do not use defer cdc.mtx.Unlock() here due to performance overhead of
+	// defer in go1.11 (and prior versions). Ensure new code paths unlock the
+	// mutex.
 	cdc.mtx.RLock()
 
 	info, ok := cdc.disfixToTypeInfo[df]
@@ -415,6 +424,9 @@ func (cdc *Codec) getTypeInfoFromDisfix_rlock(df DisfixBytes) (info *TypeInfo, e
 }
 
 func (cdc *Codec) getTypeInfoFromName_rlock(name string) (info *TypeInfo, err error) {
+	// We do not use defer cdc.mtx.Unlock() here due to performance overhead of
+	// defer in go1.11 (and prior versions). Ensure new code paths unlock the
+	// mutex.
 	cdc.mtx.RLock()
 
 	info, ok := cdc.nameToTypeInfo[name]
