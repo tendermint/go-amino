@@ -1,17 +1,28 @@
 # Changelog
 
-## 0.13.0
+## 0.13.0 (October 15, 2018)
 
 BREAKING CHANGE:
  - `time.Time`: validate seconds since 1970 are in valid range during encoding; i.e. in the interval [-62135596800, 253402300800)
- - `time.Time`: match encoding of time.Time to protobuf's well known type [Timestamp]
+ - `time.Time`: match encoding of time.Time to protobuf's well known type [Timestamp] ([#224])
+ - Rename `MarshalBinary` to `MarshalBinaryLengthPrefixed` ([#222])
  
 [Timestamp]: https://github.com/protocolbuffers/protobuf/blob/d2980062c859649523d5fd51d6b55ab310e47482/src/google/protobuf/timestamp.proto#L123-L135
 
 IMPROVEMENTS:
   - Add `MustUnmarshalJSON` and `MustMarshalJSON` that panic if an error occurs ([#228])
-
+  - Optimize performance by removing `defer`s in `getTypeInfo` ([#227] by @ValarDragon) 
+  - Optimize performance by removing unnecessary allocation in `UvarintSize` ([#225] by [@ValarDragon])
+  - Add test that shows compatibility with stdlib (JSON time encoding) ([#131] by [@odeke-em]) 
+  
+[#224]: https://github.com/tendermint/go-amino/pull/224
+[#222]: https://github.com/tendermint/go-amino/pull/222
 [#228]: https://github.com/tendermint/go-amino/pull/228
+[#227]: https://github.com/tendermint/go-amino/pull/227
+[#225]: https://github.com/tendermint/go-amino/pull/225
+[#131]: https://github.com/tendermint/go-amino/pull/131
+[@ValarDragon]: https://github.com/ValarDragon
+[@odeke-em]: https://github.com/odeke-em
 
 ## 0.12.0 (August 4, 2018)
 
