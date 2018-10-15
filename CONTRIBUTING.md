@@ -3,7 +3,8 @@
 Thank you for considering making contributions to go-amino! This repository follows the [contribution guidelines] of 
 tendermint and the corresponding [coding repo]. Please take a look if you are not already familiar with those.
 
-Besides what you can find there there are a few things to consider specific to this repository. They are outlined below.
+Besides what you can find in aforementioned resources, there are a few things to consider specific to go-amino. 
+They are outlined below.
 
 ## Compatibility
 
@@ -11,7 +12,7 @@ Besides what you can find there there are a few things to consider specific to t
 
 Amino aims to be and stay [protobuf] compatible. Please, ensure that any change you add retains protobuf compatibility.
 Basic compatibility is ensured by tests. To not introduce a protobuf dependency, these tests are not run with every test 
-run, though. You need turn on a [build flag] to build and run those tests.
+run, though. You need to turn on a [build flag] to build and run those tests.
 
 ### Tendermint
 
