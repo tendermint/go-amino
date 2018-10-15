@@ -325,11 +325,11 @@ func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
 	cdc.RegisterConcrete((*tests.InterfaceFieldsStruct)(nil), "interfaceFields", nil)
 
 	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
-	bz, err := cdc.MarshalBinary(i1)
+	bz, err := cdc.MarshalBinaryLengthPrefixed(i1)
 	assert.Nil(t, err, "unexpected error")
 
 	i2 := new(tests.InterfaceFieldsStruct)
-	err = cdc.UnmarshalBinary(bz, i2)
+	err = cdc.UnmarshalBinaryLengthPrefixedBinary(bz, i2)
 
 	assert.Nil(t, err, "unexpected error")
 	require.Equal(t, i1, i2, "i1 and i2 should be the same after decoding")

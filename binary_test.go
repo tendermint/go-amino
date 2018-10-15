@@ -49,9 +49,9 @@ func TestNilSliceEmptySlice(t *testing.T) {
 		F: []*[]int{&eei},
 	}
 
-	abz := cdc.MustMarshalBinary(a)
-	bbz := cdc.MustMarshalBinary(b)
-	cbz := cdc.MustMarshalBinary(c)
+	abz := cdc.MustMarshalBinaryLengthPrefixed(a)
+	bbz := cdc.MustMarshalBinaryLengthPrefixed(b)
+	cbz := cdc.MustMarshalBinaryLengthPrefixed(c)
 
 	assert.Equal(t, abz, bbz, "a != b")
 	assert.Equal(t, abz, cbz, "a != c")
@@ -191,11 +191,11 @@ func TestStructPointerSlice1(t *testing.T) {
 		C: []*Foo{nil, nil, nil},
 		D: "j",
 	}
-	bz, err := cdc.MarshalBinary(f)
+	bz, err := cdc.MarshalBinaryLengthPrefixed(f)
 	assert.NoError(t, err)
 
 	var f2 Foo
-	err = cdc.UnmarshalBinary(bz, &f2)
+	err = cdc.UnmarshalBinaryLengthPrefixedBinary(bz, &f2)
 	assert.Nil(t, err)
 
 	assert.Equal(t, f, f2)
@@ -207,7 +207,7 @@ func TestStructPointerSlice1(t *testing.T) {
 		C: []*Foo{&Foo{}, &Foo{}, &Foo{}},
 		D: "j",
 	}
-	bz2, err := cdc.MarshalBinary(f3)
+	bz2, err := cdc.MarshalBinaryLengthPrefixed(f3)
 	assert.NoError(t, err)
 	assert.Equal(t, bz, bz2, "empty slices should be decoded to nil unless empty_elements")
 }
@@ -229,15 +229,15 @@ func TestStructPointerSlice2(t *testing.T) {
 		C: []*Foo{nil, nil, nil},
 		D: "j",
 	}
-	bz, err := cdc.MarshalBinary(f)
+	bz, err := cdc.MarshalBinaryLengthPrefixed(f)
 	assert.Error(t, err, "nil elements of a slice/array not supported when empty_elements field tag set.")
 
 	f.C = []*Foo{&Foo{}, &Foo{}, &Foo{}}
-	bz, err = cdc.MarshalBinary(f)
+	bz, err = cdc.MarshalBinaryLengthPrefixed(f)
 	assert.NoError(t, err)
 
 	var f2 Foo
-	err = cdc.UnmarshalBinary(bz, &f2)
+	err = cdc.UnmarshalBinaryLengthPrefixedBinary(bz, &f2)
 	assert.Nil(t, err)
 
 	assert.Equal(t, f, f2)
