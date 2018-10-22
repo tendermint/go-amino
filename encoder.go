@@ -141,7 +141,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 	// skip if default/zero value:
 	if s != 0 {
 		if s < minSeconds || s >= maxSeconds {
-			return InvalidTimeErr(fmt.Sprintf("seconds have to be > %d and < %d, got: %d",
+			return InvalidTimeErr(fmt.Sprintf("seconds have to be >= %d and < %d, got: %d",
 				minSeconds, maxSeconds, s))
 		}
 		err = encodeFieldNumberAndTyp3(w, 1, Typ3_Varint)
@@ -159,7 +159,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 		if ns < 0 || ns > maxNanos {
 			// we could as well panic here:
 			// time.Time.Nanosecond() guarantees nanos to be in [0, 999,999,999]
-			return InvalidTimeErr(fmt.Sprintf("nanosecons have to be >= 0 and <= %v, got: %d",
+			return InvalidTimeErr(fmt.Sprintf("nanoseconds have to be >= 0 and <= %v, got: %d",
 				maxNanos, s))
 		}
 		err = encodeFieldNumberAndTyp3(w, 2, Typ3_Varint)
