@@ -29,7 +29,7 @@ func TestMarshalBinary(t *testing.T) {
 	t.Logf("MarshalBinaryLengthPrefixed(s) -> %X", b)
 
 	var s2 SimpleStruct
-	err = cdc.UnmarshalBinaryLengthPrefixedBinary(b, &s2)
+	err = cdc.UnmarshalBinaryLengthPrefixed(b, &s2)
 	assert.Nil(t, err)
 	assert.Equal(t, s, s2)
 }

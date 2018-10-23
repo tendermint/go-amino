@@ -24,7 +24,7 @@ func TestDecodeSkippedFieldsInTime(t *testing.T) {
 	b, err := cdc.MarshalBinaryLengthPrefixed(testTime{Time: tm})
 	assert.NoError(t, err)
 	var ti testTime
-	err = cdc.UnmarshalBinaryLengthPrefixedBinary(b, &ti)
+	err = cdc.UnmarshalBinaryLengthPrefixed(b, &ti)
 	assert.NoError(t, err)
 	assert.Equal(t, testTime{Time: tm}, ti)
 
@@ -33,7 +33,7 @@ func TestDecodeSkippedFieldsInTime(t *testing.T) {
 
 	b, err = cdc.MarshalBinaryLengthPrefixed(testTime{Time: tm2})
 	assert.NoError(t, err)
-	err = cdc.UnmarshalBinaryLengthPrefixedBinary(b, &ti)
+	err = cdc.UnmarshalBinaryLengthPrefixed(b, &ti)
 	assert.NoError(t, err)
 	assert.Equal(t, testTime{Time: tm2}, ti)
 
@@ -52,7 +52,7 @@ func TestDecodeSkippedFieldsInTime(t *testing.T) {
 	assert.NoError(t, err)
 
 	var tStruct tArr
-	err = cdc.UnmarshalBinaryLengthPrefixedBinary(b, &tStruct)
+	err = cdc.UnmarshalBinaryLengthPrefixed(b, &tStruct)
 	assert.NoError(t, err)
 	assert.Equal(t, st, tStruct)
 }
