@@ -195,7 +195,7 @@ func TestStructPointerSlice1(t *testing.T) {
 	assert.NoError(t, err)
 
 	var f2 Foo
-	err = cdc.UnmarshalBinaryLengthPrefixedBinary(bz, &f2)
+	err = cdc.UnmarshalBinaryLengthPrefixed(bz, &f2)
 	assert.Nil(t, err)
 
 	assert.Equal(t, f, f2)
@@ -237,7 +237,7 @@ func TestStructPointerSlice2(t *testing.T) {
 	assert.NoError(t, err)
 
 	var f2 Foo
-	err = cdc.UnmarshalBinaryLengthPrefixedBinary(bz, &f2)
+	err = cdc.UnmarshalBinaryLengthPrefixed(bz, &f2)
 	assert.Nil(t, err)
 
 	assert.Equal(t, f, f2)
