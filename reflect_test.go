@@ -329,7 +329,7 @@ func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
 	assert.Nil(t, err, "unexpected error")
 
 	i2 := new(tests.InterfaceFieldsStruct)
-	err = cdc.UnmarshalBinaryLengthPrefixedBinary(bz, i2)
+	err = cdc.UnmarshalBinaryLengthPrefixed(bz, i2)
 
 	assert.Nil(t, err, "unexpected error")
 	require.Equal(t, i1, i2, "i1 and i2 should be the same after decoding")
