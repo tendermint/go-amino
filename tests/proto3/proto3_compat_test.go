@@ -52,7 +52,7 @@ func TestFixed32Roundtrip(t *testing.T) {
 }
 
 func TestVarintZigzagRoundtrip(t *testing.T) {
-	// amino varint (int) <-> protobuf zigzag32 (int32)
+	// amino varint (int) <-> protobuf zigzag32 (int32 in go sint32 in proto file)
 	type testInt32Varint struct {
 		Int32 int `binary:"varint"`
 	}
@@ -333,4 +333,13 @@ func TestProtoInt64(t *testing.T) {
 	assert.NoError(t, err)
 	// cast back to int64 to get back the orig negative value:
 	assert.Equal(t, int64(got.Int64), ptc.Int64)
+}
+
+func TestInt32VarintCompat(t *testing.T) {
+	tv := p3.TestAllTheInts32{Int32: -100}
+	ab, err := cdc.MarshalBinaryBare(tv)
+	assert.NoError(t, err)
+	pb, err := proto.Marshal(&tv)
+	assert.NoError(t, err)
+	assert.Equal(t, ab, pb)
 }
