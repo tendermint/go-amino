@@ -115,11 +115,12 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 			}
 			rv.SetInt(num)
 		} else {
-			num, _n, err = DecodeVarint(bz)
+			var unum uint64
+			unum, _n, err = DecodeUvarint(bz)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
-			rv.SetInt(num)
+			rv.SetInt(int64(unum))
 		}
 		return
 
@@ -132,8 +133,8 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 			}
 			rv.SetInt(int64(num))
 		} else {
-			var num int64
-			num, _n, err = DecodeVarint(bz)
+			var num uint64
+			num, _n, err = DecodeUvarint(bz)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}

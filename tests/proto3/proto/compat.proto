@@ -46,9 +46,7 @@ message TestInt64 {
     int64 Int64 = 1;
 }
 
-message TestAllTheInts32 {
-    uint32 Uint32 = 1;
-    int32 Int32 = 2;
-    sint32 SInt32 = 3;
-    sfixed32 SFixed32 = 4;
+message TestInts {
+    int32 Int32 = 1;
+    int64 Int64 = 2;
 }

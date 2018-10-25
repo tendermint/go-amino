@@ -4,6 +4,7 @@
 package proto3
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -52,6 +53,7 @@ func TestFixed32Roundtrip(t *testing.T) {
 }
 
 func TestVarintZigzagRoundtrip(t *testing.T) {
+	t.Skip("zigzag encoding isn't default anymore for (unsigned) ints")
 	// amino varint (int) <-> protobuf zigzag32 (int32 in go sint32 in proto file)
 	type testInt32Varint struct {
 		Int32 int `binary:"varint"`
@@ -72,45 +74,6 @@ func TestVarintZigzagRoundtrip(t *testing.T) {
 	assert.NoError(t, err, "unexpected error")
 
 	assert.EqualValues(t, varint.Int32, amToP3.Int32)
-}
-
-func TestMixedFixedVarintRoudtrip(t *testing.T) {
-	type test32 struct {
-		Foo int32 `binary:"fixed32"`
-		Bar int   `binary:"varint"`
-	}
-	ab, err := cdc.MarshalBinaryBare(test32{Foo: 150, Bar: 150})
-	assert.NoError(t, err, "unexpected error")
-	pb, err := proto.Marshal(&p3.Test32{Foo: 150, Bar: 150})
-	assert.NoError(t, err, "unexpected error")
-	assert.Equal(t, pb, ab, "mixed fixed32/varint encoding doesn't match")
-
-	var amToP3 p3.Test32
-	var p3ToAm test32
-	err = proto.Unmarshal(ab, &amToP3)
-	assert.NoError(t, err, "unexpected error")
-
-	err = cdc.UnmarshalBinaryBare(pb, &p3ToAm)
-	assert.NoError(t, err, "unexpected error")
-
-	assert.EqualValues(t, p3ToAm.Foo, amToP3.Foo)
-
-	// same as above but with skipped fields:
-	ab, err = cdc.MarshalBinaryBare(test32{})
-	assert.NoError(t, err, "unexpected error")
-	pb, err = proto.Marshal(&p3.Test32{})
-	assert.NoError(t, err, "unexpected error")
-	assert.Len(t, pb, 0, "mixed fixed32/varint encoding doesn't match")
-	assert.Len(t, ab, 0, "mixed fixed32/varint encoding doesn't match")
-
-	err = proto.Unmarshal(ab, &amToP3)
-	assert.NoError(t, err, "unexpected error")
-
-	err = cdc.UnmarshalBinaryBare(pb, &p3ToAm)
-	assert.NoError(t, err, "unexpected error")
-
-	assert.EqualValues(t, p3ToAm.Foo, amToP3.Foo)
-	assert.EqualValues(t, p3ToAm.Bar, amToP3.Bar)
 }
 
 func TestFixedU64Roundtrip(t *testing.T) {
@@ -231,7 +194,7 @@ func TestProto3CompatTimestampNow(t *testing.T) {
 	assert.NoError(t, err)
 	// amino's encoding of time.Time is the same as proto's encoding of the well known type
 	// timestamp.Timestamp (they can be used interchangeably):
-	assert.NotEqual(t, ab1, ab2)
+	assert.Equal(t, ab1, ab2)
 	pb, err := proto.Marshal(&pt)
 	assert.NoError(t, err)
 	assert.Equal(t, ab1, pb)
@@ -336,10 +299,64 @@ func TestProtoInt64(t *testing.T) {
 }
 
 func TestInt32VarintCompat(t *testing.T) {
-	tv := p3.TestAllTheInts32{Int32: -100}
-	ab, err := cdc.MarshalBinaryBare(tv)
-	assert.NoError(t, err)
-	pb, err := proto.Marshal(&tv)
-	assert.NoError(t, err)
-	assert.Equal(t, ab, pb)
+
+	tcs := []struct {
+		val32 int32
+		val64 int64
+	}{
+		{1, 1},
+		{-1, -1},
+		{1000, 1000},
+		{math.MaxInt32, math.MaxInt64},
+		{math.MinInt32, math.MinInt64},
+	}
+	for _,tc := range tcs {
+		tv := p3.TestInts{Int32: tc.val32, Int64: tc.val64}
+		ab, err := cdc.MarshalBinaryBare(tv)
+		assert.NoError(t, err)
+		pb, err := proto.Marshal(&tv)
+		assert.NoError(t, err)
+		assert.Equal(t, ab, pb)
+		var res p3.TestInts
+		err = cdc.UnmarshalBinaryBare(pb, &res)
+		assert.NoError(t, err)
+		var res2 p3.TestInts
+		err = proto.Unmarshal(ab, &res2)
+		assert.NoError(t, err)
+		assert.Equal(t, res.Int32, tc.val32)
+		assert.Equal(t, res.Int64, tc.val64)
+		assert.Equal(t, res2.Int32, tc.val32)
+		assert.Equal(t, res2.Int64, tc.val64)
+	}
+	// special case: amino allows int as well
+	// test that ints are also varint encoded:
+	type TestInt struct {
+		Int int
+	}
+	tcs2 := []struct {
+		val int
+	}{
+		{0},
+		{-1},
+		{1000},
+		{-1000},
+		{math.MaxInt32},
+		{math.MinInt32},
+	}
+	for _,tc := range tcs2 {
+		ptv := p3.TestInts{Int32: int32(tc.val)}
+		pb, err := proto.Marshal(&ptv)
+		assert.NoError(t, err)
+		atv := TestInt{tc.val}
+		ab, err := cdc.MarshalBinaryBare(atv)
+		assert.NoError(t, err)
+		if tc.val == 0 {
+			// amino results in []byte(nil)
+			// protobuf in []byte{}
+			assert.Empty(t, ab)
+			assert.Empty(t, pb)
+		} else {
+			assert.Equal(t, ab, pb)
+		}
+	}
 }
