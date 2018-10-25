@@ -42,9 +42,6 @@ message TestInt32 {
     int32 Int32 = 1;
 }
 
-message TestInt64 {
-    int64 Int64 = 1;
-}
 
 message TestInts {
     int32 Int32 = 1;

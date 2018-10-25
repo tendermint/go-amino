@@ -243,62 +243,7 @@ func TestProtoNegativeSeconds(t *testing.T) {
 	assert.Equal(t, got, ntm)
 }
 
-// the following two tests documents the underlying encoding / decoding of seconds and nanos in amino:
-
-func TestProtoInt32(t *testing.T) {
-	// proto has to types for negative numbers
-	// int32 and sint32
-	// the latter is more efficient for negative numbers
-
-	// the equivalent go type / struct:
-	type TestInt32 struct {
-		// this is an uint64 to force amino encode this the same as proto treats int32:
-		Int32 uint64
-	}
-	ptc := p3.TestInt32{
-		// proto3's int32 -> is a golang int32 but get's encoded as a amino encodes uint32 (see above struct)
-		Int32: -153621037,
-	}
-
-	pb, err := proto.Marshal(&ptc)
-	assert.NoError(t, err)
-	cdc := amino.NewCodec()
-	ab, err := cdc.MarshalBinaryBare(TestInt32{uint64(ptc.Int32)})
-	assert.NoError(t, err)
-
-	assert.Equal(t, pb, ab)
-
-	got := &TestInt32{}
-	err = cdc.UnmarshalBinaryBare(ab, got)
-	assert.NoError(t, err)
-	// currently, the only way to get back the orig. negative value in amino is to cast to int32:
-	assert.Equal(t, int32(got.Int32), ptc.Int32)
-}
-
-func TestProtoInt64(t *testing.T) {
-	// same test as the one above but with
-	type TestInt64 struct {
-		Int64 uint64
-	}
-	ptc := p3.TestInt64{
-		Int64: int64(-int(^uint(0)  >> 1) - 1), // -9223372036854775808
-	}
-
-	pb, err := proto.Marshal(&ptc)
-	assert.NoError(t, err)
-	cdc := amino.NewCodec()
-	ab, err := cdc.MarshalBinaryBare(TestInt64{uint64(ptc.Int64)})
-	assert.NoError(t, err)
-	assert.Equal(t, pb, ab)
-
-	got := &TestInt64{}
-	err = cdc.UnmarshalBinaryBare(ab, got)
-	assert.NoError(t, err)
-	// cast back to int64 to get back the orig negative value:
-	assert.Equal(t, int64(got.Int64), ptc.Int64)
-}
-
-func TestInt32VarintCompat(t *testing.T) {
+func TestIntVarintCompat(t *testing.T) {
 
 	tcs := []struct {
 		val32 int32

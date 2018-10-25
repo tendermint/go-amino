@@ -4,7 +4,7 @@
 
 BREAKING CHANGE:
  - Switch default encoding of unsigned ints (`int`, `int32`, `int64`) to be on par with [proto3's] variable length 
- encoding (of `int32`, `int64`) [#237]
+ encoding (of `int32`, `int64`) ([#237])
  
  [proto3's]: https://developers.google.com/protocol-buffers/docs/proto#scalar
  [#237]: https://github.com/tendermint/go-amino/issues/237
