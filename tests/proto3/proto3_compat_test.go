@@ -306,6 +306,7 @@ func TestInt32VarintCompat(t *testing.T) {
 	}{
 		{1, 1},
 		{-1, -1},
+		{2, 2},
 		{1000, 1000},
 		{math.MaxInt32, math.MaxInt64},
 		{math.MinInt32, math.MinInt64},
@@ -358,5 +359,10 @@ func TestInt32VarintCompat(t *testing.T) {
 		} else {
 			assert.Equal(t, ab, pb)
 		}
+		// can we get back the int from the proto?
+		var res TestInt
+		err = cdc.UnmarshalBinaryBare(pb, &res)
+		assert.NoError(t, err)
+		assert.EqualValues(t, res.Int, tc.val)
 	}
 }

@@ -168,7 +168,7 @@ func TestStructSlice(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(f)
 	assert.NoError(t, err)
-	assert.Equal(t, "0A0608C80110CA010A0608CC0110CE01", fmt.Sprintf("%X", bz))
+	assert.Equal(t, "0A04086410650A0408661067", fmt.Sprintf("%X", bz))
 	t.Log(bz)
 	var f2 Foos
 	cdc.UnmarshalBinaryBare(bz, &f2)
