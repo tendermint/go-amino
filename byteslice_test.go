@@ -20,7 +20,7 @@ func TestReadByteSliceEquality(t *testing.T) {
 
 	// Read the byteslice, should return the same byteslice
 	var testBytes2 []byte
-	err = cdc.UnmarshalBinaryLengthPrefixedBinary(encoded, &testBytes2)
+	err = cdc.UnmarshalBinaryLengthPrefixed(encoded, &testBytes2)
 	if err != nil {
 		t.Error(err.Error())
 	}

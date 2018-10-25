@@ -53,7 +53,7 @@ func MustMarshalBinaryBare(o interface{}) []byte {
 }
 
 func UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) error {
-	return gcdc.UnmarshalBinaryLengthPrefixedBinary(bz, ptr)
+	return gcdc.UnmarshalBinaryLengthPrefixed(bz, ptr)
 }
 
 func UnmarshalBinaryLengthPrefixedReader(r io.Reader, ptr interface{}, maxSize int64) (n int64, err error) {
@@ -228,11 +228,11 @@ func (cdc *Codec) MustMarshalBinaryBare(o interface{}) []byte {
 }
 
 // Like UnmarshalBinaryBare, but will first decode the byte-length prefix.
-// UnmarshalBinaryLengthPrefixedBinary will panic if ptr is a nil-pointer.
+// UnmarshalBinaryLengthPrefixed will panic if ptr is a nil-pointer.
 // Returns an error if not all of bz is consumed.
-func (cdc *Codec) UnmarshalBinaryLengthPrefixedBinary(bz []byte, ptr interface{}) error {
+func (cdc *Codec) UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) error {
 	if len(bz) == 0 {
-		return errors.New("UnmarshalBinaryLengthPrefixedBinary cannot decode empty bytes")
+		return errors.New("UnmarshalBinaryLengthPrefixed cannot decode empty bytes")
 	}
 
 	// Read byte-length prefix.
@@ -241,10 +241,10 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixedBinary(bz []byte, ptr interface{}
 		return fmt.Errorf("Error reading msg byte-length prefix: got code %v", n)
 	}
 	if u64 > uint64(len(bz)-n) {
-		return fmt.Errorf("Not enough bytes to read in UnmarshalBinaryLengthPrefixedBinary, want %v more bytes but only have %v",
+		return fmt.Errorf("Not enough bytes to read in UnmarshalBinaryLengthPrefixed, want %v more bytes but only have %v",
 			u64, len(bz)-n)
 	} else if u64 < uint64(len(bz)-n) {
-		return fmt.Errorf("Bytes left over in UnmarshalBinaryLengthPrefixedBinary, should read %v more bytes but have %v",
+		return fmt.Errorf("Bytes left over in UnmarshalBinaryLengthPrefixed, should read %v more bytes but have %v",
 			u64, len(bz)-n)
 	}
 	bz = bz[n:]
@@ -311,7 +311,7 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixedReader(r io.Reader, ptr interface
 
 // Panics if error.
 func (cdc *Codec) MustUnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) {
-	err := cdc.UnmarshalBinaryLengthPrefixedBinary(bz, ptr)
+	err := cdc.UnmarshalBinaryLengthPrefixed(bz, ptr)
 	if err != nil {
 		panic(err)
 	}

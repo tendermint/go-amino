@@ -34,7 +34,7 @@ func TestMarshalUnmarshalBinaryPointer0(t *testing.T) {
 	assert.Nil(t, err)
 
 	var s2 SimpleStruct
-	err = cdc.UnmarshalBinaryLengthPrefixedBinary(b, &s2) // no indirection
+	err = cdc.UnmarshalBinaryLengthPrefixed(b, &s2) // no indirection
 	assert.Nil(t, err)
 	assert.Equal(t, s, s2)
 
@@ -48,7 +48,7 @@ func TestMarshalUnmarshalBinaryPointer1(t *testing.T) {
 	assert.Nil(t, err)
 
 	var s2 SimpleStruct
-	err = cdc.UnmarshalBinaryLengthPrefixedBinary(b, &s2) // no indirection
+	err = cdc.UnmarshalBinaryLengthPrefixed(b, &s2) // no indirection
 	assert.Nil(t, err)
 	assert.Equal(t, s, s2)
 
@@ -63,7 +63,7 @@ func TestMarshalUnmarshalBinaryPointer2(t *testing.T) {
 	assert.Nil(t, err)
 
 	var s2 SimpleStruct
-	err = cdc.UnmarshalBinaryLengthPrefixedBinary(b, &s2) // no indirection
+	err = cdc.UnmarshalBinaryLengthPrefixed(b, &s2) // no indirection
 	assert.Nil(t, err)
 	assert.Equal(t, s, s2)
 
@@ -77,7 +77,7 @@ func TestMarshalUnmarshalBinaryPointer3(t *testing.T) {
 	assert.Nil(t, err)
 
 	var s2 *SimpleStruct
-	err = cdc.UnmarshalBinaryLengthPrefixedBinary(b, &s2) // extra indirection
+	err = cdc.UnmarshalBinaryLengthPrefixed(b, &s2) // extra indirection
 	assert.Nil(t, err)
 	assert.Equal(t, s, *s2)
 }
@@ -91,7 +91,7 @@ func TestMarshalUnmarshalBinaryPointer4(t *testing.T) {
 	assert.Nil(t, err)
 
 	var s2 *SimpleStruct
-	err = cdc.UnmarshalBinaryLengthPrefixedBinary(b, &s2) // extra indirection
+	err = cdc.UnmarshalBinaryLengthPrefixed(b, &s2) // extra indirection
 	assert.Nil(t, err)
 	assert.Equal(t, s, *s2)
 
