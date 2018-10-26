@@ -1,6 +1,6 @@
 # Changelog
 
-## Pending
+## 0.14.0 (October 26, 2018)
 
 BREAKING CHANGE:
  - Switch default encoding of unsigned ints (`int`, `int32`, `int64`) to be on par with [proto3's] variable length 
