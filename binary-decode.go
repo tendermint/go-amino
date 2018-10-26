@@ -3,6 +3,7 @@ package amino
 import (
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"time"
 
@@ -11,6 +12,16 @@ import (
 
 //----------------------------------------
 // cdc.decodeReflectBinary
+
+var (
+	ErrOverflowInt = errors.New("encoded integer value value overflows int(32)")
+)
+
+const (
+	// architecture dependent int limits:
+	maxInt = int(^uint(0) >> 1)
+	minInt = -maxInt - 1
+)
 
 // This is the main entrypoint for decoding all types from binary form. This
 // function calls decodeReflectBinary*, and generally those functions should
@@ -138,6 +149,10 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
+			if int64(num) > math.MaxInt32 || int64(num) < math.MinInt32 {
+				err = ErrOverflowInt
+				return
+			}
 			rv.SetInt(int64(num))
 		}
 		return
@@ -164,6 +179,10 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 		var num uint64
 		num, _n, err = DecodeUvarint(bz)
 		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+		if int64(num) > int64(maxInt) || int64(num) < int64(minInt) {
+			err = ErrOverflowInt
 			return
 		}
 		rv.SetInt(int64(num))

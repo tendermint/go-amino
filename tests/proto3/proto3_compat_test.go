@@ -4,6 +4,9 @@
 package proto3
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/binary"
 	"math"
 	"testing"
 	"time"
@@ -310,4 +313,21 @@ func TestIntVarintCompat(t *testing.T) {
 		assert.NoError(t, err)
 		assert.EqualValues(t, res.Int, tc.val)
 	}
+
+	// purposely overflow by writing a too large value to first field (which is int32):
+	fieldNum := 1
+	fieldNumAndType := (uint64(fieldNum) << 3) | uint64(amino.Typ3_Varint)
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+	var buf [10]byte
+	n := binary.PutUvarint(buf[:], fieldNumAndType)
+	_, err := writer.Write(buf[0:n])
+	assert.NoError(t, err)
+	amino.EncodeUvarint(writer, math.MaxInt32+1)
+	err = writer.Flush()
+	assert.NoError(t, err)
+
+	var res p3.TestInts
+	err = cdc.UnmarshalBinaryBare(b.Bytes(), &res)
+	assert.Error(t, err)
 }
