@@ -126,12 +126,12 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 			}
 			rv.SetInt(num)
 		} else {
-			var unum uint64
-			unum, _n, err = DecodeUvarint(bz)
+			var u64 uint64
+			u64, _n, err = DecodeUvarint(bz)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
-			rv.SetInt(int64(unum))
+			rv.SetInt(int64(u64))
 		}
 		return
 
