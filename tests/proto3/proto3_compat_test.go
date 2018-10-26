@@ -4,6 +4,10 @@
 package proto3
 
 import (
+	"bufio"
+	"bytes"
+	"encoding/binary"
+	"math"
 	"testing"
 	"time"
 
@@ -52,7 +56,8 @@ func TestFixed32Roundtrip(t *testing.T) {
 }
 
 func TestVarintZigzagRoundtrip(t *testing.T) {
-	// amino varint (int) <-> protobuf zigzag32 (int32)
+	t.Skip("zigzag encoding isn't default anymore for (unsigned) ints")
+	// amino varint (int) <-> protobuf zigzag32 (int32 in go sint32 in proto file)
 	type testInt32Varint struct {
 		Int32 int `binary:"varint"`
 	}
@@ -72,45 +77,6 @@ func TestVarintZigzagRoundtrip(t *testing.T) {
 	assert.NoError(t, err, "unexpected error")
 
 	assert.EqualValues(t, varint.Int32, amToP3.Int32)
-}
-
-func TestMixedFixedVarintRoudtrip(t *testing.T) {
-	type test32 struct {
-		Foo int32 `binary:"fixed32"`
-		Bar int   `binary:"varint"`
-	}
-	ab, err := cdc.MarshalBinaryBare(test32{Foo: 150, Bar: 150})
-	assert.NoError(t, err, "unexpected error")
-	pb, err := proto.Marshal(&p3.Test32{Foo: 150, Bar: 150})
-	assert.NoError(t, err, "unexpected error")
-	assert.Equal(t, pb, ab, "mixed fixed32/varint encoding doesn't match")
-
-	var amToP3 p3.Test32
-	var p3ToAm test32
-	err = proto.Unmarshal(ab, &amToP3)
-	assert.NoError(t, err, "unexpected error")
-
-	err = cdc.UnmarshalBinaryBare(pb, &p3ToAm)
-	assert.NoError(t, err, "unexpected error")
-
-	assert.EqualValues(t, p3ToAm.Foo, amToP3.Foo)
-
-	// same as above but with skipped fields:
-	ab, err = cdc.MarshalBinaryBare(test32{})
-	assert.NoError(t, err, "unexpected error")
-	pb, err = proto.Marshal(&p3.Test32{})
-	assert.NoError(t, err, "unexpected error")
-	assert.Len(t, pb, 0, "mixed fixed32/varint encoding doesn't match")
-	assert.Len(t, ab, 0, "mixed fixed32/varint encoding doesn't match")
-
-	err = proto.Unmarshal(ab, &amToP3)
-	assert.NoError(t, err, "unexpected error")
-
-	err = cdc.UnmarshalBinaryBare(pb, &p3ToAm)
-	assert.NoError(t, err, "unexpected error")
-
-	assert.EqualValues(t, p3ToAm.Foo, amToP3.Foo)
-	assert.EqualValues(t, p3ToAm.Bar, amToP3.Bar)
 }
 
 func TestFixedU64Roundtrip(t *testing.T) {
@@ -231,7 +197,7 @@ func TestProto3CompatTimestampNow(t *testing.T) {
 	assert.NoError(t, err)
 	// amino's encoding of time.Time is the same as proto's encoding of the well known type
 	// timestamp.Timestamp (they can be used interchangeably):
-	assert.NotEqual(t, ab1, ab2)
+	assert.Equal(t, ab1, ab2)
 	pb, err := proto.Marshal(&pt)
 	assert.NoError(t, err)
 	assert.Equal(t, ab1, pb)
@@ -280,57 +246,88 @@ func TestProtoNegativeSeconds(t *testing.T) {
 	assert.Equal(t, got, ntm)
 }
 
-// the following two tests documents the underlying encoding / decoding of seconds and nanos in amino:
+func TestIntVarintCompat(t *testing.T) {
 
-func TestProtoInt32(t *testing.T) {
-	// proto has to types for negative numbers
-	// int32 and sint32
-	// the latter is more efficient for negative numbers
-
-	// the equivalent go type / struct:
-	type TestInt32 struct {
-		// this is an uint64 to force amino encode this the same as proto treats int32:
-		Int32 uint64
+	tcs := []struct {
+		val32 int32
+		val64 int64
+	}{
+		{1, 1},
+		{-1, -1},
+		{2, 2},
+		{1000, 1000},
+		{math.MaxInt32, math.MaxInt64},
+		{math.MinInt32, math.MinInt64},
 	}
-	ptc := p3.TestInt32{
-		// proto3's int32 -> is a golang int32 but get's encoded as a amino encodes uint32 (see above struct)
-		Int32: -153621037,
+	for _,tc := range tcs {
+		tv := p3.TestInts{Int32: tc.val32, Int64: tc.val64}
+		ab, err := cdc.MarshalBinaryBare(tv)
+		assert.NoError(t, err)
+		pb, err := proto.Marshal(&tv)
+		assert.NoError(t, err)
+		assert.Equal(t, ab, pb)
+		var res p3.TestInts
+		err = cdc.UnmarshalBinaryBare(pb, &res)
+		assert.NoError(t, err)
+		var res2 p3.TestInts
+		err = proto.Unmarshal(ab, &res2)
+		assert.NoError(t, err)
+		assert.Equal(t, res.Int32, tc.val32)
+		assert.Equal(t, res.Int64, tc.val64)
+		assert.Equal(t, res2.Int32, tc.val32)
+		assert.Equal(t, res2.Int64, tc.val64)
+	}
+	// special case: amino allows int as well
+	// test that ints are also varint encoded:
+	type TestInt struct {
+		Int int
+	}
+	tcs2 := []struct {
+		val int
+	}{
+		{0},
+		{-1},
+		{1000},
+		{-1000},
+		{math.MaxInt32},
+		{math.MinInt32},
+	}
+	for _,tc := range tcs2 {
+		ptv := p3.TestInts{Int32: int32(tc.val)}
+		pb, err := proto.Marshal(&ptv)
+		assert.NoError(t, err)
+		atv := TestInt{tc.val}
+		ab, err := cdc.MarshalBinaryBare(atv)
+		assert.NoError(t, err)
+		if tc.val == 0 {
+			// amino results in []byte(nil)
+			// protobuf in []byte{}
+			assert.Empty(t, ab)
+			assert.Empty(t, pb)
+		} else {
+			assert.Equal(t, ab, pb)
+		}
+		// can we get back the int from the proto?
+		var res TestInt
+		err = cdc.UnmarshalBinaryBare(pb, &res)
+		assert.NoError(t, err)
+		assert.EqualValues(t, res.Int, tc.val)
 	}
 
-	pb, err := proto.Marshal(&ptc)
+	// purposely overflow by writing a too large value to first field (which is int32):
+	fieldNum := 1
+	fieldNumAndType := (uint64(fieldNum) << 3) | uint64(amino.Typ3_Varint)
+	var b bytes.Buffer
+	writer := bufio.NewWriter(&b)
+	var buf [10]byte
+	n := binary.PutUvarint(buf[:], fieldNumAndType)
+	_, err := writer.Write(buf[0:n])
 	assert.NoError(t, err)
-	cdc := amino.NewCodec()
-	ab, err := cdc.MarshalBinaryBare(TestInt32{uint64(ptc.Int32)})
+	amino.EncodeUvarint(writer, math.MaxInt32+1)
+	err = writer.Flush()
 	assert.NoError(t, err)
 
-	assert.Equal(t, pb, ab)
-
-	got := &TestInt32{}
-	err = cdc.UnmarshalBinaryBare(ab, got)
-	assert.NoError(t, err)
-	// currently, the only way to get back the orig. negative value in amino is to cast to int32:
-	assert.Equal(t, int32(got.Int32), ptc.Int32)
-}
-
-func TestProtoInt64(t *testing.T) {
-	// same test as the one above but with
-	type TestInt64 struct {
-		Int64 uint64
-	}
-	ptc := p3.TestInt64{
-		Int64: int64(-int(^uint(0)  >> 1) - 1), // -9223372036854775808
-	}
-
-	pb, err := proto.Marshal(&ptc)
-	assert.NoError(t, err)
-	cdc := amino.NewCodec()
-	ab, err := cdc.MarshalBinaryBare(TestInt64{uint64(ptc.Int64)})
-	assert.NoError(t, err)
-	assert.Equal(t, pb, ab)
-
-	got := &TestInt64{}
-	err = cdc.UnmarshalBinaryBare(ab, got)
-	assert.NoError(t, err)
-	// cast back to int64 to get back the orig negative value:
-	assert.Equal(t, int64(got.Int64), ptc.Int64)
+	var res p3.TestInts
+	err = cdc.UnmarshalBinaryBare(b.Bytes(), &res)
+	assert.Error(t, err)
 }
