@@ -14,7 +14,7 @@ import (
 // cdc.decodeReflectBinary
 
 var (
-	ErrOverflowInt = errors.New("encoded integer value value overflows int(32)")
+	ErrOverflowInt = errors.New("encoded integer value overflows int(32)")
 )
 
 const (
