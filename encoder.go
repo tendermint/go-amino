@@ -76,6 +76,9 @@ func EncodeUint64(w io.Writer, u uint64) (err error) {
 	return
 }
 
+// EncodeUvarint is used to encode golang's int, int32, int64 by default. unless specified differently by the
+// `binary:"fixed32"`, `binary:"fixed64"`, or `binary:"zigzag32"` `binary:"zigzag64"` tags.
+// It matches protobufs varint encoding.
 func EncodeUvarint(w io.Writer, u uint64) (err error) {
 	var buf [10]byte
 	n := binary.PutUvarint(buf[:], u)
