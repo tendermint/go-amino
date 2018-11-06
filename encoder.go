@@ -117,7 +117,7 @@ func EncodeFloat64(w io.Writer, f float64) (err error) {
 
 const (
 	// seconds of 01-01-0001
-	minSeconds = int64(-62135596800)
+	minSeconds int64 = -62135596800
 	// seconds of 10000-01-01
 	maxSeconds = int64(253402300800)
 
