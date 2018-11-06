@@ -119,7 +119,7 @@ const (
 	// seconds of 01-01-0001
 	minSeconds int64 = -62135596800
 	// seconds of 10000-01-01
-	maxSeconds = int64(253402300800)
+	maxSeconds int64 = 253402300800
 
 	// nanos have to be in interval: [0, 999999999]
 	maxNanos = 999999999
