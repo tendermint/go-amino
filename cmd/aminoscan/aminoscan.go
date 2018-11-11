@@ -20,8 +20,10 @@ func main() {
 
 	// Parse flags...
 	var colorize bool
+	var concreteName string
 	flgs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	flgs.BoolVar(&colorize, "color", false, "Just print the colored bytes and exit.")
+	flgs.StringVar(&concreteName, "concrete-name", "", "Just print the concrete bytes for a concrete name and exit.")
 	err := flgs.Parse(os.Args[1:])
 	if err == flag.ErrHelp {
 		fmt.Println(`Usage: aminoscan <STRUCT HEXBYTES> or --help
@@ -45,6 +47,13 @@ func main() {
 		}
 		bz := hexDecode(flgs.Arg(0))
 		fmt.Println(ColoredBytes(bz, Green, Blue))
+		return
+	}
+
+	// If we just want to print the concrete bytes...
+	if concreteName != "" {
+		db, pb := amino.NameToDisfix(concreteName)
+		fmt.Printf("Disamb bytes: %X\nPrefix bytes: %X\n", db, pb)
 		return
 	}
 
