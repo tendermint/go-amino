@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.1 (November 6, 2018)
+
+IMPROVEMENTS:
+ - go-amino compiles again on 32-bit platforms ([#242])
+ 
+[#242]: https://github.com/tendermint/go-amino/pull/242
+
 ## 0.14.0 (October 26, 2018)
 
 BREAKING CHANGE:

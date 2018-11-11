@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -48,7 +49,7 @@ func main() {
 		Int32Ar:   [4]int32{0x7FFFFFFF, 0x6FFFFFFF, 0x5FFFFFFF, 0x77777777},
 		Int64Ar:   [4]int64{0x7FFFFFFFFFFFF, 0x6FFFFFFFFFFFF, 0x5FFFFFFFFFFFF, 0x80808000FFFFF},
 		VarintAr:  [4]int64{0x7FFFFFFFFFFFF, 0x6FFFFFFFFFFFF, 0x5FFFFFFFFFFFF, 0x80808000FFFFF},
-		IntAr:     [4]int{0x7FFFFFFF, 0x6FFFFFFF, 0x5FFFFFFF, 0x80808000},
+		IntAr:     [4]int{0x7FFFFFFF, 0x6FFFFFFF, 0x5FFFFFFF, math.MaxInt32},
 		ByteAr:    [4]byte{0xDE, 0xAD, 0xBE, 0xEF},
 		Uint8Ar:   [4]uint8{0xFF, 0xFF, 0x00, 0x88},
 		Uint16Ar:  [4]uint16{0xFFFF, 0xFFFF, 0xFF00, 0x8800},
@@ -66,7 +67,7 @@ func main() {
 		Int32Sl:   []int32{0x6FFFFFFF, 0x5FFFFFFF, 0x7FFFFFFF, 0x7F000000},
 		Int64Sl:   []int64{0x6FFFFFFFFFFFF, 0x5FFFFFFFFFFFF, 0x7FFFFFFFFFFFF, 0x80808000FFFFF},
 		VarintSl:  []int64{0x5FFFFFFFFFFFF, 0x7FFFFFFFFFFFF, 0x6FFFFFFFFFFFF, 0x80808000FFFFF},
-		IntSl:     []int{0x6FFFFFFF, 0x7FFFFFFF, 0x80808000, 0x5FFFFFFF},
+		IntSl:     []int{0x6FFFFFFF, 0x7FFFFFFF,  math.MaxInt32, 0x5FFFFFFF},
 		ByteSl:    []byte{0xAD, 0xBE, 0xDE, 0xEF},
 		Uint8Sl:   []uint8{0xFF, 0x00, 0x88, 0xFF},
 		Uint16Sl:  []uint16{0xFFFF, 0xFFFF, 0xFF00, 0x8800},
