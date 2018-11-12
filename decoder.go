@@ -244,7 +244,7 @@ func decodeSeconds(bz *[]byte) (int64, int, error) {
 		res := int64(sec)
 		if res < minSeconds || res >= maxSeconds {
 			return 0, n, InvalidTimeErr(fmt.Sprintf("seconds have to be > %d and < %d, got: %d",
-				minSeconds, maxSeconds, res))
+				int64(minSeconds), int64(maxSeconds), res))
 		}
 		return res, n, err
 

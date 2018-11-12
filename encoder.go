@@ -143,7 +143,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 	if s != 0 {
 		if s < minSeconds || s >= maxSeconds {
 			return InvalidTimeErr(fmt.Sprintf("seconds have to be >= %d and < %d, got: %d",
-				minSeconds, maxSeconds, s))
+				int64(minSeconds), int64(maxSeconds), s))
 		}
 		err = encodeFieldNumberAndTyp3(w, 1, Typ3_Varint)
 		if err != nil {
