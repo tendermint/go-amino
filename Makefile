@@ -1,6 +1,6 @@
 GOTOOLS = \
-	gopkg.in/alecthomas/gometalinter.v2
-GOTOOLS_CHECK = gometalinter.v2
+	github.com/golangci/golangci-lint/cmd/golangci-lint
+GOTOOLS_CHECK = golangci-lint
 
 all: check_tools test metalinter
 
@@ -25,7 +25,6 @@ check_tools:
 get_tools:
 	@echo "--> Installing tools"
 	go get -u -v $(GOTOOLS)
-	@gometalinter.v2 --install
 
 update_tools:
 	@echo "--> Updating tools"
@@ -36,7 +35,7 @@ update_tools:
 ### Testing
 
 test:
-	go test $(shell go list ./... | grep -v vendor)
+	go test -v $(shell go list ./... | grep -v vendor)
 
 gofuzz_binary:
 	rm -rf tests/fuzz/binary/corpus/
@@ -60,46 +59,12 @@ gofuzz_json:
 fmt:
 	@go fmt ./...
 
-metalinter:
-	@echo "==> Running linter"
-	gometalinter.v2 --vendor --deadline=600s --disable-all  \
-		--enable=deadcode \
-		--enable=goconst \
-		--enable=goimports \
-		--enable=gosimple \
-		--enable=ineffassign \
-		--enable=megacheck \
-		--enable=misspell \
-		--enable=staticcheck \
-		--enable=safesql \
-		--enable=structcheck \
-		--enable=unconvert \
-		--enable=unused \
-		--enable=varcheck \
-		--enable=vetshadow \
-		./...
-
-		#--enable=maligned \
-		#--enable=gas \
-		#--enable=aligncheck \
-		#--enable=dupl \
-		#--enable=errcheck \
-		#--enable=gocyclo \
-		#--enable=golint \ <== comments on anything exported
-		#--enable=gotype \
-		#--enable=interfacer \
-		#--enable=unparam \
-		#--enable=vet \
-
-metalinter_all:
-	protoc $(INCLUDE) --lint_out=. types/*.proto
-	gometalinter.v2 --vendor --deadline=600s --enable-all --disable=lll ./...
-
-
-test_golang1.10rc:
-	docker run -it -v "$(CURDIR):/go/src/github.com/tendermint/go-amino" -w "/go/src/github.com/tendermint/go-amino" golang:1.10-rc /bin/bash -ci "make get_tools all"
+# look into .golangci.yml for enabling / disabling linters
+lint:
+	@echo "--> Running linter"
+	@golangci-lint run
 
 # To avoid unintended conflicts with file names, always add to .PHONY
 # unless there is a reason not to.
 # https://www.gnu.org/software/make/manual/html_node/Phony-Targets.html
-.PHONY: build install check_tools get_tools update_tools test fmt metalinter metalinter_all
+.PHONY: build install check_tools get_tools update_tools test
