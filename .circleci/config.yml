@@ -3,18 +3,12 @@ jobs:
   build:
     docker:
       - image: circleci/golang:1.12.0
-        environment:
-          GOBIN: /tmp/workspace/bin
-
-    working_directory: /go/src/github.com/tendermint/go-amino
 
     steps:
-      - run: mkdir -p /tmp/workspace/bin
-      - run: mkdir -p /tmp/workspace/profiles
       - checkout
       - restore_cache:
               keys:
-              - v1-dep-{{ .Branch }}
+                - go-mod-v1-{{ checksum "go.sum" }}
       - run:
               name: test
               command: |
@@ -23,6 +17,6 @@ jobs:
                 go version
                 make get_tools && make && make test
       - save_cache:
-          key: v1-dep-{{ .Branch }}
+          key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
-            - /go/pkg
+            - "/go/pkg/mod"
