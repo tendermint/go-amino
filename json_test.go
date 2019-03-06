@@ -214,6 +214,9 @@ func TestUnmarshalFunc(t *testing.T) {
 	// Binary doesn't support decoding to a func...
 	assert.Panics(t, func() {
 		err := cdc.UnmarshalBinaryLengthPrefixed(binBytes, &obj)
+		t.Log(err)
+		// TODO: this doesn't panic; update testify and other deps and
+		// fix test(s)
 		assert.Fail(t, "should have paniced but got err: %v", err)
 	})
 	assert.Panics(t, func() {
