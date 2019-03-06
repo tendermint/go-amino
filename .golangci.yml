@@ -6,6 +6,13 @@ linters:
   disable:
     - gocyclo
     - golint
+    - gosimple
+    - goimports
+    - gofmt
+    - unused
+    - govet
+    - deadcode
+    - structcheck
     - maligned
     - errcheck
     - staticcheck
