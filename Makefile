@@ -2,7 +2,7 @@ GOTOOLS = \
 	github.com/golangci/golangci-lint/cmd/golangci-lint
 GOTOOLS_CHECK = golangci-lint
 
-all: check_tools test metalinter
+all: check_tools test
 
 ########################################
 ###  Build
