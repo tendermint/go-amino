@@ -1,9 +1,8 @@
 GOTOOLS = \
-	github.com/golang/dep/cmd/dep  \
 	gopkg.in/alecthomas/gometalinter.v2
-GOTOOLS_CHECK = dep gometalinter.v2
+GOTOOLS_CHECK = gometalinter.v2
 
-all: check_tools get_vendor_deps test metalinter
+all: check_tools test metalinter
 
 ########################################
 ###  Build
@@ -31,11 +30,6 @@ get_tools:
 update_tools:
 	@echo "--> Updating tools"
 	@go get -u $(GOTOOLS)
-
-get_vendor_deps:
-	@rm -rf vendor/
-	@echo "--> Running dep ensure"
-	@dep ensure
 
 
 ########################################
@@ -108,4 +102,4 @@ test_golang1.10rc:
 # To avoid unintended conflicts with file names, always add to .PHONY
 # unless there is a reason not to.
 # https://www.gnu.org/software/make/manual/html_node/Phony-Targets.html
-.PHONY: build install check_tools get_tools update_tools get_vendor_deps test fmt metalinter metalinter_all
+.PHONY: build install check_tools get_tools update_tools test fmt metalinter metalinter_all

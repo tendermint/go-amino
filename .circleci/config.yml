@@ -2,7 +2,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/golang:1.10.3
+      - image: circleci/golang:1.12.0
         environment:
           GOBIN: /tmp/workspace/bin
 
@@ -21,7 +21,7 @@ jobs:
                 export PATH="$GOBIN:$PATH"
                 go env
                 go version
-                make get_tools && make get_vendor_deps && make test
+                make get_tools && make && make test
       - save_cache:
           key: v1-dep-{{ .Branch }}
           paths:
