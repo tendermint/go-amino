@@ -35,7 +35,7 @@ update_tools:
 ### Testing
 
 test:
-	go test -v $(shell go list ./... | grep -v vendor)
+	go test $(shell go list ./... | grep -v vendor)
 
 gofuzz_binary:
 	rm -rf tests/fuzz/binary/corpus/
