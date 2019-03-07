@@ -24,11 +24,11 @@ check_tools:
 
 get_tools:
 	@echo "--> Installing tools"
-	go get -u -v $(GOTOOLS)
+	go get -v $(GOTOOLS)
 
 update_tools:
 	@echo "--> Updating tools"
-	@go get -u $(GOTOOLS)
+	@go get -u -v $(GOTOOLS)
 
 
 ########################################
@@ -67,4 +67,4 @@ lint:
 # To avoid unintended conflicts with file names, always add to .PHONY
 # unless there is a reason not to.
 # https://www.gnu.org/software/make/manual/html_node/Phony-Targets.html
-.PHONY: build install check_tools get_tools update_tools test
+.PHONY: build install check_tools get_tools fmt lint test

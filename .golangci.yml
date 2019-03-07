@@ -8,7 +8,6 @@ linters:
     - golint
     - gosimple
     - goimports
-    - gofmt
     - unused
     - govet
     - deadcode
