@@ -132,7 +132,7 @@ func defaultValue(rt reflect.Type) (rv reflect.Value) {
 	switch rt.Kind() {
 	case reflect.Ptr:
 		// Dereference all the way and see if it's a time type.
-		rt_:= rt.Elem()
+		rt_ := rt.Elem()
 		for rt_.Kind() == reflect.Ptr {
 			rt_ = rt_.Elem()
 		}
