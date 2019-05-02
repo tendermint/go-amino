@@ -396,8 +396,12 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 			// but perhaps we are aiming for as much compatibility here.
 			// JAE: I vote we depart from encoding/json, than carry a vuln.
 
-			// Set nil/zero on frv.
-			frv.Set(reflect.Zero(frv.Type()))
+			// Set to the zero value only if not omitempty
+			if !field.JSONOmitEmpty {
+				// Set nil/zero on frv.
+				frv.Set(reflect.Zero(frv.Type()))
+			}
+			
 			continue
 		}
 
