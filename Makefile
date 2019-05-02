@@ -42,15 +42,17 @@ gofuzz_binary:
 	rm -rf tests/fuzz/binary/crashers/
 	rm -rf tests/fuzz/binary/suppressions/
 	go run tests/fuzz/binary/init-corpus/main.go --corpus-parent=tests/fuzz/binary
-	go-fuzz-build github.com/tendermint/go-amino/tests/fuzz/binary
-	go-fuzz -bin=./fuzz_binary-fuzz.zip -workdir=tests/fuzz/binary
+	# TODO: update when https://github.com/dvyukov/go-fuzz/issues/195 is resolved
+	GO111MODULE=off go-fuzz-build github.com/tendermint/go-amino/tests/fuzz/binary
+	GO111MODULE=off go-fuzz -bin=./fuzz_binary-fuzz.zip -workdir=tests/fuzz/binary
 
 gofuzz_json:
 	rm -rf tests/fuzz/json/corpus/
 	rm -rf tests/fuzz/json/crashers/
 	rm -rf tests/fuzz/json/suppressions/
-	go-fuzz-build github.com/tendermint/go-amino/tests/fuzz/json
-	go-fuzz -bin=./fuzz_json-fuzz.zip -workdir=tests/fuzz/json
+	# TODO: update when https://github.com/dvyukov/go-fuzz/issues/195 is resolved
+	GO111MODULE=off go-fuzz-build github.com/tendermint/go-amino/tests/fuzz/json
+	GO111MODULE=off go-fuzz -bin=./fuzz_json-fuzz.zip -workdir=tests/fuzz/json
 
 
 ########################################

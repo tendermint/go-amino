@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.15.0 (May 2, 2018)
+
+BREAKING CHANGE:
+ - JSON: Skip null fields on decoding when the `json:"omitempty"` tag is set. 
+ This matches the encoding behaviour ([#261]).  
+ 
+IMPROVEMENTS:
+ - Amino becomes a go-module (requires go 1.11) but keeps dep support for backwards compatibility ([#255]). 
+
+ 
+[#255]: https://github.com/tendermint/go-amino/pull/255 
+[#261]: https://github.com/tendermint/go-amino/issues/261
+ 
 ## 0.14.1 (November 6, 2018)
 
 IMPROVEMENTS:
