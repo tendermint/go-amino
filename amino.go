@@ -199,6 +199,9 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	var bz []byte
 	buf := new(bytes.Buffer)
 	rt := rv.Type()
+	if rv.Kind() != reflect.Struct {
+		return nil, errors.New("type has to be embedded in a struct")
+	}
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return nil, err
@@ -388,7 +391,7 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 	// disfix wrapper continued...
 	if info.Registered {
 		// Part 2:
-		if err != nil {
+		if err != nil { // FIXME: condition is always false here ...
 			return nil, err
 		}
 		err = writeStr(w, `}`)

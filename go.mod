@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/davecgh/go-spew v1.1.1
+	github.com/dvyukov/go-fuzz v0.0.0-20190412162925-b3fd142d19d1 // indirect
 	github.com/golang/protobuf v1.3.0
 	github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf
 	github.com/stretchr/testify v1.3.0

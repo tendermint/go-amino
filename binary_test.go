@@ -2,6 +2,7 @@ package amino_test
 
 import (
 	"fmt"
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"time"
@@ -119,14 +120,17 @@ func TestWriteEmpty(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, b, []byte(nil), "empty struct should be encoded as empty bytes")
 	var inner Inner
-	cdc.UnmarshalBinaryBare(b, &inner)
+	err = cdc.UnmarshalBinaryBare(b, &inner)
+	require.NoError(t, err)
 	assert.Equal(t, Inner{}, inner, "")
 
 	b, err = cdc.MarshalBinaryBare(SomeStruct{})
 	assert.NoError(t, err)
 	assert.Equal(t, b, []byte(nil), "empty structs should be encoded as empty bytes")
 	var outer SomeStruct
-	cdc.UnmarshalBinaryBare(b, &outer)
+	err = cdc.UnmarshalBinaryBare(b, &outer)
+	require.NoError(t, err)
+
 	assert.Equal(t, SomeStruct{}, outer, "")
 }
 
@@ -171,7 +175,8 @@ func TestStructSlice(t *testing.T) {
 	assert.Equal(t, "0A04086410650A0408661067", fmt.Sprintf("%X", bz))
 	t.Log(bz)
 	var f2 Foos
-	cdc.UnmarshalBinaryBare(bz, &f2)
+	err = cdc.UnmarshalBinaryBare(bz, &f2)
+	require.NoError(t, err)
 	assert.Equal(t, f, f2)
 }
 
@@ -242,4 +247,16 @@ func TestStructPointerSlice2(t *testing.T) {
 
 	assert.Equal(t, f, f2)
 	assert.NotNil(t, f2.C[0])
+}
+
+func TestBasicTypesFail(t *testing.T) {
+	// This is was often used in tendermint / SDk and requires the code there to be changed too.
+	type byteAlias []byte
+
+	cdc := amino.NewCodec()
+	ba := byteAlias([]byte("this should not work"))
+	bz, err := cdc.MarshalBinaryLengthPrefixed(ba)
+	assert.Zero(t, bz)
+	require.Error(t, err)
+	// TODO same for decoding
 }
