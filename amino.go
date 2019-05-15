@@ -11,12 +11,17 @@ import (
 	"time"
 )
 
-//----------------------------------------
-// Global methods for global sealed codec.
-var gcdc *Codec
+var (
+	// Global methods for global sealed codec.
+	gcdc *Codec
 
-// we use this time to init. a zero value (opposed to reflect.Zero which gives time.Time{} / 01-01-01 00:00:00)
-var zeroTime time.Time
+	// we use this time to init. a zero value (opposed to reflect.Zero which gives time.Time{} / 01-01-01 00:00:00)
+	zeroTime time.Time
+
+	// NotEmbeddedInStructErr gets returned if one tries to (un)marshal a type that is not embedded in a struct.
+	// In the case of unmarshaling Interfaces are also allowed (internally their concrete struct will be used).
+	NotEmbeddedInStructErr = errors.New("type has to be embedded in a struct")
+)
 
 const (
 	unixEpochStr = "1970-01-01 00:00:00 +0000 UTC"
@@ -200,7 +205,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	rt := rv.Type()
 	if rv.Kind() != reflect.Struct {
-		return nil, errors.New("type has to be embedded in a struct")
+		return nil, NotEmbeddedInStructErr
 	}
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
@@ -328,6 +333,10 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		panic("Unmarshal expects a pointer")
 	}
 	rv = rv.Elem()
+	// TODO: what about pointers to pointers etc?
+	if rv.Kind() != reflect.Struct && rv.Kind() != reflect.Interface {
+		return NotEmbeddedInStructErr
+	}
 	rt := rv.Type()
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {

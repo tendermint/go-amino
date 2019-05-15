@@ -2,12 +2,12 @@ package amino_test
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/require"
 	"testing"
-
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/tendermint/go-amino"
 )
 
@@ -164,9 +164,11 @@ func TestStructSlice(t *testing.T) {
 		B int
 	}
 
-	type Foos []Foo
+	type Foos struct {
+		Fs []Foo
+	}
 
-	f := Foos{Foo{100, 101}, Foo{102, 103}}
+	f := Foos{Fs: []Foo{{100, 101}, {102, 103}}}
 
 	cdc := amino.NewCodec()
 
@@ -258,5 +260,9 @@ func TestBasicTypesFail(t *testing.T) {
 	bz, err := cdc.MarshalBinaryLengthPrefixed(ba)
 	assert.Zero(t, bz)
 	require.Error(t, err)
-	// TODO same for decoding
+
+	res := &byteAlias{}
+	err = cdc.UnmarshalBinaryLengthPrefixed([]byte{21, 20, 116, 104, 105, 115, 32, 115, 104, 111, 117, 108, 100, 32, 110, 111, 116, 32, 119, 111, 114, 107}, res)
+	require.Error(t, err)
+	assert.Equal(t, err, amino.NotEmbeddedInStructErr)
 }

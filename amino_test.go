@@ -60,40 +60,44 @@ func TestUnmarshalBinaryReader(t *testing.T) {
 	assert.Equal(t, s, s2)
 }
 
+type stringWrapper struct {
+	S string
+}
+
 func TestUnmarshalBinaryReaderSize(t *testing.T) {
 	var cdc = amino.NewCodec()
 
-	var s1 string = "foo"
+	s1 := stringWrapper{"foo"}
 	b, err := cdc.MarshalBinaryLengthPrefixed(s1)
 	assert.Nil(t, err)
 	t.Logf("MarshalBinaryLengthPrefixed(s) -> %X", b)
 
-	var s2 string
+	var s2 stringWrapper
 	var n int64
 	n, err = cdc.UnmarshalBinaryLengthPrefixedReader(bytes.NewBuffer(b), &s2, 0)
 	assert.Nil(t, err)
 	assert.Equal(t, s1, s2)
-	frameLengthBytes, msgLengthBytes := 1, 1
-	assert.Equal(t, frameLengthBytes+msgLengthBytes+len(s1), int(n))
+	frameLengthBytes, msgLengthBytes, embedOverhead := 1, 1, 1
+	assert.Equal(t, frameLengthBytes+msgLengthBytes+embedOverhead+len(s1.S), int(n))
 }
 
 func TestUnmarshalBinaryReaderSizeLimit(t *testing.T) {
 	var cdc = amino.NewCodec()
 
-	var s1 string = "foo"
+	s1 := stringWrapper{"foo"}
 	b, err := cdc.MarshalBinaryLengthPrefixed(s1)
 	assert.Nil(t, err)
 	t.Logf("MarshalBinaryLengthPrefixed(s) -> %X", b)
 
-	var s2 string
+	var s2 stringWrapper
 	var n int64
 	n, err = cdc.UnmarshalBinaryLengthPrefixedReader(bytes.NewBuffer(b), &s2, int64(len(b)-1))
 	assert.NotNil(t, err, "insufficient limit should lead to failure")
 	n, err = cdc.UnmarshalBinaryLengthPrefixedReader(bytes.NewBuffer(b), &s2, int64(len(b)))
 	assert.Nil(t, err, "sufficient limit should not cause failure")
 	assert.Equal(t, s1, s2)
-	frameLengthBytes, msgLengthBytes := 1, 1
-	assert.Equal(t, frameLengthBytes+msgLengthBytes+len(s1), int(n))
+	frameLengthBytes, msgLengthBytes, embedOverhead := 1, 1, 1
+	assert.Equal(t, frameLengthBytes+msgLengthBytes+embedOverhead+len(s1.S), int(n))
 }
 
 func TestUnmarshalBinaryReaderTooLong(t *testing.T) {
@@ -125,7 +129,7 @@ func TestUnmarshalBinaryBufferedWritesReads(t *testing.T) {
 	var buf = bytes.NewBuffer(nil)
 
 	// Write 3 times.
-	var s1 string = "foo"
+	s1 := stringWrapper{"foo"}
 	_, err := cdc.MarshalBinaryLengthPrefixedWriter(buf, s1)
 	assert.Nil(t, err)
 	_, err = cdc.MarshalBinaryLengthPrefixedWriter(buf, s1)
@@ -134,7 +138,7 @@ func TestUnmarshalBinaryBufferedWritesReads(t *testing.T) {
 	assert.Nil(t, err)
 
 	// Read 3 times.
-	var s2 string
+	s2 := stringWrapper{}
 	_, err = cdc.UnmarshalBinaryLengthPrefixedReader(buf, &s2, 0)
 	assert.Nil(t, err)
 	assert.Equal(t, s1, s2)

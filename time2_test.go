@@ -64,7 +64,6 @@ func TestMinMaxTimeEncode(t *testing.T) {
 	_, err = cdc.MarshalBinaryBare(tm)
 	assert.NoError(t, err)
 
-
 	tErr := time.Unix(minSeconds-1, 0)
 	_, err = cdc.MarshalBinaryBare(tErr)
 	assert.Error(t, err)
