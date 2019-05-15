@@ -66,7 +66,7 @@ duplication and help streamline development from inception to maturity.
 ## Amino in the Wild
 
 * Amino:binary spec in [Tendermint](
-https://github.com/tendermint/tendermint/blob/develop/docs/specification/new-spec/encoding.md)
+https://github.com/tendermint/tendermint/blob/master/docs/spec/blockchain/encoding.md)
 
 
 # Amino Spec

@@ -58,7 +58,7 @@ func main() {
 		UvarintAr: [4]uint64{0x99808080FFFFFF77, 0xFF0202FFFFFFFF77, 0xAE21FF0051F23F77, 0x1045880011AABBCC},
 		UintAr:    [4]uint{0x80808080, 0x110202FF, 0xAE21FF00, 0x10458800},
 		StringAr:  [4]string{"Tendermint", "Fuzzing", "Blue", "410DDC670CF9BFD7"},
-		TimeAr:    [4]time.Time{time.Time{}, time.Time{}.Add(1000 * hour * 24), time.Time{}.Add(20 * time.Minute)},
+		TimeAr:    [4]time.Time{{}, time.Time{}.Add(1000 * hour * 24), time.Time{}.Add(20 * time.Minute)},
 	}
 
 	ss := tests.SlicesStruct{
@@ -67,7 +67,7 @@ func main() {
 		Int32Sl:   []int32{0x6FFFFFFF, 0x5FFFFFFF, 0x7FFFFFFF, 0x7F000000},
 		Int64Sl:   []int64{0x6FFFFFFFFFFFF, 0x5FFFFFFFFFFFF, 0x7FFFFFFFFFFFF, 0x80808000FFFFF},
 		VarintSl:  []int64{0x5FFFFFFFFFFFF, 0x7FFFFFFFFFFFF, 0x6FFFFFFFFFFFF, 0x80808000FFFFF},
-		IntSl:     []int{0x6FFFFFFF, 0x7FFFFFFF,  math.MaxInt32, 0x5FFFFFFF},
+		IntSl:     []int{0x6FFFFFFF, 0x7FFFFFFF, math.MaxInt32, 0x5FFFFFFF},
 		ByteSl:    []byte{0xAD, 0xBE, 0xDE, 0xEF},
 		Uint8Sl:   []uint8{0xFF, 0x00, 0x88, 0xFF},
 		Uint16Sl:  []uint16{0xFFFF, 0xFFFF, 0xFF00, 0x8800},

@@ -204,7 +204,7 @@ func TestStructPointerSlice1(t *testing.T) {
 	var f3 = Foo{
 		A: "k",
 		B: 2,
-		C: []*Foo{&Foo{}, &Foo{}, &Foo{}},
+		C: []*Foo{{}, {}, {}},
 		D: "j",
 	}
 	bz2, err := cdc.MarshalBinaryLengthPrefixed(f3)
@@ -232,7 +232,7 @@ func TestStructPointerSlice2(t *testing.T) {
 	bz, err := cdc.MarshalBinaryLengthPrefixed(f)
 	assert.Error(t, err, "nil elements of a slice/array not supported when empty_elements field tag set.")
 
-	f.C = []*Foo{&Foo{}, &Foo{}, &Foo{}}
+	f.C = []*Foo{{}, {}, {}}
 	bz, err = cdc.MarshalBinaryLengthPrefixed(f)
 	assert.NoError(t, err)
 
