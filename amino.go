@@ -20,7 +20,9 @@ var (
 
 	// NotEmbeddedInStructErr gets returned if one tries to (un)marshal a type that is not embedded in a struct.
 	// In the case of unmarshaling Interfaces are also allowed (internally their concrete struct will be used).
-	NotEmbeddedInStructErr = errors.New("type has to be embedded in a struct")
+	NotEmbeddedInStructErr = errors.New("expected top-level wrapping struct")
+	// NotPointerErr is thrown when you call a method that expects a pointer, e.g. Unmarshal
+	NotPointerErr = errors.New("expected a pointer")
 )
 
 const (
@@ -330,11 +332,17 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 
 	rv := reflect.ValueOf(ptr)
 	if rv.Kind() != reflect.Ptr {
-		panic("Unmarshal expects a pointer")
+		return NotPointerErr
 	}
 	rv = rv.Elem()
-	// TODO: what about pointers to pointers etc?
-	if rv.Kind() != reflect.Struct && rv.Kind() != reflect.Interface {
+	isNotStruct := rv.Kind() != reflect.Struct
+	isNotIface := rv.Kind() != reflect.Interface
+	isNotPtrPtr := rv.Kind() != reflect.Ptr
+	isPtrPtrToNonStruct := rv.Kind() == reflect.Ptr &&
+		reflect.ValueOf(rv.Elem()).IsValid() &&
+		reflect.ValueOf(rv.Elem()).Kind() != reflect.Struct
+
+	if isNotStruct && isNotIface && isNotPtrPtr || isPtrPtrToNonStruct {
 		return NotEmbeddedInStructErr
 	}
 	rt := rv.Type()

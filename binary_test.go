@@ -252,7 +252,7 @@ func TestStructPointerSlice2(t *testing.T) {
 }
 
 func TestBasicTypesFail(t *testing.T) {
-	// This is was often used in tendermint / SDk and requires the code there to be changed too.
+	// we explicitly disallow type definitions like the following:
 	type byteAlias []byte
 
 	cdc := amino.NewCodec()
@@ -265,4 +265,50 @@ func TestBasicTypesFail(t *testing.T) {
 	err = cdc.UnmarshalBinaryLengthPrefixed([]byte{21, 20, 116, 104, 105, 115, 32, 115, 104, 111, 117, 108, 100, 32, 110, 111, 116, 32, 119, 111, 114, 107}, res)
 	require.Error(t, err)
 	assert.Equal(t, err, amino.NotEmbeddedInStructErr)
+}
+
+func TestUnmarshalMapBinary(t *testing.T) {
+	obj := new(map[string]int)
+	cdc := amino.NewCodec()
+
+	// Binary doesn't support decoding to a map...
+	binBytes := []byte(`dontcare`)
+	assert.Panics(t, func() {
+		err := cdc.UnmarshalBinaryBare(binBytes, &obj)
+		assert.Fail(t, "should have paniced but got err: %v", err)
+	})
+
+	err := cdc.UnmarshalBinaryBare(binBytes, obj)
+	require.Error(t, err)
+	require.Equal(t, err, amino.NotEmbeddedInStructErr)
+
+	// ... nor encoding it.
+	assert.Panics(t, func() {
+		bz, err := cdc.MarshalBinaryBare(obj)
+		assert.Fail(t, "should have paniced but got bz: %X err: %v", bz, err)
+	})
+}
+
+func TestUnmarshalFuncBinary(t *testing.T) {
+	obj := func() {}
+	cdc := amino.NewCodec()
+	// Binary doesn't support decoding to a func...
+	binBytes := []byte(`dontcare`)
+	err := cdc.UnmarshalBinaryLengthPrefixed(binBytes, &obj)
+	// on length prefixed we return an error:
+	assert.Error(t, err)
+
+	err = cdc.UnmarshalBinaryBare(binBytes, &obj)
+	require.Error(t, err)
+	require.Equal(t, err, amino.NotEmbeddedInStructErr)
+
+	err = cdc.UnmarshalBinaryBare(binBytes, obj)
+	require.Error(t, err)
+	require.Equal(t, err, amino.NotPointerErr)
+
+	// ... nor encoding it.
+	assert.Panics(t, func() {
+		bz, err := cdc.MarshalBinaryLengthPrefixed(obj)
+		assert.Fail(t, "should have paniced but got bz: %X err: %v", bz, err)
+	})
 }
