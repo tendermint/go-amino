@@ -393,7 +393,6 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 
 	// Write the disfix wrapper if it is a registered concrete type.
 	if info.Registered {
-		// Part 1:
 		err = writeStr(w, _fmt(`{"type":"%s","value":`, info.Name))
 		if err != nil {
 			return nil, err
@@ -407,10 +406,6 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 
 	// disfix wrapper continued...
 	if info.Registered {
-		// Part 2:
-		if err != nil { // FIXME: condition is always false here ...
-			return nil, err
-		}
 		err = writeStr(w, `}`)
 		if err != nil {
 			return nil, err
