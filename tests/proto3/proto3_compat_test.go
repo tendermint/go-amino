@@ -377,6 +377,3 @@ func TestGenerateTypeDefTestVecs(t *testing.T) {
 	require.NoError(t, err)
 
 }
-
-type SoMuchConvenienceSuchAliasInt int
-type SoMuchConvenienceSuchAliasIntAr [4]int
