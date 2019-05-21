@@ -216,7 +216,11 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	}
 	if rv.Kind() != reflect.Struct {
 		writeEmpty := false
-		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty); err != nil {
+		// FIXME there is sth funky going on if this is (for instance a repeated struct):
+		// the field tag (wiretype and fieldnum) gets duplicated for lists and the length is prob. not necessary if we
+		// are encoding a repeated struct here -> see FIXME inside of `encodeReflectBinaryList` and in the case above
+		// this should be encoded with bare set to true
+		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, false); err != nil {
 			return nil, err
 		}
 
@@ -230,6 +234,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 
 		// If registered concrete, prepend prefix bytes.
 		if info.Registered {
+			// TODO: https://github.com/tendermint/go-amino/issues/267
 			pb := info.Prefix.Bytes()
 			bz = append(pb, bz...)
 		}

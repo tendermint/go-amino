@@ -303,6 +303,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 		// Write elems in unpacked form.
 		for i := 0; i < rv.Len(); i++ {
 			// Write elements as repeated fields of the parent struct.
+			// FIXME: in some cases this will replicate the field tag ...
 			err = encodeFieldNumberAndTyp3(buf, fopts.BinFieldNum, Typ3_ByteLength)
 			if err != nil {
 				return
@@ -415,7 +416,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 			} else {
 				// write empty if explicitly set or if this is a pointer:
 				writeEmpty := fopts.WriteEmpty || frvIsPtr
-				err = cdc.writeFieldIfNotEmpty(buf, field.BinFieldNum, finfo, fopts, field.FieldOptions, dfrv, writeEmpty)
+				err = cdc.writeFieldIfNotEmpty(buf, field.BinFieldNum, finfo, fopts, field.FieldOptions, dfrv, writeEmpty, false)
 				if err != nil {
 					return
 				}
@@ -463,6 +464,7 @@ func (cdc *Codec) writeFieldIfNotEmpty(
 	fieldOpts FieldOptions, // the field's FieldOptions
 	derefedVal reflect.Value,
 	isWriteEmpty bool,
+	bare bool,
 ) error {
 	lBeforeKey := buf.Len()
 	// Write field key (number and type).
@@ -473,7 +475,7 @@ func (cdc *Codec) writeFieldIfNotEmpty(
 	lBeforeValue := buf.Len()
 
 	// Write field value from rv.
-	err = cdc.encodeReflectBinary(buf, finfo, derefedVal, fieldOpts, false)
+	err = cdc.encodeReflectBinary(buf, finfo, derefedVal, fieldOpts, bare)
 	if err != nil {
 		return err
 	}

@@ -336,20 +336,38 @@ func TestIntVarintCompat(t *testing.T) {
 // See if encoding of type def types matches the proto3 encoding
 func TestTypeDefCompatibility(t *testing.T) {
 
+	pNow := ptypes.TimestampNow()
+	now, err := ptypes.Timestamp(pNow)
+	require.NoError(t, err)
+
+	strSl := tests.PrimitivesStructSl{
+		{Int32: 1, Int64: -1, Varint: 2, String: "protobuf3", Bytes: []byte("got some bytes"), Time: now},
+		{Int32: 0, Int64: 1, Varint: -2, String: "amino", Time: now},
+	}
+	p3StrSl := &p3.PrimitivesStructSl{Structs: []*p3.PrimitivesStruct{
+		{Int32: 1, Int64: -1, Varint: 2, String_: "protobuf3", Bytes: []byte("got some bytes"), Time: pNow},
+		{Int32: 0, Int64: 1, Varint: -2, String_: "amino", Time: pNow}},
+	}
+
 	tcs := []struct {
 		AminoType interface{}
 		ProtoMsg  proto.Message
 	}{
 		// type IntDef int
-		{tests.IntDef(0), &p3.TypeDefIntTestVec{}},
-		{tests.IntDef(0), &p3.TypeDefIntTestVec{Val: 0}},
-		{tests.IntDef(1), &p3.TypeDefIntTestVec{Val: 1}},
-		{tests.IntDef(-1), &p3.TypeDefIntTestVec{Val: -1}},
+		{tests.IntDef(0), &p3.IntDef{}},
+		{tests.IntDef(0), &p3.IntDef{Val: 0}},
+		{tests.IntDef(1), &p3.IntDef{Val: 1}},
+		{tests.IntDef(-1), &p3.IntDef{Val: -1}},
+
 		// type IntAr [4]int
-		{tests.IntAr{1, 2, 3, 4}, &p3.TypeDefIntArr{Val: []int64{1, 2, 3, 4}}},
-		{tests.IntAr{0, -2, 3, 4}, &p3.TypeDefIntArr{Val: []int64{0, -2, 3, 4}}},
-		// type IntSl []int
-		{tests.IntSl{1, 2, 3, 4}, &p3.TypeDefIntArr{Val: []int64{1, 2, 3, 4}}},
+		{tests.IntAr{1, 2, 3, 4}, &p3.IntArr{Val: []int64{1, 2, 3, 4}}},
+		{tests.IntAr{0, -2, 3, 4}, &p3.IntArr{Val: []int64{0, -2, 3, 4}}},
+
+		// type IntSl []int (protobuf doesn't really have arrays)
+		{tests.IntSl{1, 2, 3, 4}, &p3.IntArr{Val: []int64{1, 2, 3, 4}}},
+
+		// type PrimitivesStructSl []PrimitivesStruct
+		{strSl, p3StrSl},
 	}
 	for _, tc := range tcs {
 		ab, err := amino.MarshalBinaryBare(tc.AminoType)
@@ -360,21 +378,4 @@ func TestTypeDefCompatibility(t *testing.T) {
 
 		assert.Equal(t, ab, pb, "Amino and protobuf encoding do not match")
 	}
-
-	strSl := tests.PrimitivesStructSl{{
-		Int8:   int8(1),
-		Int16:  int16(2),
-		Int32:  int32(3),
-		Int64:  int64(4),
-		Varint: int64(5)}, {Int8: int8(6),
-		Int16:  int16(7),
-		Int32:  int32(8),
-		Int64:  int64(9),
-		Varint: int64(10),
-	}}
-	bz, err := amino.MarshalBinaryBare(strSl)
-	t.Logf("%v", bz)
-
-	require.NoError(t, err)
-
 }

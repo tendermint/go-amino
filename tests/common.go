@@ -231,8 +231,6 @@ type ByteAr [4]byte
 // message SomeName { bytes val = 1; }
 type ByteSl []byte
 
-// TODO
-// This is a simple struct; edge case: ideally this should just be encoded without extra embedding it in additional struct
 type PrimitivesStructDef PrimitivesStruct
 
 // This will be encoded as
