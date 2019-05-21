@@ -2,13 +2,15 @@ package amino
 
 import (
 	"bytes"
-	"encoding/binary"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
 	"time"
+
+	"encoding/binary"
+	"encoding/json"
+
+	"github.com/pkg/errors"
 )
 
 var (
@@ -23,6 +25,8 @@ var (
 	NotEmbeddedInStructErr = errors.New("expected top-level wrapping struct")
 	// NotPointerErr is thrown when you call a method that expects a pointer, e.g. Unmarshal
 	NotPointerErr = errors.New("expected a pointer")
+
+	UnknownBasicTypeErr = fmt.Errorf("got unknown type: ")
 )
 
 const (
@@ -206,23 +210,55 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	var bz []byte
 	buf := new(bytes.Buffer)
 	rt := rv.Type()
-	if rv.Kind() != reflect.Struct {
-		return nil, NotEmbeddedInStructErr
-	}
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return nil, err
 	}
-	err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{BinFieldNum: 1}, true)
-	if err != nil {
-		return nil, err
-	}
-	bz = buf.Bytes()
+	if rv.Kind() != reflect.Struct {
+		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, false); err != nil {
+			return nil, err
+		}
 
-	// If registered concrete, prepend prefix bytes.
-	if info.Registered {
-		pb := info.Prefix.Bytes()
-		bz = append(pb, bz...)
+		return buf.Bytes(), nil
+
+		//info, err := cdc.getTypeInfo_wlock(rt)
+		//fmt.Println("info", info)
+		//fmt.Println("err", err)
+		//type wrap struct {
+		//	Value []byte
+		//}
+		//// TODO add an extra method that does wrap all the supported cases
+		//switch rv.Kind() {
+		//case reflect.Int:
+		//	return MarshalBinaryBare(struct {
+		//		Val int64
+		//	}{rv.Int()})
+		//
+		//case reflect.Array, reflect.Slice:
+		//	// TODO this is a nasty hack that trys to use reflection to wrap the golang type in struct
+		//	// probably it is better to just include
+		//	err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{BinFieldNum: 1}, true)
+		//	fmt.Println("bz", buf.Bytes())
+		//	return MarshalBinaryBare(wrap{buf.Bytes()})
+		//	// TODO figure out the underlying type
+		//	return nil, errors.WithMessagef(UnknownBasicTypeErr, "%s", rv.Kind())
+		//default:
+		//	return nil, errors.WithMessagef(UnknownBasicTypeErr, "%s", rv.Kind())
+		//
+		//}
+		//return nil, NotEmbeddedInStructErr
+	} else {
+		err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{BinFieldNum: 1}, true)
+		if err != nil {
+			return nil, err
+		}
+		bz = buf.Bytes()
+
+		// If registered concrete, prepend prefix bytes.
+		if info.Registered {
+			pb := info.Prefix.Bytes()
+			bz = append(pb, bz...)
+		}
 	}
 
 	return bz, nil

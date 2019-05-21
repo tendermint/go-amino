@@ -77,7 +77,28 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		}
 
 	case reflect.Struct:
+		fmt.Println(rv.Type())
+		//if rv.Type() == reflect.TypeOf(reflect.Value{}) {
+		//	fmt.Println("yyy")
+		//	//fmt.Println(rv.Interface())
+		//	//fmt.Println(rv.Type())
+		//	//fmt.Println(reflect.TypeOf(rv).Name())
+		//	fmt.Println( "reflect.ValueOf(rv.Interface())", reflect.ValueOf(rv.Interface()))
+		//	b := rv.Interface()
+		//	fmt.Println("%#v", b)
+		//	fmt.Println(reflect.TypeOf(b))
+		//	fmt.Println( reflect.TypeOf(rv.Interface()))
+		//	fmt.Println("kind", reflect.TypeOf(rv.Interface()))
+		//	info2, _ := cdc.getTypeInfo_wlock(reflect.TypeOf(rv.Interface()))
+		//	fmt.Println(info2)
+		//	fmt.Println(info)
+		//	//err = cdc.encodeReflectBinary(w, info, reflect.ValueOf(rv.Interface()), fopts, bare)
+		//	return
+		//
+		//} else  {
 		err = cdc.encodeReflectBinaryStruct(w, info, rv, fopts, bare)
+
+		//}
 
 	//----------------------------------------
 	// Signed
@@ -433,7 +454,6 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 					// not a pointer and empty:
 					buf.Truncate(lBeforeKey)
 				}
-
 			}
 		}
 	}
@@ -468,4 +488,36 @@ func encodeFieldNumberAndTyp3(w io.Writer, num uint32, typ Typ3) (err error) {
 	n := binary.PutUvarint(buf[:], value64)
 	_, err = w.Write(buf[0:n])
 	return
+}
+
+func (cdc *Codec) writeFieldIfNotEmpty(
+	buf *bytes.Buffer,
+	fieldNum uint32,
+	finfo *TypeInfo,
+	structsFopts FieldOptions, // the wrapping struct's FieldOptions if any
+	fieldOpts FieldOptions, // the field's FieldOptions
+	derefedVal reflect.Value,
+	isPtr bool,
+) error {
+	lBeforeKey := buf.Len()
+	// Write field key (number and type).
+	err := encodeFieldNumberAndTyp3(buf, fieldNum, typeToTyp3(finfo.Type, fieldOpts))
+	if err != nil {
+		return err
+	}
+	lBeforeValue := buf.Len()
+
+	// Write field value from rv.
+	err = cdc.encodeReflectBinary(buf, finfo, derefedVal, fieldOpts, false)
+	if err != nil {
+		return err
+	}
+	lAfterValue := buf.Len()
+
+	if !isPtr && !structsFopts.WriteEmpty && lBeforeValue == lAfterValue-1 && buf.Bytes()[buf.Len()-1] == 0x00 {
+		// rollback typ3/fieldnum and last byte if
+		// not a pointer and empty:
+		buf.Truncate(lBeforeKey)
+	}
+	return nil
 }

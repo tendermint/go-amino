@@ -209,20 +209,35 @@ var StructTypes = []interface{}{
 
 //----------------------------------------
 // Type definition types
+// TODO these will implicitly be wrapped by a struct
 
+// This will be encoded as
+// message SomeName { int64 val = 1; }
 type IntDef int
 
+// This will be encoded as
+// message SomeName { repeated int val = 1; }
 type IntAr [4]int
 
+// This will be encoded as
+// message SomeName { repeated int val = 1; }
 type IntSl []int
 
+// This will be encoded as
+// message SomeName { bytes val = 1; }
 type ByteAr [4]byte
 
+// This will be encoded as
+// message SomeName { bytes val = 1; }
 type ByteSl []byte
 
-type PrimitivesStructSl []PrimitivesStruct
-
+// TODO
+// This is a simple struct; edge case: ideally this should just be encoded without extra embedding it in additional struct
 type PrimitivesStructDef PrimitivesStruct
+
+// This will be encoded as
+// message SomeName { repeated PrimitivesStruct val = 1; }
+type PrimitivesStructSl []PrimitivesStruct
 
 var DefTypes = []interface{}{
 	(*IntDef)(nil),

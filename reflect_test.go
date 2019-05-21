@@ -28,7 +28,6 @@ func TestCodecStruct(t *testing.T) {
 }
 
 func TestCodecDef(t *testing.T) {
-	t.Skip("Deprecated: type definitions are not allowed anymore and have to be embedded in a struct")
 	// TODO: Should we implicitly wrap them in a struct instead?
 	for _, ptr := range tests.DefTypes {
 		rt := getTypeFromPointer(ptr)

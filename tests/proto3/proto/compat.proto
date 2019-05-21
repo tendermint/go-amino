@@ -47,3 +47,30 @@ message TestInts {
     int32 Int32 = 1;
     int64 Int64 = 2;
 }
+
+message IntDef {
+    int64 val = 1;
+}
+
+message IntArr {
+    repeated int64 val = 1;
+}
+
+//message PrimitivesStruct  {
+//
+//int32   Int32 = 1;
+//Int64   Int64 = 2;
+//Varint  int64 `binary:"varint"`
+//Int     int
+//Byte    byte
+//Uint8   uint8
+//Uint16  uint16
+//Uint32  uint32
+//Uint64  uint64
+//Uvarint uint64 `binary:"varint"`
+//Uint    uint
+//String  string
+//Bytes   []byte
+//Time    time.Time
+//Empty   EmptyStruct
+//}

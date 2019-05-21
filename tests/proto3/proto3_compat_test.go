@@ -7,6 +7,8 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+	"github.com/stretchr/testify/require"
+	"github.com/tendermint/go-amino/tests"
 	"math"
 	"testing"
 	"time"
@@ -216,7 +218,6 @@ func TestProto3CompatTimestampNow(t *testing.T) {
 	assert.Equal(t, got.UTC(), now.UTC())
 }
 
-
 func TestProto3EpochTime(t *testing.T) {
 	pbRes := p3.ProtoGotTime{}
 	// amino encode epoch (1970) and decode using proto; expect the resulting time to be epoch again:
@@ -259,7 +260,7 @@ func TestIntVarintCompat(t *testing.T) {
 		{math.MaxInt32, math.MaxInt64},
 		{math.MinInt32, math.MinInt64},
 	}
-	for _,tc := range tcs {
+	for _, tc := range tcs {
 		tv := p3.TestInts{Int32: tc.val32, Int64: tc.val64}
 		ab, err := cdc.MarshalBinaryBare(tv)
 		assert.NoError(t, err)
@@ -292,7 +293,7 @@ func TestIntVarintCompat(t *testing.T) {
 		{math.MaxInt32},
 		{math.MinInt32},
 	}
-	for _,tc := range tcs2 {
+	for _, tc := range tcs2 {
 		ptv := p3.TestInts{Int32: int32(tc.val)}
 		pb, err := proto.Marshal(&ptv)
 		assert.NoError(t, err)
@@ -331,3 +332,51 @@ func TestIntVarintCompat(t *testing.T) {
 	err = cdc.UnmarshalBinaryBare(b.Bytes(), &res)
 	assert.Error(t, err)
 }
+
+func TestGenerateTypeDefTestVecs(t *testing.T) {
+	// TODO make this a table driven test instead of printing the bytes
+	t.Log("proto")
+	bz, err := proto.Marshal(&p3.TypeDefIntTestVec{})
+	require.NoError(t, err)
+	t.Logf("%v", bz)
+	bz, err = proto.Marshal(&p3.TypeDefIntTestVec{Val: 0})
+	t.Logf("%v", bz)
+	bz, err = proto.Marshal(&p3.TypeDefIntTestVec{Val: 1})
+	t.Logf("%v", bz)
+	bz, err = proto.Marshal(&p3.TypeDefIntTestVec{Val: -1})
+	t.Logf("%v", bz)
+
+	bz, err = proto.Marshal(&p3.TypeDefIntArr{Val: []int64{1, 2, 3, 4}})
+	t.Logf("%v", bz)
+
+	t.Log("amino")
+	bz, err = amino.MarshalBinaryBare(tests.IntDef(0))
+	t.Logf("%v", bz)
+	bz, err = amino.MarshalBinaryBare(tests.IntDef(1))
+	t.Logf("%v", bz)
+	bz, err = amino.MarshalBinaryBare(tests.IntDef(-1))
+	t.Logf("%v", bz)
+
+	bz, err = amino.MarshalBinaryBare(tests.IntAr{1, 2, 3, 4})
+	t.Logf("%v", bz)
+
+	strSl := tests.PrimitivesStructSl{{
+		Int8:   int8(1),
+		Int16:  int16(2),
+		Int32:  int32(3),
+		Int64:  int64(4),
+		Varint: int64(5)}, {Int8: int8(6),
+		Int16:  int16(7),
+		Int32:  int32(8),
+		Int64:  int64(9),
+		Varint: int64(10),
+	}}
+	bz, err = amino.MarshalBinaryBare(strSl)
+	t.Logf("%v", bz)
+
+	require.NoError(t, err)
+
+}
+
+type SoMuchConvenienceSuchAliasInt int
+type SoMuchConvenienceSuchAliasIntAr [4]int
