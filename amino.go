@@ -215,38 +215,12 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 		return nil, err
 	}
 	if rv.Kind() != reflect.Struct {
-		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, false); err != nil {
+		writeEmpty := false
+		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty); err != nil {
 			return nil, err
 		}
 
 		return buf.Bytes(), nil
-
-		//info, err := cdc.getTypeInfo_wlock(rt)
-		//fmt.Println("info", info)
-		//fmt.Println("err", err)
-		//type wrap struct {
-		//	Value []byte
-		//}
-		//// TODO add an extra method that does wrap all the supported cases
-		//switch rv.Kind() {
-		//case reflect.Int:
-		//	return MarshalBinaryBare(struct {
-		//		Val int64
-		//	}{rv.Int()})
-		//
-		//case reflect.Array, reflect.Slice:
-		//	// TODO this is a nasty hack that trys to use reflection to wrap the golang type in struct
-		//	// probably it is better to just include
-		//	err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{BinFieldNum: 1}, true)
-		//	fmt.Println("bz", buf.Bytes())
-		//	return MarshalBinaryBare(wrap{buf.Bytes()})
-		//	// TODO figure out the underlying type
-		//	return nil, errors.WithMessagef(UnknownBasicTypeErr, "%s", rv.Kind())
-		//default:
-		//	return nil, errors.WithMessagef(UnknownBasicTypeErr, "%s", rv.Kind())
-		//
-		//}
-		//return nil, NotEmbeddedInStructErr
 	} else {
 		err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{BinFieldNum: 1}, true)
 		if err != nil {

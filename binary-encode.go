@@ -77,28 +77,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		}
 
 	case reflect.Struct:
-		fmt.Println(rv.Type())
-		//if rv.Type() == reflect.TypeOf(reflect.Value{}) {
-		//	fmt.Println("yyy")
-		//	//fmt.Println(rv.Interface())
-		//	//fmt.Println(rv.Type())
-		//	//fmt.Println(reflect.TypeOf(rv).Name())
-		//	fmt.Println( "reflect.ValueOf(rv.Interface())", reflect.ValueOf(rv.Interface()))
-		//	b := rv.Interface()
-		//	fmt.Println("%#v", b)
-		//	fmt.Println(reflect.TypeOf(b))
-		//	fmt.Println( reflect.TypeOf(rv.Interface()))
-		//	fmt.Println("kind", reflect.TypeOf(rv.Interface()))
-		//	info2, _ := cdc.getTypeInfo_wlock(reflect.TypeOf(rv.Interface()))
-		//	fmt.Println(info2)
-		//	fmt.Println(info)
-		//	//err = cdc.encodeReflectBinary(w, info, reflect.ValueOf(rv.Interface()), fopts, bare)
-		//	return
-		//
-		//} else  {
 		err = cdc.encodeReflectBinaryStruct(w, info, rv, fopts, bare)
-
-		//}
 
 	//----------------------------------------
 	// Signed
@@ -434,25 +413,11 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 					return
 				}
 			} else {
-				lBeforeKey := buf.Len()
-				// Write field key (number and type).
-				err = encodeFieldNumberAndTyp3(buf, field.BinFieldNum, typeToTyp3(finfo.Type, field.FieldOptions))
+				// write empty if explicitly set or if this is a pointer:
+				writeEmpty := fopts.WriteEmpty || frvIsPtr
+				err = cdc.writeFieldIfNotEmpty(buf, field.BinFieldNum, finfo, fopts, field.FieldOptions, dfrv, writeEmpty)
 				if err != nil {
 					return
-				}
-				lBeforeValue := buf.Len()
-
-				// Write field value from rv.
-				err = cdc.encodeReflectBinary(buf, finfo, dfrv, field.FieldOptions, false)
-				if err != nil {
-					return
-				}
-				lAfterValue := buf.Len()
-
-				if !frvIsPtr && !fopts.WriteEmpty && lBeforeValue == lAfterValue-1 && buf.Bytes()[buf.Len()-1] == 0x00 {
-					// rollback typ3/fieldnum and last byte if
-					// not a pointer and empty:
-					buf.Truncate(lBeforeKey)
 				}
 			}
 		}
@@ -497,7 +462,7 @@ func (cdc *Codec) writeFieldIfNotEmpty(
 	structsFopts FieldOptions, // the wrapping struct's FieldOptions if any
 	fieldOpts FieldOptions, // the field's FieldOptions
 	derefedVal reflect.Value,
-	isPtr bool,
+	isWriteEmpty bool,
 ) error {
 	lBeforeKey := buf.Len()
 	// Write field key (number and type).
@@ -514,7 +479,7 @@ func (cdc *Codec) writeFieldIfNotEmpty(
 	}
 	lAfterValue := buf.Len()
 
-	if !isPtr && !structsFopts.WriteEmpty && lBeforeValue == lAfterValue-1 && buf.Bytes()[buf.Len()-1] == 0x00 {
+	if !isWriteEmpty && lBeforeValue == lAfterValue-1 && buf.Bytes()[buf.Len()-1] == 0x00 {
 		// rollback typ3/fieldnum and last byte if
 		// not a pointer and empty:
 		buf.Truncate(lBeforeKey)

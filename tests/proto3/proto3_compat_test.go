@@ -333,32 +333,33 @@ func TestIntVarintCompat(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestGenerateTypeDefTestVecs(t *testing.T) {
-	// TODO make this a table driven test instead of printing the bytes
-	t.Log("proto")
-	bz, err := proto.Marshal(&p3.TypeDefIntTestVec{})
-	require.NoError(t, err)
-	t.Logf("%v", bz)
-	bz, err = proto.Marshal(&p3.TypeDefIntTestVec{Val: 0})
-	t.Logf("%v", bz)
-	bz, err = proto.Marshal(&p3.TypeDefIntTestVec{Val: 1})
-	t.Logf("%v", bz)
-	bz, err = proto.Marshal(&p3.TypeDefIntTestVec{Val: -1})
-	t.Logf("%v", bz)
+// See if encoding of type def types matches the proto3 encoding
+func TestTypeDefCompatibility(t *testing.T) {
 
-	bz, err = proto.Marshal(&p3.TypeDefIntArr{Val: []int64{1, 2, 3, 4}})
-	t.Logf("%v", bz)
+	tcs := []struct {
+		AminoType interface{}
+		ProtoMsg  proto.Message
+	}{
+		// type IntDef int
+		{tests.IntDef(0), &p3.TypeDefIntTestVec{}},
+		{tests.IntDef(0), &p3.TypeDefIntTestVec{Val: 0}},
+		{tests.IntDef(1), &p3.TypeDefIntTestVec{Val: 1}},
+		{tests.IntDef(-1), &p3.TypeDefIntTestVec{Val: -1}},
+		// type IntAr [4]int
+		{tests.IntAr{1, 2, 3, 4}, &p3.TypeDefIntArr{Val: []int64{1, 2, 3, 4}}},
+		{tests.IntAr{0, -2, 3, 4}, &p3.TypeDefIntArr{Val: []int64{0, -2, 3, 4}}},
+		// type IntSl []int
+		{tests.IntSl{1, 2, 3, 4}, &p3.TypeDefIntArr{Val: []int64{1, 2, 3, 4}}},
+	}
+	for _, tc := range tcs {
+		ab, err := amino.MarshalBinaryBare(tc.AminoType)
+		require.NoError(t, err)
 
-	t.Log("amino")
-	bz, err = amino.MarshalBinaryBare(tests.IntDef(0))
-	t.Logf("%v", bz)
-	bz, err = amino.MarshalBinaryBare(tests.IntDef(1))
-	t.Logf("%v", bz)
-	bz, err = amino.MarshalBinaryBare(tests.IntDef(-1))
-	t.Logf("%v", bz)
+		pb, err := proto.Marshal(tc.ProtoMsg)
+		require.NoError(t, err)
 
-	bz, err = amino.MarshalBinaryBare(tests.IntAr{1, 2, 3, 4})
-	t.Logf("%v", bz)
+		assert.Equal(t, ab, pb, "Amino and protobuf encoding do not match")
+	}
 
 	strSl := tests.PrimitivesStructSl{{
 		Int8:   int8(1),
@@ -371,7 +372,7 @@ func TestGenerateTypeDefTestVecs(t *testing.T) {
 		Int64:  int64(9),
 		Varint: int64(10),
 	}}
-	bz, err = amino.MarshalBinaryBare(strSl)
+	bz, err := amino.MarshalBinaryBare(strSl)
 	t.Logf("%v", bz)
 
 	require.NoError(t, err)

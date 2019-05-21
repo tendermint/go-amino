@@ -117,7 +117,6 @@ func isDefaultValue(rv reflect.Value) (erv reflect.Value, isDefaultValue bool) {
 		case reflect.String:
 			return rv, rv.Len() == 0
 		case reflect.Chan, reflect.Map, reflect.Slice:
-			fmt.Println(rv, rv.IsNil(), rv.Len())
 			return rv, rv.IsNil() || rv.Len() == 0
 		case reflect.Func, reflect.Interface:
 			return rv, rv.IsNil()
