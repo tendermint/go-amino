@@ -240,7 +240,7 @@ func TestCodecBinaryRegister8(t *testing.T) {
 		cdc.RegisterConcrete(tests.Concrete2{}, "Concrete3", nil)
 	}, "duplicate concrete name")
 
-	var c3 tests.Concrete3
+	c3 := tests.Concrete3{}
 	copy(c3.Val[:], []byte("0123"))
 
 	bz, err := cdc.MarshalBinaryBare(c3)
@@ -250,7 +250,7 @@ func TestCodecBinaryRegister8(t *testing.T) {
 
 	var i1 tests.Interface1
 	err = cdc.UnmarshalBinaryBare(bz, &i1)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, c3, i1)
 }
 

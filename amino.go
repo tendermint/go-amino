@@ -217,29 +217,36 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	isRepeatedStruct := info.Type.Kind() == reflect.Slice && info.Type.Elem().Kind() == reflect.Struct
 	if rv.Kind() != reflect.Struct && !isRepeatedStruct {
 		writeEmpty := false
-		listOfStructs := info.Type.Kind() == reflect.Slice && info.Type.Elem().Kind() == reflect.Struct
-		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, listOfStructs); err != nil {
+		bare := true
+		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, bare); err != nil {
 			return nil, err
 		}
-
-		return buf.Bytes(), nil
+		bz = buf.Bytes()
 	} else {
 		err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{BinFieldNum: 1}, true)
 		if err != nil {
 			return nil, err
 		}
 		bz = buf.Bytes()
-
-		// If registered concrete, prepend prefix bytes.
-		if info.Registered {
-			// TODO: https://github.com/tendermint/go-amino/issues/267
-			pb := info.Prefix.Bytes()
-			bz = append(pb, bz...)
-		}
+	}
+	// If registered concrete, prepend prefix bytes.
+	if info.Registered {
+		// TODO: https://github.com/tendermint/go-amino/issues/267
+		//return MarshalBinaryBare(RegisteredAny{
+		//	AminoPreOrDisfix: info.Prefix.Bytes(),
+		//	Value: bz,
+		//})
+		pb := info.Prefix.Bytes()
+		bz = append(pb, bz...)
 	}
 
 	return bz, nil
 }
+
+//type RegisteredAny struct {
+//	AminoPreOrDisfix []byte
+//	Value []byte
+//}
 
 // Panics if error.
 func (cdc *Codec) MustMarshalBinaryBare(o interface{}) []byte {
@@ -348,25 +355,23 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		return NotPointerErr
 	}
 	rv = rv.Elem()
-	isNotStruct := rv.Kind() != reflect.Struct
-	isNotIface := rv.Kind() != reflect.Interface
-	isNotPtrPtr := rv.Kind() != reflect.Ptr
-	isPtrPtrToNonStruct := rv.Kind() == reflect.Ptr &&
-		reflect.ValueOf(rv.Elem()).IsValid() &&
-		reflect.ValueOf(rv.Elem()).Kind() != reflect.Struct
-
-	if isNotStruct && isNotIface && isNotPtrPtr || isPtrPtrToNonStruct {
-		// TODO skip over the type tag
-		fmt.Println("TODO")
-		//return NotEmbeddedInStructErr
-	}
+	//isNotStruct := rv.Kind() != reflect.Struct
+	//isNotIface := rv.Kind() != reflect.Interface
+	//isNotPtrPtr := rv.Kind() != reflect.Ptr
+	//isPtrPtrToNonStruct := rv.Kind() == reflect.Ptr &&
+	//	reflect.ValueOf(rv.Elem()).IsValid() &&
+	//	reflect.ValueOf(rv.Elem()).Kind() != reflect.Struct
 	rt := rv.Type()
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
 		return err
 	}
+	//fmt.Println(info)
+
 	// If registered concrete, consume and verify prefix bytes.
 	if info.Registered {
+		fmt.Println("registered")
+		// TODO: https://github.com/tendermint/go-amino/issues/267
 		pb := info.Prefix.Bytes()
 		if len(bz) < 4 {
 			return fmt.Errorf("UnmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X", pb, bz)
@@ -375,13 +380,44 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		}
 		bz = bz[4:]
 	}
-	// Decode contents into rv.
-	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{BinFieldNum: 1}, true)
-	if err != nil {
-		return fmt.Errorf("unmarshal to %v failed after %d bytes (%v): %X", info.Type, n, err, bz)
+	isRepeatedStruct := info.Type.Kind() == reflect.Slice && info.Type.Elem().Kind() == reflect.Struct
+	if rv.Kind() != reflect.Struct && !isRepeatedStruct && len(bz) > 0 && (rv.Kind() != reflect.Interface) {
+		//if isNotStruct && isNotIface && isNotPtrPtr && !isRepeatedStruct || isPtrPtrToNonStruct {
+		// TODO skip over the type tag
+		// fmt.Println("interface?", rv.Type())
+		//fmt.Println(isPtrPtrToNonStruct)
+
+		fnum, typ, n, err := decodeFieldNumberAndTyp3(bz)
+		if err != nil {
+			return errors.Wrap(err, "could not decode field number and type")
+		}
+		if fnum != 1 {
+			fmt.Println("What is it?", rv.Kind())
+			return fmt.Errorf("expected field number: 1; got: %v", fnum)
+		}
+		typWanted := typeToTyp3(info.Type, FieldOptions{})
+		if typ != typWanted {
+			// TODO extract this as an error type / const
+			return fmt.Errorf("expected field type %v for # %v of %v, got %v",
+				typWanted, fnum, info.Type, typ)
+		}
+
+		//fmt.Println(fnum, typ, n, err)
+		//fmt.Println("TODO")
+		//fmt.Println(hex.Dump(bz))
+		slide(&bz, nil, n)
+		//fmt.Println(hex.Dump(bz))
 	}
-	if n != len(bz) {
-		return fmt.Errorf("unmarshal to %v didn't read all bytes. Expected to read %v, only read %v: %X", info.Type, len(bz), n, bz)
+
+	if len(bz) > 0 {
+		// Decode contents into rv.
+		n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{BinFieldNum: 1}, true)
+		if err != nil {
+			return fmt.Errorf("unmarshal to %v failed after %d bytes (%v): %X", info.Type, n, err, bz)
+		}
+		if n != len(bz) {
+			return fmt.Errorf("unmarshal to %v didn't read all bytes. Expected to read %v, only read %v: %X", info.Type, len(bz), n, bz)
+		}
 	}
 	return nil
 }

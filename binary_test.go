@@ -251,12 +251,12 @@ func TestStructPointerSlice2(t *testing.T) {
 	assert.NotNil(t, f2.C[0])
 }
 
-func TestBasicTypesFail(t *testing.T) {
+func TestBasicTypes(t *testing.T) {
 	// we explicitly disallow type definitions like the following:
 	type byteAlias []byte
 
 	cdc := amino.NewCodec()
-	ba := byteAlias([]byte("this should not work"))
+	ba := byteAlias([]byte("this should work because it gets wrapped by a struct"))
 	bz, err := cdc.MarshalBinaryLengthPrefixed(ba)
 	assert.NotZero(t, bz)
 	require.NoError(t, err)
