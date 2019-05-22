@@ -213,7 +213,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	}
 	// in the case of of a repeated struct (e.g. type Alias []SomeStruct),
 	// we do not need to prepend with `(field_number << 3) | wire_type` as this
-	// would need to be done for each struct and not only for
+	// would need to be done for each struct and not only for the first.
 	isRepeatedStruct := info.Type.Kind() == reflect.Slice && info.Type.Elem().Kind() == reflect.Struct
 	if rv.Kind() != reflect.Struct && !isRepeatedStruct {
 		writeEmpty := false
@@ -361,11 +361,9 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	if err != nil {
 		return err
 	}
-	//fmt.Println(info)
 
 	// If registered concrete, consume and verify prefix bytes.
 	if info.Registered {
-		fmt.Println("registered")
 		// TODO: https://github.com/tendermint/go-amino/issues/267
 		pb := info.Prefix.Bytes()
 		if len(bz) < 4 {
