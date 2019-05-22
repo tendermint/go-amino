@@ -22,8 +22,6 @@ var (
 
 	// NotPointerErr is thrown when you call a method that expects a pointer, e.g. Unmarshal
 	NotPointerErr = errors.New("expected a pointer")
-
-	UnknownBasicTypeErr = fmt.Errorf("got unknown type: ")
 )
 
 const (
