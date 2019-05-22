@@ -279,10 +279,8 @@ func TestUnmarshalMapBinary(t *testing.T) {
 		assert.Fail(t, "should have paniced but got err: %v", err)
 	})
 
-	assert.Panics(t, func() {
-		err := cdc.UnmarshalBinaryBare(binBytes, obj)
-		require.Error(t, err)
-	})
+	err := cdc.UnmarshalBinaryBare(binBytes, obj)
+	require.Error(t, err)
 
 	// ... nor encoding it.
 	assert.Panics(t, func() {
@@ -299,10 +297,9 @@ func TestUnmarshalFuncBinary(t *testing.T) {
 	err := cdc.UnmarshalBinaryLengthPrefixed(binBytes, &obj)
 	// on length prefixed we return an error:
 	assert.Error(t, err)
-	assert.Panics(t, func() {
-		err = cdc.UnmarshalBinaryBare(binBytes, &obj)
-		require.Error(t, err)
-	})
+
+	err = cdc.UnmarshalBinaryBare(binBytes, &obj)
+	require.Error(t, err)
 
 	err = cdc.UnmarshalBinaryBare(binBytes, obj)
 	require.Error(t, err)

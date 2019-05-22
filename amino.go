@@ -355,12 +355,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		return NotPointerErr
 	}
 	rv = rv.Elem()
-	//isNotStruct := rv.Kind() != reflect.Struct
-	//isNotIface := rv.Kind() != reflect.Interface
-	//isNotPtrPtr := rv.Kind() != reflect.Ptr
-	//isPtrPtrToNonStruct := rv.Kind() == reflect.Ptr &&
-	//	reflect.ValueOf(rv.Elem()).IsValid() &&
-	//	reflect.ValueOf(rv.Elem()).Kind() != reflect.Struct
+	_, isPtr, _ := derefPointers(rv)
 	rt := rv.Type()
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
@@ -381,11 +376,8 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		bz = bz[4:]
 	}
 	isRepeatedStruct := info.Type.Kind() == reflect.Slice && info.Type.Elem().Kind() == reflect.Struct
-	if rv.Kind() != reflect.Struct && !isRepeatedStruct && len(bz) > 0 && (rv.Kind() != reflect.Interface) {
-		//if isNotStruct && isNotIface && isNotPtrPtr && !isRepeatedStruct || isPtrPtrToNonStruct {
-		// TODO skip over the type tag
-		// fmt.Println("interface?", rv.Type())
-		//fmt.Println(isPtrPtrToNonStruct)
+	isPointerToStruct := isPtr && rv.Elem().Kind() != reflect.Struct
+	if rv.Kind() != reflect.Struct && !isRepeatedStruct && len(bz) > 0 && (rv.Kind() != reflect.Interface) && !isPointerToStruct {
 
 		fnum, typ, n, err := decodeFieldNumberAndTyp3(bz)
 		if err != nil {
@@ -402,23 +394,18 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 				typWanted, fnum, info.Type, typ)
 		}
 
-		//fmt.Println(fnum, typ, n, err)
-		//fmt.Println("TODO")
-		//fmt.Println(hex.Dump(bz))
 		slide(&bz, nil, n)
-		//fmt.Println(hex.Dump(bz))
 	}
 
-	if len(bz) > 0 {
-		// Decode contents into rv.
-		n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{BinFieldNum: 1}, true)
-		if err != nil {
-			return fmt.Errorf("unmarshal to %v failed after %d bytes (%v): %X", info.Type, n, err, bz)
-		}
-		if n != len(bz) {
-			return fmt.Errorf("unmarshal to %v didn't read all bytes. Expected to read %v, only read %v: %X", info.Type, len(bz), n, bz)
-		}
+	// Decode contents into rv.
+	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{BinFieldNum: 1}, true)
+	if err != nil {
+		return fmt.Errorf("unmarshal to %v failed after %d bytes (%v): %X", info.Type, n, err, bz)
 	}
+	if n != len(bz) {
+		return fmt.Errorf("unmarshal to %v didn't read all bytes. Expected to read %v, only read %v: %X", info.Type, len(bz), n, bz)
+	}
+
 	return nil
 }
 

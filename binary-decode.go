@@ -558,6 +558,11 @@ func (cdc *Codec) decodeReflectBinaryByteSlice(bz []byte, info *TypeInfo, rv ref
 	if ert.Kind() != reflect.Uint8 {
 		panic("should not happen")
 	}
+	// If len(bz) == 0 the code below will err
+	if len(bz) == 0 {
+		rv.Set(info.ZeroValue)
+		return 0, nil
+	}
 
 	// Read byte-length prefixed byteslice.
 	var byteslice, _n = []byte(nil), int(0)

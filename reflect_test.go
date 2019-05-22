@@ -102,7 +102,7 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 		default:
 			panic("should not happen")
 		}
-		require.Nil(t, err,
+		require.NoError(t, err,
 			"failed to unmarshal bytes %X (%s): %v\nptr: %v\n",
 			bz, bz, err, spw(ptr))
 
