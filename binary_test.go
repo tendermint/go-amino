@@ -262,7 +262,7 @@ func TestBasicTypes(t *testing.T) {
 	require.NoError(t, err)
 
 	res := &byteAlias{}
-	err = cdc.UnmarshalBinaryLengthPrefixed([]byte{21, 20, 116, 104, 105, 115, 32, 115, 104, 111, 117, 108, 100, 32, 110, 111, 116, 32, 119, 111, 114, 107}, res)
+	err = cdc.UnmarshalBinaryLengthPrefixed(bz, res)
 
 	require.NoError(t, err)
 	assert.Equal(t, ba, *res)
