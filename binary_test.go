@@ -258,13 +258,14 @@ func TestBasicTypesFail(t *testing.T) {
 	cdc := amino.NewCodec()
 	ba := byteAlias([]byte("this should not work"))
 	bz, err := cdc.MarshalBinaryLengthPrefixed(ba)
-	assert.Zero(t, bz)
-	require.Error(t, err)
+	assert.NotZero(t, bz)
+	require.NoError(t, err)
 
 	res := &byteAlias{}
 	err = cdc.UnmarshalBinaryLengthPrefixed([]byte{21, 20, 116, 104, 105, 115, 32, 115, 104, 111, 117, 108, 100, 32, 110, 111, 116, 32, 119, 111, 114, 107}, res)
-	require.Error(t, err)
-	assert.Equal(t, err, amino.NotEmbeddedInStructErr)
+
+	require.NoError(t, err)
+	assert.Equal(t, ba, *res)
 }
 
 func TestUnmarshalMapBinary(t *testing.T) {
@@ -278,9 +279,10 @@ func TestUnmarshalMapBinary(t *testing.T) {
 		assert.Fail(t, "should have paniced but got err: %v", err)
 	})
 
-	err := cdc.UnmarshalBinaryBare(binBytes, obj)
-	require.Error(t, err)
-	require.Equal(t, err, amino.NotEmbeddedInStructErr)
+	assert.Panics(t, func() {
+		err := cdc.UnmarshalBinaryBare(binBytes, obj)
+		require.Error(t, err)
+	})
 
 	// ... nor encoding it.
 	assert.Panics(t, func() {
@@ -297,10 +299,10 @@ func TestUnmarshalFuncBinary(t *testing.T) {
 	err := cdc.UnmarshalBinaryLengthPrefixed(binBytes, &obj)
 	// on length prefixed we return an error:
 	assert.Error(t, err)
-
-	err = cdc.UnmarshalBinaryBare(binBytes, &obj)
-	require.Error(t, err)
-	require.Equal(t, err, amino.NotEmbeddedInStructErr)
+	assert.Panics(t, func() {
+		err = cdc.UnmarshalBinaryBare(binBytes, &obj)
+		require.Error(t, err)
+	})
 
 	err = cdc.UnmarshalBinaryBare(binBytes, obj)
 	require.Error(t, err)

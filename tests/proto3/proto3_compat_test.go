@@ -342,11 +342,11 @@ func TestTypeDefCompatibility(t *testing.T) {
 
 	strSl := tests.PrimitivesStructSl{
 		{Int32: 1, Int64: -1, Varint: 2, String: "protobuf3", Bytes: []byte("got some bytes"), Time: now},
-		{Int32: 0, Int64: 1, Varint: -2, String: "amino", Time: now},
+		{Int32: 0, Int64: 1, Varint: -2, String: "amino", Bytes: []byte("more of these bytes"), Time: now},
 	}
 	p3StrSl := &p3.PrimitivesStructSl{Structs: []*p3.PrimitivesStruct{
 		{Int32: 1, Int64: -1, Varint: 2, String_: "protobuf3", Bytes: []byte("got some bytes"), Time: pNow},
-		{Int32: 0, Int64: 1, Varint: -2, String_: "amino", Time: pNow}},
+		{Int32: 0, Int64: 1, Varint: -2, String_: "amino", Bytes: []byte("more of these bytes"), Time: pNow}},
 	}
 
 	tcs := []struct {
@@ -354,28 +354,28 @@ func TestTypeDefCompatibility(t *testing.T) {
 		ProtoMsg  proto.Message
 	}{
 		// type IntDef int
-		{tests.IntDef(0), &p3.IntDef{}},
-		{tests.IntDef(0), &p3.IntDef{Val: 0}},
-		{tests.IntDef(1), &p3.IntDef{Val: 1}},
-		{tests.IntDef(-1), &p3.IntDef{Val: -1}},
+		0: {tests.IntDef(0), &p3.IntDef{}},
+		1: {tests.IntDef(0), &p3.IntDef{Val: 0}},
+		2: {tests.IntDef(1), &p3.IntDef{Val: 1}},
+		3: {tests.IntDef(-1), &p3.IntDef{Val: -1}},
 
 		// type IntAr [4]int
-		{tests.IntAr{1, 2, 3, 4}, &p3.IntArr{Val: []int64{1, 2, 3, 4}}},
-		{tests.IntAr{0, -2, 3, 4}, &p3.IntArr{Val: []int64{0, -2, 3, 4}}},
+		4: {tests.IntAr{1, 2, 3, 4}, &p3.IntArr{Val: []int64{1, 2, 3, 4}}},
+		5: {tests.IntAr{0, -2, 3, 4}, &p3.IntArr{Val: []int64{0, -2, 3, 4}}},
 
 		// type IntSl []int (protobuf doesn't really have arrays)
-		{tests.IntSl{1, 2, 3, 4}, &p3.IntArr{Val: []int64{1, 2, 3, 4}}},
+		6: {tests.IntSl{1, 2, 3, 4}, &p3.IntArr{Val: []int64{1, 2, 3, 4}}},
 
 		// type PrimitivesStructSl []PrimitivesStruct
-		{strSl, p3StrSl},
+		7: {strSl, p3StrSl},
 	}
-	for _, tc := range tcs {
+	for i, tc := range tcs {
 		ab, err := amino.MarshalBinaryBare(tc.AminoType)
 		require.NoError(t, err)
 
 		pb, err := proto.Marshal(tc.ProtoMsg)
 		require.NoError(t, err)
 
-		assert.Equal(t, ab, pb, "Amino and protobuf encoding do not match")
+		assert.Equal(t, pb, ab, "Amino and protobuf encoding do not match %v", i)
 	}
 }

@@ -20,9 +20,6 @@ var (
 	// we use this time to init. a zero value (opposed to reflect.Zero which gives time.Time{} / 01-01-01 00:00:00)
 	zeroTime time.Time
 
-	// NotEmbeddedInStructErr gets returned if one tries to (un)marshal a type that is not embedded in a struct.
-	// In the case of unmarshaling Interfaces are also allowed (internally their concrete struct will be used).
-	NotEmbeddedInStructErr = errors.New("expected top-level wrapping struct")
 	// NotPointerErr is thrown when you call a method that expects a pointer, e.g. Unmarshal
 	NotPointerErr = errors.New("expected a pointer")
 
@@ -214,13 +211,14 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if rv.Kind() != reflect.Struct {
+	// in the case of of a repeated struct (e.g. type Alias []SomeStruct),
+	// we do not need to prepend with `(field_number << 3) | wire_type` as this
+	// would need to be done for each struct and not only for
+	isRepeatedStruct := info.Type.Kind() == reflect.Slice && info.Type.Elem().Kind() == reflect.Struct
+	if rv.Kind() != reflect.Struct && !isRepeatedStruct {
 		writeEmpty := false
-		// FIXME there is sth funky going on if this is (for instance a repeated struct):
-		// the field tag (wiretype and fieldnum) gets duplicated for lists and the length is prob. not necessary if we
-		// are encoding a repeated struct here -> see FIXME inside of `encodeReflectBinaryList` and in the case above
-		// this should be encoded with bare set to true
-		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, false); err != nil {
+		listOfStructs := info.Type.Kind() == reflect.Slice && info.Type.Elem().Kind() == reflect.Struct
+		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, listOfStructs); err != nil {
 			return nil, err
 		}
 
@@ -358,7 +356,9 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		reflect.ValueOf(rv.Elem()).Kind() != reflect.Struct
 
 	if isNotStruct && isNotIface && isNotPtrPtr || isPtrPtrToNonStruct {
-		return NotEmbeddedInStructErr
+		// TODO skip over the type tag
+		fmt.Println("TODO")
+		//return NotEmbeddedInStructErr
 	}
 	rt := rv.Type()
 	info, err := cdc.getTypeInfo_wlock(rt)
