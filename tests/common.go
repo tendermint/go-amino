@@ -209,7 +209,6 @@ var StructTypes = []interface{}{
 
 //----------------------------------------
 // Type definition types
-// TODO these will implicitly be wrapped by a struct
 
 // This will be encoded as
 // message SomeName { int64 val = 1; }

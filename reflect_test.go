@@ -28,7 +28,6 @@ func TestCodecStruct(t *testing.T) {
 }
 
 func TestCodecDef(t *testing.T) {
-	// TODO: Should we implicitly wrap them in a struct instead?
 	for _, ptr := range tests.DefTypes {
 		rt := getTypeFromPointer(ptr)
 		name := rt.Name()
