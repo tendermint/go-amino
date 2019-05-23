@@ -380,12 +380,10 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 			return errors.Wrap(err, "could not decode field number and type")
 		}
 		if fnum != 1 {
-			fmt.Println("What is it?", rv.Kind())
 			return fmt.Errorf("expected field number: 1; got: %v", fnum)
 		}
 		typWanted := typeToTyp3(info.Type, FieldOptions{})
 		if typ != typWanted {
-			// TODO extract this as an error type / const
 			return fmt.Errorf("expected field type %v for # %v of %v, got %v",
 				typWanted, fnum, info.Type, typ)
 		}
