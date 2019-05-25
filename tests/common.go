@@ -236,6 +236,10 @@ type PrimitivesStructDef PrimitivesStruct
 // message SomeName { repeated PrimitivesStruct val = 1; }
 type PrimitivesStructSl []PrimitivesStruct
 
+// This will be encoded as
+// message SomeName { repeated PrimitivesStruct val = 1; }
+type PrimitivesStructAr [2]PrimitivesStruct
+
 var DefTypes = []interface{}{
 	(*IntDef)(nil),
 	(*IntAr)(nil),

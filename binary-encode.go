@@ -296,7 +296,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 				return
 			}
 		}
-	} else {
+	} else { // typ3 == Typ3_ByteLength
 		// NOTE: ert is for the element value, while einfo.Type is dereferenced.
 		isErtStructPointer := ert.Kind() == reflect.Ptr && einfo.Type.Kind() == reflect.Struct
 

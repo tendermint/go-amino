@@ -212,10 +212,10 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	// in the case of of a repeated struct (e.g. type Alias []SomeStruct),
 	// we do not need to prepend with `(field_number << 3) | wire_type` as this
 	// would need to be done for each struct and not only for the first.
-	isRepeatedStruct := info.Type.Kind() == reflect.Slice && info.Type.Elem().Kind() == reflect.Struct
-	if rv.Kind() != reflect.Struct && !isRepeatedStruct {
+	if rv.Kind() != reflect.Struct && !isStructOrRepeatedStruct(info) {
 		writeEmpty := false
-		bare := true
+		typ3 := typeToTyp3(info.Type, FieldOptions{})
+		bare := typ3 != Typ3_ByteLength
 		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, bare); err != nil {
 			return nil, err
 		}
@@ -353,7 +353,6 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		return NotPointerErr
 	}
 	rv = rv.Elem()
-	_, isPtr, _ := derefPointers(rv)
 	rt := rv.Type()
 	info, err := cdc.getTypeInfo_wlock(rt)
 	if err != nil {
@@ -371,11 +370,17 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		}
 		bz = bz[4:]
 	}
-	isRepeatedStruct := info.Type.Kind() == reflect.Slice && info.Type.Elem().Kind() == reflect.Struct
-	isPointerToStruct := isPtr && rv.Elem().Kind() != reflect.Struct
-	if rv.Kind() != reflect.Struct && !isRepeatedStruct && len(bz) > 0 && (rv.Kind() != reflect.Interface) && !isPointerToStruct {
-
-		fnum, typ, n, err := decodeFieldNumberAndTyp3(bz)
+	// Only add length prefix if we have another typ3 then Typ3_ByteLength.
+	// Default is non-length prefixed:
+	bare := true
+	var nWrap int
+	isKnownType := (info.Type.Kind() != reflect.Map) && (info.Type.Kind() != reflect.Func)
+	if !isStructOrRepeatedStruct(info) &&
+		!isPointerToStructOrToRepeatedStruct(rv, rt) &&
+		len(bz) > 0 &&
+		(rv.Kind() != reflect.Interface) &&
+		isKnownType {
+		fnum, typ, nFnumTyp3, err := decodeFieldNumberAndTyp3(bz)
 		if err != nil {
 			return errors.Wrap(err, "could not decode field number and type")
 		}
@@ -388,19 +393,72 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 				typWanted, fnum, info.Type, typ)
 		}
 
-		slide(&bz, nil, n)
+		slide(&bz, &nWrap, nFnumTyp3)
+		bare = typeToTyp3(info.Type, FieldOptions{}) != Typ3_ByteLength
 	}
 
 	// Decode contents into rv.
-	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{BinFieldNum: 1}, true)
+	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{BinFieldNum: 1}, bare)
 	if err != nil {
-		return fmt.Errorf("unmarshal to %v failed after %d bytes (%v): %X", info.Type, n, err, bz)
+		return fmt.Errorf(
+			"unmarshal to %v failed after %d bytes (%v): %X",
+			info.Type,
+			n+nWrap,
+			err,
+			bz,
+		)
 	}
 	if n != len(bz) {
-		return fmt.Errorf("unmarshal to %v didn't read all bytes. Expected to read %v, only read %v: %X", info.Type, len(bz), n, bz)
+		return fmt.Errorf(
+			"unmarshal to %v didn't read all bytes. Expected to read %v, only read %v: %X",
+			info.Type,
+			len(bz),
+			n+nWrap,
+			bz,
+		)
 	}
 
 	return nil
+}
+
+func isStructOrRepeatedStruct(info *TypeInfo) bool {
+	if info.Type.Kind() == reflect.Struct {
+		return true
+	}
+	isRepeatedStructAr := info.Type.Kind() == reflect.Array && info.Type.Elem().Kind() == reflect.Struct
+	isRepeatedStructSl := info.Type.Kind() == reflect.Slice && info.Type.Elem().Kind() == reflect.Struct
+	return isRepeatedStructAr || isRepeatedStructSl
+}
+
+func isPointerToStructOrToRepeatedStruct(rv reflect.Value, rt reflect.Type) bool {
+	if rv.Kind() == reflect.Struct {
+		return true
+	}
+
+	drv, isPtr, isNil := derefPointers(rv)
+	if isPtr && drv.Kind() == reflect.Struct {
+		return true
+	}
+
+	if isPtr && isNil {
+		rt := derefType(rt)
+		if rt.Kind() == reflect.Struct {
+			return true
+		}
+		return rt.Kind() == reflect.Slice && rt.Elem().Kind() == reflect.Struct ||
+			rt.Kind() == reflect.Array && rt.Elem().Kind() == reflect.Struct
+	}
+	isRepeatedStructSl := isPtr && drv.Kind() == reflect.Slice && drv.Elem().Kind() == reflect.Struct
+	isRepeatedStructAr := isPtr && drv.Kind() == reflect.Array && drv.Elem().Kind() == reflect.Struct
+	return isRepeatedStructAr || isRepeatedStructSl
+}
+
+func derefType(rt reflect.Type) (drt reflect.Type) {
+	drt = rt
+	for drt.Kind() == reflect.Ptr {
+		drt = drt.Elem()
+	}
+	return
 }
 
 // Panics if error.

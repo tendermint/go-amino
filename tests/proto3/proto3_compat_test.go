@@ -345,6 +345,7 @@ func TestTypeDefCompatibility(t *testing.T) {
 		{Int32: 1, Int64: -1, Varint: 2, String: "protobuf3", Bytes: []byte("got some bytes"), Time: now},
 		{Int32: 0, Int64: 1, Varint: -2, String: "amino", Bytes: []byte("more of these bytes"), Time: now},
 	}
+	strAr := tests.PrimitivesStructAr{strSl[0], strSl[1]}
 	p3StrSl := &p3.PrimitivesStructSl{Structs: []*p3.PrimitivesStruct{
 		{Int32: 1, Int64: -1, Varint: 2, String_: "protobuf3", Bytes: []byte("got some bytes"), Time: pNow},
 		{Int32: 0, Int64: 1, Varint: -2, String_: "amino", Bytes: []byte("more of these bytes"), Time: pNow}},
@@ -369,6 +370,8 @@ func TestTypeDefCompatibility(t *testing.T) {
 
 		// type PrimitivesStructSl []PrimitivesStruct
 		7: {strSl, p3StrSl},
+		// type PrimitivesStructAr [2]PrimitivesStruct
+		8: {strAr, p3StrSl},
 	}
 	for i, tc := range tcs {
 		ab, err := amino.MarshalBinaryBare(tc.AminoType)
