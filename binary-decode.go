@@ -1,11 +1,12 @@
 package amino
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"reflect"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -358,9 +359,12 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 
 	// Construct the concrete type.
 	var crv, irvSet = constructConcreteType(cinfo)
+	// FIXME extract and re-use method from UnmarshalBinaryBare here
+	// FIXME also only do this, if this is not already wrapped in a struct,
+	//  e.g. see tests using InterfaceFieldsStruct
 
 	// Decode into the concrete type.
-	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, fopts, true)
+	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, fopts, bare)
 	if slide(&bz, &n, _n) && err != nil {
 		rv.Set(irvSet) // Helps with debugging
 		return

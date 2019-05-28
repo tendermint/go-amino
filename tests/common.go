@@ -271,12 +271,12 @@ type Concrete2 struct{}
 func (_ Concrete2) AssertInterface1() {}
 func (_ Concrete2) AssertInterface2() {}
 
-type Concrete3 struct {
-	Val [4]byte
-}
+// Special case: this concrete implementation is a type alias.
+type Concrete3 [4]byte
 
 func (_ Concrete3) AssertInterface1() {}
 
+// Yet another special case: Field could be a type alias (should not be wrapped).
 type InterfaceFieldsStruct struct {
 	F1 Interface1
 	F2 Interface1

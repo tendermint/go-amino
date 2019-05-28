@@ -380,6 +380,8 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		len(bz) > 0 &&
 		(rv.Kind() != reflect.Interface) &&
 		isKnownType {
+		// TODO extract to method and re-use this inside of
+		// decodeReflectBinaryInterface
 		fnum, typ, nFnumTyp3, err := decodeFieldNumberAndTyp3(bz)
 		if err != nil {
 			return errors.Wrap(err, "could not decode field number and type")
