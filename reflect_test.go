@@ -101,7 +101,7 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 		default:
 			panic("should not happen")
 		}
-		require.Nil(t, err,
+		require.NoError(t, err,
 			"failed to unmarshal bytes %X (%s): %v\nptr: %v\n",
 			bz, bz, err, spw(ptr))
 
@@ -239,17 +239,17 @@ func TestCodecBinaryRegister8(t *testing.T) {
 		cdc.RegisterConcrete(tests.Concrete2{}, "Concrete3", nil)
 	}, "duplicate concrete name")
 
-	var c3 tests.Concrete3
-	copy(c3[:], []byte("0123"))
+	c3 := tests.Concrete3{}
+	copy(c3.Val[:], []byte("0123"))
 
 	bz, err := cdc.MarshalBinaryBare(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
 		"Concrete3 incorrectly serialized")
 
 	var i1 tests.Interface1
 	err = cdc.UnmarshalBinaryBare(bz, &i1)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, c3, i1)
 }
 
@@ -260,13 +260,13 @@ func TestCodecJSONRegister8(t *testing.T) {
 	cdc.RegisterConcrete(tests.Concrete3{}, "Concrete3", nil)
 
 	var c3 tests.Concrete3
-	copy(c3[:], []byte("0123"))
+	copy(c3.Val[:], []byte("0123"))
 
 	// NOTE: We don't wrap c3...
 	// But that's OK, JSON still writes the disfix bytes by default.
 	bz, err := cdc.MarshalJSON(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte(`{"type":"Concrete3","value":"MDEyMw=="}`),
+	assert.Equal(t, []byte(`{"type":"Concrete3","value":{"Val":"MDEyMw=="}}`),
 		bz, "Concrete3 incorrectly serialized")
 
 	var i1 tests.Interface1
@@ -286,11 +286,11 @@ func TestCodecBinaryRegister9(t *testing.T) {
 	}, "duplicate concrete name")
 
 	var c3 tests.Concrete3
-	copy(c3[:], []byte("0123"))
+	copy(c3.Val[:], []byte("0123"))
 
 	bz, err := cdc.MarshalBinaryBare(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
 		"Concrete3 incorrectly serialized")
 
 	var i1 tests.Interface1
@@ -306,11 +306,11 @@ func TestCodecBinaryRegister10(t *testing.T) {
 	cdc.RegisterConcrete(tests.Concrete3{}, "Concrete3", nil)
 
 	var c3a tests.Concrete3
-	copy(c3a[:], []byte("0123"))
+	copy(c3a.Val[:], []byte("0123"))
 
 	bz, err := cdc.MarshalBinaryBare(c3a)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
 		"Concrete3 incorrectly serialized")
 
 	var c3b tests.Concrete3

@@ -401,7 +401,7 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 				// Set nil/zero on frv.
 				frv.Set(reflect.Zero(frv.Type()))
 			}
-			
+
 			continue
 		}
 

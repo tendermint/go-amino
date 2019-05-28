@@ -210,19 +210,35 @@ var StructTypes = []interface{}{
 //----------------------------------------
 // Type definition types
 
+// This will be encoded as
+// message SomeName { int64 val = 1; }
 type IntDef int
 
+// This will be encoded as
+// message SomeName { repeated int val = 1; }
 type IntAr [4]int
 
+// This will be encoded as
+// message SomeName { repeated int val = 1; }
 type IntSl []int
 
+// This will be encoded as
+// message SomeName { bytes val = 1; }
 type ByteAr [4]byte
 
+// This will be encoded as
+// message SomeName { bytes val = 1; }
 type ByteSl []byte
 
+type PrimitivesStructDef PrimitivesStruct
+
+// This will be encoded as
+// message SomeName { repeated PrimitivesStruct val = 1; }
 type PrimitivesStructSl []PrimitivesStruct
 
-type PrimitivesStructDef PrimitivesStruct
+// This will be encoded as
+// message SomeName { repeated PrimitivesStruct val = 1; }
+type PrimitivesStructAr [2]PrimitivesStruct
 
 var DefTypes = []interface{}{
 	(*IntDef)(nil),
@@ -255,7 +271,9 @@ type Concrete2 struct{}
 func (_ Concrete2) AssertInterface1() {}
 func (_ Concrete2) AssertInterface2() {}
 
-type Concrete3 [4]byte
+type Concrete3 struct {
+	Val [4]byte
+}
 
 func (_ Concrete3) AssertInterface1() {}
 

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/tendermint/go-amino"
 )
 
@@ -78,7 +80,7 @@ func TestMarshalUnmarshalBinaryPointer3(t *testing.T) {
 
 	var s2 *SimpleStruct
 	err = cdc.UnmarshalBinaryLengthPrefixed(b, &s2) // extra indirection
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, s, *s2)
 }
 
@@ -92,7 +94,7 @@ func TestMarshalUnmarshalBinaryPointer4(t *testing.T) {
 
 	var s2 *SimpleStruct
 	err = cdc.UnmarshalBinaryLengthPrefixed(b, &s2) // extra indirection
-	assert.Nil(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, s, *s2)
 
 }

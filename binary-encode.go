@@ -296,7 +296,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 				return
 			}
 		}
-	} else {
+	} else { // typ3 == Typ3_ByteLength
 		// NOTE: ert is for the element value, while einfo.Type is dereferenced.
 		isErtStructPointer := ert.Kind() == reflect.Ptr && einfo.Type.Kind() == reflect.Struct
 
@@ -413,27 +413,12 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 					return
 				}
 			} else {
-				lBeforeKey := buf.Len()
-				// Write field key (number and type).
-				err = encodeFieldNumberAndTyp3(buf, field.BinFieldNum, typeToTyp3(finfo.Type, field.FieldOptions))
+				// write empty if explicitly set or if this is a pointer:
+				writeEmpty := fopts.WriteEmpty || frvIsPtr
+				err = cdc.writeFieldIfNotEmpty(buf, field.BinFieldNum, finfo, fopts, field.FieldOptions, dfrv, writeEmpty, false)
 				if err != nil {
 					return
 				}
-				lBeforeValue := buf.Len()
-
-				// Write field value from rv.
-				err = cdc.encodeReflectBinary(buf, finfo, dfrv, field.FieldOptions, false)
-				if err != nil {
-					return
-				}
-				lAfterValue := buf.Len()
-
-				if !frvIsPtr && !fopts.WriteEmpty && lBeforeValue == lAfterValue-1 && buf.Bytes()[buf.Len()-1] == 0x00 {
-					// rollback typ3/fieldnum and last byte if
-					// not a pointer and empty:
-					buf.Truncate(lBeforeKey)
-				}
-
 			}
 		}
 	}
@@ -468,4 +453,37 @@ func encodeFieldNumberAndTyp3(w io.Writer, num uint32, typ Typ3) (err error) {
 	n := binary.PutUvarint(buf[:], value64)
 	_, err = w.Write(buf[0:n])
 	return
+}
+
+func (cdc *Codec) writeFieldIfNotEmpty(
+	buf *bytes.Buffer,
+	fieldNum uint32,
+	finfo *TypeInfo,
+	structsFopts FieldOptions, // the wrapping struct's FieldOptions if any
+	fieldOpts FieldOptions, // the field's FieldOptions
+	derefedVal reflect.Value,
+	isWriteEmpty bool,
+	bare bool,
+) error {
+	lBeforeKey := buf.Len()
+	// Write field key (number and type).
+	err := encodeFieldNumberAndTyp3(buf, fieldNum, typeToTyp3(finfo.Type, fieldOpts))
+	if err != nil {
+		return err
+	}
+	lBeforeValue := buf.Len()
+
+	// Write field value from rv.
+	err = cdc.encodeReflectBinary(buf, finfo, derefedVal, fieldOpts, bare)
+	if err != nil {
+		return err
+	}
+	lAfterValue := buf.Len()
+
+	if !isWriteEmpty && lBeforeValue == lAfterValue-1 && buf.Bytes()[buf.Len()-1] == 0x00 {
+		// rollback typ3/fieldnum and last byte if
+		// not a pointer and empty:
+		buf.Truncate(lBeforeKey)
+	}
+	return nil
 }

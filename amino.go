@@ -2,21 +2,27 @@ package amino
 
 import (
 	"bytes"
-	"encoding/binary"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
 	"time"
+
+	"encoding/binary"
+	"encoding/json"
+
+	"github.com/pkg/errors"
 )
 
-//----------------------------------------
-// Global methods for global sealed codec.
-var gcdc *Codec
+var (
+	// Global methods for global sealed codec.
+	gcdc *Codec
 
-// we use this time to init. a zero value (opposed to reflect.Zero which gives time.Time{} / 01-01-01 00:00:00)
-var zeroTime time.Time
+	// we use this time to init. a zero value (opposed to reflect.Zero which gives time.Time{} / 01-01-01 00:00:00)
+	zeroTime time.Time
+
+	// NotPointerErr is thrown when you call a method that expects a pointer, e.g. Unmarshal
+	NotPointerErr = errors.New("expected a pointer")
+)
 
 const (
 	unixEpochStr = "1970-01-01 00:00:00 +0000 UTC"
@@ -203,20 +209,42 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{BinFieldNum: 1}, true)
-	if err != nil {
-		return nil, err
+	// in the case of of a repeated struct (e.g. type Alias []SomeStruct),
+	// we do not need to prepend with `(field_number << 3) | wire_type` as this
+	// would need to be done for each struct and not only for the first.
+	if rv.Kind() != reflect.Struct && !isStructOrRepeatedStruct(info) {
+		writeEmpty := false
+		typ3 := typeToTyp3(info.Type, FieldOptions{})
+		bare := typ3 != Typ3_ByteLength
+		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, bare); err != nil {
+			return nil, err
+		}
+		bz = buf.Bytes()
+	} else {
+		err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{BinFieldNum: 1}, true)
+		if err != nil {
+			return nil, err
+		}
+		bz = buf.Bytes()
 	}
-	bz = buf.Bytes()
-
 	// If registered concrete, prepend prefix bytes.
 	if info.Registered {
+		// TODO: https://github.com/tendermint/go-amino/issues/267
+		//return MarshalBinaryBare(RegisteredAny{
+		//	AminoPreOrDisfix: info.Prefix.Bytes(),
+		//	Value: bz,
+		//})
 		pb := info.Prefix.Bytes()
 		bz = append(pb, bz...)
 	}
 
 	return bz, nil
 }
+
+//type RegisteredAny struct {
+//	AminoPreOrDisfix []byte
+//	Value []byte
+//}
 
 // Panics if error.
 func (cdc *Codec) MustMarshalBinaryBare(o interface{}) []byte {
@@ -322,7 +350,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 
 	rv := reflect.ValueOf(ptr)
 	if rv.Kind() != reflect.Ptr {
-		panic("Unmarshal expects a pointer")
+		return NotPointerErr
 	}
 	rv = rv.Elem()
 	rt := rv.Type()
@@ -330,8 +358,10 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	if err != nil {
 		return err
 	}
+
 	// If registered concrete, consume and verify prefix bytes.
 	if info.Registered {
+		// TODO: https://github.com/tendermint/go-amino/issues/267
 		pb := info.Prefix.Bytes()
 		if len(bz) < 4 {
 			return fmt.Errorf("UnmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X", pb, bz)
@@ -340,15 +370,95 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		}
 		bz = bz[4:]
 	}
+	// Only add length prefix if we have another typ3 then Typ3_ByteLength.
+	// Default is non-length prefixed:
+	bare := true
+	var nWrap int
+	isKnownType := (info.Type.Kind() != reflect.Map) && (info.Type.Kind() != reflect.Func)
+	if !isStructOrRepeatedStruct(info) &&
+		!isPointerToStructOrToRepeatedStruct(rv, rt) &&
+		len(bz) > 0 &&
+		(rv.Kind() != reflect.Interface) &&
+		isKnownType {
+		fnum, typ, nFnumTyp3, err := decodeFieldNumberAndTyp3(bz)
+		if err != nil {
+			return errors.Wrap(err, "could not decode field number and type")
+		}
+		if fnum != 1 {
+			return fmt.Errorf("expected field number: 1; got: %v", fnum)
+		}
+		typWanted := typeToTyp3(info.Type, FieldOptions{})
+		if typ != typWanted {
+			return fmt.Errorf("expected field type %v for # %v of %v, got %v",
+				typWanted, fnum, info.Type, typ)
+		}
+
+		slide(&bz, &nWrap, nFnumTyp3)
+		bare = typeToTyp3(info.Type, FieldOptions{}) != Typ3_ByteLength
+	}
+
 	// Decode contents into rv.
-	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{BinFieldNum: 1}, true)
+	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{BinFieldNum: 1}, bare)
 	if err != nil {
-		return fmt.Errorf("unmarshal to %v failed after %d bytes (%v): %X", info.Type, n, err, bz)
+		return fmt.Errorf(
+			"unmarshal to %v failed after %d bytes (%v): %X",
+			info.Type,
+			n+nWrap,
+			err,
+			bz,
+		)
 	}
 	if n != len(bz) {
-		return fmt.Errorf("unmarshal to %v didn't read all bytes. Expected to read %v, only read %v: %X", info.Type, len(bz), n, bz)
+		return fmt.Errorf(
+			"unmarshal to %v didn't read all bytes. Expected to read %v, only read %v: %X",
+			info.Type,
+			len(bz),
+			n+nWrap,
+			bz,
+		)
 	}
+
 	return nil
+}
+
+func isStructOrRepeatedStruct(info *TypeInfo) bool {
+	if info.Type.Kind() == reflect.Struct {
+		return true
+	}
+	isRepeatedStructAr := info.Type.Kind() == reflect.Array && info.Type.Elem().Kind() == reflect.Struct
+	isRepeatedStructSl := info.Type.Kind() == reflect.Slice && info.Type.Elem().Kind() == reflect.Struct
+	return isRepeatedStructAr || isRepeatedStructSl
+}
+
+func isPointerToStructOrToRepeatedStruct(rv reflect.Value, rt reflect.Type) bool {
+	if rv.Kind() == reflect.Struct {
+		return true
+	}
+
+	drv, isPtr, isNil := derefPointers(rv)
+	if isPtr && drv.Kind() == reflect.Struct {
+		return true
+	}
+
+	if isPtr && isNil {
+		rt := derefType(rt)
+		if rt.Kind() == reflect.Struct {
+			return true
+		}
+		return rt.Kind() == reflect.Slice && rt.Elem().Kind() == reflect.Struct ||
+			rt.Kind() == reflect.Array && rt.Elem().Kind() == reflect.Struct
+	}
+	isRepeatedStructSl := isPtr && drv.Kind() == reflect.Slice && drv.Elem().Kind() == reflect.Struct
+	isRepeatedStructAr := isPtr && drv.Kind() == reflect.Array && drv.Elem().Kind() == reflect.Struct
+	return isRepeatedStructAr || isRepeatedStructSl
+}
+
+func derefType(rt reflect.Type) (drt reflect.Type) {
+	drt = rt
+	for drt.Kind() == reflect.Ptr {
+		drt = drt.Elem()
+	}
+	return
 }
 
 // Panics if error.
@@ -373,7 +483,6 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 
 	// Write the disfix wrapper if it is a registered concrete type.
 	if info.Registered {
-		// Part 1:
 		err = writeStr(w, _fmt(`{"type":"%s","value":`, info.Name))
 		if err != nil {
 			return nil, err
@@ -387,10 +496,6 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 
 	// disfix wrapper continued...
 	if info.Registered {
-		// Part 2:
-		if err != nil {
-			return nil, err
-		}
 		err = writeStr(w, `}`)
 		if err != nil {
 			return nil, err

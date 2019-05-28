@@ -172,24 +172,8 @@ type innerFP struct {
 }
 
 func TestUnmarshalMap(t *testing.T) {
-	binBytes := []byte(`dontcare`)
 	obj := new(map[string]int)
 	cdc := amino.NewCodec()
-	// Binary doesn't support decoding to a map...
-	// TODO: move out binary tests from json_test.go ...
-	assert.Panics(t, func() {
-		err := cdc.UnmarshalBinaryBare(binBytes, &obj)
-		assert.Fail(t, "should have paniced but got err: %v", err)
-	})
-	assert.Panics(t, func() {
-		err := cdc.UnmarshalBinaryBare(binBytes, obj)
-		assert.Fail(t, "should have paniced but got err: %v", err)
-	})
-	// ... nor encoding it.
-	assert.Panics(t, func() {
-		bz, err := cdc.MarshalBinaryBare(obj)
-		assert.Fail(t, "should have paniced but got bz: %X err: %v", bz, err)
-	})
 
 	invalidJSONMapBytes := []byte(`{"some_key": 2}`)
 	// we expect quoted values for javascript / JSON numbers:
@@ -208,37 +192,15 @@ func TestUnmarshalMap(t *testing.T) {
 }
 
 func TestUnmarshalFunc(t *testing.T) {
-	binBytes := []byte(`dontcare`)
 	jsonBytes := []byte(`"dontcare"`)
 	obj := func() {}
 	cdc := amino.NewCodec()
-	// Binary doesn't support decoding to a func...
-
-	err := cdc.UnmarshalBinaryLengthPrefixed(binBytes, &obj)
-	// on length prefixed we return an error:
-	assert.Error(t, err)
-
-	assert.Panics(t, func() {
-		err := cdc.UnmarshalBinaryBare(binBytes, &obj)
-		// panics with "unknown field type Func"
-		assert.Fail(t, "should have paniced but got err: %v", err)
-	})
-	assert.Panics(t, func() {
-		err := cdc.UnmarshalBinaryBare(binBytes, obj)
-		assert.Fail(t, "should have paniced but got err: %v", err)
-	})
-	// ... nor encoding it.
-	assert.Panics(t, func() {
-		bz, err := cdc.MarshalBinaryLengthPrefixed(obj)
-		assert.Fail(t, "should have paniced but got bz: %X err: %v", bz, err)
-	})
-	// JSON doesn't support decoding to a func...
 	assert.Panics(t, func() {
 		err := cdc.UnmarshalJSON(jsonBytes, &obj)
 		assert.Fail(t, "should have paniced but got err: %v", err)
 	})
 
-	err = cdc.UnmarshalJSON(jsonBytes, obj)
+	err := cdc.UnmarshalJSON(jsonBytes, obj)
 	// UnmarshalJSON expects a pointer
 	assert.Error(t, err)
 
