@@ -197,7 +197,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		return
 	}
 	if !cinfo.Registered {
-		err = fmt.Errorf("Cannot encode unregistered concrete type %v.", crt)
+		err = fmt.Errorf("cannot encode unregistered concrete type %v", crt)
 		return
 	}
 

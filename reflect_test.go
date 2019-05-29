@@ -1,6 +1,7 @@
 package amino
 
 import (
+	"fmt"
 	"math/rand"
 	"reflect"
 	"runtime/debug"
@@ -312,7 +313,7 @@ func TestCodecRoundtripMarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x11, 0x1e, 0x93, 0x82, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
 		"ConcreteTypeDef incorrectly serialized")
 
 	var i1 tests.Interface1
@@ -332,7 +333,7 @@ func TestCodecRoundtripUnarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(c3a)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, []byte{0x11, 0x1e, 0x93, 0x82, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
 		"ConcreteTypeDef incorrectly serialized")
 
 	var c3b tests.ConcreteTypeDef
@@ -348,12 +349,12 @@ func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
 
 	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
 	bz, err := cdc.MarshalBinaryLengthPrefixed(i1)
-	assert.Nil(t, err, "unexpected error")
+	fmt.Println(bz)
 
 	i2 := new(tests.InterfaceFieldsStruct)
 	err = cdc.UnmarshalBinaryLengthPrefixed(bz, i2)
 
-	assert.NoError(t, err, "unexpected error")
+	assert.NoError(t, err)
 	require.Equal(t, i1, i2, "i1 and i2 should be the same after decoding")
 }
 
