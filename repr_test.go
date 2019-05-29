@@ -64,7 +64,7 @@ func TestMarshalAminoBinary(t *testing.T) {
 
 	var f2 Foo
 	err = cdc.UnmarshalBinaryLengthPrefixed(bz, &f2)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	assert.Equal(t, f, f2)
 	assert.Equal(t, f.a, f2.a) // In case the above doesn't check private fields?

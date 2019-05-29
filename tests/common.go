@@ -271,10 +271,18 @@ type Concrete2 struct{}
 func (_ Concrete2) AssertInterface1() {}
 func (_ Concrete2) AssertInterface2() {}
 
-// Special case: this concrete implementation is a type alias.
-type Concrete3 [4]byte
+// Special case: this concrete implementation (of Interface1) is a type alias.
+type ConcreteTypeDef [4]byte
 
-func (_ Concrete3) AssertInterface1() {}
+func (_ ConcreteTypeDef) AssertInterface1() {}
+
+// Ideally, user's of amino should refrain from using the above
+// but wrap actual values in structs; e.g. like:
+type ConcreteWrappedBytes struct {
+	Value []byte
+}
+
+func (_ ConcreteWrappedBytes) AssertInterface1() {}
 
 // Yet another special case: Field could be a type alias (should not be wrapped).
 type InterfaceFieldsStruct struct {
