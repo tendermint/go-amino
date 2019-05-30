@@ -152,7 +152,7 @@ func invokeStdlibJSONUnmarshal(bz []byte, rv reflect.Value, fopts FieldOptions) 
 		panic("rv not addressable nor pointer")
 	}
 
-	var rrv reflect.Value = rv
+	rrv := rv
 	if rv.Kind() != reflect.Ptr {
 		rrv = reflect.New(rv.Type())
 	}

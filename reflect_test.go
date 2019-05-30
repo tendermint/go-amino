@@ -1,7 +1,6 @@
 package amino
 
 import (
-	"fmt"
 	"math/rand"
 	"reflect"
 	"runtime/debug"
@@ -349,7 +348,6 @@ func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
 
 	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
 	bz, err := cdc.MarshalBinaryLengthPrefixed(i1)
-	fmt.Println(bz)
 
 	i2 := new(tests.InterfaceFieldsStruct)
 	err = cdc.UnmarshalBinaryLengthPrefixed(bz, i2)
@@ -567,7 +565,6 @@ var fuzzFuncs = []interface{}{
 //----------------------------------------
 // From https://github.com/google/gofuzz/blob/master/fuzz.go
 // (Apache2.0 License)
-// TODO move to tmlibs/common/random.go?
 
 type charRange struct {
 	first, last rune

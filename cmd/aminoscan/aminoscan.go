@@ -179,7 +179,7 @@ func scanFieldKey(bz []byte, indent string) (s string, typ amino.Typ3, n int, er
 		return
 	}
 	typ = amino.Typ3(u64 & 0x07)
-	var number uint32 = uint32(u64 >> 3)
+	number := uint32(u64 >> 3)
 	s = fmt.Sprintf("%X", bz[:n])
 	fmt.Printf("%s%s @%v %v\n", indent, s, number, typ)
 	return

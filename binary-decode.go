@@ -309,7 +309,6 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (n int, err error) {
-	fmt.Println(fmt.Sprintf("%#v", fopts))
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -357,49 +356,33 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	if err != nil {
 		return
 	}
-	fmt.Println(fmt.Sprintf("cinfo: %#v", cinfo.Name))
-	fmt.Println(fmt.Sprintf("cinfo: %#v", cinfo))
 
 	// Construct the concrete type.
 	var crv, irvSet = constructConcreteType(cinfo)
-	fmt.Println("crv.Kind() ", crv.Kind())
-	// FIXME extract and re-use method from UnmarshalBinaryBare here
-	// FIXME also only do this, if this is not already wrapped in a struct,
-	//  e.g. see tests using InterfaceFieldsStruct
 	isKnownType := (cinfo.Type.Kind() != reflect.Map) && (cinfo.Type.Kind() != reflect.Func)
 	if !isStructOrRepeatedStruct(cinfo) &&
 		!isPointerToStructOrToRepeatedStruct(crv, cinfo.Type) &&
 		len(bz) > 0 &&
 		(crv.Kind() != reflect.Interface) &&
-		isKnownType && fopts.BinFieldNum == 1 {
-		// FIXME: only do this
-		// TODO extract to method and re-use this inside of
-		// decodeReflectBinaryInterface
-		fmt.Println("unwrapping")
+		isKnownType &&
+		fopts.BinFieldNum == 1 {
 		fnum, typ, nFnumTyp3, err := decodeFieldNumberAndTyp3(bz)
 		if err != nil {
-			return n + nFnumTyp3, errors.Wrap(err, "could not decode field number and type")
+			return n, errors.Wrap(err, "could not decode field number and type")
 		}
 		if fnum != 1 {
-			return n + nFnumTyp3, fmt.Errorf("expected field number: 1; got: %v", fnum)
+			return n, fmt.Errorf("expected field number: 1; got: %v", fnum)
 		}
 		typWanted := typeToTyp3(cinfo.Type, FieldOptions{})
 		if typ != typWanted {
-			return n + nFnumTyp3, fmt.Errorf("expected field type %v for # %v of %v, got %v",
+			return n, fmt.Errorf("expected field type %v for # %v of %v, got %v",
 				typWanted, fnum, cinfo.Type, typ)
 		}
-
 		slide(&bz, &n, nFnumTyp3)
-		bare = typeToTyp3(cinfo.Type, FieldOptions{}) != Typ3_ByteLength
-		fmt.Println("done unwrapping")
 	}
 
-	if len(bz) == 0 {
-		rv.Set(irvSet)
-		return
-	}
 	// Decode into the concrete type.
-	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, fopts, bare)
+	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, fopts, true)
 	if slide(&bz, &n, _n) && err != nil {
 		rv.Set(irvSet) // Helps with debugging
 		return
@@ -645,7 +628,6 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	esrt := reflect.SliceOf(ert)
 	var srv = reflect.Zero(esrt)
 
-	// FIXME this isn't right in some cases (see TestMarshalAminoBinary)
 	if !bare {
 		// Read byte-length prefixed byteslice.
 		var buf, _n = []byte(nil), int(0)
