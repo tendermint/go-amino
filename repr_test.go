@@ -61,7 +61,7 @@ func TestMarshalAminoBinary(t *testing.T) {
 	bz, err := cdc.MarshalBinaryLengthPrefixed(f)
 	assert.NoError(t, err)
 
-	t.Logf("bz %X", bz)
+	t.Logf("bz %#v", bz)
 
 	var f2 Foo
 	err = cdc.UnmarshalBinaryLengthPrefixed(bz, &f2)

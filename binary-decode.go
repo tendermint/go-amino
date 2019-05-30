@@ -358,9 +358,11 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 	fmt.Println(fmt.Sprintf("cinfo: %#v", cinfo.Name))
+	fmt.Println(fmt.Sprintf("cinfo: %#v", cinfo))
 
 	// Construct the concrete type.
 	var crv, irvSet = constructConcreteType(cinfo)
+	fmt.Println("crv.Kind() ", crv.Kind())
 	// FIXME extract and re-use method from UnmarshalBinaryBare here
 	// FIXME also only do this, if this is not already wrapped in a struct,
 	//  e.g. see tests using InterfaceFieldsStruct
@@ -369,9 +371,11 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		!isPointerToStructOrToRepeatedStruct(crv, cinfo.Type) &&
 		len(bz) > 0 &&
 		(crv.Kind() != reflect.Interface) &&
-		isKnownType && fopts.BinFieldNum == 0 {
+		isKnownType && fopts.BinFieldNum == 1 {
+		// FIXME: only do this
 		// TODO extract to method and re-use this inside of
 		// decodeReflectBinaryInterface
+		fmt.Println("unwrapping")
 		fnum, typ, nFnumTyp3, err := decodeFieldNumberAndTyp3(bz)
 		if err != nil {
 			return n + nFnumTyp3, errors.Wrap(err, "could not decode field number and type")
@@ -387,6 +391,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 
 		slide(&bz, &n, nFnumTyp3)
 		bare = typeToTyp3(cinfo.Type, FieldOptions{}) != Typ3_ByteLength
+		fmt.Println("done unwrapping")
 	}
 
 	if len(bz) == 0 {
@@ -640,6 +645,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	esrt := reflect.SliceOf(ert)
 	var srv = reflect.Zero(esrt)
 
+	// FIXME this isn't right in some cases (see TestMarshalAminoBinary)
 	if !bare {
 		// Read byte-length prefixed byteslice.
 		var buf, _n = []byte(nil), int(0)

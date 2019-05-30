@@ -213,12 +213,14 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	// we do not need to prepend with `(field_number << 3) | wire_type` as this
 	// would need to be done for each struct and not only for the first.
 	if rv.Kind() != reflect.Struct && !isStructOrRepeatedStruct(info) {
+		fmt.Println("WRAPPING ...", info.Type.Name())
 		writeEmpty := false
 		typ3 := typeToTyp3(info.Type, FieldOptions{})
 		bare := typ3 != Typ3_ByteLength
 		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, bare); err != nil {
 			return nil, err
 		}
+		fmt.Println("DONE WRAPPING ...", info.Type.Name())
 		bz = buf.Bytes()
 	} else {
 		err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{BinFieldNum: 1}, true)
