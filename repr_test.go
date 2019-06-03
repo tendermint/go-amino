@@ -47,6 +47,7 @@ func TestMarshalAminoBinary(t *testing.T) {
 
 	cdc := NewCodec()
 	cdc.RegisterInterface((*interface{})(nil), nil)
+	// register a bunch of concrete "implementations" which are type aliases:
 	cdc.RegisterConcrete(string(""), "string", nil)
 	cdc.RegisterConcrete(int(0), "int", nil)
 	cdc.RegisterConcrete(([]*Foo)(nil), "[]*Foo", nil)
@@ -58,13 +59,13 @@ func TestMarshalAminoBinary(t *testing.T) {
 		D: "J",
 	}
 	bz, err := cdc.MarshalBinaryLengthPrefixed(f)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
-	t.Logf("bz %X", bz)
+	t.Logf("bz %#v", bz)
 
 	var f2 Foo
 	err = cdc.UnmarshalBinaryLengthPrefixed(bz, &f2)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	assert.Equal(t, f, f2)
 	assert.Equal(t, f.a, f2.a) // In case the above doesn't check private fields?

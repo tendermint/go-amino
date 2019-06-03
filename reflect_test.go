@@ -143,39 +143,47 @@ func _testDeepCopy(t *testing.T, rt reflect.Type) {
 //----------------------------------------
 // Register/interface tests
 
-func TestCodecBinaryRegister1(t *testing.T) {
+func TestCodecMarshalBinaryBareFailsOnUnregisteredIface(t *testing.T) {
 	cdc := NewCodec()
-	//cdc.RegisterInterface((*tests.Interface1)(nil), nil)
 	cdc.RegisterConcrete((*tests.Concrete1)(nil), "Concrete1", nil)
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
-	assert.NotNil(t, err, "unregistered interface")
+	assert.Error(t, err, "unregistered interface")
 	assert.Empty(t, bz)
 }
 
-func TestCodecBinaryRegister2(t *testing.T) {
+func TestCodecMarhsalBinaryBareFailsOnUnregisteredConcrete(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
+
+	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
+	assert.Error(t, err, "concrete type not registered")
+	assert.Empty(t, bz)
+}
+
+func TestCodecMarshalBinaryBarePassesOnRegistered(t *testing.T) {
 	cdc := NewCodec()
 	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
 	cdc.RegisterConcrete((*tests.Concrete1)(nil), "Concrete1", nil)
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
-	assert.Nil(t, err, "correctly registered")
+	assert.NoError(t, err, "correctly registered")
 	assert.Equal(t, []byte{0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
-func TestCodecBinaryRegister3(t *testing.T) {
+func TestCodecMarshalBinaryBareOnRegisteredMatches(t *testing.T) {
 	cdc := NewCodec()
 	cdc.RegisterConcrete((*tests.Concrete1)(nil), "Concrete1", nil)
 	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
-	assert.Nil(t, err, "correctly registered")
+	assert.NoError(t, err, "correctly registered")
 	assert.Equal(t, []byte{0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
-func TestCodecBinaryRegister4(t *testing.T) {
+func TestCodecMarhsalBinaryBareRegisteredAndDisamb(t *testing.T) {
 	cdc := NewCodec()
 	cdc.RegisterConcrete((*tests.Concrete1)(nil), "Concrete1", nil)
 	cdc.RegisterInterface((*tests.Interface1)(nil), &InterfaceOptions{
@@ -183,22 +191,12 @@ func TestCodecBinaryRegister4(t *testing.T) {
 	})
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
-	assert.Nil(t, err, "correctly registered")
+	assert.NoError(t, err, "correctly registered")
 	assert.Equal(t, []byte{0xa, 0x8, 0x0, 0x12, 0xb5, 0x86, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
-func TestCodecBinaryRegister5(t *testing.T) {
-	cdc := NewCodec()
-	//cdc.RegisterConcrete((*tests.Concrete1)(nil), "Concrete1", nil)
-	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
-
-	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
-	assert.NotNil(t, err, "concrete type not registered")
-	assert.Empty(t, bz)
-}
-
-func TestCodecBinaryRegister6(t *testing.T) {
+func TestCodecRegisterMultipleTimesPanics(t *testing.T) {
 	cdc := NewCodec()
 	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
 	cdc.RegisterConcrete((*tests.Concrete1)(nil), "Concrete1", nil)
@@ -208,7 +206,7 @@ func TestCodecBinaryRegister6(t *testing.T) {
 	}, "duplicate concrete name")
 }
 
-func TestCodecBinaryRegister7(t *testing.T) {
+func TestCodecRegisterAndMarshalMultipleConcrete(t *testing.T) {
 	cdc := NewCodec()
 	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
 	cdc.RegisterConcrete((*tests.Concrete1)(nil), "Concrete1", nil)
@@ -216,36 +214,36 @@ func TestCodecBinaryRegister7(t *testing.T) {
 
 	{ // test tests.Concrete1, no conflict.
 		bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
-		assert.Nil(t, err, "correctly registered")
+		assert.NoError(t, err, "correctly registered")
 		assert.Equal(t, []byte{0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
 			"disfix bytes did not match")
 	}
 
 	{ // test tests.Concrete2, no conflict
 		bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete2{}})
-		assert.Nil(t, err, "correctly registered")
+		assert.NoError(t, err, "correctly registered")
 		assert.Equal(t, []byte{0xa, 0x4, 0x6a, 0x9, 0xca, 0x1}, bz,
 			"disfix bytes did not match")
 	}
 }
 
 // Serialize and deserialize a non-nil interface value.
-func TestCodecBinaryRegister8(t *testing.T) {
+func TestCodecRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 	cdc := NewCodec()
 	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
-	cdc.RegisterConcrete(tests.Concrete3{}, "Concrete3", nil)
+	cdc.RegisterConcrete(tests.ConcreteTypeDef{}, "ConcreteTypeDef", nil)
 
 	assert.Panics(t, func() {
-		cdc.RegisterConcrete(tests.Concrete2{}, "Concrete3", nil)
+		cdc.RegisterConcrete(tests.Concrete2{}, "ConcreteTypeDef", nil)
 	}, "duplicate concrete name")
 
-	c3 := tests.Concrete3{}
-	copy(c3.Val[:], []byte("0123"))
+	c3 := tests.ConcreteTypeDef{}
+	copy(c3[:], []byte("0123"))
 
 	bz, err := cdc.MarshalBinaryBare(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
-		"Concrete3 incorrectly serialized")
+	assert.Equal(t, []byte{0x11, 0x1e, 0x93, 0x82, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
+		"ConcreteTypeDef incorrectly serialized")
 
 	var i1 tests.Interface1
 	err = cdc.UnmarshalBinaryBare(bz, &i1)
@@ -253,21 +251,45 @@ func TestCodecBinaryRegister8(t *testing.T) {
 	assert.Equal(t, c3, i1)
 }
 
-// Like TestCodecBinaryRegister8, but JSON.
-func TestCodecJSONRegister8(t *testing.T) {
+// Exactly like TestCodecRoundtripNonNilRegisteredTypeDef but with struct
+// around the value instead of a type alias.
+func TestCodecRoundtripNonNilRegisteredWrappedValue(t *testing.T) {
 	cdc := NewCodec()
 	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
-	cdc.RegisterConcrete(tests.Concrete3{}, "Concrete3", nil)
+	cdc.RegisterConcrete(tests.ConcreteWrappedBytes{}, "ConcreteWrappedBytes", nil)
 
-	var c3 tests.Concrete3
-	copy(c3.Val[:], []byte("0123"))
+	assert.Panics(t, func() {
+		cdc.RegisterConcrete(tests.Concrete2{}, "ConcreteWrappedBytes", nil)
+	}, "duplicate concrete name")
+
+	c3 := tests.ConcreteWrappedBytes{Value: []byte("0123")}
+
+	bz, err := cdc.MarshalBinaryBare(c3)
+	assert.Nil(t, err)
+	assert.Equal(t, []byte{0x49, 0x3f, 0xa0, 0x4b, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
+		"ConcreteWrappedBytes incorrectly serialized")
+
+	var i1 tests.Interface1
+	err = cdc.UnmarshalBinaryBare(bz, &i1)
+	assert.NoError(t, err)
+	assert.Equal(t, c3, i1)
+}
+
+// Like TestCodecRoundtripNonNilRegisteredTypeDef, but JSON.
+func TestCodecJSONRoundtripNonNilRegisteredTypeDef(t *testing.T) {
+	cdc := NewCodec()
+	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
+	cdc.RegisterConcrete(tests.ConcreteTypeDef{}, "ConcreteTypeDef", nil)
+
+	var c3 tests.ConcreteTypeDef
+	copy(c3[:], []byte("0123"))
 
 	// NOTE: We don't wrap c3...
 	// But that's OK, JSON still writes the disfix bytes by default.
 	bz, err := cdc.MarshalJSON(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte(`{"type":"Concrete3","value":{"Val":"MDEyMw=="}}`),
-		bz, "Concrete3 incorrectly serialized")
+	assert.Equal(t, `{"type":"ConcreteTypeDef","value":"MDEyMw=="}`,
+		string(bz), "ConcreteTypeDef incorrectly serialized")
 
 	var i1 tests.Interface1
 	err = cdc.UnmarshalJSON(bz, &i1)
@@ -275,45 +297,45 @@ func TestCodecJSONRegister8(t *testing.T) {
 	assert.Equal(t, c3, i1)
 }
 
-// Like TestCodecBinaryRegister8, but serialize the concrete value directly.
-func TestCodecBinaryRegister9(t *testing.T) {
+// Like TestCodecRoundtripNonNilRegisteredTypeDef, but serialize the concrete value directly.
+func TestCodecRoundtripMarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) {
 	cdc := NewCodec()
 	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
-	cdc.RegisterConcrete(tests.Concrete3{}, "Concrete3", nil)
+	cdc.RegisterConcrete(tests.ConcreteTypeDef{}, "ConcreteTypeDef", nil)
 
 	assert.Panics(t, func() {
-		cdc.RegisterConcrete(tests.Concrete2{}, "Concrete3", nil)
+		cdc.RegisterConcrete(tests.Concrete2{}, "ConcreteTypeDef", nil)
 	}, "duplicate concrete name")
 
-	var c3 tests.Concrete3
-	copy(c3.Val[:], []byte("0123"))
+	var c3 tests.ConcreteTypeDef
+	copy(c3[:], []byte("0123"))
 
 	bz, err := cdc.MarshalBinaryBare(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
-		"Concrete3 incorrectly serialized")
+	assert.Equal(t, []byte{0x11, 0x1e, 0x93, 0x82, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
+		"ConcreteTypeDef incorrectly serialized")
 
 	var i1 tests.Interface1
 	err = cdc.UnmarshalBinaryBare(bz, &i1)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, c3, i1)
 }
 
-// Like TestCodecBinaryRegister8 but read into concrete var.
-func TestCodecBinaryRegister10(t *testing.T) {
+// Like TestCodecRoundtripNonNilRegisteredTypeDef but read into concrete var.
+func TestCodecRoundtripUnarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) {
 	cdc := NewCodec()
 	cdc.RegisterInterface((*tests.Interface1)(nil), nil)
-	cdc.RegisterConcrete(tests.Concrete3{}, "Concrete3", nil)
+	cdc.RegisterConcrete(tests.ConcreteTypeDef{}, "ConcreteTypeDef", nil)
 
-	var c3a tests.Concrete3
-	copy(c3a.Val[:], []byte("0123"))
+	var c3a tests.ConcreteTypeDef
+	copy(c3a[:], []byte("0123"))
 
 	bz, err := cdc.MarshalBinaryBare(c3a)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x53, 0x37, 0x21, 0x1, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
-		"Concrete3 incorrectly serialized")
+	assert.Equal(t, []byte{0x11, 0x1e, 0x93, 0x82, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
+		"ConcreteTypeDef incorrectly serialized")
 
-	var c3b tests.Concrete3
+	var c3b tests.ConcreteTypeDef
 	err = cdc.UnmarshalBinaryBare(bz, &c3b)
 	assert.Nil(t, err)
 	assert.Equal(t, c3a, c3b)
@@ -326,12 +348,11 @@ func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
 
 	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
 	bz, err := cdc.MarshalBinaryLengthPrefixed(i1)
-	assert.Nil(t, err, "unexpected error")
 
 	i2 := new(tests.InterfaceFieldsStruct)
 	err = cdc.UnmarshalBinaryLengthPrefixed(bz, i2)
 
-	assert.Nil(t, err, "unexpected error")
+	assert.NoError(t, err)
 	require.Equal(t, i1, i2, "i1 and i2 should be the same after decoding")
 }
 
@@ -544,7 +565,6 @@ var fuzzFuncs = []interface{}{
 //----------------------------------------
 // From https://github.com/google/gofuzz/blob/master/fuzz.go
 // (Apache2.0 License)
-// TODO move to tmlibs/common/random.go?
 
 type charRange struct {
 	first, last rune

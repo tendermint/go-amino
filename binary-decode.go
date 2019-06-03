@@ -1,11 +1,12 @@
 package amino
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"reflect"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -358,6 +359,27 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 
 	// Construct the concrete type.
 	var crv, irvSet = constructConcreteType(cinfo)
+	isKnownType := (cinfo.Type.Kind() != reflect.Map) && (cinfo.Type.Kind() != reflect.Func)
+	if !isStructOrRepeatedStruct(cinfo) &&
+		!isPointerToStructOrToRepeatedStruct(crv, cinfo.Type) &&
+		len(bz) > 0 &&
+		(crv.Kind() != reflect.Interface) &&
+		isKnownType &&
+		fopts.BinFieldNum == 1 {
+		fnum, typ, nFnumTyp3, err := decodeFieldNumberAndTyp3(bz)
+		if err != nil {
+			return n, errors.Wrap(err, "could not decode field number and type")
+		}
+		if fnum != 1 {
+			return n, fmt.Errorf("expected field number: 1; got: %v", fnum)
+		}
+		typWanted := typeToTyp3(cinfo.Type, FieldOptions{})
+		if typ != typWanted {
+			return n, fmt.Errorf("expected field type %v for # %v of %v, got %v",
+				typWanted, fnum, cinfo.Type, typ)
+		}
+		slide(&bz, &n, nFnumTyp3)
+	}
 
 	// Decode into the concrete type.
 	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, fopts, true)

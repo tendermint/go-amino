@@ -197,7 +197,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		return
 	}
 	if !cinfo.Registered {
-		err = fmt.Errorf("Cannot encode unregistered concrete type %v.", crt)
+		err = fmt.Errorf("cannot encode unregistered concrete type %v", crt)
 		return
 	}
 
@@ -205,7 +205,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 	buf := bytes.NewBuffer(nil)
 
 	// Write disambiguation bytes if needed.
-	var needDisamb bool = false
+	needDisamb := false
 	if iinfo.AlwaysDisambiguate {
 		needDisamb = true
 	} else if len(iinfo.Implementers[cinfo.Prefix]) > 1 {
