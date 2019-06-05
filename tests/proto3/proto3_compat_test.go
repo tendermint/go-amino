@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+
 	"math"
 	"testing"
 	"time"
@@ -14,8 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ptypes "github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
 
 	p3 "github.com/tendermint/go-amino/tests/proto3/proto"
 
@@ -208,14 +209,14 @@ func TestProto3CompatTimestampNow(t *testing.T) {
 	pbRes := p3.ProtoGotTime{}
 	err = proto.Unmarshal(ab1, &pbRes)
 	assert.NoError(t, err)
-	got, err := ptypes.Timestamp(pbRes.T)
+	got, err := ptypes.TimestampFromProto(pbRes.T)
 	assert.NoError(t, err)
 	_, err = ptypes.TimestampProto(now)
 	assert.NoError(t, err)
 	err = proto.Unmarshal(pb, &pbRes)
 	assert.NoError(t, err)
 	// create time.Time from timestamp.Timestamp and check if they are the same:
-	got, err = ptypes.Timestamp(pbRes.T)
+	got, err = ptypes.TimestampFromProto(pbRes.T)
 	assert.Equal(t, got.UTC(), now.UTC())
 }
 
@@ -226,7 +227,7 @@ func TestProto3EpochTime(t *testing.T) {
 	assert.NoError(t, err)
 	err = proto.Unmarshal(ab, &pbRes)
 	assert.NoError(t, err)
-	ts, err := ptypes.Timestamp(pbRes.T)
+	ts, err := ptypes.TimestampFromProto(pbRes.T)
 	assert.NoError(t, err)
 	assert.EqualValues(t, ts, epoch)
 }
@@ -243,7 +244,7 @@ func TestProtoNegativeSeconds(t *testing.T) {
 	assert.EqualValues(t, ntm, *res.T)
 	err = proto.Unmarshal(ab, &pbRes)
 	assert.NoError(t, err)
-	got, err := ptypes.Timestamp(pbRes.T)
+	got, err := ptypes.TimestampFromProto(pbRes.T)
 	assert.NoError(t, err)
 	assert.Equal(t, got, ntm)
 }
@@ -338,7 +339,7 @@ func TestIntVarintCompat(t *testing.T) {
 func TestTypeDefCompatibility(t *testing.T) {
 
 	pNow := ptypes.TimestampNow()
-	now, err := ptypes.Timestamp(pNow)
+	now, err := ptypes.TimestampFromProto(pNow)
 	require.NoError(t, err)
 
 	strSl := tests.PrimitivesStructSl{
