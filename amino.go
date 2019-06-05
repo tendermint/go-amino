@@ -230,21 +230,21 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	// If registered concrete, prepend prefix bytes.
 	if info.Registered {
 		// TODO: https://github.com/tendermint/go-amino/issues/267
-		//return MarshalBinaryBare(RegisteredAny{
-		//	AminoPreOrDisfix: info.Prefix.Bytes(),
-		//	Value: bz,
-		//})
-		pb := info.Prefix.Bytes()
-		bz = append(pb, bz...)
+		return MarshalBinaryBare(RegisteredAny{
+			AminoPreOrDisfix: info.Prefix.Bytes(),
+			Value:            bz,
+		})
+		// pb := info.Prefix.Bytes()
+		// bz = append(pb, bz...)
 	}
 
 	return bz, nil
 }
 
-//type RegisteredAny struct {
-//	AminoPreOrDisfix []byte
-//	Value []byte
-//}
+type RegisteredAny struct {
+	AminoPreOrDisfix []byte
+	Value            []byte
+}
 
 // Panics if error.
 func (cdc *Codec) MustMarshalBinaryBare(o interface{}) []byte {

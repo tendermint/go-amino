@@ -415,11 +415,11 @@ func TestRegisteredTypesCompatibility(t *testing.T) {
 
 	pAny := &p3.AminoRegisteredAny{}
 	err = proto.Unmarshal(bz, pAny)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	// value matches proto encoding
 	assert.Equal(t, pAny.Value, bzUnreg)
-	_, prefix := amino.NameToDisfix(name)
-	assert.Equal(t, pAny.AminoPreOrDisfix, prefix)
 
+	_, prefix := amino.NameToDisfix(name)
+	assert.Equal(t, pAny.AminoPreOrDisfix, prefix.Bytes())
 }
