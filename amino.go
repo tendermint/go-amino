@@ -362,14 +362,17 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 
 	// If registered concrete, consume and verify prefix bytes.
 	if info.Registered {
-		// TODO: https://github.com/tendermint/go-amino/issues/267
-		pb := info.Prefix.Bytes()
-		if len(bz) < 4 {
-			return fmt.Errorf("UnmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X", pb, bz)
-		} else if !bytes.Equal(bz[:4], pb) {
-			return fmt.Errorf("UnmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X...", pb, bz[:4])
+		aminoAny := &RegisteredAny{}
+		if err := cdc.UnmarshalBinaryBare(bz, aminoAny); err != nil {
+			return err
 		}
-		bz = bz[4:]
+		pb := info.Prefix.Bytes()
+		if len(aminoAny.AminoPreOrDisfix) < 4 {
+			return fmt.Errorf("UnmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X", pb, aminoAny.AminoPreOrDisfix)
+		} else if !bytes.Equal(aminoAny.AminoPreOrDisfix[:4], pb) {
+			return fmt.Errorf("UnmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X...", pb, aminoAny.AminoPreOrDisfix[:4])
+		}
+		bz = aminoAny.Value
 	}
 	// Only add length prefix if we have another typ3 then Typ3_ByteLength.
 	// Default is non-length prefixed:
