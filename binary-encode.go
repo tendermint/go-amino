@@ -217,25 +217,26 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 			return
 		}
 	}
-
-	// Write prefix bytes.
-	_, err = buf.Write(cinfo.Prefix.Bytes())
+	// TODO: https://github.com/tendermint/go-amino/issues/267
+	aminoAny := &RegisteredAny{AminoPreOrDisfix: cinfo.Prefix.Bytes()}
+	// Write actual concrete value.
+	buf.Reset()
+	err = cdc.encodeReflectBinary(buf, cinfo, crv, fopts, true)
 	if err != nil {
 		return
 	}
-
-	// Write actual concrete value.
-	err = cdc.encodeReflectBinary(buf, cinfo, crv, fopts, true)
+	aminoAny.Value = buf.Bytes()
+	bz, err := cdc.MarshalBinaryBare(aminoAny)
 	if err != nil {
 		return
 	}
 
 	if bare {
 		// Write byteslice without byte-length prefixing.
-		_, err = w.Write(buf.Bytes())
+		_, err = w.Write(bz)
 	} else {
 		// Write byte-length prefixed byteslice.
-		err = EncodeByteSlice(w, buf.Bytes())
+		err = EncodeByteSlice(w, bz)
 	}
 	return
 }

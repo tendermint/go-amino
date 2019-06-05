@@ -168,7 +168,7 @@ func TestCodecMarshalBinaryBarePassesOnRegistered(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.NoError(t, err, "correctly registered")
-	assert.Equal(t, []byte{0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
+	assert.Equal(t, []byte{0xa, 0x6, 0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
@@ -179,7 +179,7 @@ func TestCodecMarshalBinaryBareOnRegisteredMatches(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.NoError(t, err, "correctly registered")
-	assert.Equal(t, []byte{0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
+	assert.Equal(t, []byte{0xa, 0x6, 0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
@@ -192,7 +192,7 @@ func TestCodecMarhsalBinaryBareRegisteredAndDisamb(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.NoError(t, err, "correctly registered")
-	assert.Equal(t, []byte{0xa, 0x8, 0x0, 0x12, 0xb5, 0x86, 0xe3, 0xda, 0xb8, 0x33}, bz,
+	assert.Equal(t, []byte{0xa, 0x6, 0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 
@@ -215,14 +215,14 @@ func TestCodecRegisterAndMarshalMultipleConcrete(t *testing.T) {
 	{ // test tests.Concrete1, no conflict.
 		bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 		assert.NoError(t, err, "correctly registered")
-		assert.Equal(t, []byte{0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
+		assert.Equal(t, []byte{0xa, 0x6, 0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
 			"disfix bytes did not match")
 	}
 
 	{ // test tests.Concrete2, no conflict
 		bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete2{}})
 		assert.NoError(t, err, "correctly registered")
-		assert.Equal(t, []byte{0xa, 0x4, 0x6a, 0x9, 0xca, 0x1}, bz,
+		assert.Equal(t, []byte{0xa, 0x6, 0xa, 0x4, 0x6a, 0x9, 0xca, 0x1}, bz,
 			"disfix bytes did not match")
 	}
 }
@@ -347,10 +347,10 @@ func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
 	cdc.RegisterConcrete((*tests.InterfaceFieldsStruct)(nil), "interfaceFields", nil)
 
 	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
-	bz, err := cdc.MarshalBinaryLengthPrefixed(i1)
+	bz, err := cdc.MarshalBinaryBare(i1)
 
 	i2 := new(tests.InterfaceFieldsStruct)
-	err = cdc.UnmarshalBinaryLengthPrefixed(bz, i2)
+	err = cdc.UnmarshalBinaryBare(bz, i2)
 
 	assert.NoError(t, err)
 	require.Equal(t, i1, i2, "i1 and i2 should be the same after decoding")

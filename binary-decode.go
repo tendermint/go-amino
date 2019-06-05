@@ -343,14 +343,8 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	// extract below info from RegisteredAny struct and
 	// continue with the value instead
 	aminoAny := &RegisteredAny{}
-	if bare {
-		if err = cdc.UnmarshalBinaryBare(bz, aminoAny); err != nil {
-			return
-		}
-	} else {
-		if err = cdc.UnmarshalBinaryLengthPrefixed(bz, aminoAny); err != nil {
-			return
-		}
+	if err = cdc.UnmarshalBinaryBare(bz, aminoAny); err != nil {
+		return
 	}
 	disamb, hasDisamb, prefix, hasPrefix, _n, err := DecodeDisambPrefixBytes(aminoAny.AminoPreOrDisfix)
 	if slide(&bz, &n, _n) && err != nil {
