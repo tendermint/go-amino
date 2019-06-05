@@ -334,7 +334,7 @@ func TestIntVarintCompat(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// See if encoding of type def types matches the proto3 encoding
+// See if encoding of def types matches the proto3 encoding
 func TestTypeDefCompatibility(t *testing.T) {
 
 	pNow := ptypes.TimestampNow()
@@ -382,4 +382,44 @@ func TestTypeDefCompatibility(t *testing.T) {
 
 		assert.Equal(t, pb, ab, "Amino and protobuf encoding do not match %v", i)
 	}
+}
+
+// See if encoding of registered types matches the proto3 encoding
+func TestRegisteredTypesCompatibility(t *testing.T) {
+	// TODO make this table driven tests using sub-tests
+	type Message interface{}
+
+	type SimpleMsg struct {
+		Message string
+		Height  int
+	}
+
+	type SimpleMsgUnregistered struct {
+		Message string
+		Height  int
+	}
+
+	var cdc = amino.NewCodec()
+	cdc.RegisterInterface((*Message)(nil), nil)
+	const name = "SimpleMsg"
+	cdc.RegisterConcrete(&SimpleMsg{}, name, nil)
+
+	bm := &SimpleMsg{Message: "ABC", Height: 100}
+	bmUnreg := &SimpleMsgUnregistered{bm.Message, bm.Height}
+
+	bz, err := cdc.MarshalBinaryBare(bm)
+	require.NoError(t, err)
+
+	bzUnreg, err := cdc.MarshalBinaryBare(bmUnreg)
+	require.NoError(t, err)
+
+	pAny := &p3.AminoRegisteredAny{}
+	err = proto.Unmarshal(bz, pAny)
+	require.NoError(t, err)
+
+	// value matches proto encoding
+	assert.Equal(t, pAny.Value, bzUnreg)
+	_, prefix := amino.NameToDisfix(name)
+	assert.Equal(t, pAny.AminoPreOrDisfix, prefix)
+
 }
