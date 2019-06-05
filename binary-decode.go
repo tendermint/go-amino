@@ -338,10 +338,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		bz = buf
 	}
 
-	// Consume disambiguation / prefix bytes.
-	// TODO: https://github.com/tendermint/go-amino/issues/267
-	// extract below info from RegisteredAny struct and
-	// continue with the value instead
+	// Consume disambiguation / prefix bytes by reading into a RegisteredAny message:
 	aminoAny := &RegisteredAny{}
 	if err = cdc.UnmarshalBinaryBare(bz, aminoAny); err != nil {
 		return

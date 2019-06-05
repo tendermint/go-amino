@@ -227,21 +227,31 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 		}
 		bz = buf.Bytes()
 	}
-	// If registered concrete, prepend prefix bytes.
+	// If registered concrete, prepend prefix bytes by wrapping
+	// message in RegisteredAny:
 	if info.Registered {
 		return MarshalBinaryBare(RegisteredAny{
 			AminoPreOrDisfix: info.Prefix.Bytes(),
 			Value:            bz,
 		})
-		// pb := info.Prefix.Bytes()
-		// bz = append(pb, bz...)
 	}
 
 	return bz, nil
 }
 
-// TODO: https://github.com/tendermint/go-amino/issues/267
-// properly document this
+// TODO: extensively document this!
+//
+// This will be compatible to the following proto3 message:
+//
+// message AminoRegisteredAny {
+//    // Prefix or Disfix (Prefix + Disamb) bytes
+//    bytes AminoPreOrDisfix = 1;
+//    // Must be a valid serialized protocol buffer with the above specified amino pre-/disfix.
+//    bytes Value = 2;
+//}
+//
+// This is comparable to proto.Any but instead of a URL scheme there, we use amino's
+// disfix bytes instead.
 type RegisteredAny struct {
 	AminoPreOrDisfix []byte
 	Value            []byte

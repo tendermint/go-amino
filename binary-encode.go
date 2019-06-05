@@ -217,7 +217,6 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 			return
 		}
 	}
-	// TODO: https://github.com/tendermint/go-amino/issues/267
 	aminoAny := &RegisteredAny{AminoPreOrDisfix: cinfo.Prefix.Bytes()}
 	// Write actual concrete value.
 	buf.Reset()
