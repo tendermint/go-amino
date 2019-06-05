@@ -342,10 +342,28 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	// TODO: https://github.com/tendermint/go-amino/issues/267
 	// extract below info from RegisteredAny struct and
 	// continue with the value instead
-	disamb, hasDisamb, prefix, hasPrefix, _n, err := DecodeDisambPrefixBytes(bz)
+	aminoAny := &RegisteredAny{}
+	if bare {
+		if err = cdc.UnmarshalBinaryBare(bz, aminoAny); err != nil {
+			return
+		}
+	} else {
+		if err = cdc.UnmarshalBinaryLengthPrefixed(bz, aminoAny); err != nil {
+			return
+		}
+	}
+	disamb, hasDisamb, prefix, hasPrefix, _n, err := DecodeDisambPrefixBytes(aminoAny.AminoPreOrDisfix)
 	if slide(&bz, &n, _n) && err != nil {
 		return
 	}
+	overhead := len(bz) - len(aminoAny.Value)
+	if overhead < 0 {
+		// we could as well panic here
+		err = errors.New("encoded value in RegisteredAny larger than original buffer")
+		return
+	}
+	slide(&bz, &n, overhead)
+	bz = aminoAny.Value
 
 	// Get concrete type info from disfix/prefix.
 	var cinfo *TypeInfo
@@ -354,7 +372,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	} else if hasPrefix {
 		cinfo, err = cdc.getTypeInfoFromPrefix_rlock(iinfo, prefix)
 	} else {
-		err = errors.New("Expected disambiguation or prefix bytes.")
+		err = errors.New("expected disambiguation or prefix bytes")
 	}
 	if err != nil {
 		return
