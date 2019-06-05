@@ -253,8 +253,23 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 // This is comparable to proto.Any but instead of a URL scheme there, we use amino's
 // disfix bytes instead.
 type RegisteredAny struct {
+	// Amino Prefix or Disfix (Prefix + Disamb) bytes derived from
+	// the name while registering the type.
+	// You can get this values by using the NameToDisfix helper
+	// method.
+	// In most common cases you won't need the disambiguation bytes.
+	//
+	// The prefix bytes should be 4 bytes. In case disambiguation bytes are
+	// necessary, this field will hold 7 Disfix bytes
+	// (3 disambiguation and 4 prefix bytes).
 	AminoPreOrDisfix []byte
-	Value            []byte
+	// Must be a valid serialized protocol buffer that was registered
+	// with a name resulting in the above specified amino pre-/disfix bytes.
+	//
+	// Users directly using protobuf in their application need to switch
+	// over the different prefix (disfix) bytes to know which concrete
+	// type they are receiving (or encoding).
+	Value []byte
 }
 
 // Panics if error.
