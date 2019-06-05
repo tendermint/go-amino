@@ -339,6 +339,9 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	}
 
 	// Consume disambiguation / prefix bytes.
+	// TODO: https://github.com/tendermint/go-amino/issues/267
+	// extract below info from RegisteredAny struct and
+	// continue with the value instead
 	disamb, hasDisamb, prefix, hasPrefix, _n, err := DecodeDisambPrefixBytes(bz)
 	if slide(&bz, &n, _n) && err != nil {
 		return

@@ -229,7 +229,6 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	}
 	// If registered concrete, prepend prefix bytes.
 	if info.Registered {
-		// TODO: https://github.com/tendermint/go-amino/issues/267
 		return MarshalBinaryBare(RegisteredAny{
 			AminoPreOrDisfix: info.Prefix.Bytes(),
 			Value:            bz,
@@ -241,6 +240,8 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	return bz, nil
 }
 
+// TODO: https://github.com/tendermint/go-amino/issues/267
+// properly document this
 type RegisteredAny struct {
 	AminoPreOrDisfix []byte
 	Value            []byte
