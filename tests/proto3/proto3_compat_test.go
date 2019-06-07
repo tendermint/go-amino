@@ -385,28 +385,28 @@ func TestTypeDefCompatibility(t *testing.T) {
 	}
 }
 
-// See if encoding of registered types matches the proto3 encoding
-func TestRegisteredTypesCompatibility(t *testing.T) {
-	// TODO make this table driven tests using sub-tests
-	type Message interface{}
+// See if encoding of a registered type matches the proto3 encoding
+func TestRegisteredTypesCompatibilitySimple(t *testing.T) {
+	type message interface{}
 
-	type SimpleMsg struct {
+	const name = "simpleMsg"
+	type simpleMsg struct {
 		Message string
 		Height  int
 	}
 
-	type SimpleMsgUnregistered struct {
+	type simpleMsgUnregistered struct {
 		Message string
 		Height  int
 	}
 
-	var cdc = amino.NewCodec()
-	cdc.RegisterInterface((*Message)(nil), nil)
-	const name = "SimpleMsg"
-	cdc.RegisterConcrete(&SimpleMsg{}, name, nil)
+	cdc := amino.NewCodec()
+	cdc.RegisterInterface((*message)(nil), nil)
+	cdc.RegisterConcrete(&simpleMsg{}, name, nil)
 
-	bm := &SimpleMsg{Message: "ABC", Height: 100}
-	bmUnreg := &SimpleMsgUnregistered{bm.Message, bm.Height}
+	bm := &simpleMsg{Message: "ABC", Height: 100}
+	pbm := &p3.SimpleMsg{Message: "ABC", Height: 100}
+	bmUnreg := &simpleMsgUnregistered{bm.Message, bm.Height}
 
 	bz, err := cdc.MarshalBinaryBare(bm)
 	require.NoError(t, err)
@@ -414,13 +414,21 @@ func TestRegisteredTypesCompatibility(t *testing.T) {
 	bzUnreg, err := cdc.MarshalBinaryBare(bmUnreg)
 	require.NoError(t, err)
 
+	// encoded bytes decodeable via protobuf:
 	pAny := &p3.AminoRegisteredAny{}
 	err = proto.Unmarshal(bz, pAny)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
-	// value matches proto encoding
+	// amino encoded value / prefix matches proto encoding
 	assert.Equal(t, pAny.Value, bzUnreg)
-
 	_, prefix := amino.NameToDisfix(name)
 	assert.Equal(t, pAny.AminoPreOrDisfix, prefix.Bytes())
+	pbz, err := proto.Marshal(pbm)
+	require.NoError(t, err)
+	assert.Equal(t, pbz, bzUnreg)
 }
+
+// TODO other tests to consider:
+// compatibility of:
+// - TestCodecMarhsalBinaryBareRegisteredAndDisamb
+// - repl_test ala TestMarshalAminoBinary?

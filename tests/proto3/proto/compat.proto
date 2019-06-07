@@ -83,3 +83,8 @@ message AminoRegisteredAny {
     // Must be a valid serialized protocol buffer with the above specified amino pre-/disfix.
     bytes Value = 2;
 }
+
+message SimpleMsg {
+    string Message = 1;
+    int64 Height = 2;
+}
