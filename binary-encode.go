@@ -211,15 +211,13 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 	} else if len(iinfo.Implementers[cinfo.Prefix]) > 1 {
 		needDisamb = true
 	}
+	disfix := make([]byte, 0)
 	if needDisamb {
-		_, err = buf.Write(append([]byte{0x00}, cinfo.Disamb[:]...))
-		if err != nil {
-			return
-		}
+		disfix = append([]byte{0x00}, cinfo.Disamb[:]...)
 	}
-	aminoAny := &RegisteredAny{AminoPreOrDisfix: cinfo.Prefix.Bytes()}
+	disfix = append(disfix, cinfo.Prefix.Bytes()...)
+	aminoAny := &RegisteredAny{AminoPreOrDisfix: disfix}
 	// Write actual concrete value.
-	buf.Reset()
 	err = cdc.encodeReflectBinary(buf, cinfo, crv, fopts, true)
 	if err != nil {
 		return

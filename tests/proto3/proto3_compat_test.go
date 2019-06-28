@@ -428,7 +428,32 @@ func TestRegisteredTypesCompatibilitySimple(t *testing.T) {
 	assert.Equal(t, pbz, bzUnreg)
 }
 
-// TODO other tests to consider:
-// compatibility of:
-// - TestCodecMarhsalBinaryBareRegisteredAndDisamb
-// - repl_test ala TestMarshalAminoBinary?
+func TestDisamExample(t *testing.T) {
+	const name = "interfaceFields"
+	cdc := amino.NewCodec()
+	cdc.RegisterInterface((*tests.Interface1)(nil), &amino.InterfaceOptions{
+		AlwaysDisambiguate: true,
+	})
+	cdc.RegisterConcrete((*tests.InterfaceFieldsStruct)(nil), name, nil)
+
+	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
+	bz, err := cdc.MarshalBinaryBare(i1)
+
+	t.Logf("%#v", bz)
+
+	pAny := &p3.AminoRegisteredAny{}
+	err = proto.Unmarshal(bz, pAny)
+	require.NoError(t, err)
+
+	disamb, prefix := amino.NameToDisfix(name)
+	t.Logf("%#v", disamb[:])
+	disfix := bytes.Join([][]byte{disamb[:], prefix[:]}, []byte(""))
+	assert.Equal(t, disfix, pAny.AminoPreOrDisfix)
+
+	i2 := new(tests.InterfaceFieldsStruct)
+	err = cdc.UnmarshalBinaryBare(bz, i2)
+
+	assert.NoError(t, err)
+	require.Equal(t, i1, i2, "i1 and i2 should be the same after decoding")
+
+}
