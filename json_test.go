@@ -363,7 +363,8 @@ func TestJSONCodecRoundTrip(t *testing.T) {
 		}
 
 		// Now check that the input is exactly equal to the output
-		uBlob, _ := cdc.MarshalJSON(tt.out)
+		uBlob, err := cdc.MarshalJSON(tt.out)
+		assert.NoError(t, err)
 		if err := cdc.UnmarshalJSON(mBlob, tt.out); err != nil {
 			t.Errorf("#%d: unexpected error after second MarshalJSON: %v", i, err)
 			continue
