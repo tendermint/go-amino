@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tendermint/go-amino"
+	amino "github.com/tendermint/go-amino"
 )
 
 func registerTransports(cdc *amino.Codec) {
@@ -364,6 +364,7 @@ func TestJSONCodecRoundTrip(t *testing.T) {
 
 		// Now check that the input is exactly equal to the output
 		uBlob, err := cdc.MarshalJSON(tt.out)
+		assert.NoError(t, err)
 		if err := cdc.UnmarshalJSON(mBlob, tt.out); err != nil {
 			t.Errorf("#%d: unexpected error after second MarshalJSON: %v", i, err)
 			continue
@@ -392,9 +393,7 @@ type noExportedFields struct {
 }
 
 type oneExportedField struct {
-	_Foo int
-	A    string
-	b    string
+	A string
 }
 
 type aPointerField struct {

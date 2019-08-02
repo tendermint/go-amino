@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tendermint/go-amino"
+	amino "github.com/tendermint/go-amino"
 )
 
 func main() {
@@ -167,7 +167,6 @@ func scanStruct(bz []byte, indent string, isRoot bool) (s string, n int, err err
 			return
 		}
 	}
-	return
 }
 
 func scanFieldKey(bz []byte, indent string) (s string, typ amino.Typ3, n int, err error) {

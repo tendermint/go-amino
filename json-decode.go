@@ -310,9 +310,10 @@ func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.V
 			// Special case when length is 0.
 			// NOTE: We prefer nil slices.
 			rv.Set(info.ZeroValue)
-		} else {
-			// NOTE: Already set via json.Unmarshal() above.
 		}
+		// else {
+		// NOTE: Already set via json.Unmarshal() above.
+		// }
 		return
 
 	default: // General case.

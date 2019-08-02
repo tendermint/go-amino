@@ -9,3 +9,4 @@ tests/fuzz/binary/corpus
 tests/fuzz/binary/crashers
 tests/fuzz/binary/suppressions
 aminoscan
+.vscode

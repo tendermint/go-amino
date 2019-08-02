@@ -348,6 +348,7 @@ func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
 
 	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
 	bz, err := cdc.MarshalBinaryLengthPrefixed(i1)
+	assert.NoError(t, err)
 
 	i2 := new(tests.InterfaceFieldsStruct)
 	err = cdc.UnmarshalBinaryLengthPrefixed(bz, i2)

@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/tendermint/go-amino"
+	amino "github.com/tendermint/go-amino"
 )
 
 func TestNilSliceEmptySlice(t *testing.T) {
@@ -236,11 +236,11 @@ func TestStructPointerSlice2(t *testing.T) {
 		C: []*Foo{nil, nil, nil},
 		D: "j",
 	}
-	bz, err := cdc.MarshalBinaryLengthPrefixed(f)
+	_, err := cdc.MarshalBinaryLengthPrefixed(f)
 	assert.Error(t, err, "nil elements of a slice/array not supported when empty_elements field tag set.")
 
 	f.C = []*Foo{{}, {}, {}}
-	bz, err = cdc.MarshalBinaryLengthPrefixed(f)
+	bz, err := cdc.MarshalBinaryLengthPrefixed(f)
 	assert.NoError(t, err)
 
 	var f2 Foo

@@ -321,7 +321,7 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixedReader(r io.Reader, ptr interface
 	}
 	l = int64(u64)
 	if l < 0 {
-		err = fmt.Errorf("Read overflow, this implementation can't read this because, why would anyone have this much data? Hello from 2018.")
+		_ = fmt.Errorf("Read overflow, this implementation can't read this because, why would anyone have this much data? Hello from 2018.")
 	}
 
 	// Read that many bytes.

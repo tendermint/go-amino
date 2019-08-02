@@ -346,11 +346,12 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 
 	// Get concrete type info from disfix/prefix.
 	var cinfo *TypeInfo
-	if hasDisamb {
+	switch {
+	case hasDisamb:
 		cinfo, err = cdc.getTypeInfoFromDisfix_rlock(toDisfix(disamb, prefix))
-	} else if hasPrefix {
+	case hasPrefix:
 		cinfo, err = cdc.getTypeInfoFromPrefix_rlock(iinfo, prefix)
-	} else {
+	default:
 		err = errors.New("Expected disambiguation or prefix bytes.")
 	}
 	if err != nil {
@@ -935,49 +936,5 @@ func decodeFieldNumberAndTyp3(bz []byte) (num uint32, typ Typ3, n int, err error
 		return
 	}
 	num = uint32(num64)
-	return
-}
-
-// Error if typ doesn't match rt.
-func checkTyp3(rt reflect.Type, typ Typ3, fopts FieldOptions) (err error) {
-	typWanted := typeToTyp3(rt, fopts)
-	if typ != typWanted {
-		err = fmt.Errorf("unexpected Typ3. want %v, got %v", typWanted, typ)
-	}
-	return
-}
-
-// Read typ3 byte.
-func decodeTyp3(bz []byte) (typ Typ3, n int, err error) {
-	if len(bz) == 0 {
-		err = fmt.Errorf("EOF while reading typ3 byte")
-		return
-	}
-	if bz[0]&0xF8 != 0 {
-		err = fmt.Errorf("invalid typ3 byte: %v", Typ3(bz[0]).String())
-		return
-	}
-	typ = Typ3(bz[0])
-	n = 1
-	return
-}
-
-// Read a uvarint that encodes the number of nil items to skip.  NOTE:
-// Currently does not support any number besides 0 (not nil) and 1 (nil).  All
-// other values will error.
-func decodeNumNilBytes(bz []byte) (numNil int64, n int, err error) {
-	if len(bz) == 0 {
-		err = errors.New("EOF while reading nil byte(s)")
-		return
-	}
-	if bz[0] == 0x00 {
-		numNil, n = 0, 1
-		return
-	}
-	if bz[0] == 0x01 {
-		numNil, n = 1, 1
-		return
-	}
-	n, err = 0, fmt.Errorf("unexpected nil byte, want: either '0x00' or '0x01' got: %X (sparse lists not supported)", bz[0])
 	return
 }
