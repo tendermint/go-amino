@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tendermint/go-amino"
+	amino "github.com/tendermint/go-amino"
 )
 
 func TestMarshalBinary(t *testing.T) {
@@ -91,7 +91,7 @@ func TestUnmarshalBinaryReaderSizeLimit(t *testing.T) {
 
 	var s2 stringWrapper
 	var n int64
-	n, err = cdc.UnmarshalBinaryLengthPrefixedReader(bytes.NewBuffer(b), &s2, int64(len(b)-1))
+	_, err = cdc.UnmarshalBinaryLengthPrefixedReader(bytes.NewBuffer(b), &s2, int64(len(b)-1))
 	assert.NotNil(t, err, "insufficient limit should lead to failure")
 	n, err = cdc.UnmarshalBinaryLengthPrefixedReader(bytes.NewBuffer(b), &s2, int64(len(b)))
 	assert.Nil(t, err, "sufficient limit should not cause failure")

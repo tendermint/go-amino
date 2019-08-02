@@ -441,7 +441,7 @@ func encodeFieldNumberAndTyp3(w io.Writer, num uint32, typ Typ3) (err error) {
 	if (typ & 0xF8) != 0 {
 		panic(fmt.Sprintf("invalid Typ3 byte %v", typ))
 	}
-	if num < 0 || num > (1<<29-1) {
+	if num > (1<<29 - 1) {
 		panic(fmt.Sprintf("invalid field number %v", num))
 	}
 

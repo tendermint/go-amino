@@ -136,8 +136,7 @@ func defaultValue(rt reflect.Type) (rv reflect.Value) {
 		for rt_.Kind() == reflect.Ptr {
 			rt_ = rt_.Elem()
 		}
-		switch rt_ {
-		case timeType:
+		if rt_ == timeType {
 			// Start from the top and construct pointers as needed.
 			rv = reflect.New(rt).Elem()
 			rt_, rv_ := rt, rv
@@ -152,8 +151,7 @@ func defaultValue(rt reflect.Type) (rv reflect.Value) {
 			return rv
 		}
 	case reflect.Struct:
-		switch rt {
-		case timeType:
+		if rt == timeType {
 			// Set to 1970, the whole point of this function.
 			rv = reflect.New(rt).Elem()
 			rv.Set(reflect.ValueOf(zeroTime))
