@@ -263,18 +263,18 @@ type Interface2 interface {
 
 type Concrete1 struct{}
 
-func (_ Concrete1) AssertInterface1() {}
-func (_ Concrete1) AssertInterface2() {}
+func (Concrete1) AssertInterface1() {}
+func (Concrete1) AssertInterface2() {}
 
 type Concrete2 struct{}
 
-func (_ Concrete2) AssertInterface1() {}
-func (_ Concrete2) AssertInterface2() {}
+func (Concrete2) AssertInterface1() {}
+func (Concrete2) AssertInterface2() {}
 
 // Special case: this concrete implementation (of Interface1) is a type alias.
 type ConcreteTypeDef [4]byte
 
-func (_ ConcreteTypeDef) AssertInterface1() {}
+func (ConcreteTypeDef) AssertInterface1() {}
 
 // Ideally, user's of amino should refrain from using the above
 // but wrap actual values in structs; e.g. like:
@@ -282,7 +282,7 @@ type ConcreteWrappedBytes struct {
 	Value []byte
 }
 
-func (_ ConcreteWrappedBytes) AssertInterface1() {}
+func (ConcreteWrappedBytes) AssertInterface1() {}
 
 // Yet another special case: Field could be a type alias (should not be wrapped).
 type InterfaceFieldsStruct struct {
@@ -290,4 +290,4 @@ type InterfaceFieldsStruct struct {
 	F2 Interface1
 }
 
-func (_ *InterfaceFieldsStruct) AssertInterface1() {}
+func (*InterfaceFieldsStruct) AssertInterface1() {}

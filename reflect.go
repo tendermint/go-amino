@@ -106,23 +106,22 @@ func isDefaultValue(rv reflect.Value) (erv reflect.Value, isDefaultValue bool) {
 	rv, _, isNilPtr := derefPointers(rv)
 	if isNilPtr {
 		return rv, true
-	} else {
-		switch rv.Kind() {
-		case reflect.Bool:
-			return rv, rv.Bool() == false
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			return rv, rv.Int() == 0
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			return rv, rv.Uint() == 0
-		case reflect.String:
-			return rv, rv.Len() == 0
-		case reflect.Chan, reflect.Map, reflect.Slice:
-			return rv, rv.IsNil() || rv.Len() == 0
-		case reflect.Func, reflect.Interface:
-			return rv, rv.IsNil()
-		default:
-			return rv, false
-		}
+	}
+	switch rv.Kind() {
+	case reflect.Bool:
+		return rv, rv.Bool() == false
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return rv, rv.Int() == 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return rv, rv.Uint() == 0
+	case reflect.String:
+		return rv, rv.Len() == 0
+	case reflect.Chan, reflect.Map, reflect.Slice:
+		return rv, rv.IsNil() || rv.Len() == 0
+	case reflect.Func, reflect.Interface:
+		return rv, rv.IsNil()
+	default:
+		return rv, false
 	}
 }
 
@@ -132,22 +131,22 @@ func defaultValue(rt reflect.Type) (rv reflect.Value) {
 	switch rt.Kind() {
 	case reflect.Ptr:
 		// Dereference all the way and see if it's a time type.
-		rt_ := rt.Elem()
-		for rt_.Kind() == reflect.Ptr {
-			rt_ = rt_.Elem()
+		refType := rt.Elem()
+		for refType.Kind() == reflect.Ptr {
+			refType = refType.Elem()
 		}
-		if rt_ == timeType {
+		if refType == timeType {
 			// Start from the top and construct pointers as needed.
 			rv = reflect.New(rt).Elem()
-			rt_, rv_ := rt, rv
-			for rt_.Kind() == reflect.Ptr {
-				newPtr := reflect.New(rt_.Elem())
-				rv_.Set(newPtr)
-				rt_ = rt_.Elem()
-				rv_ = rv_.Elem()
+			refType, refValue := rt, rv
+			for refType.Kind() == reflect.Ptr {
+				newPtr := reflect.New(refType.Elem())
+				refValue.Set(newPtr)
+				refType = refType.Elem()
+				refValue = refValue.Elem()
 			}
 			// Set to 1970, the whole point of this function.
-			rv_.Set(reflect.ValueOf(zeroTime))
+			refValue.Set(reflect.ValueOf(zeroTime))
 			return rv
 		}
 	case reflect.Struct:
@@ -193,30 +192,29 @@ func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
 func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
 	switch rt.Kind() {
 	case reflect.Interface:
-		return Typ3_ByteLength
+		return Typ3ByteLength
 	case reflect.Array, reflect.Slice:
-		return Typ3_ByteLength
+		return Typ3ByteLength
 	case reflect.String:
-		return Typ3_ByteLength
+		return Typ3ByteLength
 	case reflect.Struct, reflect.Map:
-		return Typ3_ByteLength
+		return Typ3ByteLength
 	case reflect.Int64, reflect.Uint64:
 		if opts.BinFixed64 {
-			return Typ3_8Byte
-		} else {
-			return Typ3_Varint
+			return Typ38Byte
 		}
+		return Typ3Varint
 	case reflect.Int32, reflect.Uint32:
 		if opts.BinFixed32 {
 			return Typ3_4Byte
-		} else {
-			return Typ3_Varint
 		}
+		return Typ3Varint
+
 	case reflect.Int16, reflect.Int8, reflect.Int,
 		reflect.Uint16, reflect.Uint8, reflect.Uint, reflect.Bool:
-		return Typ3_Varint
+		return Typ3Varint
 	case reflect.Float64:
-		return Typ3_8Byte
+		return Typ38Byte
 	case reflect.Float32:
 		return Typ3_4Byte
 	default:

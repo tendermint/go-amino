@@ -5,12 +5,10 @@ linters:
   enable-all: true
   disable:
     - gocyclo
-    - golint
     - gosimple
     - deadcode
     - structcheck
     - maligned
-    - errcheck
     - dupl
     - ineffassign
     - interfacer
