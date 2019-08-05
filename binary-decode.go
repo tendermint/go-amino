@@ -905,7 +905,8 @@ func DecodeDisambPrefixBytes(bz []byte) (db DisambBytes, hasDb bool, pb PrefixBy
 		hasPb = true
 		n = 8
 		return
-	} // Prefix
+	} 
+	// Prefix
 	// General case with no disambiguation
 	copy(pb[0:4], bz[0:4])
 	hasDb = false
