@@ -76,7 +76,9 @@ func main() {
 		UvarintSl: []uint64{0x1045880011AABBCC, 0x99808080FFFFFF77, 0xFF0202FFFFFFFF77, 0xAE21FF0051F23F77},
 		UintSl:    []uint{0x80808080, 0x110202FF, 0xAE21FF00, 0x10458800},
 		StringSl:  []string{"Tendermint", "Fuzzing", "Blue", "410DDC670CF9BFD7"},
-		TimeSl:    []time.Time{(time.Time{}).Add(60 * 24 * time.Minute), (time.Time{}).Add(1000 * hour * 24), time.Time{}.Add(20 * time.Minute)},
+		TimeSl: []time.Time{
+			(time.Time{}).Add(60 * 24 * time.Minute), (time.Time{}).Add(1000 * hour * 24), time.Time{}.Add(20 * time.Minute),
+		},
 	}
 
 	bslice := []byte("VIVA LA VIDA!")

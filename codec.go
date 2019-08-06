@@ -377,7 +377,7 @@ func (cdc *Codec) getTypeInfoWlock(rt reflect.Type) (info *TypeInfo, err error) 
 	info, ok := cdc.typeInfos[rt]
 	if !ok {
 		if rt.Kind() == reflect.Interface {
-			err = fmt.Errorf("Unregistered interface %v", rt)
+			err = fmt.Errorf("unregistered interface %v", rt)
 			cdc.mtx.Unlock()
 			return
 		}
@@ -599,7 +599,8 @@ func (cdc *Codec) newTypeInfoFromInterfaceType(rt reflect.Type, iopts *Interface
 	return info
 }
 
-func (cdc *Codec) newTypeInfoFromRegisteredConcreteType(rt reflect.Type, pointerPreferred bool, name string, copts *ConcreteOptions) *TypeInfo {
+func (cdc *Codec) newTypeInfoFromRegisteredConcreteType(rt reflect.Type, pointerPreferred bool,
+	name string, copts *ConcreteOptions) *TypeInfo {
 	if rt.Kind() == reflect.Interface ||
 		rt.Kind() == reflect.Ptr {
 		panic(fmt.Sprintf("expected non-interface non-pointer concrete type, got %v", rt))
@@ -733,11 +734,8 @@ func isExported(field reflect.StructField) bool {
 	}
 	// TODO: JAE: I'm not sure that the unicode spec
 	// is the correct spec to use, so this might be wrong.
-	if !unicode.IsUpper(first) {
-		return false
-	}
-	// Ok, it's exported.
-	return true
+
+	return unicode.IsUpper(first)
 }
 
 func nameToDisamb(name string) (db DisambBytes) {

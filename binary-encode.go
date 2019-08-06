@@ -22,7 +22,8 @@ import (
 // The following contracts apply to all similar encode methods.
 // CONTRACT: rv is not a pointer
 // CONTRACT: rv is valid.
-func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
+func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value,
+	fopts FieldOptions, bare bool) (err error) {
 	if rv.Kind() == reflect.Ptr {
 		panic("not allowed to be called with a reflect.Ptr")
 	}
@@ -164,7 +165,8 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
+func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value,
+	fopts FieldOptions, bare bool) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryInterface")
 		defer func() {
@@ -240,7 +242,8 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv reflect.Value,
+	fopts FieldOptions) (err error) {
 	ert := info.Type.Elem()
 	if ert.Kind() != reflect.Uint8 {
 		panic("should not happen")
@@ -261,7 +264,8 @@ func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv r
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
+func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflect.Value,
+	fopts FieldOptions, bare bool) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryList")
 		defer func() {
@@ -350,7 +354,8 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 }
 
 // CONTRACT: info.Type.Elem().Kind() == reflect.Uint8
-func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv reflect.Value,
+	fopts FieldOptions) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryByteSlice")
 		defer func() {
@@ -368,7 +373,8 @@ func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv r
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
+func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value,
+	fopts FieldOptions, bare bool) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryBinaryStruct")
 		defer func() {

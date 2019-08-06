@@ -43,7 +43,7 @@ func TestMarshalJSON(t *testing.T) {
 		{&oneExportedField{A: "Z"}, `{"A":"Z"}`, ""},         // #6
 		{[]string{"a", "bc"}, `["a","bc"]`, ""},              // #7
 		{[]interface{}{"a", "bc", 10, 10.93, 1e3},
-			``, "Unregistered"}, // #8
+			``, "unregistered"}, // #8
 		{aPointerField{Foo: new(int), Name: "name"},
 			`{"Foo":"0","nm":"name"}`, ""}, // #9
 		{
@@ -91,7 +91,7 @@ func TestMarshalJSON(t *testing.T) {
 
 		// We don't yet support interface pointer registration i.e. `*interface{}`
 		{
-			interfacePtr("a"), "", "Unregistered interface interface {}",
+			interfacePtr("a"), "", "unregistered interface interface {}",
 		}, // #20
 		{&fp{"Foo", 10}, "<FP-MARSHALJSON>", ""}, // #21
 		{(*fp)(nil), "null", ""},                 // #22
@@ -260,7 +260,7 @@ func TestUnmarshalJSON(t *testing.T) {
 		},
 		{ // #9
 			`[1, "2", ["foo", "bar"]]`,
-			new([]interface{}), nil, "Unregistered",
+			new([]interface{}), nil, "unregistered interface interface {}",
 		},
 		{ // #10
 			`2.34`, floatPtr(2.34), nil, "float* support requires",
