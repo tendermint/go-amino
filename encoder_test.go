@@ -7,7 +7,7 @@ import (
 )
 
 func TestUvarintSize(t *testing.T) {
-	tests := []struct {
+	testCases := []struct {
 		name string
 		u    uint64
 		want int
