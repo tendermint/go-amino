@@ -21,9 +21,9 @@ func TestUvarintSize(t *testing.T) {
 		{"63 bits", 1 << 62, 9},
 		{"64 bits", 1 << 63, 10},
 	}
-	for i, testcase := range tests {
-		t.Run(testcase.name, func(t *testing.T) {
-			require.Equal(t, testcase.want, UvarintSize(testcase.u), "failed on tc %d", i) // nolint:scopelint
+	for i, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, UvarintSize(tc.u), "#%d", i) // nolint:scopelint
 		})
 	}
 }
