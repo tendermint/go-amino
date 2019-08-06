@@ -318,7 +318,7 @@ func TestIntVarintCompat(t *testing.T) {
 
 	// purposely overflow by writing a too large value to first field (which is int32):
 	fieldNum := 1
-	fieldNumAndType := (uint64(fieldNum) << 3) | uint64(amino.Typ3_Varint)
+	fieldNumAndType := (uint64(fieldNum) << 3) | uint64(amino.Typ3Varint)
 	var b bytes.Buffer
 	writer := bufio.NewWriter(&b)
 	var buf [10]byte

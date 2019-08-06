@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+
+	"github.com/pkg/errors"
 )
 
 //----------------------------------------
@@ -166,12 +168,12 @@ func (cdc *Codec) RegisterInterface(ptr interface{}, iopts *InterfaceOptions) {
 		cdc.mtx.Lock()
 		defer cdc.mtx.Unlock()
 
-		cdc.collectImplementers_nolock(info)
-		err := cdc.checkConflictsInPrio_nolock(info)
+		cdc.collectImplementersNolock(info)
+		err := cdc.checkConflictsInPrioNolock(info)
 		if err != nil {
 			panic(err)
 		}
-		cdc.setTypeInfo_nolock(info)
+		cdc.setTypeInfoNolock(info)
 	}()
 	/*
 		NOTE: The above func block is a defensive pattern.
@@ -235,8 +237,8 @@ func (cdc *Codec) RegisterConcrete(o interface{}, name string, copts *ConcreteOp
 		cdc.mtx.Lock()
 		defer cdc.mtx.Unlock()
 
-		cdc.addCheckConflictsWithConcrete_nolock(info)
-		cdc.setTypeInfo_nolock(info)
+		cdc.addCheckConflictsWithConcreteNolock(info)
+		cdc.setTypeInfoNolock(info)
 	}()
 }
 
@@ -266,7 +268,9 @@ func (cdc *Codec) PrintTypes(out io.Writer) error {
 	}
 	// only print concrete types for now (if we want everything, we can iterate over the typeInfos map instead)
 	for _, i := range cdc.concreteInfos {
-		io.WriteString(out, "| ")
+		if _, err := io.WriteString(out, "| "); err != nil {
+			return err
+		}
 		// TODO(ismail): optionally create a link to code on github:
 		if _, err := io.WriteString(out, i.Type.Name()); err != nil {
 			return err
@@ -296,7 +300,9 @@ func (cdc *Codec) PrintTypes(out io.Writer) error {
 		}
 		// empty notes table data by default // TODO(ismail): make this configurable
 
-		io.WriteString(out, " |\n")
+		if _, err := io.WriteString(out, " |\n"); err != nil {
+			return err
+		}
 	}
 	// finish table
 	return nil
@@ -329,7 +335,7 @@ func (cdc *Codec) assertNotSealed() {
 	}
 }
 
-func (cdc *Codec) setTypeInfo_nolock(info *TypeInfo) {
+func (cdc *Codec) setTypeInfoNolock(info *TypeInfo) {
 
 	if info.Type.Kind() == reflect.Ptr {
 		panic(fmt.Sprintf("unexpected pointer type"))
@@ -357,7 +363,7 @@ func (cdc *Codec) setTypeInfo_nolock(info *TypeInfo) {
 	}
 }
 
-func (cdc *Codec) getTypeInfo_wlock(rt reflect.Type) (info *TypeInfo, err error) {
+func (cdc *Codec) getTypeInfoWlock(rt reflect.Type) (info *TypeInfo, err error) {
 	// We do not use defer cdc.mtx.Unlock() here due to performance overhead of
 	// defer in go1.11 (and prior versions). Ensure new code paths unlock the
 	// mutex.
@@ -377,7 +383,7 @@ func (cdc *Codec) getTypeInfo_wlock(rt reflect.Type) (info *TypeInfo, err error)
 		}
 
 		info = cdc.newTypeInfoUnregistered(rt)
-		cdc.setTypeInfo_nolock(info)
+		cdc.setTypeInfoNolock(info)
 	}
 	cdc.mtx.Unlock()
 	return info, nil
@@ -385,7 +391,7 @@ func (cdc *Codec) getTypeInfo_wlock(rt reflect.Type) (info *TypeInfo, err error)
 
 // iinfo: TypeInfo for the interface for which we must decode a
 // concrete type with prefix bytes pb.
-func (cdc *Codec) getTypeInfoFromPrefix_rlock(iinfo *TypeInfo, pb PrefixBytes) (info *TypeInfo, err error) {
+func (cdc *Codec) getTypeInfoFromPrefixRlock(iinfo *TypeInfo, pb PrefixBytes) (info *TypeInfo, err error) {
 	// We do not use defer cdc.mtx.Unlock() here due to performance overhead of
 	// defer in go1.11 (and prior versions). Ensure new code paths unlock the
 	// mutex.
@@ -407,7 +413,7 @@ func (cdc *Codec) getTypeInfoFromPrefix_rlock(iinfo *TypeInfo, pb PrefixBytes) (
 	return
 }
 
-func (cdc *Codec) getTypeInfoFromDisfix_rlock(df DisfixBytes) (info *TypeInfo, err error) {
+func (cdc *Codec) getTypeInfoFromDisfixRlock(df DisfixBytes) (info *TypeInfo, err error) {
 	// We do not use defer cdc.mtx.Unlock() here due to performance overhead of
 	// defer in go1.11 (and prior versions). Ensure new code paths unlock the
 	// mutex.
@@ -423,7 +429,7 @@ func (cdc *Codec) getTypeInfoFromDisfix_rlock(df DisfixBytes) (info *TypeInfo, e
 	return
 }
 
-func (cdc *Codec) getTypeInfoFromName_rlock(name string) (info *TypeInfo, err error) {
+func (cdc *Codec) getTypeInfoFromNameRlock(name string) (info *TypeInfo, err error) {
 	// We do not use defer cdc.mtx.Unlock() here due to performance overhead of
 	// defer in go1.11 (and prior versions). Ensure new code paths unlock the
 	// mutex.
@@ -467,7 +473,7 @@ func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 					etype = etype.Elem()
 				}
 				typ3 := typeToTyp3(etype, fopts)
-				if typ3 == Typ3_ByteLength {
+				if typ3 == Typ3ByteLength {
 					unpackedList = true
 				}
 			}
@@ -614,7 +620,7 @@ func (cdc *Codec) newTypeInfoFromRegisteredConcreteType(rt reflect.Type, pointer
 // Find all conflicting prefixes for concrete types
 // that "implement" the interface.  "Implement" in quotes because
 // we only consider the pointer, for extra safety.
-func (cdc *Codec) collectImplementers_nolock(info *TypeInfo) {
+func (cdc *Codec) collectImplementersNolock(info *TypeInfo) {
 	for _, cinfo := range cdc.concreteInfos {
 		if cinfo.PtrToType.Implements(info.Type) {
 			info.Implementers[cinfo.Prefix] = append(
@@ -626,7 +632,7 @@ func (cdc *Codec) collectImplementers_nolock(info *TypeInfo) {
 // Ensure that prefix-conflicting implementing concrete types
 // are all registered in the priority list.
 // Returns an error if a disamb conflict is found.
-func (cdc *Codec) checkConflictsInPrio_nolock(iinfo *TypeInfo) error {
+func (cdc *Codec) checkConflictsInPrioNolock(iinfo *TypeInfo) error {
 
 	for _, cinfos := range iinfo.Implementers {
 		if len(cinfos) < 2 {
@@ -640,7 +646,7 @@ func (cdc *Codec) checkConflictsInPrio_nolock(iinfo *TypeInfo) error {
 				}
 			}
 			if !inPrio {
-				return fmt.Errorf("%v conflicts with %v other(s). Add it to the priority list for %v.",
+				return errors.Errorf("%v conflicts with %v other(s). Add it to the priority list for %v.",
 					cinfo.Type, len(cinfos), iinfo.Type)
 			}
 		}
@@ -648,7 +654,7 @@ func (cdc *Codec) checkConflictsInPrio_nolock(iinfo *TypeInfo) error {
 	return nil
 }
 
-func (cdc *Codec) addCheckConflictsWithConcrete_nolock(cinfo *TypeInfo) {
+func (cdc *Codec) addCheckConflictsWithConcreteNolock(cinfo *TypeInfo) {
 
 	// Iterate over registered interfaces that this "implements".
 	// "Implement" in quotes because we only consider the pointer, for extra
@@ -664,7 +670,7 @@ func (cdc *Codec) addCheckConflictsWithConcrete_nolock(cinfo *TypeInfo) {
 
 		// Finally, check that all conflicts are in `.Priority`.
 		// NOTE: This could be optimized, but it's non-trivial.
-		err := cdc.checkConflictsInPrio_nolock(iinfo)
+		err := cdc.checkConflictsInPrioNolock(iinfo)
 		if err != nil {
 			// Return to previous state.
 			iinfo.Implementers[cinfo.Prefix] = origImpls
@@ -746,7 +752,9 @@ func nameToPrefix(name string) (pb PrefixBytes) {
 
 func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
 	hasher := sha256.New()
-	hasher.Write([]byte(name))
+	if _, err := hasher.Write([]byte(name)); err != nil {
+		return
+	}
 	bz := hasher.Sum(nil)
 	for bz[0] == 0x00 {
 		bz = bz[1:]

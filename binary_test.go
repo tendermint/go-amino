@@ -307,7 +307,7 @@ func TestUnmarshalFuncBinary(t *testing.T) {
 
 	err = cdc.UnmarshalBinaryBare(binBytes, obj)
 	require.Error(t, err)
-	require.Equal(t, err, amino.NotPointerErr)
+	require.Equal(t, err, amino.ErrNoPointer)
 
 	// ... nor encoding it.
 	assert.Panics(t, func() {

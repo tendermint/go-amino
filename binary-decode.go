@@ -60,7 +60,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	if info.IsAminoUnmarshaler {
 		// First, decode repr instance from bytes.
 		rrv, rinfo := reflect.New(info.AminoUnmarshalReprType).Elem(), (*TypeInfo)(nil)
-		rinfo, err = cdc.getTypeInfo_wlock(info.AminoUnmarshalReprType)
+		rinfo, err = cdc.getTypeInfoWlock(info.AminoUnmarshalReprType)
 		if err != nil {
 			return
 		}
@@ -269,7 +269,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	case reflect.Float64:
 		var f float64
 		if !fopts.Unsafe {
-			err = errors.New("Float support requires `amino:\"unsafe\"`.")
+			err = errors.New("float support requires `amino:\"unsafe\"`")
 			return
 		}
 		f, _n, err = DecodeFloat64(bz)
@@ -282,7 +282,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo, rv reflect.Valu
 	case reflect.Float32:
 		var f float32
 		if !fopts.Unsafe {
-			err = errors.New("Float support requires `amino:\"unsafe\"`.")
+			err = errors.New("float support requires `amino:\"unsafe\"`")
 			return
 		}
 		f, _n, err = DecodeFloat32(bz)
@@ -322,7 +322,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		// JAE: Heed this note, this is very tricky.
 		// I've forgotten the reason a second time,
 		// but I'm pretty sure that reason exists.
-		err = errors.New("Decoding to a non-nil interface is not supported yet")
+		err = errors.New("decoding to a non-nil interface is not supported yet")
 		return
 	}
 
@@ -348,11 +348,11 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	var cinfo *TypeInfo
 	switch {
 	case hasDisamb:
-		cinfo, err = cdc.getTypeInfoFromDisfix_rlock(toDisfix(disamb, prefix))
+		cinfo, err = cdc.getTypeInfoFromDisfixRlock(toDisfix(disamb, prefix))
 	case hasPrefix:
-		cinfo, err = cdc.getTypeInfoFromPrefix_rlock(iinfo, prefix)
+		cinfo, err = cdc.getTypeInfoFromPrefixRlock(iinfo, prefix)
 	default:
-		err = errors.New("Expected disambiguation or prefix bytes.")
+		err = errors.New("expected disambiguation or prefix bytes")
 	}
 	if err != nil {
 		return
@@ -422,7 +422,7 @@ func (cdc *Codec) decodeReflectBinaryByteArray(bz []byte, info *TypeInfo, rv ref
 	}
 	length := info.Type.Len()
 	if len(bz) < length {
-		return 0, fmt.Errorf("Insufficient bytes to decode [%v]byte.", length)
+		return 0, fmt.Errorf("insufficient bytes to decode [%v]byte", length)
 	}
 
 	// Read byte-length prefixed byteslice.
@@ -459,7 +459,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 		panic("should not happen")
 	}
 	length := info.Type.Len()
-	einfo, err := cdc.getTypeInfo_wlock(ert)
+	einfo, err := cdc.getTypeInfoWlock(ert)
 	if err != nil {
 		return
 	}
@@ -480,7 +480,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 	// This is a Proto wart due to Proto backwards compatibility issues.
 	// Amino2 will probably migrate to use the List typ3.
 	typ3 := typeToTyp3(einfo.Type, fopts)
-	if typ3 != Typ3_ByteLength {
+	if typ3 != Typ3ByteLength {
 		// Read elements in packed form.
 		for i := 0; i < length; i++ {
 			var erv, _n = rv.Index(i), int(0)
@@ -517,8 +517,8 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 				err = errors.New(fmt.Sprintf("expected repeated field number %v, got %v", fopts.BinFieldNum, fnum))
 				return
 			}
-			if typ != Typ3_ByteLength {
-				err = errors.New(fmt.Sprintf("expected repeated field type %v, got %v", Typ3_ByteLength, typ))
+			if typ != Typ3ByteLength {
+				err = errors.New(fmt.Sprintf("expected repeated field type %v, got %v", Typ3ByteLength, typ))
 				return
 			}
 			if slide(&bz, &n, _n) && err != nil {
@@ -619,7 +619,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	if ert.Kind() == reflect.Uint8 {
 		panic("should not happen")
 	}
-	einfo, err := cdc.getTypeInfo_wlock(ert)
+	einfo, err := cdc.getTypeInfoWlock(ert)
 	if err != nil {
 		return
 	}
@@ -645,7 +645,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	// This is a Proto wart due to Proto backwards compatibility issues.
 	// Amino2 will probably migrate to use the List typ3.
 	typ3 := typeToTyp3(einfo.Type, fopts)
-	if typ3 != Typ3_ByteLength {
+	if typ3 != Typ3ByteLength {
 		// Read elems in packed form.
 		for {
 			if len(bz) == 0 {
@@ -688,8 +688,8 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 			if fnum > fopts.BinFieldNum {
 				break
 			}
-			if typ != Typ3_ByteLength {
-				err = errors.New(fmt.Sprintf("expected repeated field type %v, got %v", Typ3_ByteLength, typ))
+			if typ != Typ3ByteLength {
+				err = errors.New(fmt.Sprintf("expected repeated field type %v, got %v", Typ3ByteLength, typ))
 				return
 			}
 			if slide(&bz, &n, _n) && err != nil {
@@ -773,7 +773,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 			// Get field rv and info.
 			var frv = rv.Field(field.Index)
 			var finfo *TypeInfo
-			finfo, err = cdc.getTypeInfo_wlock(field.Type)
+			finfo, err = cdc.getTypeInfoWlock(field.Type)
 			if err != nil {
 				return
 			}
@@ -865,11 +865,11 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 func consumeAny(typ3 Typ3, bz []byte) (n int, err error) {
 	var _n int
 	switch typ3 {
-	case Typ3_Varint:
+	case Typ3Varint:
 		_, _n, err = DecodeVarint(bz)
-	case Typ3_8Byte:
+	case Typ38Byte:
 		_, _n, err = DecodeInt64(bz)
-	case Typ3_ByteLength:
+	case Typ3ByteLength:
 		_, _n, err = DecodeByteSlice(bz)
 	case Typ3_4Byte:
 		_, _n, err = DecodeInt32(bz)
@@ -890,13 +890,13 @@ func consumeAny(typ3 Typ3, bz []byte) (n int, err error) {
 func DecodeDisambPrefixBytes(bz []byte) (db DisambBytes, hasDb bool, pb PrefixBytes, hasPb bool, n int, err error) {
 	// Validate
 	if len(bz) < 4 {
-		err = errors.New("EOF while reading prefix bytes.")
+		err = errors.New("while reading prefix bytes, EOF was encountered")
 		return // hasPb = false
 	}
 	if bz[0] == 0x00 { // Disfix
 		// Validate
 		if len(bz) < 8 {
-			err = errors.New("EOF while reading disamb bytes.")
+			err = errors.New("while reading prefix bytes, EOF was encountered")
 			return // hasPb = false
 		}
 		copy(db[0:3], bz[1:4])
@@ -905,14 +905,15 @@ func DecodeDisambPrefixBytes(bz []byte) (db DisambBytes, hasDb bool, pb PrefixBy
 		hasPb = true
 		n = 8
 		return
-	} else { // Prefix
-		// General case with no disambiguation
-		copy(pb[0:4], bz[0:4])
-		hasDb = false
-		hasPb = true
-		n = 4
-		return
 	}
+	// Prefix
+	// General case with no disambiguation
+	copy(pb[0:4], bz[0:4])
+	hasDb = false
+	hasPb = true
+	n = 4
+	return
+
 }
 
 // Read field key.

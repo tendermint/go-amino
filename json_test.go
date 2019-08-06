@@ -221,7 +221,7 @@ func TestUnmarshalJSON(t *testing.T) {
 		wantErr string
 	}{
 		{ // #0
-			`null`, 2, nil, "expects a pointer",
+			`null`, 2, nil, "expected a pointer",
 		},
 		{ // #1
 			`null`, new(int), new(int), "",

@@ -1,4 +1,4 @@
-package fuzz_binary
+package fuzzbinary
 
 import (
 	amino "github.com/tendermint/go-amino"

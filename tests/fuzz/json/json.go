@@ -1,4 +1,4 @@
-package fuzz_json
+package fuzzjson
 
 import (
 	amino "github.com/tendermint/go-amino"
