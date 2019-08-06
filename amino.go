@@ -515,12 +515,12 @@ func (cdc *Codec) MustMarshalJSON(o interface{}) []byte {
 
 func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
 	if len(bz) == 0 {
-		return errors.New("unmarshalJSON cannot decode empty bytes")
+		return errors.New("cannot decode empty bytes")
 	}
 
 	rv := reflect.ValueOf(ptr)
 	if rv.Kind() != reflect.Ptr {
-		return errors.New("unmarshalJSON expects a pointer")
+		return errors.New("expected a pointer")
 	}
 	rv = rv.Elem()
 	rt := rv.Type()
@@ -537,7 +537,7 @@ func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
 		}
 		// Check name against info.
 		if name != info.Name {
-			return errors.Errorf("unmarshalJSON wants to decode %v but found %v", info.Name, name)
+			return errors.Errorf("wanted to decode %v but found %v", info.Name, name)
 		}
 		bz = data
 	}
