@@ -230,35 +230,14 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	// If registered concrete, prepend prefix bytes by wrapping
 	// message in RegisteredAny:
 	if info.Registered {
-		fmt.Println(info.InterfaceInfo.AlwaysDisambiguate)
-		fmt.Println(info.Name)
-		fmt.Println(info.AlwaysDisambiguate)
-		fmt.Println(len(info.Implementers[info.Prefix]) > 1)
-		// if one of the interfaces this concrete type implements
-		// has set the AlwaysDisambiguate flag, we need to disambiguate.
-		isDisamb, _ := shouldDisamb(cdc, info)
-		disfix := make([]byte, 0)
-		if isDisamb {
-			disfix = append([]byte{0x00}, info.Disamb.Bytes()...)
-		}
-		disfix = append(disfix, info.Prefix.Bytes()...)
-		return MarshalBinaryBare(RegisteredAny{
-			AminoPreOrDisfix: disfix,
+		rAny := RegisteredAny{
+			AminoPreOrDisfix: info.Prefix.Bytes(),
 			Value:            bz,
-		})
+		}
+		return MarshalBinaryBare(rAny)
 	}
 
 	return bz, nil
-}
-
-func shouldDisamb(cdc *Codec, info *TypeInfo) (bool, *TypeInfo) {
-	for _, iinfo := range cdc.interfaceInfos {
-		if info.PtrToType.Implements(iinfo.Type) && iinfo.AlwaysDisambiguate {
-			fmt.Println("DISAMB", iinfo.Name)
-			return true, iinfo
-		}
-	}
-	return false, nil
 }
 
 // TODO: extensively document this!

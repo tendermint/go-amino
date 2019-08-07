@@ -192,7 +192,7 @@ func TestCodecMarhsalBinaryBareRegisteredAndDisamb(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.NoError(t, err, "correctly registered")
-	assert.Equal(t, []byte{0xa, 0x6, 0xa, 0x4, 0xe3, 0xda, 0xb8, 0x33}, bz,
+	assert.Equal(t, []byte{0xa, 0xa, 0xa, 0x8, 0x0, 0x12, 0xb5, 0x86, 0xe3, 0xda, 0xb8, 0x33}, bz,
 		"prefix bytes did not match")
 }
 

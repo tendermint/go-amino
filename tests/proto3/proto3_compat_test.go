@@ -428,7 +428,7 @@ func TestRegisteredTypesCompatibilitySimple(t *testing.T) {
 	assert.Equal(t, pbz, bzUnreg)
 }
 
-func TestDisamExample(t *testing.T) {
+func TestDisambExample(t *testing.T) {
 	const name = "interfaceFields"
 	cdc := amino.NewCodec()
 	cdc.RegisterInterface((*tests.Interface1)(nil), &amino.InterfaceOptions{
@@ -438,7 +438,13 @@ func TestDisamExample(t *testing.T) {
 
 	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
 	bz, err := cdc.MarshalBinaryBare(i1)
+	type fieldStructUnreg struct {
+		F1 tests.Interface1
+	}
 
+	concrete1 := &fieldStructUnreg{F1: new(tests.InterfaceFieldsStruct)}
+	bc, err := cdc.MarshalBinaryBare(concrete1)
+	require.NoError(t, err)
 	t.Logf("%#v", bz)
 
 	pAny := &p3.AminoRegisteredAny{}
@@ -447,13 +453,36 @@ func TestDisamExample(t *testing.T) {
 
 	disamb, prefix := amino.NameToDisfix(name)
 	t.Logf("%#v", disamb[:])
-	disfix := bytes.Join([][]byte{disamb[:], prefix[:]}, []byte(""))
-	assert.Equal(t, disfix, pAny.AminoPreOrDisfix)
+	//
+	//t.Logf("%v",disfix[:])
+	// TODO: apparently the disamb bytes are only used for the fields
+	//  and not for the outer interface. Not sure why this makes sense.
+	// assert.Equal(t, disfix, pAny.AminoPreOrDisfix)
+	assert.Equal(t, prefix.Bytes(), pAny.AminoPreOrDisfix)
+	assert.Equal(t, bc, pAny.Value)
+
+	embeddedAny := &p3.EmbeddedRegisteredAny{}
+	err = proto.Unmarshal(pAny.Value, embeddedAny)
+	t.Logf("embeddedAny = %#v", embeddedAny)
+
+	require.NoError(t, err)
+	pAnyInner := &p3.AminoRegisteredAny{}
+
+	t.Logf("pAny.Value = %#v", pAny.Value)
+	err = proto.Unmarshal(pAny.Value, pAnyInner)
+	require.NoError(t, err)
+
+	//disfix := bytes.Join([][]byte{disamb[:], prefix[:]}, []byte(""))
+	//assert.Equal(t, disfix, pAnyInner.AminoPreOrDisfix)
+	t.Logf("aminoInner %#v", pAnyInner.AminoPreOrDisfix)
+
+	aminoAnyInner := &amino.RegisteredAny{}
+	err = cdc.UnmarshalBinaryBare(pAny.Value, aminoAnyInner)
+	require.NoError(t, err)
+	//assert.Equal(t, disfix, aminoAnyInner.AminoPreOrDisfix)
 
 	i2 := new(tests.InterfaceFieldsStruct)
 	err = cdc.UnmarshalBinaryBare(bz, i2)
-
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	require.Equal(t, i1, i2, "i1 and i2 should be the same after decoding")
-
 }
