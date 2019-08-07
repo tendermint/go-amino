@@ -1,7 +1,7 @@
-package fuzz_binary
+package fuzzbinary
 
 import (
-	"github.com/tendermint/go-amino"
+	amino "github.com/tendermint/go-amino"
 	"github.com/tendermint/go-amino/tests"
 )
 

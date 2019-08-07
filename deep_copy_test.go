@@ -124,10 +124,6 @@ func TestDeepCopyInterface1(t *testing.T) {
 	assert.Nil(t, dci2.Foo)
 }
 
-type DCInterface2 struct {
-	Foo interface{}
-}
-
 func TestDeepCopyInterface2(t *testing.T) {
 	dci1 := DCInterface1{Foo: "foo"}
 	dci2 := amino.DeepCopy(dci1).(DCInterface1)

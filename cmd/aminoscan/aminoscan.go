@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/tendermint/go-amino"
+	amino "github.com/tendermint/go-amino"
 )
 
 func main() {
@@ -68,11 +68,11 @@ func main() {
 
 func scanAny(typ amino.Typ3, bz []byte, indent string) (s string, n int, err error) {
 	switch typ {
-	case amino.Typ3_Varint:
+	case amino.Typ3Varint:
 		s, n, err = scanVarint(bz, indent)
-	case amino.Typ3_8Byte:
+	case amino.Typ38Byte:
 		s, n, err = scan8Byte(bz, indent)
-	case amino.Typ3_ByteLength:
+	case amino.Typ3ByteLength:
 		s, n, err = scanByteLength(bz, indent)
 	case amino.Typ3_4Byte:
 		s, n, err = scan4Byte(bz, indent)
@@ -120,7 +120,7 @@ func scanVarint(bz []byte, indent string) (s string, n int, err error) {
 
 func scan8Byte(bz []byte, indent string) (s string, n int, err error) {
 	if len(bz) < 8 {
-		err = errors.New("EOF while reading 8byte field.")
+		err = errors.New("while reading 8byte field, EOF was encountered")
 		return
 	}
 	n = 8
@@ -140,7 +140,7 @@ func scanByteLength(bz []byte, indent string) (s string, n int, err error) {
 	}
 	length = int(l64)
 	if length >= len(bz) {
-		err = errors.New("EOF while reading byte-length delimited.")
+		err = errors.New("while reading 8byte field, EOF was encountered")
 		return
 	}
 	s = Cyan(fmt.Sprintf("%X", bz[:_n]))
@@ -167,7 +167,6 @@ func scanStruct(bz []byte, indent string, isRoot bool) (s string, n int, err err
 			return
 		}
 	}
-	return
 }
 
 func scanFieldKey(bz []byte, indent string) (s string, typ amino.Typ3, n int, err error) {
@@ -187,7 +186,7 @@ func scanFieldKey(bz []byte, indent string) (s string, typ amino.Typ3, n int, er
 
 func scan4Byte(bz []byte, indent string) (s string, n int, err error) {
 	if len(bz) < 4 {
-		err = errors.New("EOF while reading 4byte field.")
+		err = errors.New("while reading 8byte field, EOF was encountered")
 		return
 	}
 	n = 4

@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/tendermint/go-amino"
+
+	amino "github.com/tendermint/go-amino"
 	"github.com/tendermint/go-amino/tests"
 )
 

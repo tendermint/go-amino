@@ -348,7 +348,7 @@ func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
 
 	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
 	bz, err := cdc.MarshalBinaryBare(i1)
-
+	assert.NoError(t, err)
 	i2 := new(tests.InterfaceFieldsStruct)
 	err = cdc.UnmarshalBinaryBare(bz, i2)
 
@@ -364,162 +364,162 @@ func spw(o interface{}) string {
 }
 
 var fuzzFuncs = []interface{}{
-	func(i **int8, c fuzz.Continue) {
+	func(ptr **int8, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var i_ int8
-		c.Fuzz(&i_)
-		if i_ == 0 {
-			*i = nil
+		var i int8
+		c.Fuzz(&i)
+		if i == 0 {
+			*ptr = nil
 		} else {
-			*i = &i_
+			*ptr = &i
 		}
 	},
-	func(i **int16, c fuzz.Continue) {
+	func(ptr **int16, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var i_ int16
-		c.Fuzz(&i_)
-		if i_ == 0 {
-			*i = nil
+		var i int16
+		c.Fuzz(&i)
+		if i == 0 {
+			*ptr = nil
 		} else {
-			*i = &i_
+			*ptr = &i
 		}
 	},
-	func(i **int32, c fuzz.Continue) {
+	func(ptr **int32, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var i_ int32
-		c.Fuzz(&i_)
-		if i_ == 0 {
-			*i = nil
+		var i int32
+		c.Fuzz(&i)
+		if i == 0 {
+			*ptr = nil
 		} else {
-			*i = &i_
+			*ptr = &i
 		}
 	},
-	func(i **int64, c fuzz.Continue) {
+	func(ptr **int64, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var i_ int64
-		c.Fuzz(&i_)
-		if i_ == 0 {
-			*i = nil
+		var i int64
+		c.Fuzz(&i)
+		if i == 0 {
+			*ptr = nil
 		} else {
-			*i = &i_
+			*ptr = &i
 		}
 	},
-	func(i **int, c fuzz.Continue) {
+	func(ptr **int, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var i_ int
-		c.Fuzz(&i_)
-		if i_ == 0 {
-			*i = nil
+		var i int
+		c.Fuzz(&i)
+		if i == 0 {
+			*ptr = nil
 		} else {
-			*i = &i_
+			*ptr = &i
 		}
 	},
-	func(ui **uint8, c fuzz.Continue) {
+	func(ptr **uint8, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var ui_ uint8
-		c.Fuzz(&ui_)
-		if ui_ == 0 {
-			*ui = nil
+		var ui uint8
+		c.Fuzz(&ui)
+		if ui == 0 {
+			*ptr = nil
 		} else {
-			*ui = &ui_
+			*ptr = &ui
 		}
 	},
 	func(ptr ***uint8, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var ui_ uint8
-		c.Fuzz(&ui_)
-		if ui_ == 0 {
+		var ui uint8
+		c.Fuzz(&ui)
+		if ui == 0 {
 			*ptr = nil
 		} else {
 			*ptr = new(*uint8)
 			**ptr = new(uint8)
-			***ptr = ui_
+			***ptr = ui
 		}
 	},
 	func(ptr ****uint8, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var ui_ uint8
-		c.Fuzz(&ui_)
-		if ui_ == 0 {
+		var ui uint8
+		c.Fuzz(&ui)
+		if ui == 0 {
 			*ptr = nil
 		} else {
 			*ptr = new(**uint8)
 			**ptr = new(*uint8)
 			***ptr = new(uint8)
-			****ptr = ui_
+			****ptr = ui
 		}
 	},
-	func(ui **uint16, c fuzz.Continue) {
+	func(ptr **uint16, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var ui_ uint16
-		c.Fuzz(&ui_)
-		if ui_ == 0 {
-			*ui = nil
+		var ui uint16
+		c.Fuzz(&ui)
+		if ui == 0 {
+			*ptr = nil
 		} else {
-			*ui = &ui_
+			*ptr = &ui
 		}
 	},
-	func(ui **uint32, c fuzz.Continue) {
+	func(ptr **uint32, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var ui_ uint32
-		c.Fuzz(&ui_)
-		if ui_ == 0 {
-			*ui = nil
+		var ui uint32
+		c.Fuzz(&ui)
+		if ui == 0 {
+			*ptr = nil
 		} else {
-			*ui = &ui_
+			*ptr = &ui
 		}
 	},
-	func(ui **uint64, c fuzz.Continue) {
+	func(ptr **uint64, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var ui_ uint64
-		c.Fuzz(&ui_)
-		if ui_ == 0 {
-			*ui = nil
+		var ui uint64
+		c.Fuzz(&ui)
+		if ui == 0 {
+			*ptr = nil
 		} else {
-			*ui = &ui_
+			*ptr = &ui
 		}
 	},
-	func(ui **uint, c fuzz.Continue) {
+	func(ptr **uint, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var ui_ uint
-		c.Fuzz(&ui_)
-		if ui_ == 0 {
-			*ui = nil
+		var ui uint
+		c.Fuzz(&ui)
+		if ui == 0 {
+			*ptr = nil
 		} else {
-			*ui = &ui_
+			*ptr = &ui
 		}
 	},
-	func(s **string, c fuzz.Continue) {
+	func(ptr **string, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		s_ := randString(c)
-		if len(s_) == 0 {
-			*s = nil
+		s := randString(c)
+		if len(s) == 0 {
+			*ptr = nil
 		} else {
-			*s = &s_
+			*ptr = &s
 		}
 	},
 	func(bz **[]byte, c fuzz.Continue) {
 		// Prefer nil instead of zero, for deep equality.
 		// (go-amino decoder will always prefer nil).
-		var bz_ []byte
-		c.Fuzz(&bz_)
-		if len(bz_) == 0 {
+		var by []byte
+		c.Fuzz(&by)
+		if len(by) == 0 {
 			*bz = nil
 		} else {
-			*bz = &bz_
+			*bz = &by
 		}
 	},
 	func(tyme *time.Time, c fuzz.Continue) {

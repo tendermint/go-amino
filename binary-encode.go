@@ -45,7 +45,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		if err != nil {
 			return
 		}
-		rinfo, err = cdc.getTypeInfo_wlock(info.AminoMarshalReprType)
+		rinfo, err = cdc.getTypeInfoWlock(info.AminoMarshalReprType)
 		if err != nil {
 			return
 		}
@@ -139,14 +139,14 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 
 	case reflect.Float64:
 		if !fopts.Unsafe {
-			err = errors.New("Amino float* support requires `amino:\"unsafe\"`.")
+			err = errors.New("amino float* support requires `amino:\"unsafe\"`")
 			return
 		}
 		err = EncodeFloat64(w, rv.Float())
 
 	case reflect.Float32:
 		if !fopts.Unsafe {
-			err = errors.New("Amino float* support requires `amino:\"unsafe\"`.")
+			err = errors.New("amino float* support requires `amino:\"unsafe\"`")
 			return
 		}
 		err = EncodeFloat32(w, float32(rv.Float()))
@@ -192,7 +192,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 
 	// Get *TypeInfo for concrete type.
 	var cinfo *TypeInfo
-	cinfo, err = cdc.getTypeInfo_wlock(crt)
+	cinfo, err = cdc.getTypeInfoWlock(crt)
 	if err != nil {
 		return
 	}
@@ -272,7 +272,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 	if ert.Kind() == reflect.Uint8 {
 		panic("should not happen")
 	}
-	einfo, err := cdc.getTypeInfo_wlock(ert)
+	einfo, err := cdc.getTypeInfoWlock(ert)
 	if err != nil {
 		return
 	}
@@ -285,7 +285,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 	// This is a Proto wart due to Proto backwards compatibility issues.
 	// Amino2 will probably migrate to use the List typ3.  Please?  :)
 	typ3 := typeToTyp3(einfo.Type, fopts)
-	if typ3 != Typ3_ByteLength {
+	if typ3 != Typ3ByteLength {
 		// Write elems in packed form.
 		for i := 0; i < rv.Len(); i++ {
 			// Get dereferenced element value (or zero).
@@ -296,14 +296,14 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 				return
 			}
 		}
-	} else { // typ3 == Typ3_ByteLength
+	} else { // typ3 == Typ3ByteLength
 		// NOTE: ert is for the element value, while einfo.Type is dereferenced.
 		isErtStructPointer := ert.Kind() == reflect.Ptr && einfo.Type.Kind() == reflect.Struct
 
 		// Write elems in unpacked form.
 		for i := 0; i < rv.Len(); i++ {
 			// Write elements as repeated fields of the parent struct.
-			err = encodeFieldNumberAndTyp3(buf, fopts.BinFieldNum, Typ3_ByteLength)
+			err = encodeFieldNumberAndTyp3(buf, fopts.BinFieldNum, Typ3ByteLength)
 			if err != nil {
 				return
 			}
@@ -393,7 +393,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 		for _, field := range info.Fields {
 			// Get type info for field.
 			var finfo *TypeInfo
-			finfo, err = cdc.getTypeInfo_wlock(field.Type)
+			finfo, err = cdc.getTypeInfoWlock(field.Type)
 			if err != nil {
 				return
 			}
@@ -441,7 +441,7 @@ func encodeFieldNumberAndTyp3(w io.Writer, num uint32, typ Typ3) (err error) {
 	if (typ & 0xF8) != 0 {
 		panic(fmt.Sprintf("invalid Typ3 byte %v", typ))
 	}
-	if num < 0 || num > (1<<29-1) {
+	if num > (1<<29 - 1) {
 		panic(fmt.Sprintf("invalid field number %v", num))
 	}
 
