@@ -128,7 +128,8 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	}
 }
 
-func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value,
+	fopts FieldOptions) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectJSONInterface")
 		defer func() {

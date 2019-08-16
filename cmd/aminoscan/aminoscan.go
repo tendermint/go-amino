@@ -102,7 +102,7 @@ func scanVarint(bz []byte, indent string) (s string, n int, err error) {
 	}
 	// If neither work, return error.
 	if !okI64 && !okU64 {
-		err = fmt.Errorf("Invalid (u)varint")
+		err = fmt.Errorf("invalid (u)varint")
 		return
 	}
 	// s is the same either way.

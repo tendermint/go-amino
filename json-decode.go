@@ -116,7 +116,10 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		fallthrough
 	case reflect.Uint64, reflect.Uint:
 		if bz[0] != '"' || bz[len(bz)-1] != '"' {
-			err = errors.Errorf("invalid character -- Amino:JSON int/int64/uint/uint64 expects quoted values for javascript numeric support, got: %v", string(bz))
+			err = errors.Errorf(
+				"invalid character -- Amino:JSON int/int64/uint/uint64 expects quoted values for javascript numeric support, got: %v", // nolint: lll
+				string(bz),
+			)
 			if err != nil {
 				return
 			}
@@ -166,7 +169,8 @@ func invokeStdlibJSONUnmarshal(bz []byte, rv reflect.Value, fopts FieldOptions) 
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value,
+	fopts FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}

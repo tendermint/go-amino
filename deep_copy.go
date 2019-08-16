@@ -142,7 +142,6 @@ func _deepCopy(src, dst reflect.Value) {
 		panic(fmt.Sprintf("unsupported type %v", src.Kind()))
 	}
 
-	return
 }
 
 //----------------------------------------
