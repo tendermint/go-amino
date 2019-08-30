@@ -108,6 +108,24 @@ func TestFixedU64Roundtrip(t *testing.T) {
 	assert.EqualValues(t, p3ToAm.Int64, amToP3.Int64)
 }
 
+func TestMultidimensionalSlices(t *testing.T) {
+	arr := [][]int8{
+		[]int8{1, 2},
+		[]int8{3, 4}}
+
+	_, err := cdc.MarshalBinaryBare(arr)
+	assert.Error(t, err, "expected error: multidimensional slices are not allowed")
+}
+
+func TestMultidimensionalArrayss(t *testing.T) {
+	arr := [2][2]int8{
+		[2]int8{1, 2},
+		[2]int8{3, 4}}
+
+	_, err := cdc.MarshalBinaryBare(arr)
+	assert.Error(t, err, "expected error: multidimensional arrays are not allowed")
+}
+
 func TestProto3CompatPtrsRoundtrip(t *testing.T) {
 	s := p3.SomeStruct{}
 

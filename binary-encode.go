@@ -66,6 +66,9 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	case reflect.Array:
 		if info.Type.Elem().Kind() == reflect.Uint8 {
 			err = cdc.encodeReflectBinaryByteArray(w, info, rv, fopts)
+		} else if info.Type.Elem().Kind() == reflect.Slice || info.Type.Elem().Kind() == reflect.Array {
+			// for proto3 compatibility, we do not allow multidimensional arrays
+			err = errors.New("multidimensional arrays not allowed")
 		} else {
 			err = cdc.encodeReflectBinaryList(w, info, rv, fopts, bare)
 		}
@@ -73,6 +76,9 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	case reflect.Slice:
 		if info.Type.Elem().Kind() == reflect.Uint8 {
 			err = cdc.encodeReflectBinaryByteSlice(w, info, rv, fopts)
+		} else if info.Type.Elem().Kind() == reflect.Slice || info.Type.Elem().Kind() == reflect.Array {
+			// for proto3 compatibility, we do not allow multidimensional slices
+			err = errors.New("multidimensional slices not allowed")
 		} else {
 			err = cdc.encodeReflectBinaryList(w, info, rv, fopts, bare)
 		}
