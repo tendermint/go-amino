@@ -109,21 +109,37 @@ func TestFixedU64Roundtrip(t *testing.T) {
 }
 
 func TestMultidimensionalSlices(t *testing.T) {
-	arr := [][]int8{
+	s := [][]int8{
 		[]int8{1, 2},
-		[]int8{3, 4}}
+		[]int8{3, 4, 5}}
 
-	_, err := cdc.MarshalBinaryBare(arr)
+	_, err := cdc.MarshalBinaryBare(s)
 	assert.Error(t, err, "expected error: multidimensional slices are not allowed")
 }
 
-func TestMultidimensionalArrayss(t *testing.T) {
+func TestMultidimensionalArrays(t *testing.T) {
 	arr := [2][2]int8{
 		[2]int8{1, 2},
 		[2]int8{3, 4}}
 
 	_, err := cdc.MarshalBinaryBare(arr)
 	assert.Error(t, err, "expected error: multidimensional arrays are not allowed")
+}
+
+func TestMultidimensionalByteArraysAndSlices(t *testing.T) {
+	arr := [2][2]byte{
+		[2]byte{1, 2},
+		[2]byte{3, 4}}
+
+	_, err := cdc.MarshalBinaryBare(arr)
+	assert.NoError(t, err, "unexpected error: multidimensional arrays are allowed, as long as they are only of bytes")
+
+	s := [][]byte{
+		[]byte{1, 2},
+		[]byte{3, 4, 5}}
+
+	_, err = cdc.MarshalBinaryBare(s)
+	assert.NoError(t, err, "unexpected error: multidimensional slices are allowed, as long as they are only of bytes")
 }
 
 func TestProto3CompatPtrsRoundtrip(t *testing.T) {
