@@ -70,7 +70,18 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 			// for proto3 compatibility, we do not allow multidimensional arrays,
 			// unless the elements involved are bytes (e.g. [][]byte)
 			if info.Type.Elem().Elem().Kind() != reflect.Uint8 { // byte is an alias for uint8
-				err = errors.New("multidimensional arrays not allowed")
+				elem := info.Type.Elem()
+				for {
+					if elem.Kind() == reflect.Slice || elem.Kind() == reflect.Array {
+						elem = elem.Elem()
+						continue
+					}
+					if elem.Kind() == reflect.Uint8 { // byte is an alias for uint8
+						break
+					}
+					err = errors.New("multidimensional arrays not allowed")
+					break
+				}
 			}
 		} else {
 			err = cdc.encodeReflectBinaryList(w, info, rv, fopts, bare)
@@ -82,8 +93,17 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		} else if info.Type.Elem().Kind() == reflect.Slice || info.Type.Elem().Kind() == reflect.Array {
 			// for proto3 compatibility, we do not allow multidimensional slices,
 			// unless the elements involved are bytes (e.g. [][]byte)
-			if info.Type.Elem().Elem().Kind() != reflect.Uint8 { // byte is an alias for uint8
+			elem := info.Type.Elem()
+			for {
+				if elem.Kind() == reflect.Slice || elem.Kind() == reflect.Array {
+					elem = elem.Elem()
+					continue
+				}
+				if elem.Kind() == reflect.Uint8 { // byte is an alias for uint8
+					break
+				}
 				err = errors.New("multidimensional slices not allowed")
+				break
 			}
 		} else {
 			err = cdc.encodeReflectBinaryList(w, info, rv, fopts, bare)

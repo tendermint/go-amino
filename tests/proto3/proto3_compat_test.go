@@ -140,6 +140,15 @@ func TestMultidimensionalByteArraysAndSlices(t *testing.T) {
 
 	_, err = cdc.MarshalBinaryBare(s)
 	assert.NoError(t, err, "unexpected error: multidimensional slices are allowed, as long as they are only of bytes")
+
+	s2 := [][][]byte{
+		[][]byte{
+			[]byte{1, 2},
+			[]byte{3, 4, 5}}}
+
+	_, err = cdc.MarshalBinaryBare(s2)
+	assert.NoError(t, err, "unexpected error: multidimensional slices are allowed, as long as they are only of bytes")
+
 }
 
 func TestProto3CompatPtrsRoundtrip(t *testing.T) {
