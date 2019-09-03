@@ -22,7 +22,8 @@ import (
 // The following contracts apply to all similar encode methods.
 // CONTRACT: rv is not a pointer
 // CONTRACT: rv is valid.
-func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
+func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value,
+	fopts FieldOptions, bare bool) (err error) {
 	if rv.Kind() == reflect.Ptr {
 		panic("not allowed to be called with a reflect.Ptr")
 	}
@@ -65,6 +66,23 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	case reflect.Array:
 		if info.Type.Elem().Kind() == reflect.Uint8 {
 			err = cdc.encodeReflectBinaryByteArray(w, info, rv, fopts)
+		} else if kind := info.Type.Elem().Kind(); kind == reflect.Slice || kind == reflect.Array {
+			// for proto3 compatibility, we do not allow multidimensional arrays,
+			// unless the elements involved are bytes (e.g. [][]byte)
+			if info.Type.Elem().Elem().Kind() != reflect.Uint8 { // byte is an alias for uint8
+				elem := info.Type.Elem()
+				for {
+					if elem.Kind() == reflect.Slice || elem.Kind() == reflect.Array {
+						elem = elem.Elem()
+						continue
+					}
+					if elem.Kind() == reflect.Uint8 { // byte is an alias for uint8
+						break
+					}
+					err = errors.New("multidimensional arrays not allowed")
+					break
+				}
+			}
 		} else {
 			err = cdc.encodeReflectBinaryList(w, info, rv, fopts, bare)
 		}
@@ -72,6 +90,21 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	case reflect.Slice:
 		if info.Type.Elem().Kind() == reflect.Uint8 {
 			err = cdc.encodeReflectBinaryByteSlice(w, info, rv, fopts)
+		} else if info.Type.Elem().Kind() == reflect.Slice || info.Type.Elem().Kind() == reflect.Array {
+			// for proto3 compatibility, we do not allow multidimensional slices,
+			// unless the elements involved are bytes (e.g. [][]byte)
+			elem := info.Type.Elem()
+			for {
+				if elem.Kind() == reflect.Slice || elem.Kind() == reflect.Array {
+					elem = elem.Elem()
+					continue
+				}
+				if elem.Kind() == reflect.Uint8 { // byte is an alias for uint8
+					break
+				}
+				err = errors.New("multidimensional slices not allowed")
+				break
+			}
 		} else {
 			err = cdc.encodeReflectBinaryList(w, info, rv, fopts, bare)
 		}
@@ -164,7 +197,8 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
+func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value,
+	fopts FieldOptions, bare bool) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryInterface")
 		defer func() {
@@ -240,7 +274,8 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv reflect.Value,
+	fopts FieldOptions) (err error) {
 	ert := info.Type.Elem()
 	if ert.Kind() != reflect.Uint8 {
 		panic("should not happen")
@@ -261,7 +296,8 @@ func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv r
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
+func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflect.Value,
+	fopts FieldOptions, bare bool) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryList")
 		defer func() {
@@ -350,7 +386,8 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 }
 
 // CONTRACT: info.Type.Elem().Kind() == reflect.Uint8
-func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv reflect.Value,
+	fopts FieldOptions) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryByteSlice")
 		defer func() {
@@ -368,7 +405,8 @@ func (cdc *Codec) encodeReflectBinaryByteSlice(w io.Writer, info *TypeInfo, rv r
 	return
 }
 
-func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (err error) {
+func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv reflect.Value,
+	fopts FieldOptions, bare bool) (err error) {
 	if printLog {
 		fmt.Println("(e) encodeReflectBinaryBinaryStruct")
 		defer func() {

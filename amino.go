@@ -311,7 +311,8 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) erro
 // Like UnmarshalBinaryBare, but will first read the byte-length prefix.
 // UnmarshalBinaryLengthPrefixedReader will panic if ptr is a nil-pointer.
 // If maxSize is 0, there is no limit (not recommended).
-func (cdc *Codec) UnmarshalBinaryLengthPrefixedReader(r io.Reader, ptr interface{}, maxSize int64) (n int64, err error) {
+func (cdc *Codec) UnmarshalBinaryLengthPrefixedReader(r io.Reader, ptr interface{},
+	maxSize int64) (n int64, err error) {
 	if maxSize < 0 {
 		panic("maxSize cannot be negative.")
 	}
@@ -329,7 +330,10 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixedReader(r io.Reader, ptr interface
 			break
 		}
 		if n >= maxSize {
-			err = errors.Errorf("read overflow, maxSize is %v but uvarint(length-prefix) is itself greater than maxSize", maxSize)
+			err = errors.Errorf(
+				"read overflow, maxSize is %v but uvarint(length-prefix) is itself greater than maxSize",
+				maxSize,
+			)
 		}
 	}
 	u64, _ := binary.Uvarint(buf[:])
@@ -342,17 +346,22 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixedReader(r io.Reader, ptr interface
 			return
 		}
 		if (maxSize - n) < int64(u64) {
-			err = errors.Errorf("read overflow, maxSize is %v but this length-prefixed amino binary object is %v+%v bytes", maxSize, n, u64)
+			err = errors.Errorf(
+				"read overflow, maxSize is %v but this length-prefixed amino binary object is %v+%v bytes",
+				maxSize, n, u64,
+			)
 			return
 		}
 	}
 	l = int64(u64)
 	if l < 0 {
-		_ = errors.Errorf("read overflow, this implementation can't read this because, why would anyone have this much data? Hello from 2018")
+		_ = errors.Errorf(
+			"read overflow, this implementation can't read this because, why would anyone have this much data? Hello from 2018",
+		)
 	}
 
 	// Read that many bytes.
-	var bz = make([]byte, l, l)
+	var bz = make([]byte, l)
 	_, err = io.ReadFull(r, bz)
 	if err != nil {
 		return
@@ -394,9 +403,15 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		}
 		pb := info.Prefix.Bytes()
 		if len(aminoAny.AminoPreOrDisfix) < 4 {
-			return fmt.Errorf("unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X", pb, aminoAny.AminoPreOrDisfix)
+			return fmt.Errorf(
+				"unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X",
+				pb, aminoAny.AminoPreOrDisfix,
+			)
 		} else if !bytes.Equal(aminoAny.AminoPreOrDisfix[:4], pb) {
-			return fmt.Errorf("unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X", pb, aminoAny.AminoPreOrDisfix[:4])
+			return fmt.Errorf(
+				"unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X",
+				pb, aminoAny.AminoPreOrDisfix[:4],
+			)
 		}
 		bz = aminoAny.Value
 	}
