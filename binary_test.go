@@ -149,13 +149,11 @@ func TestForceWriteEmpty(t *testing.T) {
 
 	b, err := cdc.MarshalBinaryBare(OuterWriteEmpty{})
 	assert.NoError(t, err)
-	assert.NotZero(t, len(b), "amino:\"write_empty\" did not work")
+	assert.Equal(t, []byte{10, 5, 13, 0, 0, 0, 0, 16, 0}, b)
 
 	b, err = cdc.MarshalBinaryBare(InnerWriteEmpty{})
 	assert.NoError(t, err)
-	t.Log(b)
-	// TODO(ismail): this alone won't be encoded:
-	//assert.NotZero(t, len(b), "amino:\"write_empty\" did not work")
+	assert.Equal(t, []byte{13, 0, 0, 0, 0}, b)
 }
 
 func TestStructSlice(t *testing.T) {
