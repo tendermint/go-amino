@@ -147,6 +147,18 @@ func NewCodec() *Codec {
 	return cdc
 }
 
+func (cdc *Codec) TypeInfos() map[reflect.Type]*TypeInfo {
+	return cdc.typeInfos
+}
+
+func (cdc *Codec) TypeInfosByName() map[string]*TypeInfo {
+	return cdc.nameToTypeInfo
+}
+
+func (cdc *Codec) DisFixToTypeInfo() map[DisfixBytes]*TypeInfo {
+	return cdc.disfixToTypeInfo
+}
+
 // This function should be used to register all interfaces that will be
 // encoded/decoded by go-amino.
 // Usage:
