@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-## 0.16.0 (October 10, 2019)
+## 0.15.1 (October 10, 2019)
 
 ### BUG FIX:
 
