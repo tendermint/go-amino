@@ -149,3 +149,28 @@ func TestUnmarshalBinaryBufferedWritesReads(t *testing.T) {
 	_, err = cdc.UnmarshalBinaryLengthPrefixedReader(buf, &s2, 0)
 	assert.NotNil(t, err)
 }
+
+func TestBoolPointers(t *testing.T) {
+	var cdc = amino.NewCodec()
+	type SimpleStruct struct {
+		BoolPtrTrue  *bool
+		BoolPtrFalse *bool
+	}
+
+	ttrue := true
+	ffalse := false
+
+	s := SimpleStruct{
+		BoolPtrTrue:  &ttrue,
+		BoolPtrFalse: &ffalse,
+	}
+
+	b, _ := cdc.MarshalBinaryBare(s)
+
+	var s2 SimpleStruct
+	err := cdc.UnmarshalBinaryBare(b, &s2)
+
+	assert.Nil(t, err)
+	assert.NotNil(t, s2.BoolPtrTrue)
+	assert.NotNil(t, s2.BoolPtrFalse)
+}

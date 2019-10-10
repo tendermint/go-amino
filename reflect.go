@@ -106,6 +106,7 @@ func isDefaultValue(rv reflect.Value) (erv reflect.Value, isDefaultValue bool) {
 	rv, _, isNilPtr := derefPointers(rv)
 	if isNilPtr {
 		return rv, true
+<<<<<<< HEAD
 	} else {
 		switch rv.Kind() {
 		case reflect.Bool:
@@ -123,6 +124,24 @@ func isDefaultValue(rv reflect.Value) (erv reflect.Value, isDefaultValue bool) {
 		default:
 			return rv, false
 		}
+=======
+	}
+	switch rv.Kind() {
+	case reflect.Bool:
+		return rv, false
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return rv, rv.Int() == 0
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return rv, rv.Uint() == 0
+	case reflect.String:
+		return rv, rv.Len() == 0
+	case reflect.Chan, reflect.Map, reflect.Slice:
+		return rv, rv.IsNil() || rv.Len() == 0
+	case reflect.Func, reflect.Interface:
+		return rv, rv.IsNil()
+	default:
+		return rv, false
+>>>>>>> 4ce542e... fix: prevent false to not be encoded (#290)
 	}
 }
 
