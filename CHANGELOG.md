@@ -4,10 +4,6 @@
 
 ## 0.15.1 (October 10, 2019)
 
-### BUG FIX:
-
-- [#287](https://github.com/tendermint/go-amino/pull/287) fields with tag "write_empty" are not marshaled correctly (@rickyyangz)
-
 ### IMPROVEMENTS:
 
 - [#289](https://github.com/tendermint/go-amino/issues/289) Return Boolean pointers as non-nil (@nicolasbrugneaux)
