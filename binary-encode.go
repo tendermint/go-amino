@@ -252,7 +252,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 	}
 	disfix = append(disfix, cinfo.Prefix.Bytes()...)
 	aminoAny := &RegisteredAny{AminoPreOrDisfix: disfix}
-	fmt.Printf("disfix = %#v\n", disfix)
+
 	// Write actual concrete value.
 	err = cdc.encodeReflectBinary(buf, cinfo, crv, fopts, true)
 	if err != nil {
