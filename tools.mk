@@ -32,12 +32,12 @@ GOFUZZ_BUILD 	= $(TOOLS_DESTDIR)/go-fuzz-build
 go-fuzz: $(GOFUZZ)
 $(GOFUZZ):
 	@echo "Installing go-fuzz..."
-	@(cd /tmp && go get github.com/dvyukov/go-fuzz/go-fuzz)
+	@(cd /tmp && go get -u github.com/dvyukov/go-fuzz/go-fuzz)
 
 go-fuzz-build: $(GOFUZZ_BUILD)
 $(GOFUZZ_BUILD):
 	@echo "Installing go-fuzz-build..."
-	@(cd /tmp && go get github.com/dvyukov/go-fuzz/go-fuzz-build)
+	@(cd /tmp && go get -u github.com/dvyukov/go-fuzz/go-fuzz-build)
 
 tools-clean:
 	rm -f $(GOFUZZ_BUILD) $(GOFUZZ)
