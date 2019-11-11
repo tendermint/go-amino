@@ -7,7 +7,6 @@ executors:
     working_directory: /go/src/github.com/tendermint/go-amino
     environment:
       GOBIN: /tmp/bin
-  release: true
 
 jobs:
   test_cover:
@@ -43,3 +42,11 @@ jobs:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
+
+workflows:
+  version: 2
+  test-suite:
+    jobs:
+    - test_cover
+    - fuzz_test_Binary
+    - fuzz_test_JSON
