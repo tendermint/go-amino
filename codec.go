@@ -493,7 +493,7 @@ func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 		infos = append(infos, fieldInfo)
 	}
 	sinfo = StructInfo{infos}
-	return
+	return sinfo
 }
 
 func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, fopts FieldOptions) {
@@ -544,7 +544,7 @@ func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, fopts
 		}
 	}
 
-	return
+	return skip, fopts
 }
 
 // Constructs a *TypeInfo automatically, not from registration.

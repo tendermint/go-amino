@@ -110,8 +110,8 @@ func TestFixedU64Roundtrip(t *testing.T) {
 
 func TestMultidimensionalSlices(t *testing.T) {
 	s := [][]int8{
-		[]int8{1, 2},
-		[]int8{3, 4, 5}}
+		{1, 2},
+		{3, 4, 5}}
 
 	_, err := cdc.MarshalBinaryBare(s)
 	assert.Error(t, err, "expected error: multidimensional slices are not allowed")
@@ -119,8 +119,8 @@ func TestMultidimensionalSlices(t *testing.T) {
 
 func TestMultidimensionalArrays(t *testing.T) {
 	arr := [2][2]int8{
-		[2]int8{1, 2},
-		[2]int8{3, 4}}
+		{1, 2},
+		{3, 4}}
 
 	_, err := cdc.MarshalBinaryBare(arr)
 	assert.Error(t, err, "expected error: multidimensional arrays are not allowed")
@@ -128,23 +128,22 @@ func TestMultidimensionalArrays(t *testing.T) {
 
 func TestMultidimensionalByteArraysAndSlices(t *testing.T) {
 	arr := [2][2]byte{
-		[2]byte{1, 2},
-		[2]byte{3, 4}}
+		{1, 2},
+		{3, 4}}
 
 	_, err := cdc.MarshalBinaryBare(arr)
 	assert.NoError(t, err, "unexpected error: multidimensional arrays are allowed, as long as they are only of bytes")
 
 	s := [][]byte{
-		[]byte{1, 2},
-		[]byte{3, 4, 5}}
+		{1, 2},
+		{3, 4, 5}}
 
 	_, err = cdc.MarshalBinaryBare(s)
 	assert.NoError(t, err, "unexpected error: multidimensional slices are allowed, as long as they are only of bytes")
 
-	s2 := [][][]byte{
-		[][]byte{
-			[]byte{1, 2},
-			[]byte{3, 4, 5}}}
+	s2 := [][][]byte{{
+		{1, 2},
+		{3, 4, 5}}}
 
 	_, err = cdc.MarshalBinaryBare(s2)
 	assert.NoError(t, err, "unexpected error: multidimensional slices are allowed, as long as they are only of bytes")

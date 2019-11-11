@@ -42,7 +42,7 @@ func EncodeVarint(w io.Writer, i int64) (err error) {
 }
 
 func VarintSize(i int64) int {
-	return UvarintSize(uint64((uint64(i) << 1) ^ uint64(i>>63)))
+	return UvarintSize((uint64(i) << 1) ^ uint64(i>>63))
 }
 
 //----------------------------------------
@@ -172,7 +172,7 @@ func EncodeTime(w io.Writer, t time.Time) (err error) {
 		}
 	}
 
-	return
+	return err
 }
 
 func EncodeByteSlice(w io.Writer, bz []byte) (err error) {

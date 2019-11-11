@@ -169,12 +169,12 @@ func (cdc *Codec) MarshalBinaryLengthPrefixed(o interface{}) ([]byte, error) {
 // MarshalBinaryLengthPrefixedWriter writes the bytes as would be returned from
 // MarshalBinaryLengthPrefixed to the writer w.
 func (cdc *Codec) MarshalBinaryLengthPrefixedWriter(w io.Writer, o interface{}) (n int64, err error) {
-	var bz, _n = []byte(nil), int(0)
-	bz, err = cdc.MarshalBinaryLengthPrefixed(o)
+	// var bz, _n = []byte(nil), int(0)
+	bz, err := cdc.MarshalBinaryLengthPrefixed(o)
 	if err != nil {
 		return 0, err
 	}
-	_n, err = w.Write(bz) // TODO: handle overflow in 32-bit systems.
+	_n, err := w.Write(bz) // TODO: handle overflow in 32-bit systems.
 	n = int64(_n)
 	return
 }
@@ -216,7 +216,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 		writeEmpty := false
 		typ3 := typeToTyp3(info.Type, FieldOptions{})
 		bare := typ3 != Typ3ByteLength
-		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, bare); err != nil {
+		if err = cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, bare); err != nil {
 			return nil, err
 		}
 		bz = buf.Bytes()
@@ -343,7 +343,7 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixedReader(r io.Reader, ptr interface
 
 	// Decode.
 	err = cdc.UnmarshalBinaryBare(bz, ptr)
-	return
+	return n, err
 }
 
 // Panics if error.
@@ -395,7 +395,12 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		len(bz) > 0 &&
 		(rv.Kind() != reflect.Interface) &&
 		isKnownType {
-		fnum, typ, nFnumTyp3, err := decodeFieldNumberAndTyp3(bz)
+		var (
+			fnum      uint32
+			typ       Typ3
+			nFnumTyp3 int
+		)
+		fnum, typ, nFnumTyp3, err = decodeFieldNumberAndTyp3(bz)
 		if err != nil {
 			return errors.Wrap(err, "could not decode field number and type")
 		}
@@ -414,6 +419,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 
 	// Decode contents into rv.
 	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{BinFieldNum: 1}, bare)
+	fmt.Println("I am here")
 	if err != nil {
 		return fmt.Errorf(
 			"unmarshal to %v failed after %d bytes (%v): %X",
@@ -456,7 +462,7 @@ func isPointerToStructOrToRepeatedStruct(rv reflect.Value, rt reflect.Type) bool
 	}
 
 	if isPtr && isNil {
-		rt := derefType(rt)
+		rt = derefType(rt)
 		if rt.Kind() == reflect.Struct {
 			return true
 		}
@@ -505,7 +511,7 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 	}
 
 	// Write the rest from rv.
-	if err := cdc.encodeReflectJSON(w, info, rv, FieldOptions{}); err != nil {
+	if err = cdc.encodeReflectJSON(w, info, rv, FieldOptions{}); err != nil {
 		return nil, err
 	}
 

@@ -357,7 +357,7 @@ func TestJSONCodecRoundTrip(t *testing.T) {
 			continue
 		}
 
-		if err := cdc.UnmarshalJSON(mBlob, tt.out); err != nil {
+		if err = cdc.UnmarshalJSON(mBlob, tt.out); err != nil {
 			t.Errorf("#%d: unexpected error after UnmarshalJSON: %v\nmBlob: %s", i, err, mBlob)
 			continue
 		}
