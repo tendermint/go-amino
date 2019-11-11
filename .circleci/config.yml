@@ -25,7 +25,8 @@ jobs:
       - run:
           name: "Run Go-Fuzz Binary"
           command: |
-            make tools & make gofuzz_binary
+            make tools 
+            make gofuzz_binary
 
   fuzz_test_JSON:
     executor: golang
@@ -34,7 +35,8 @@ jobs:
       - run:
           name: "Run Go-Fuzz JSON"
           command: |
-            make tools & make gofuzz_json
+            make tools
+            make gofuzz_json
 
 workflows:
   version: 2
