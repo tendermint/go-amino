@@ -233,7 +233,6 @@ func decodeSeconds(bz *[]byte) (int64, int, error) {
 	switch {
 	case fieldNum == 1 && typ == Typ3Varint:
 		slide(bz, &n, _n)
-		// var _n int
 		sec, _n, err := DecodeUvarint(*bz)
 		if slide(bz, &n, _n) && err != nil {
 			return 0, n, err
@@ -263,7 +262,6 @@ func decodeNanos(bz *[]byte, n *int) (int32, error) {
 	}
 	if fieldNum == 2 && typ == Typ3Varint {
 		slide(bz, n, _n)
-		// var _n int
 		nsec, _n, err := DecodeUvarint(*bz)
 		if slide(bz, n, _n) && err != nil {
 			return 0, err

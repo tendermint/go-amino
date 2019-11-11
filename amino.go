@@ -169,12 +169,15 @@ func (cdc *Codec) MarshalBinaryLengthPrefixed(o interface{}) ([]byte, error) {
 // MarshalBinaryLengthPrefixedWriter writes the bytes as would be returned from
 // MarshalBinaryLengthPrefixed to the writer w.
 func (cdc *Codec) MarshalBinaryLengthPrefixedWriter(w io.Writer, o interface{}) (n int64, err error) {
-	// var bz, _n = []byte(nil), int(0)
-	bz, err := cdc.MarshalBinaryLengthPrefixed(o)
+	var (
+		bz []byte
+		_n int
+	)
+	bz, err = cdc.MarshalBinaryLengthPrefixed(o)
 	if err != nil {
 		return 0, err
 	}
-	_n, err := w.Write(bz) // TODO: handle overflow in 32-bit systems.
+	_n, err = w.Write(bz) // TODO: handle overflow in 32-bit systems.
 	n = int64(_n)
 	return
 }
@@ -419,7 +422,6 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 
 	// Decode contents into rv.
 	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{BinFieldNum: 1}, bare)
-	fmt.Println("I am here")
 	if err != nil {
 		return fmt.Errorf(
 			"unmarshal to %v failed after %d bytes (%v): %X",
@@ -462,7 +464,7 @@ func isPointerToStructOrToRepeatedStruct(rv reflect.Value, rt reflect.Type) bool
 	}
 
 	if isPtr && isNil {
-		rt = derefType(rt)
+		rt := derefType(rt)
 		if rt.Kind() == reflect.Struct {
 			return true
 		}

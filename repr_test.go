@@ -64,9 +64,7 @@ func TestMarshalAminoBinary(t *testing.T) {
 	t.Logf("bz %#v", bz)
 
 	var f2 Foo
-	fmt.Println(bz)
 	err = cdc.UnmarshalBinaryLengthPrefixed(bz, &f2)
-	fmt.Println(f2, "me me")
 	assert.NoError(t, err)
 
 	assert.Equal(t, f, f2)
@@ -82,7 +80,7 @@ func TestMarshalAminoJSON(t *testing.T) {
 	cdc.RegisterConcrete(([]*Foo)(nil), "[]*Foo", nil)
 
 	var f = Foo{
-		A: "K",
+		a: "K",
 		b: 2,
 		c: []*Foo{nil, nil, nil},
 		D: "J",
