@@ -12,8 +12,8 @@ import (
 // Signed
 
 func DecodeInt8(bz []byte) (i int8, n int, err error) {
-	var i64 = int64(0)
-	i64, n, err = DecodeVarint(bz)
+
+	i64, n, err := DecodeVarint(bz)
 	if err != nil {
 		return
 	}
@@ -26,8 +26,8 @@ func DecodeInt8(bz []byte) (i int8, n int, err error) {
 }
 
 func DecodeInt16(bz []byte) (i int16, n int, err error) {
-	var i64 = int64(0)
-	i64, n, err = DecodeVarint(bz)
+
+	i64, n, err := DecodeVarint(bz)
 	if err != nil {
 		return
 	}
@@ -83,8 +83,7 @@ func DecodeByte(bz []byte) (b byte, n int, err error) {
 }
 
 func DecodeUint8(bz []byte) (u uint8, n int, err error) {
-	var u64 = uint64(0)
-	u64, n, err = DecodeUvarint(bz)
+	u64, n, err := DecodeUvarint(bz)
 	if err != nil {
 		return
 	}
@@ -96,8 +95,7 @@ func DecodeUint8(bz []byte) (u uint8, n int, err error) {
 	return
 }
 func DecodeUint16(bz []byte) (u uint16, n int, err error) {
-	var u64 = uint64(0)
-	u64, n, err = DecodeUvarint(bz)
+	u64, n, err := DecodeUvarint(bz)
 	if err != nil {
 		return
 	}
@@ -227,7 +225,7 @@ func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 func decodeSeconds(bz *[]byte) (int64, int, error) {
 	// Optionally decode field number 1 and Typ3 (8Byte).
 	// only slide if we need to:
-	n := 0
+	var n int
 	fieldNum, typ, _n, err := decodeFieldNumberAndTyp3(*bz)
 	if err != nil {
 		return 0, n, err
@@ -235,7 +233,6 @@ func decodeSeconds(bz *[]byte) (int64, int, error) {
 	switch {
 	case fieldNum == 1 && typ == Typ3Varint:
 		slide(bz, &n, _n)
-		_n = 0
 		sec, _n, err := DecodeUvarint(*bz)
 		if slide(bz, &n, _n) && err != nil {
 			return 0, n, err
@@ -265,7 +262,6 @@ func decodeNanos(bz *[]byte, n *int) (int32, error) {
 	}
 	if fieldNum == 2 && typ == Typ3Varint {
 		slide(bz, n, _n)
-		_n = 0
 		nsec, _n, err := DecodeUvarint(*bz)
 		if slide(bz, n, _n) && err != nil {
 			return 0, err

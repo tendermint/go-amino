@@ -294,8 +294,10 @@ func TestUnmarshalJSON(t *testing.T) {
 			continue
 		}
 		if g, w := tt.in, tt.want; !reflect.DeepEqual(g, w) {
-			gb, _ := json.MarshalIndent(g, "", "  ")
-			wb, _ := json.MarshalIndent(w, "", "  ")
+			gb, err := json.MarshalIndent(g, "", "  ")
+			require.NoError(t, err)
+			wb, err := json.MarshalIndent(w, "", "  ")
+			require.NoError(t, err)
 			t.Errorf("#%d:\ngot:\n\t%#v\n(%s)\n\nwant:\n\t%#v\n(%s)", i, g, gb, w, wb)
 		}
 	}
@@ -357,7 +359,7 @@ func TestJSONCodecRoundTrip(t *testing.T) {
 			continue
 		}
 
-		if err := cdc.UnmarshalJSON(mBlob, tt.out); err != nil {
+		if err = cdc.UnmarshalJSON(mBlob, tt.out); err != nil {
 			t.Errorf("#%d: unexpected error after UnmarshalJSON: %v\nmBlob: %s", i, err, mBlob)
 			continue
 		}
@@ -468,7 +470,8 @@ func interfacePtr(v interface{}) *interface{} {
 // Test to ensure that Amino codec's time encoding/decoding roundtrip
 // produces the same result as the standard library json's.
 func TestAminoJSONTimeEncodeDecodeRoundTrip(t *testing.T) {
-	loc, _ := time.LoadLocation("America/Los_Angeles")
+	loc, err := time.LoadLocation("America/Los_Angeles")
+	require.NoError(t, err)
 	din := time.Date(2008, 9, 15, 14, 13, 12, 11109876, loc).Round(time.Millisecond).UTC()
 
 	cdc := amino.NewCodec()

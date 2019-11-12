@@ -234,7 +234,7 @@ func toReprObject(rv reflect.Value) (rrv reflect.Value, err error) {
 		erri := mwouts[1].Interface()
 		if erri != nil {
 			err = erri.(error)
-			return
+			return rrv, err
 		}
 	}
 	rrv = mwouts[0]
