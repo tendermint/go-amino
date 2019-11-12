@@ -169,7 +169,10 @@ func (cdc *Codec) MarshalBinaryLengthPrefixed(o interface{}) ([]byte, error) {
 // MarshalBinaryLengthPrefixedWriter writes the bytes as would be returned from
 // MarshalBinaryLengthPrefixed to the writer w.
 func (cdc *Codec) MarshalBinaryLengthPrefixedWriter(w io.Writer, o interface{}) (n int64, err error) {
-	var bz, _n = []byte(nil), int(0)
+	var (
+		bz []byte
+		_n int
+	)
 	bz, err = cdc.MarshalBinaryLengthPrefixed(o)
 	if err != nil {
 		return 0, err
@@ -216,7 +219,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 		writeEmpty := false
 		typ3 := typeToTyp3(info.Type, FieldOptions{})
 		bare := typ3 != Typ3ByteLength
-		if err := cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, bare); err != nil {
+		if err = cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, bare); err != nil {
 			return nil, err
 		}
 		bz = buf.Bytes()
@@ -260,7 +263,7 @@ func (cdc *Codec) MustMarshalBinaryBare(o interface{}) []byte {
 // Returns an error if not all of bz is consumed.
 func (cdc *Codec) UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) error {
 	if len(bz) == 0 {
-		return errors.New("UnmarshalBinaryLengthPrefixed cannot decode empty bytes")
+		return errors.New("unmarshalBinaryLengthPrefixed cannot decode empty bytes")
 	}
 
 	// Read byte-length prefix.
@@ -328,7 +331,7 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixedReader(r io.Reader, ptr interface
 	}
 	l = int64(u64)
 	if l < 0 {
-		_ = errors.Errorf(
+		_ = errors.Errorf( //nolint:errcheck
 			"read overflow, this implementation can't read this because, why would anyone have this much data? Hello from 2018",
 		)
 	}
@@ -343,7 +346,7 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixedReader(r io.Reader, ptr interface
 
 	// Decode.
 	err = cdc.UnmarshalBinaryBare(bz, ptr)
-	return
+	return n, err
 }
 
 // Panics if error.
@@ -395,7 +398,12 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		len(bz) > 0 &&
 		(rv.Kind() != reflect.Interface) &&
 		isKnownType {
-		fnum, typ, nFnumTyp3, err := decodeFieldNumberAndTyp3(bz)
+		var (
+			fnum      uint32
+			typ       Typ3
+			nFnumTyp3 int
+		)
+		fnum, typ, nFnumTyp3, err = decodeFieldNumberAndTyp3(bz)
 		if err != nil {
 			return errors.Wrap(err, "could not decode field number and type")
 		}
@@ -456,7 +464,7 @@ func isPointerToStructOrToRepeatedStruct(rv reflect.Value, rt reflect.Type) bool
 	}
 
 	if isPtr && isNil {
-		rt := derefType(rt)
+		rt = derefType(rt)
 		if rt.Kind() == reflect.Struct {
 			return true
 		}
@@ -505,7 +513,7 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 	}
 
 	// Write the rest from rv.
-	if err := cdc.encodeReflectJSON(w, info, rv, FieldOptions{}); err != nil {
+	if err = cdc.encodeReflectJSON(w, info, rv, FieldOptions{}); err != nil {
 		return nil, err
 	}
 

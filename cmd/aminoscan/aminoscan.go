@@ -87,15 +87,15 @@ func scanVarint(bz []byte, indent string) (s string, n int, err error) {
 		err = fmt.Errorf("EOF while reading (U)Varint")
 	}
 	// First try Varint.
-	var i64, okI64 = int64(0), true
-	i64, n = binary.Varint(bz)
+	okI64 := true
+	i64, n := binary.Varint(bz)
 	if n <= 0 {
 		n = 0
 		okI64 = false
 	}
 	// Then try Uvarint.
-	var u64, okU64, _n = uint64(0), true, int(0)
-	u64, _n = binary.Uvarint(bz)
+	okU64 := true
+	u64, _n := binary.Uvarint(bz)
 	if n != _n {
 		n = 0
 		okU64 = false
@@ -115,7 +115,7 @@ func scanVarint(bz []byte, indent string) (s string, n int, err error) {
 		fmt.Printf("u64:%v", u64)
 	}
 	fmt.Print(")\n")
-	return
+	return s, n, err
 }
 
 func scan8Byte(bz []byte, indent string) (s string, n int, err error) {
@@ -131,14 +131,13 @@ func scan8Byte(bz []byte, indent string) (s string, n int, err error) {
 
 func scanByteLength(bz []byte, indent string) (s string, n int, err error) {
 	// Read the length.
-	var length, l64, _n = int(0), uint64(0), int(0)
-	l64, _n = binary.Uvarint(bz)
+	l64, _n := binary.Uvarint(bz)
 	if n < 0 {
 		n = 0
 		err = errors.New("error decoding uvarint")
 		return
 	}
-	length = int(l64)
+	length := int(l64)
 	if length >= len(bz) {
 		err = errors.New("while reading 8byte field, EOF was encountered")
 		return
@@ -153,7 +152,11 @@ func scanByteLength(bz []byte, indent string) (s string, n int, err error) {
 }
 
 func scanStruct(bz []byte, indent string, isRoot bool) (s string, n int, err error) {
-	var _s, _n, typ = string(""), int(0), amino.Typ3(0x00)
+	var (
+		_s  string
+		_n  int
+		typ amino.Typ3
+	)
 	for {
 		if isRoot && len(bz) == 0 {
 			return

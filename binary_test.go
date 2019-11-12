@@ -84,7 +84,8 @@ func TestNewFieldBackwardsCompatibility(t *testing.T) {
 	}
 
 	cdc := amino.NewCodec()
-	notNow, _ := time.Parse("2006-01-02", "1934-11-09")
+	notNow, err := time.Parse("2006-01-02", "1934-11-09")
+	assert.NoError(t, err)
 	v2 := V2{String: "hi", String2: "cosmos", Time: notNow, Int: 4}
 	bz, err := cdc.MarshalBinaryBare(v2)
 	assert.Nil(t, err, "unexpected error while encoding V2: %v", err)
