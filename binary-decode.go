@@ -345,11 +345,23 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		bz = buf
 	}
 
-	// Consume disambiguation / prefix bytes.
-	disamb, hasDisamb, prefix, hasPrefix, _n, err := DecodeDisambPrefixBytes(bz)
+	// Consume disambiguation / prefix bytes by reading into a RegisteredAny message:
+	aminoAny := &RegisteredAny{}
+	if err = cdc.UnmarshalBinaryBare(bz, aminoAny); err != nil {
+		return
+	}
+	disamb, hasDisamb, prefix, hasPrefix, _n, err := DecodeDisambPrefixBytes(aminoAny.AminoPreOrDisfix)
 	if slide(&bz, &n, _n) && err != nil {
 		return n, err
 	}
+	overhead := len(bz) - len(aminoAny.Value)
+	if overhead < 0 {
+		// we could as well panic here
+		err = errors.New("encoded value in RegisteredAny larger than original buffer")
+		return
+	}
+	slide(&bz, &n, overhead)
+	bz = aminoAny.Value
 
 	// Get concrete type info from disfix/prefix.
 	var cinfo *TypeInfo

@@ -76,3 +76,19 @@ message PrimitivesStruct {
 message PrimitivesStructSl {
     repeated PrimitivesStruct Structs = 1;
 }
+
+message AminoRegisteredAny {
+    // Prefix or Disfix (Prefix + Disamb) bytes
+    bytes AminoPreOrDisfix = 1;
+    // Must be a valid serialized protocol buffer with the above specified amino pre-/disfix.
+    bytes Value = 2;
+}
+
+message EmbeddedRegisteredAny {
+    AminoRegisteredAny F1 = 1;
+}
+
+message SimpleMsg {
+    string Message = 1;
+    int64 Height = 2;
+}

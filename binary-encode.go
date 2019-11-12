@@ -248,31 +248,31 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 	} else if len(iinfo.Implementers[cinfo.Prefix]) > 1 {
 		needDisamb = true
 	}
+	disfix := make([]byte, 0)
 	if needDisamb {
-		_, err = buf.Write(append([]byte{0x00}, cinfo.Disamb[:]...))
-		if err != nil {
-			return
-		}
+		//  0x00 indicates that these are disfix bytes
+		disfix = append([]byte{0x00}, cinfo.Disamb[:]...)
 	}
-
-	// Write prefix bytes.
-	_, err = buf.Write(cinfo.Prefix.Bytes())
-	if err != nil {
-		return
-	}
+	disfix = append(disfix, cinfo.Prefix.Bytes()...)
+	aminoAny := &RegisteredAny{AminoPreOrDisfix: disfix}
 
 	// Write actual concrete value.
 	err = cdc.encodeReflectBinary(buf, cinfo, crv, fopts, true)
 	if err != nil {
 		return
 	}
+	aminoAny.Value = buf.Bytes()
+	bz, err := cdc.MarshalBinaryBare(aminoAny)
+	if err != nil {
+		return
+	}
 
 	if bare {
 		// Write byteslice without byte-length prefixing.
-		_, err = w.Write(buf.Bytes())
+		_, err = w.Write(bz)
 	} else {
 		// Write byte-length prefixed byteslice.
-		err = EncodeByteSlice(w, buf.Bytes())
+		err = EncodeByteSlice(w, bz)
 	}
 	return err
 }

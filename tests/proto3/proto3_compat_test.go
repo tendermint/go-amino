@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
+
 	"math"
 	"testing"
 	"time"
@@ -14,8 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ptypes "github.com/gogo/protobuf/types"
 	"github.com/golang/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
 
 	p3 "github.com/tendermint/go-amino/tests/proto3/proto"
 
@@ -250,14 +251,14 @@ func TestProto3CompatTimestampNow(t *testing.T) {
 	pbRes := p3.ProtoGotTime{}
 	err = proto.Unmarshal(ab1, &pbRes)
 	assert.NoError(t, err)
-	got, err := ptypes.Timestamp(pbRes.T)
+	got, err := ptypes.TimestampFromProto(pbRes.T)
 	assert.NoError(t, err)
 	_, err = ptypes.TimestampProto(now)
 	assert.NoError(t, err)
 	err = proto.Unmarshal(pb, &pbRes)
 	assert.NoError(t, err)
 	// create time.Time from timestamp.Timestamp and check if they are the same:
-	got, err = ptypes.Timestamp(pbRes.T)
+	got, err = ptypes.TimestampFromProto(pbRes.T)
 	assert.Equal(t, got.UTC(), now.UTC())
 }
 
@@ -268,7 +269,7 @@ func TestProto3EpochTime(t *testing.T) {
 	assert.NoError(t, err)
 	err = proto.Unmarshal(ab, &pbRes)
 	assert.NoError(t, err)
-	ts, err := ptypes.Timestamp(pbRes.T)
+	ts, err := ptypes.TimestampFromProto(pbRes.T)
 	assert.NoError(t, err)
 	assert.EqualValues(t, ts, epoch)
 }
@@ -285,7 +286,7 @@ func TestProtoNegativeSeconds(t *testing.T) {
 	assert.EqualValues(t, ntm, *res.T)
 	err = proto.Unmarshal(ab, &pbRes)
 	assert.NoError(t, err)
-	got, err := ptypes.Timestamp(pbRes.T)
+	got, err := ptypes.TimestampFromProto(pbRes.T)
 	assert.NoError(t, err)
 	assert.Equal(t, got, ntm)
 }
@@ -376,11 +377,11 @@ func TestIntVarintCompat(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// See if encoding of type def types matches the proto3 encoding
+// See if encoding of def types matches the proto3 encoding
 func TestTypeDefCompatibility(t *testing.T) {
 
 	pNow := ptypes.TimestampNow()
-	now, err := ptypes.Timestamp(pNow)
+	now, err := ptypes.TimestampFromProto(pNow)
 	require.NoError(t, err)
 
 	strSl := tests.PrimitivesStructSl{
@@ -424,4 +425,106 @@ func TestTypeDefCompatibility(t *testing.T) {
 
 		assert.Equal(t, pb, ab, "Amino and protobuf encoding do not match %v", i)
 	}
+}
+
+// See if encoding of a registered type matches the proto3 encoding
+func TestRegisteredTypesCompatibilitySimple(t *testing.T) {
+	type message interface{}
+
+	const name = "simpleMsg"
+	type simpleMsg struct {
+		Message string
+		Height  int
+	}
+
+	type simpleMsgUnregistered struct {
+		Message string
+		Height  int
+	}
+
+	cdc := amino.NewCodec()
+	cdc.RegisterInterface((*message)(nil), nil)
+	cdc.RegisterConcrete(&simpleMsg{}, name, nil)
+
+	bm := &simpleMsg{Message: "ABC", Height: 100}
+	pbm := &p3.SimpleMsg{Message: "ABC", Height: 100}
+	bmUnreg := &simpleMsgUnregistered{bm.Message, bm.Height}
+
+	bz, err := cdc.MarshalBinaryBare(bm)
+	require.NoError(t, err)
+
+	bzUnreg, err := cdc.MarshalBinaryBare(bmUnreg)
+	require.NoError(t, err)
+
+	// encoded bytes decodeable via protobuf:
+	pAny := &p3.AminoRegisteredAny{}
+	err = proto.Unmarshal(bz, pAny)
+	require.NoError(t, err)
+
+	// amino encoded value / prefix matches proto encoding
+	assert.Equal(t, pAny.Value, bzUnreg)
+	_, prefix := amino.NameToDisfix(name)
+	assert.Equal(t, pAny.AminoPreOrDisfix, prefix.Bytes())
+	pbz, err := proto.Marshal(pbm)
+	require.NoError(t, err)
+	assert.Equal(t, pbz, bzUnreg)
+}
+
+func TestDisambExample(t *testing.T) {
+	const name = "interfaceFields"
+	cdc := amino.NewCodec()
+	cdc.RegisterInterface((*tests.Interface1)(nil), &amino.InterfaceOptions{
+		AlwaysDisambiguate: true,
+	})
+	cdc.RegisterConcrete((*tests.InterfaceFieldsStruct)(nil), name, nil)
+
+	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
+	bz, err := cdc.MarshalBinaryBare(i1)
+	type fieldStructUnreg struct {
+		F1 tests.Interface1
+	}
+
+	concrete1 := &fieldStructUnreg{F1: new(tests.InterfaceFieldsStruct)}
+	bc, err := cdc.MarshalBinaryBare(concrete1)
+	require.NoError(t, err)
+	t.Logf("%#v", bz)
+
+	pAny := &p3.AminoRegisteredAny{}
+	err = proto.Unmarshal(bz, pAny)
+	require.NoError(t, err)
+
+	disamb, prefix := amino.NameToDisfix(name)
+	t.Logf("%#v", disamb[:])
+	//
+	//t.Logf("%v",disfix[:])
+	// TODO: apparently the disamb bytes are only used for the fields
+	//  and not for the outer interface. Not sure why this makes sense.
+	// assert.Equal(t, disfix, pAny.AminoPreOrDisfix)
+	assert.Equal(t, prefix.Bytes(), pAny.AminoPreOrDisfix)
+	assert.Equal(t, bc, pAny.Value)
+
+	embeddedAny := &p3.EmbeddedRegisteredAny{}
+	err = proto.Unmarshal(pAny.Value, embeddedAny)
+	t.Logf("embeddedAny = %#v", embeddedAny)
+
+	require.NoError(t, err)
+	pAnyInner := &p3.AminoRegisteredAny{}
+
+	t.Logf("pAny.Value = %#v", pAny.Value)
+	err = proto.Unmarshal(pAny.Value, pAnyInner)
+	require.NoError(t, err)
+
+	//disfix := bytes.Join([][]byte{disamb[:], prefix[:]}, []byte(""))
+	//assert.Equal(t, disfix, pAnyInner.AminoPreOrDisfix)
+	t.Logf("aminoInner %#v", pAnyInner.AminoPreOrDisfix)
+
+	aminoAnyInner := &amino.RegisteredAny{}
+	err = cdc.UnmarshalBinaryBare(pAny.Value, aminoAnyInner)
+	require.NoError(t, err)
+	//assert.Equal(t, disfix, aminoAnyInner.AminoPreOrDisfix)
+
+	i2 := new(tests.InterfaceFieldsStruct)
+	err = cdc.UnmarshalBinaryBare(bz, i2)
+	require.NoError(t, err)
+	require.Equal(t, i1, i2, "i1 and i2 should be the same after decoding")
 }

@@ -230,24 +230,51 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 		}
 		bz = buf.Bytes()
 	}
-	// If registered concrete, prepend prefix bytes.
+	// If registered concrete, prepend prefix bytes by wrapping
+	// message in RegisteredAny:
 	if info.Registered {
-		// TODO: https://github.com/tendermint/go-amino/issues/267
-		//return MarshalBinaryBare(RegisteredAny{
-		//	AminoPreOrDisfix: info.Prefix.Bytes(),
-		//	Value: bz,
-		//})
-		pb := info.Prefix.Bytes()
-		bz = append(pb, bz...)
+		rAny := RegisteredAny{
+			AminoPreOrDisfix: info.Prefix.Bytes(),
+			Value:            bz,
+		}
+		return MarshalBinaryBare(rAny)
 	}
 
 	return bz, nil
 }
 
-//type RegisteredAny struct {
-//	AminoPreOrDisfix []byte
-//	Value []byte
+// TODO: extensively document this!
+//
+// This will be compatible to the following proto3 message:
+//
+// message AminoRegisteredAny {
+//    // Prefix or Disfix (Prefix + Disamb) bytes
+//    bytes AminoPreOrDisfix = 1;
+//    // Must be a valid serialized protocol buffer with the above specified amino pre-/disfix.
+//    bytes Value = 2;
 //}
+//
+// This is comparable to proto.Any but instead of a URL scheme there, we use amino's
+// disfix bytes instead.
+type RegisteredAny struct {
+	// Amino Prefix or Disfix (Prefix + Disamb) bytes derived from
+	// the name while registering the type.
+	// You can get this values by using the NameToDisfix helper
+	// method.
+	// In most common cases you won't need the disambiguation bytes.
+	//
+	// The prefix bytes should be 4 bytes. In case disambiguation bytes are
+	// necessary, this field will hold 7 Disfix bytes
+	// (3 disambiguation and 4 prefix bytes).
+	AminoPreOrDisfix []byte
+	// Must be a valid serialized protocol buffer that was registered
+	// with a name resulting in the above specified amino pre-/disfix bytes.
+	//
+	// Users directly using protobuf in their application need to switch
+	// over the different prefix (disfix) bytes to know which concrete
+	// type they are receiving (or encoding).
+	Value []byte
+}
 
 // Panics if error.
 func (cdc *Codec) MustMarshalBinaryBare(o interface{}) []byte {
@@ -373,20 +400,23 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 
 	// If registered concrete, consume and verify prefix bytes.
 	if info.Registered {
-		// TODO: https://github.com/tendermint/go-amino/issues/267
+		aminoAny := &RegisteredAny{}
+		if err = cdc.UnmarshalBinaryBare(bz, aminoAny); err != nil {
+			return err
+		}
 		pb := info.Prefix.Bytes()
-		if len(bz) < 4 {
+		if len(aminoAny.AminoPreOrDisfix) < 4 {
 			return fmt.Errorf(
 				"unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X",
-				pb, bz,
+				pb, aminoAny.AminoPreOrDisfix,
 			)
-		} else if !bytes.Equal(bz[:4], pb) {
+		} else if !bytes.Equal(aminoAny.AminoPreOrDisfix[:4], pb) {
 			return fmt.Errorf(
 				"unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X",
-				pb, bz[:4],
+				pb, aminoAny.AminoPreOrDisfix[:4],
 			)
 		}
-		bz = bz[4:]
+		bz = aminoAny.Value
 	}
 	// Only add length prefix if we have another typ3 then Typ3ByteLength.
 	// Default is non-length prefixed:
