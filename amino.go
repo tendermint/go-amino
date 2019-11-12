@@ -401,7 +401,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	// If registered concrete, consume and verify prefix bytes.
 	if info.Registered {
 		aminoAny := &RegisteredAny{}
-		if err := cdc.UnmarshalBinaryBare(bz, aminoAny); err != nil {
+		if err = cdc.UnmarshalBinaryBare(bz, aminoAny); err != nil {
 			return err
 		}
 		pb := info.Prefix.Bytes()
