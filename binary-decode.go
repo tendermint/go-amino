@@ -32,7 +32,6 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 	rv reflect.Value, fopts FieldOptions, bare bool) (n int, err error) {
 
 	if !rv.CanAddr() {
-		fmt.Println(bz, "bz")
 		panic("rv not addressable")
 	}
 	if info.Type.Kind() == reflect.Interface && rv.Kind() == reflect.Ptr {
