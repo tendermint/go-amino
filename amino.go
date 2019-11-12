@@ -263,7 +263,7 @@ func (cdc *Codec) MustMarshalBinaryBare(o interface{}) []byte {
 // Returns an error if not all of bz is consumed.
 func (cdc *Codec) UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) error {
 	if len(bz) == 0 {
-		return errors.New("UnmarshalBinaryLengthPrefixed cannot decode empty bytes")
+		return errors.New("unmarshalBinaryLengthPrefixed cannot decode empty bytes")
 	}
 
 	// Read byte-length prefix.
@@ -331,7 +331,7 @@ func (cdc *Codec) UnmarshalBinaryLengthPrefixedReader(r io.Reader, ptr interface
 	}
 	l = int64(u64)
 	if l < 0 {
-		_ = errors.Errorf(
+		_ = errors.Errorf( //nolint:errcheck
 			"read overflow, this implementation can't read this because, why would anyone have this much data? Hello from 2018",
 		)
 	}
@@ -464,7 +464,7 @@ func isPointerToStructOrToRepeatedStruct(rv reflect.Value, rt reflect.Type) bool
 	}
 
 	if isPtr && isNil {
-		rt := derefType(rt)
+		rt = derefType(rt)
 		if rt.Kind() == reflect.Struct {
 			return true
 		}
