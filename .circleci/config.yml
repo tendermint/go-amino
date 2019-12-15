@@ -18,30 +18,8 @@ jobs:
           command: |
             make test
 
-  fuzz_test_Binary:
-    executor: golang
-    steps:
-      - checkout
-      - run:
-          name: "Run Go-Fuzz Binary"
-          command: |
-            make tools 
-            make gofuzz_binary
-
-  fuzz_test_JSON:
-    executor: golang
-    steps:
-      - checkout
-      - run:
-          name: "Run Go-Fuzz JSON"
-          command: |
-            make tools
-            make gofuzz_json
-
 workflows:
   version: 2
   test-suite:
     jobs:
       - test_cover
-      - fuzz_test_Binary
-      - fuzz_test_JSON
