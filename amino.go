@@ -422,8 +422,6 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	if rv.CanAddr() {
 		addr := rv.Addr()
 		if addr.Type().Implements(binaryUnmarshalerType) {
-			bz2 := bz
-
 			if info.Registered {
 				pb := info.Prefix.Bytes()
 				l := len(pb)
@@ -435,7 +433,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 				}
 
 				pb2 := bz[:l]
-				bz2 = bz[l:]
+				bz = bz[l:]
 				if !bytes.Equal(pb2, pb) {
 					return fmt.Errorf(
 						"unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X",
@@ -444,7 +442,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 				}
 			}
 
-			return addr.Interface().(encoding.BinaryUnmarshaler).UnmarshalBinary(bz2)
+			return addr.Interface().(encoding.BinaryUnmarshaler).UnmarshalBinary(bz)
 		}
 	}
 
