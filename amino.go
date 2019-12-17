@@ -206,7 +206,6 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	}
 
 	// Encode Amino:binary bytes.
-	var bz []byte
 	buf := new(bytes.Buffer)
 	rt := rv.Type()
 	info, err := cdc.getTypeInfoWlock(rt)
@@ -233,6 +232,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 		return buf.Bytes(), nil
 	}
 
+	var bz []byte
 	// in the case of of a repeated struct (e.g. type Alias []SomeStruct),
 	// we do not need to prepend with `(field_number << 3) | wire_type` as this
 	// would need to be done for each struct and not only for the first.
