@@ -10,15 +10,6 @@ type Thing struct {
 	Name string
 }
 
-// func (thing Thing) MarshalAmino() (string, error) {
-// 	return thing.Name, nil
-// }
-//
-// func (thing Thing) UnmarshalAmino(name string) error {
-// 	thing.Name = name
-// 	return nil
-// }
-
 func (thing Thing) MarshalBinary() ([]byte, error) {
 	return []byte(thing.Name), nil
 }
