@@ -70,11 +70,11 @@ func TestMarshalBinaryOverrideBytes(t *testing.T) {
 	var cdc = amino.NewCodec()
 	cdc.RegisterConcrete(&Bytes{}, "amino/bytes", nil)
 
-	bytes1 := Bytes{0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1}
+	bytes1 := Bytes{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 
 	bz, err := cdc.MarshalBinaryBare(bytes1)
 	assert.Nil(t, err)
-	assert.Equal(t, bz, []byte{207, 109, 94, 111, 16,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1})
+	assert.Equal(t, bz, []byte{207, 109, 94, 111, 16, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1})
 
 	var bytes2 Bytes
 	err = cdc.UnmarshalBinaryBare(bz, &bytes2)
