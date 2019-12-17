@@ -1,9 +1,10 @@
 package amino_test
 
 import (
-	"github.com/stretchr/testify/assert"
-	amino "github.com/tendermint/go-amino"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/tendermint/go-amino"
 )
 
 type Thing struct {
