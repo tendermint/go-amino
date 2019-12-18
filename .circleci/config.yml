@@ -3,23 +3,24 @@ version: 2.1
 executors:
   golang:
     docker:
-      - image: circleci/golang
-    working_directory: /go/src/github.com/tendermint/go-amino
-    environment:
-      GOBIN: /tmp/bin
+      - image: circleci/golang:1.13
 
 jobs:
   test_cover:
     executor: golang
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
       - run:
-          name: "Run tests"
+          name: test
           command: |
-            make test
-
-workflows:
-  version: 2
-  test-suite:
-    jobs:
-      - test_cover
+            export PATH="$GOBIN:$PATH"
+            go env
+            go version
+            make get_tools && make && make test
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"

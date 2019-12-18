@@ -70,7 +70,8 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	// Handle override if a pointer to rv implements UnmarshalAmino.
 	if info.IsAminoUnmarshaler {
 		// First, decode repr instance from bytes.
-		rrv, rinfo := reflect.New(info.AminoUnmarshalReprType).Elem(), (*TypeInfo)(nil)
+		rrv := reflect.New(info.AminoUnmarshalReprType).Elem()
+		var rinfo *TypeInfo
 		rinfo, err = cdc.getTypeInfoWlock(info.AminoUnmarshalReprType)
 		if err != nil {
 			return
@@ -148,7 +149,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		panic(fmt.Sprintf("unsupported type %v", info.Type.Kind()))
 	}
 
-	return
+	return err
 }
 
 func invokeStdlibJSONUnmarshal(bz []byte, rv reflect.Value, fopts FieldOptions) error {
@@ -228,7 +229,7 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv refl
 	// is say, an array of bytes (e.g. [32]byte), then we must call
 	// rv.Set() *after* the value was acquired.
 	rv.Set(irvSet)
-	return
+	return err
 }
 
 // CONTRACT: rv.CanAddr() is true.

@@ -169,12 +169,13 @@ func TestBoolPointers(t *testing.T) {
 		BoolPtrFalse: &ffalse,
 	}
 
-	b, _ := cdc.MarshalBinaryBare(s)
+	b, err := cdc.MarshalBinaryBare(s)
+	assert.NoError(t, err)
 
 	var s2 SimpleStruct
-	err := cdc.UnmarshalBinaryBare(b, &s2)
+	err = cdc.UnmarshalBinaryBare(b, &s2)
 
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.NotNil(t, s2.BoolPtrTrue)
 	assert.NotNil(t, s2.BoolPtrFalse)
 }

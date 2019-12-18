@@ -149,7 +149,10 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to create path: %q", fullPath)
 		}
-		_, _ = f.Write(blob)
+		_, err = f.Write(blob)
+		if err != nil {
+			log.Fatalf("failed to write to file")
+		}
 		_ = f.Close()
 	}
 }

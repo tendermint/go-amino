@@ -41,7 +41,8 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	// Handle override if rv implements json.Marshaler.
 	if info.IsAminoMarshaler {
 		// First, encode rv into repr instance.
-		var rrv, rinfo = reflect.Value{}, (*TypeInfo)(nil)
+		var rrv reflect.Value
+		var rinfo *TypeInfo
 		rrv, err = toReprObject(rv)
 		if err != nil {
 			return
@@ -88,9 +89,11 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		}
 
 	case reflect.Slice:
-		if info.Type.Elem().Kind() == reflect.Uint8 {
+		switch info.Type.Elem().Kind() {
+
+		case reflect.Uint8:
 			err = cdc.encodeReflectBinaryByteSlice(w, info, rv, fopts)
-		} else if info.Type.Elem().Kind() == reflect.Slice || info.Type.Elem().Kind() == reflect.Array {
+		case reflect.Slice, reflect.Array:
 			// for proto3 compatibility, we do not allow multidimensional slices,
 			// unless the elements involved are bytes (e.g. [][]byte)
 			elem := info.Type.Elem()
@@ -105,7 +108,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 				err = errors.New("multidimensional slices not allowed")
 				break
 			}
-		} else {
+		default:
 			err = cdc.encodeReflectBinaryList(w, info, rv, fopts, bare)
 		}
 
@@ -194,7 +197,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		panic(fmt.Sprintf("unsupported type %v", info.Type.Kind()))
 	}
 
-	return
+	return err
 }
 
 func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv reflect.Value,
@@ -271,7 +274,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		// Write byte-length prefixed byteslice.
 		err = EncodeByteSlice(w, buf.Bytes())
 	}
-	return
+	return err
 }
 
 func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv reflect.Value,
@@ -283,7 +286,7 @@ func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv r
 	length := info.Type.Len()
 
 	// Get byteslice.
-	var byteslice = []byte(nil)
+	var byteslice []byte
 	if rv.CanAddr() {
 		byteslice = rv.Slice(0, length).Bytes()
 	} else {
@@ -382,7 +385,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 		// Write byte-length prefixed byteslice.
 		err = EncodeByteSlice(w, buf.Bytes())
 	}
-	return
+	return err
 }
 
 // CONTRACT: info.Type.Elem().Kind() == reflect.Uint8
@@ -468,7 +471,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 		// Write byte-length prefixed byteslice.
 		err = EncodeByteSlice(w, buf.Bytes())
 	}
-	return
+	return err
 }
 
 //----------------------------------------
