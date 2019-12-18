@@ -213,7 +213,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 		return nil, err
 	}
 
-	if rv.Type().Implements(binaryMarshalerType) {
+	if rt.Implements(binaryMarshalerType) {
 		if info.Registered {
 			pb := info.Prefix.Bytes()
 			buf.Write(pb)
