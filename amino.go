@@ -213,11 +213,9 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 		return nil, err
 	}
 
-	if rt.Implements(binaryMarshalerType) {
-		if info.Registered {
-			pb := info.Prefix.Bytes()
-			buf.Write(pb)
-		}
+	if info.Registered && rt.Implements(binaryMarshalerType) {
+		pb := info.Prefix.Bytes()
+		buf.Write(pb)
 
 		bz, err := rv.Interface().(encoding.BinaryMarshaler).MarshalBinary()
 		if err != nil {
@@ -419,27 +417,25 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		return err
 	}
 
-	if rv.CanAddr() {
+	if info.Registered  && rv.CanAddr() {
 		addr := rv.Addr()
 		if addr.Type().Implements(binaryUnmarshalerType) {
-			if info.Registered {
-				pb := info.Prefix.Bytes()
-				l := len(pb)
-				if len(bz) < l {
-					return fmt.Errorf(
-						"unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X",
-						pb, bz,
-					)
-				}
+			pb := info.Prefix.Bytes()
+			l := len(pb)
+			if len(bz) < l {
+				return fmt.Errorf(
+					"unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X",
+					pb, bz,
+				)
+			}
 
-				pb2 := bz[:l]
-				bz = bz[l:]
-				if !bytes.Equal(pb2, pb) {
-					return fmt.Errorf(
-						"unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X",
-						pb, pb2,
-					)
-				}
+			pb2 := bz[:l]
+			bz = bz[l:]
+			if !bytes.Equal(pb2, pb) {
+				return fmt.Errorf(
+					"unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X",
+					pb, pb2,
+				)
 			}
 
 			return addr.Interface().(encoding.BinaryUnmarshaler).UnmarshalBinary(bz)
