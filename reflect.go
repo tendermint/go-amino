@@ -1,6 +1,7 @@
 package amino
 
 import (
+	"encoding"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -13,10 +14,12 @@ import (
 const printLog = false
 
 var (
-	timeType            = reflect.TypeOf(time.Time{})
-	jsonMarshalerType   = reflect.TypeOf(new(json.Marshaler)).Elem()
-	jsonUnmarshalerType = reflect.TypeOf(new(json.Unmarshaler)).Elem()
-	errorType           = reflect.TypeOf(new(error)).Elem()
+	timeType              = reflect.TypeOf(time.Time{})
+	jsonMarshalerType     = reflect.TypeOf(new(json.Marshaler)).Elem()
+	jsonUnmarshalerType   = reflect.TypeOf(new(json.Unmarshaler)).Elem()
+	binaryMarshalerType   = reflect.TypeOf(new(encoding.BinaryMarshaler)).Elem()
+	binaryUnmarshalerType = reflect.TypeOf(new(encoding.BinaryUnmarshaler)).Elem()
+	errorType             = reflect.TypeOf(new(error)).Elem()
 )
 
 //----------------------------------------

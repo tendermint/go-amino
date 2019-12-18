@@ -2,6 +2,7 @@ package amino
 
 import (
 	"bytes"
+	"encoding"
 	"fmt"
 	"io"
 	"reflect"
@@ -205,13 +206,31 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	}
 
 	// Encode Amino:binary bytes.
-	var bz []byte
 	buf := new(bytes.Buffer)
 	rt := rv.Type()
 	info, err := cdc.getTypeInfoWlock(rt)
 	if err != nil {
 		return nil, err
 	}
+
+	if info.Registered && rt.Implements(binaryMarshalerType) {
+		pb := info.Prefix.Bytes()
+		buf.Write(pb)
+
+		bz, err := rv.Interface().(encoding.BinaryMarshaler).MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+
+		_, err = buf.Write(bz)
+		if err != nil {
+			return nil, err
+		}
+
+		return buf.Bytes(), nil
+	}
+
+	var bz []byte
 	// in the case of of a repeated struct (e.g. type Alias []SomeStruct),
 	// we do not need to prepend with `(field_number << 3) | wire_type` as this
 	// would need to be done for each struct and not only for the first.
@@ -396,6 +415,31 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	info, err := cdc.getTypeInfoWlock(rt)
 	if err != nil {
 		return err
+	}
+
+	if info.Registered && rv.CanAddr() {
+		addr := rv.Addr()
+		if addr.Type().Implements(binaryUnmarshalerType) {
+			pb := info.Prefix.Bytes()
+			l := len(pb)
+			if len(bz) < l {
+				return fmt.Errorf(
+					"unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X",
+					pb, bz,
+				)
+			}
+
+			pb2 := bz[:l]
+			bz = bz[l:]
+			if !bytes.Equal(pb2, pb) {
+				return fmt.Errorf(
+					"unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X",
+					pb, pb2,
+				)
+			}
+
+			return addr.Interface().(encoding.BinaryUnmarshaler).UnmarshalBinary(bz)
+		}
 	}
 
 	// If registered concrete, consume and verify prefix bytes.
