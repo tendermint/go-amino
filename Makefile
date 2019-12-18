@@ -1,6 +1,3 @@
-GOTOOLS = \
-	github.com/golangci/golangci-lint/cmd/golangci-lint
-GOTOOLS_CHECK = golangci-lint
 
 all: check_tools test
 
@@ -17,19 +14,7 @@ install:
 ########################################
 ### Tools & dependencies
 
-check_tools:
-	@# https://stackoverflow.com/a/25668869
-	@echo "Found tools: $(foreach tool,$(GOTOOLS_CHECK),\
-        $(if $(shell which $(tool)),$(tool),$(error "No $(tool) in PATH")))"
-
-get_tools:
-	@echo "--> Installing tools"
-	go get -v $(GOTOOLS)
-
-update_tools:
-	@echo "--> Updating tools"
-	@go get -u -v $(GOTOOLS)
-
+include tools.mk
 
 ########################################
 ### Testing
@@ -42,18 +27,17 @@ gofuzz_binary:
 	rm -rf tests/fuzz/binary/crashers/
 	rm -rf tests/fuzz/binary/suppressions/
 	go run tests/fuzz/binary/init-corpus/main.go --corpus-parent=tests/fuzz/binary
-	# TODO: update when https://github.com/dvyukov/go-fuzz/issues/195 is resolved
-	GO111MODULE=off go-fuzz-build github.com/tendermint/go-amino/tests/fuzz/binary
-	GO111MODULE=off go-fuzz -bin=./fuzz_binary-fuzz.zip -workdir=tests/fuzz/binary
+	go-fuzz-build github.com/tendermint/go-amino/tests/fuzz/binary
+	go-fuzz -bin=./fuzzbinary-fuzz.zip -workdir=tests/fuzz/binary
+	rm -rf ./fuzzbinary-fuzz.zip
 
 gofuzz_json:
 	rm -rf tests/fuzz/json/corpus/
 	rm -rf tests/fuzz/json/crashers/
 	rm -rf tests/fuzz/json/suppressions/
-	# TODO: update when https://github.com/dvyukov/go-fuzz/issues/195 is resolved
-	GO111MODULE=off go-fuzz-build github.com/tendermint/go-amino/tests/fuzz/json
-	GO111MODULE=off go-fuzz -bin=./fuzz_json-fuzz.zip -workdir=tests/fuzz/json
-
+	go-fuzz-build github.com/tendermint/go-amino/tests/fuzz/json
+	go-fuzz -bin=./fuzzjson-fuzz.zip -workdir=tests/fuzz/json
+	rm -rf ./fuzzjson-fuzz.zip
 
 ########################################
 ### Formatting, linting, and vetting
