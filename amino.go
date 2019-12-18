@@ -417,7 +417,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		return err
 	}
 
-	if info.Registered  && rv.CanAddr() {
+	if info.Registered && rv.CanAddr() {
 		addr := rv.Addr()
 		if addr.Type().Implements(binaryUnmarshalerType) {
 			pb := info.Prefix.Bytes()
