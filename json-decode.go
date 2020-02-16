@@ -362,7 +362,7 @@ func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.V
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.Value, _ FieldOptions) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -413,7 +413,7 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 		}
 
 		// Decode into field rv.
-		err = cdc.decodeReflectJSON(valueBytes, finfo, frv, fopts)
+		err = cdc.decodeReflectJSON(valueBytes, finfo, frv, field.FieldOptions)
 		if err != nil {
 			return
 		}
