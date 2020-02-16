@@ -23,6 +23,7 @@ func registerTransports(cdc *amino.Codec) {
 	cdc.RegisterConcrete(insurancePlan(0), "insuranceplan", nil)
 	cdc.RegisterConcrete(Boat(""), "boat", nil)
 	cdc.RegisterConcrete(Plane{}, "plane", nil)
+	cdc.RegisterConcrete(Unsafe{}, "unsafe", nil)
 }
 
 func TestMarshalJSON(t *testing.T) {
@@ -101,6 +102,7 @@ func TestMarshalJSON(t *testing.T) {
 		}{FP: &fp{"Foo", 10}, Package: "bytes"},
 			`{"FP":<FP-MARSHALJSON>,"Package":"bytes"}`, "",
 		}, // #23,
+		{Unsafe{Number: 3.14}, `{"type":"unsafe","value":{"Number":3.14}}`, ""}, // #24
 	}
 
 	for i, tt := range cases {
@@ -276,6 +278,13 @@ func TestUnmarshalJSON(t *testing.T) {
 		},
 		{ // #14
 			`{"PC":"125","FP":"<FP-FOO>"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `"<FP-FOO>"`}}, "",
+		},
+		{ // #15
+			`{"type":"unsafe","value":{"Number":3.14}}`,
+			new(Unsafe),
+			&Unsafe{
+				Number: 3.14,
+			}, "",
 		},
 	}
 
@@ -465,6 +474,10 @@ func (p Plane) Move() error { return nil }
 
 func interfacePtr(v interface{}) *interface{} {
 	return &v
+}
+
+type Unsafe struct {
+	Number float64 `amino:"unsafe"`
 }
 
 // Test to ensure that Amino codec's time encoding/decoding roundtrip
