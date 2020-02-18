@@ -105,7 +105,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		err = cdc.decodeReflectJSONSlice(bz, info, rv, fopts)
 
 	case reflect.Struct:
-		err = cdc.decodeReflectJSONStruct(bz, info, rv, fopts)
+		err = cdc.decodeReflectJSONStruct(bz, info, rv)
 
 	case reflect.Map:
 		err = cdc.decodeReflectJSONMap(bz, info, rv, fopts)
@@ -362,7 +362,7 @@ func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.V
 }
 
 // CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.Value, _ FieldOptions) (err error) {
+func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.Value) (err error) {
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
