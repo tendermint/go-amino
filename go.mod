@@ -7,5 +7,5 @@ require (
 	github.com/golang/protobuf v1.3.3
 	github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf
 	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.5.0
+	github.com/stretchr/testify v1.5.1
 )
