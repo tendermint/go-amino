@@ -527,7 +527,7 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 	return w.Bytes(), nil
 }
 
-// MustMarshalJSON panics if an error occurs. Besides tha behaves exactly like MarshalJSON.
+// MustMarshalJSON panics if an error occurs. Besides that behaves exactly like MarshalJSON.
 func (cdc *Codec) MustMarshalJSON(o interface{}) []byte {
 	bz, err := cdc.MarshalJSON(o)
 	if err != nil {
@@ -567,7 +567,7 @@ func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
 	return cdc.decodeReflectJSON(bz, info, rv, FieldOptions{})
 }
 
-// MustUnmarshalJSON panics if an error occurs. Besides tha behaves exactly like UnmarshalJSON.
+// MustUnmarshalJSON panics if an error occurs. Besides that behaves exactly like UnmarshalJSON.
 func (cdc *Codec) MustUnmarshalJSON(bz []byte, ptr interface{}) {
 	if err := cdc.UnmarshalJSON(bz, ptr); err != nil {
 		panic(err)
