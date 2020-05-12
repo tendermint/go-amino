@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	amino "github.com/tendermint/go-amino"
+	"github.com/tendermint/go-amino"
 )
 
 type SimpleStruct struct {
@@ -249,4 +249,34 @@ func TestCodecSeal(t *testing.T) {
 
 	assert.Panics(t, func() { cdc.RegisterInterface((*Bar)(nil), nil) })
 	assert.Panics(t, func() { cdc.RegisterConcrete(int(0), "int", nil) })
+}
+
+func TestCodec_RegisteredName(t *testing.T) {
+	aminoStructType := "tendermint/SimpleStruct"
+
+	// Struct is registered
+	cdc := amino.NewCodec()
+	cdc.RegisterConcrete(SimpleStruct{}, aminoStructType, nil)
+	rn, err := cdc.ConcreteRegisteredName(SimpleStruct{})
+	require.NoError(t, err)
+	require.Equal(t, aminoStructType, rn)
+
+	// Struct is not registered
+	cdc = amino.NewCodec()
+	rn, err = cdc.ConcreteRegisteredName(SimpleStruct{})
+	require.Error(t, err)
+	require.Empty(t, rn)
+
+	// Struct is pointer
+	cdc = amino.NewCodec()
+	cdc.RegisterConcrete(SimpleStruct{}, aminoStructType, nil)
+	rn, err = cdc.ConcreteRegisteredName(&SimpleStruct{})
+	require.NoError(t, err)
+	require.Equal(t, aminoStructType, rn)
+
+	// Struct is nil pointer
+	cdc = amino.NewCodec()
+	rn, err = cdc.ConcreteRegisteredName(nil)
+	require.Error(t, err)
+	require.Empty(t, rn)
 }
