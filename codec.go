@@ -308,6 +308,30 @@ func (cdc *Codec) PrintTypes(out io.Writer) error {
 	return nil
 }
 
+// ConcreteRegisteredName returns the name under which i has been registered.
+func (cdc *Codec) ConcreteRegisteredName(i interface{}) (string, error) {
+	cdc.mtx.RLock()
+	defer cdc.mtx.RUnlock()
+
+	if i == nil {
+		return "", errors.New("argument must not be nil")
+	}
+
+	gt := reflect.TypeOf(i)
+
+	// if i is a non-nil pointer, dereference it and grab its inner Elem
+	if gt.Kind() == reflect.Ptr {
+		gt = gt.Elem()
+	}
+
+	ct, ok := cdc.typeInfos[gt]
+	if !ok {
+		return "", fmt.Errorf("no type registered for %s", gt.String())
+	}
+
+	return ct.Name, nil
+}
+
 // A heuristic to guess the size of a registered type and return it as a string.
 // If the size is not fixed it returns "variable".
 func getLengthStr(info *TypeInfo) string {
