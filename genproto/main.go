@@ -99,15 +99,6 @@ func main() {
 		}
 
 		return true
-		/*
-			ret, ok := n.(*ast.ReturnStmt)
-			if ok {
-				fmt.Printf("return statement found on line %d:\n\t", fset.Position(ret.Pos()).Line)
-				printer.Fprint(os.Stdout, fset, ret)
-				return true
-			}
-		*/
-		return true
 	})
 }
 
