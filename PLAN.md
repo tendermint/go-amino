@@ -1,4 +1,4 @@
-# Why Amino?
+# Explain why Amino.
 
 * better mapping to OOP languages than proto2/3; aka "proto3/4 Any wants to be
   Amino" --> now is the time to try different approaches.  we already have a
@@ -42,6 +42,7 @@ g.P("prints a line")
 		g.P("prints another intented line")
 	})
 	.P("prints an unintented line")
+```
 
 * Some parts of the code appears to use Go's AST to generate or modify code.
   See
