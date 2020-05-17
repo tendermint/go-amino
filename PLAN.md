@@ -20,10 +20,35 @@ https://developers.google.com/protocol-buffers/docs/proto3#any
 
 # NOTES
 
-* Code generation convention is OK here:
-  `https://github.com/golang/protobuf/blob/master/protoc-gen-go/generator/generator.go`,
-but shouldn't there be a better way?  Perhaps one that uses the AST, so that
-the template can be checked by the compiler, even.
+* Golang code generation examples from google:
+  https://github.com/golang/protobuf/blob/master/protoc-gen-go/generator/generator.go,
+superceded by `google.golang.org/protobuf/compiler/protogen`,
+https://github.com/protocolbuffers/protobuf-go/blob/v1.23.0/cmd/protoc-gen-go/internal_gengo/main.go
+
+The primary function is the `<GeneratedFile>.P()` function, which just prints:
+
+ > P prints a line to the generated output. It converts each parameter to a string following the same rules as fmt.Print. It never inserts spaces between parameters.
+
+This is fine for Go code as it can be re-formatted with gofmt.
+What Amino's genproto does is in the other direction, and the result is a proto3 file.
+
+The takeaway for code templating is this:  Don't use golang's default templates system, and use something like `.P()` to generate a line.
+Such a code generator could also help keep track of indentations.
+
+```
+g.P("prints a line")
+	.WithIndent(func(g Generator) {
+		g.P("prints an intented line")
+		g.P("prints another intented line")
+	})
+	.P("prints an unintented line")
+
+* Some parts of the code appears to use Go's AST to generate or modify code.
+  See
+https://github.com/protocolbuffers/protobuf-go/blob/d165be301fb1e13390ad453281ded24385fd8ebc/compiler/protogen/protogen.go#L1129
+
+* I'm not aware of anything yet that generates proto files, but here's one struct representation of one:
+https://github.com/protocolbuffers/protobuf-go/blob/d165be301fb1e13390ad453281ded24385fd8ebc/compiler/protogen/protogen.go#L463
 
 # Obligatory Morty
 
