@@ -1,4 +1,4 @@
-package main
+package genproto
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ type aminoType struct {
 	typeExpr  ast.Expr
 }
 
-func main() {
+func RunExample() {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, "example/main.go", nil, parser.ParseComments)
 	if err != nil {

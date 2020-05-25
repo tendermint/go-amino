@@ -72,7 +72,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		// First, decode repr instance from bytes.
 		rrv := reflect.New(info.AminoUnmarshalReprType).Elem()
 		var rinfo *TypeInfo
-		rinfo, err = cdc.getTypeInfoWlock(info.AminoUnmarshalReprType)
+		rinfo, err = cdc.getTypeInfoWLock(info.AminoUnmarshalReprType)
 		if err != nil {
 			return
 		}
@@ -210,7 +210,7 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv refl
 	// Get concrete type info.
 	// NOTE: Unlike decodeReflectBinaryInterface, uses the full name string.
 	var cinfo *TypeInfo
-	cinfo, err = cdc.getTypeInfoFromNameRlock(name)
+	cinfo, err = cdc.getTypeInfoFromNameRLock(name)
 	if err != nil {
 		return
 	}
@@ -263,7 +263,7 @@ func (cdc *Codec) decodeReflectJSONArray(bz []byte, info *TypeInfo, rv reflect.V
 
 	default: // General case.
 		var einfo *TypeInfo
-		einfo, err = cdc.getTypeInfoWlock(ert)
+		einfo, err = cdc.getTypeInfoWLock(ert)
 		if err != nil {
 			return
 		}
@@ -324,7 +324,7 @@ func (cdc *Codec) decodeReflectJSONSlice(bz []byte, info *TypeInfo, rv reflect.V
 
 	default: // General case.
 		var einfo *TypeInfo
-		einfo, err = cdc.getTypeInfoWlock(ert)
+		einfo, err = cdc.getTypeInfoWLock(ert)
 		if err != nil {
 			return
 		}
@@ -387,7 +387,7 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 		// Get field rv and info.
 		var frv = rv.Field(field.Index)
 		var finfo *TypeInfo
-		finfo, err = cdc.getTypeInfoWlock(field.Type)
+		finfo, err = cdc.getTypeInfoWLock(field.Type)
 		if err != nil {
 			return
 		}
@@ -449,7 +449,7 @@ func (cdc *Codec) decodeReflectJSONMap(bz []byte, info *TypeInfo, rv reflect.Val
 		return
 	}
 	var vinfo *TypeInfo
-	vinfo, err = cdc.getTypeInfoWlock(rv.Type().Elem())
+	vinfo, err = cdc.getTypeInfoWLock(rv.Type().Elem())
 	if err != nil {
 		return
 	}

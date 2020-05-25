@@ -63,7 +63,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 		// First, decode repr instance from bytes.
 		rrv := reflect.New(info.AminoUnmarshalReprType).Elem()
 		var rinfo *TypeInfo
-		rinfo, err = cdc.getTypeInfoWlock(info.AminoUnmarshalReprType)
+		rinfo, err = cdc.getTypeInfoWLock(info.AminoUnmarshalReprType)
 		if err != nil {
 			return
 		}
@@ -355,9 +355,9 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	var cinfo *TypeInfo
 	switch {
 	case hasDisamb:
-		cinfo, err = cdc.getTypeInfoFromDisfixRlock(toDisfix(disamb, prefix))
+		cinfo, err = cdc.getTypeInfoFromDisfixRLock(toDisfix(disamb, prefix))
 	case hasPrefix:
-		cinfo, err = cdc.getTypeInfoFromPrefixRlock(iinfo, prefix)
+		cinfo, err = cdc.getTypeInfoFromPrefixRLock(iinfo, prefix)
 	default:
 		err = errors.New("expected disambiguation or prefix bytes")
 	}
@@ -472,7 +472,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 		panic("should not happen")
 	}
 	length := info.Type.Len()
-	einfo, err := cdc.getTypeInfoWlock(ert)
+	einfo, err := cdc.getTypeInfoWLock(ert)
 	if err != nil {
 		return
 	}
@@ -645,7 +645,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	if ert.Kind() == reflect.Uint8 {
 		panic("should not happen")
 	}
-	einfo, err := cdc.getTypeInfoWlock(ert)
+	einfo, err := cdc.getTypeInfoWLock(ert)
 	if err != nil {
 		return
 	}
@@ -807,7 +807,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 			// Get field rv and info.
 			var frv = rv.Field(field.Index)
 			var finfo *TypeInfo
-			finfo, err = cdc.getTypeInfoWlock(field.Type)
+			finfo, err = cdc.getTypeInfoWLock(field.Type)
 			if err != nil {
 				return
 			}

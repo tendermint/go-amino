@@ -21,9 +21,6 @@ func (l line) String() string {
 	return l.indentStr + l.value
 }
 
-// shortcut
-var fmt_ = fmt.Sprintf
-
 // CodePress is a tool for printing code.
 // CodePress is not concurrency safe.
 type CodePress struct {
@@ -76,13 +73,13 @@ func (cp *CodePress) Ln() *CodePress {
 }
 
 // Convenience for P() followed by Nl().
-func (cp *CodePress) Pln(s string, args ...interface{}) *CodePress {
+func (cp *CodePress) Pl(s string, args ...interface{}) *CodePress {
 	return cp.P(s, args...).Ln()
 }
 
 // auto-indents cp2, appends concents to cp.
-// Panics if the last call wasn't Pln() or Ln().
-// Regardless of whether Pln or Ln is called on cp2,
+// Panics if the last call wasn't Pl() or Ln().
+// Regardless of whether Pl or Ln is called on cp2,
 // the indented lines terminate with newlineDelim before
 // the next unindented line.
 func (cp *CodePress) I(block func(cp2 *CodePress)) *CodePress {

@@ -27,7 +27,7 @@ func TestBasicLn(t *testing.T) {
 	p := NewCodePress()
 	p.P("this ")
 	p.P("is ")
-	p.Pln("a test")
+	p.Pl("a test")
 	assertEquals(t, p.Print(), "this is a test\n")
 }
 
@@ -35,18 +35,18 @@ func TestNewlineStr(t *testing.T) {
 	p := NewCodePress().SetNewlineStr("\r\n")
 	p.P("this ")
 	p.P("is ")
-	p.Pln("a test")
-	p.Pln("a test")
-	p.Pln("a test")
+	p.Pl("a test")
+	p.Pl("a test")
+	p.Pl("a test")
 	assertEquals(t, p.Print(), "this is a test\r\na test\r\na test\r\n")
 }
 
 func TestIndent(t *testing.T) {
 	p := NewCodePress()
 	p.P("first line ")
-	p.Pln("{").I(func(p *CodePress) {
-		p.Pln("second line")
-		p.Pln("third line")
+	p.Pl("{").I(func(p *CodePress) {
+		p.Pl("second line")
+		p.Pl("third line")
 	}).P("}")
 	assertEquals(t, p.Print(), `first line {
 	second line
@@ -57,10 +57,10 @@ func TestIndent(t *testing.T) {
 func TestIndent2(t *testing.T) {
 	p := NewCodePress()
 	p.P("first line ")
-	p.Pln("{").I(func(p *CodePress) {
+	p.Pl("{").I(func(p *CodePress) {
 		p.P("second ")
 		p.P("line")
-		// Regardless of whether Pln or Ln is called on cp2,
+		// Regardless of whether Pl or Ln is called on cp2,
 		// the indented lines terminate with newlineDelim before
 		// the next unindented line.
 	}).P("}")
@@ -72,9 +72,9 @@ func TestIndent2(t *testing.T) {
 func TestIndent3(t *testing.T) {
 	p := NewCodePress()
 	p.P("first line ")
-	p.Pln("{").I(func(p *CodePress) {
+	p.Pl("{").I(func(p *CodePress) {
 		p.P("second ")
-		p.Pln("line")
+		p.Pl("line")
 	}).P("}")
 	assertEquals(t, p.Print(), `first line {
 	second line
@@ -84,10 +84,10 @@ func TestIndent3(t *testing.T) {
 func TestIndentLn(t *testing.T) {
 	p := NewCodePress()
 	p.P("first line ")
-	p.Pln("{").I(func(p *CodePress) {
-		p.Pln("second line")
-		p.Pln("third line")
-	}).Pln("}")
+	p.Pl("{").I(func(p *CodePress) {
+		p.Pl("second line")
+		p.Pl("third line")
+	}).Pl("}")
 	assertEquals(t, p.Print(), `first line {
 	second line
 	third line
@@ -98,14 +98,14 @@ func TestIndentLn(t *testing.T) {
 func TestNestedIndent(t *testing.T) {
 	p := NewCodePress()
 	p.P("first line ")
-	p.Pln("{").I(func(p *CodePress) {
-		p.Pln("second line")
-		p.Pln("third line")
+	p.Pl("{").I(func(p *CodePress) {
+		p.Pl("second line")
+		p.Pl("third line")
 		p.I(func(p *CodePress) {
-			p.Pln("fourth line")
-			p.Pln("fifth line")
+			p.Pl("fourth line")
+			p.Pl("fifth line")
 		})
-	}).Pln("}")
+	}).Pl("}")
 	assertEquals(t, p.Print(), `first line {
 	second line
 	third line
