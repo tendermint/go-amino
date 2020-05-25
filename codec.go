@@ -483,7 +483,7 @@ func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 		fopts.BinFieldNum = uint32(len(infos) + 1)
 		fieldInfo := FieldInfo{
 			Name:         field.Name, // Mostly for debugging.
-			Index:        i,
+			Index:        i,          // the field number for this go runtime (for decoding).
 			Type:         ftype,
 			ZeroValue:    reflect.Zero(ftype),
 			UnpackedList: unpackedList,
