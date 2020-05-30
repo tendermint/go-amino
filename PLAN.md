@@ -18,6 +18,7 @@ https://developers.google.com/protocol-buffers/docs/proto3#any
   * [ ] use both fuzz tests to check for completeness.
   * [ ] automate the testing of gofuzz tests.
 
+
 # NOTES
 
 * Golang code generation examples from google:
@@ -32,16 +33,16 @@ The primary function is the `<GeneratedFile>.P()` function, which just prints:
 This is fine for Go code as it can be re-formatted with gofmt.
 What Amino's genproto does is in the other direction, and the result is a proto3 file.
 
-The takeaway for code templating is this:  Don't use golang's default templates system, and use something like `.P()` to generate a line.
-Such a code generator could also help keep track of indentations.
+The takeaway for code templating is this:  Don't use golang's default templates system, and use something like `.P()` to print, or `.Pl()` to print a line.
+`.I(...)` for indentation, such as:
 
 ```
-g.P("prints a line")
+g.Pl("prints a line")
 	.WithIndent(func(g Generator) {
-		g.P("prints an intented line")
-		g.P("prints another intented line")
+		g.Pl("prints an intented line")
+		g.Pl("prints another intented line")
 	})
-	.P("prints an unintented line")
+	.Pl("prints an unintented line")
 ```
 
 * Some parts of the code appears to use Go's AST to generate or modify code.
@@ -50,6 +51,7 @@ https://github.com/protocolbuffers/protobuf-go/blob/d165be301fb1e13390ad453281de
 
 * I'm not aware of anything yet that generates proto files, but here's one struct representation of one:
 https://github.com/protocolbuffers/protobuf-go/blob/d165be301fb1e13390ad453281ded24385fd8ebc/compiler/protogen/protogen.go#L463
+
 
 # Obligatory Morty
 

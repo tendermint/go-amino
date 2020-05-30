@@ -87,7 +87,7 @@ func RunExample() {
 				fmt.Println("Generating proto schema for:", aminoType.name)
 				switch atype := aminoType.typeExpr.(type) {
 				case *ast.StructType:
-					// do something
+					// Transcode a struct type expr into the appropriate proto shema.
 				default:
 					panic(fmt.Sprintf("amino directive unsupported for %v", atype))
 				}

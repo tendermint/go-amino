@@ -1,22 +1,22 @@
-package codepress
+package press
 
 import (
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
-// NOTE: flips the order of expected and actual, because wtf mate.
-func assertEquals(t *testing.T, expected interface{}, actual interface{}) {
-	assert.Equal(t, actual, expected)
+// NOTE: actual first.
+func assertEquals(t *testing.T, actual interface{}, expected interface{}) {
+	assert.Equal(t, expected, actual)
 }
 
 func TestEmpty(t *testing.T) {
-	p := NewCodePress()
+	p := NewPress()
 	assertEquals(t, p.Print(), "")
 }
 
 func TestBasic(t *testing.T) {
-	p := NewCodePress()
+	p := NewPress()
 	p.P("this ")
 	p.P("is ")
 	p.P("a test")
@@ -24,7 +24,7 @@ func TestBasic(t *testing.T) {
 }
 
 func TestBasicLn(t *testing.T) {
-	p := NewCodePress()
+	p := NewPress()
 	p.P("this ")
 	p.P("is ")
 	p.Pl("a test")
@@ -32,7 +32,7 @@ func TestBasicLn(t *testing.T) {
 }
 
 func TestNewlineStr(t *testing.T) {
-	p := NewCodePress().SetNewlineStr("\r\n")
+	p := NewPress().SetNewlineStr("\r\n")
 	p.P("this ")
 	p.P("is ")
 	p.Pl("a test")
@@ -42,9 +42,9 @@ func TestNewlineStr(t *testing.T) {
 }
 
 func TestIndent(t *testing.T) {
-	p := NewCodePress()
+	p := NewPress()
 	p.P("first line ")
-	p.Pl("{").I(func(p *CodePress) {
+	p.Pl("{").I(func(p *Press) {
 		p.Pl("second line")
 		p.Pl("third line")
 	}).P("}")
@@ -55,9 +55,9 @@ func TestIndent(t *testing.T) {
 }
 
 func TestIndent2(t *testing.T) {
-	p := NewCodePress()
+	p := NewPress()
 	p.P("first line ")
-	p.Pl("{").I(func(p *CodePress) {
+	p.Pl("{").I(func(p *Press) {
 		p.P("second ")
 		p.P("line")
 		// Regardless of whether Pl or Ln is called on cp2,
@@ -70,9 +70,9 @@ func TestIndent2(t *testing.T) {
 }
 
 func TestIndent3(t *testing.T) {
-	p := NewCodePress()
+	p := NewPress()
 	p.P("first line ")
-	p.Pl("{").I(func(p *CodePress) {
+	p.Pl("{").I(func(p *Press) {
 		p.P("second ")
 		p.Pl("line")
 	}).P("}")
@@ -82,9 +82,9 @@ func TestIndent3(t *testing.T) {
 }
 
 func TestIndentLn(t *testing.T) {
-	p := NewCodePress()
+	p := NewPress()
 	p.P("first line ")
-	p.Pl("{").I(func(p *CodePress) {
+	p.Pl("{").I(func(p *Press) {
 		p.Pl("second line")
 		p.Pl("third line")
 	}).Pl("}")
@@ -96,12 +96,12 @@ func TestIndentLn(t *testing.T) {
 }
 
 func TestNestedIndent(t *testing.T) {
-	p := NewCodePress()
+	p := NewPress()
 	p.P("first line ")
-	p.Pl("{").I(func(p *CodePress) {
+	p.Pl("{").I(func(p *Press) {
 		p.Pl("second line")
 		p.Pl("third line")
-		p.I(func(p *CodePress) {
+		p.I(func(p *Press) {
 			p.Pl("fourth line")
 			p.Pl("fifth line")
 		})

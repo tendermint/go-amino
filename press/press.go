@@ -1,4 +1,4 @@
-package codepress
+package press
 
 import (
 	"fmt"
@@ -21,9 +21,9 @@ func (l line) String() string {
 	return l.indentStr + l.value
 }
 
-// CodePress is a tool for printing code.
-// CodePress is not concurrency safe.
-type CodePress struct {
+// Press is a tool for printing code.
+// Press is not concurrency safe.
+type Press struct {
 	rnd          *rand.Rand // for generating a random variable names.
 	indentPrefix string     // current indent prefix.
 	indentDelim  string     // a tab or spaces, whatever.
@@ -31,8 +31,8 @@ type CodePress struct {
 	lines        []line     // accumulated lines from printing.
 }
 
-func NewCodePress() *CodePress {
-	return &CodePress{
+func NewPress() *Press {
+	return &Press{
 		rnd:          rand.New(rand.NewSource(0)),
 		indentPrefix: "",
 		indentDelim:  "\t",
@@ -41,98 +41,98 @@ func NewCodePress() *CodePress {
 	}
 }
 
-func (cp *CodePress) SetIndentDelim(s string) *CodePress {
-	cp.indentDelim = s
-	return cp
+func (p *Press) SetIndentDelim(s string) *Press {
+	p.indentDelim = s
+	return p
 }
 
-func (cp *CodePress) SetNewlineStr(s string) *CodePress {
-	cp.newlineStr = s
-	return cp
+func (p *Press) SetNewlineStr(s string) *Press {
+	p.newlineStr = s
+	return p
 }
 
 // Main function for printing something on the press.
-func (cp *CodePress) P(s string, args ...interface{}) *CodePress {
+func (p *Press) P(s string, args ...interface{}) *Press {
 	var l *line
-	if len(cp.lines) == 0 {
+	if len(p.lines) == 0 {
 		// Make a new line.
-		cp.lines = []line{newLine(cp.indentPrefix, "")}
+		p.lines = []line{newLine(p.indentPrefix, "")}
 	}
 	// Get ref to last line.
-	l = &(cp.lines[len(cp.lines)-1])
+	l = &(p.lines[len(p.lines)-1])
 	l.value += fmt.Sprintf(s, args...)
-	return cp
+	return p
 }
 
 // Appends a new line.
 // It is also possible to print newline characters direclty,
-// but CodePress doesn't treat them as newlines for the sake of indentation.
-func (cp *CodePress) Ln() *CodePress {
-	cp.lines = append(cp.lines, newLine(cp.indentPrefix, ""))
-	return cp
+// but Press doesn't treat them as newlines for the sake of indentation.
+func (p *Press) Ln() *Press {
+	p.lines = append(p.lines, newLine(p.indentPrefix, ""))
+	return p
 }
 
 // Convenience for P() followed by Nl().
-func (cp *CodePress) Pl(s string, args ...interface{}) *CodePress {
-	return cp.P(s, args...).Ln()
+func (p *Press) Pl(s string, args ...interface{}) *Press {
+	return p.P(s, args...).Ln()
 }
 
-// auto-indents cp2, appends concents to cp.
+// auto-indents p2, appends concents to p.
 // Panics if the last call wasn't Pl() or Ln().
-// Regardless of whether Pl or Ln is called on cp2,
+// Regardless of whether Pl or Ln is called on p2,
 // the indented lines terminate with newlineDelim before
 // the next unindented line.
-func (cp *CodePress) I(block func(cp2 *CodePress)) *CodePress {
-	if len(cp.lines) > 0 {
-		lastLine := cp.lines[len(cp.lines)-1]
+func (p *Press) I(block func(p2 *Press)) *Press {
+	if len(p.lines) > 0 {
+		lastLine := p.lines[len(p.lines)-1]
 		if lastLine.value != "" {
 			panic("cannot indent after nonempty line")
 		}
-		if lastLine.indentStr != cp.indentPrefix {
+		if lastLine.indentStr != p.indentPrefix {
 			panic("unexpected indent string in last line")
 		}
 		// remove last empty line
-		cp.lines = cp.lines[:len(cp.lines)-1]
+		p.lines = p.lines[:len(p.lines)-1]
 	}
-	cp2 := cp.SubCodePress()
-	cp2.indentPrefix = cp.indentPrefix + cp.indentDelim
-	block(cp2)
-	ilines := cp2.Lines()
-	// remove last empty line from cp2
+	p2 := p.SubPress()
+	p2.indentPrefix = p.indentPrefix + p.indentDelim
+	block(p2)
+	ilines := p2.Lines()
+	// remove last empty line from p2
 	ilines = withoutFinalNewline(ilines)
-	cp.lines = append(cp.lines, ilines...)
+	p.lines = append(p.lines, ilines...)
 	// (re)introduce last line with original indent
-	cp.lines = append(cp.lines, newLine(cp.indentPrefix, ""))
-	return cp
+	p.lines = append(p.lines, newLine(p.indentPrefix, ""))
+	return p
 }
 
 // Prints the final representation of the contents.
-func (cp *CodePress) Print() string {
+func (p *Press) Print() string {
 	lines := []string{}
-	for _, line := range cp.lines {
+	for _, line := range p.lines {
 		lines = append(lines, line.String())
 	}
-	return strings.Join(lines, cp.newlineStr)
+	return strings.Join(lines, p.newlineStr)
 }
 
 // Returns the lines.
 // This may be useful for adding additional indentation to each line for code blocks.
-func (cp *CodePress) Lines() (lines []line) {
-	return cp.lines
+func (p *Press) Lines() (lines []line) {
+	return p.lines
 }
 
 // Convenience
-func (cp *CodePress) RandID(prefix string) string {
-	return prefix + "_" + cp.RandStr(8)
+func (p *Press) RandID(prefix string) string {
+	return prefix + "_" + p.RandStr(8)
 }
 
 // Convenience
-func (cp *CodePress) RandStr(length int) string {
+func (p *Press) RandStr(length int) string {
 	const strChars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz" // 62 characters
 	chars := []byte{}
 MAIN_LOOP:
 	for {
-		val := cp.rnd.Int63()
+		val := p.rnd.Int63()
 		for i := 0; i < 10; i++ {
 			v := int(val & 0x3f) // rightmost 6 bits
 			if v >= 62 {         // only 62 characters in strChars
@@ -150,21 +150,21 @@ MAIN_LOOP:
 	return string(chars)
 }
 
-// SubCodePress creates a blank CodePress suitable for inlining code.
+// SubPress creates a blank Press suitable for inlining code.
 // It starts with no indentation, zero lines,
 // a derived rand from the original, but the same indent and nl strings..
-func (cp *CodePress) SubCodePress() *CodePress {
-	cp2 := NewCodePress()
-	cp2.rnd = detrand.DeriveRand(cp.rnd)
-	cp2.indentPrefix = ""
-	cp2.indentDelim = cp.indentDelim
-	cp2.newlineStr = cp.newlineStr
-	cp2.lines = nil
-	return cp2
+func (p *Press) SubPress() *Press {
+	p2 := NewPress()
+	p2.rnd = detrand.DeriveRand(p.rnd)
+	p2.indentPrefix = ""
+	p2.indentDelim = p.indentDelim
+	p2.newlineStr = p.newlineStr
+	p2.lines = nil
+	return p2
 }
 
 // ref: the reference to the value being encoded.
-type EncoderPressFunc func(cp *CodePress, ref string) (code string)
+type EncoderPressFunc func(p *Press, ref string) (code string)
 
 //----------------------------------------
 
