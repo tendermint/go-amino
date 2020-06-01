@@ -13,7 +13,6 @@ func assertEquals(t *testing.T, actual interface{}, expected interface{}) {
 func TestPrintP3Types(t *testing.T) {
 	doc := P3Doc{
 		Comment: "doc comment",
-		Syntax:  "some_syntax",
 		Messages: []P3Message{
 			P3Message{
 				Comment: "message comment",
@@ -44,10 +43,9 @@ func TestPrintP3Types(t *testing.T) {
 	}
 
 	proto3Schema := doc.Print()
-	assertEquals(t, proto3Schema, `// Auto-generated Proto3 schema file, generatedy by go-amino
-// doc comment
+	assertEquals(t, proto3Schema, `// doc comment
 
-syntax = some_syntax
+syntax = "proto3";
 
 // message comment
 message message_name {

@@ -37,7 +37,6 @@ const (
 
 type P3Doc struct {
 	Comment  string
-	Syntax   string
 	Messages []P3Message
 	// Enums []P3Enums // enums not supported, no need.
 }
@@ -65,11 +64,9 @@ func (doc P3Doc) Print() string {
 }
 
 func (doc P3Doc) PrintCode(p *press.Press) *press.Press {
-	// TODO move this comment out so we print doc.Comment only.
-	p.Pl("// Auto-generated Proto3 schema file, generatedy by go-amino")
+	p.Pl("syntax = \"proto3\";")
 	printComments(p, doc.Comment)
 	p.Ln()
-	p.Pl("syntax = %v", doc.Syntax)
 	for _, msg := range doc.Messages {
 		p.Ln()
 		msg.PrintCode(p)

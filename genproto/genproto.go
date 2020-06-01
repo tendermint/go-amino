@@ -169,11 +169,12 @@ func GenerateProtoForFilenode(pkg *packages.Package, filenode *ast.File) {
 func TranscodeToP3Message(task transcodeTask) P3Message {
 	var pkg = task.pkg
 	var imports = task.imports
-	var p3fields []P3Field
 
 	fmt.Println("Generating proto schema for:", task.name)
 	switch atype := task.typeExpr.(type) {
 	case *ast.StructType:
+		var p3fields []P3Field
+		var p3fieldCurNumber = 1 // proto3 fields start with 1.
 		// Transcode a struct type expr into the appropriate proto shema.
 		// For each struct field, discover the value type.
 		for _, field := range atype.Fields.List {
