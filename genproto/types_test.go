@@ -20,14 +20,14 @@ func TestPrintP3Types(t *testing.T) {
 				Fields: []P3Field{
 					P3Field{
 						Comment:  "field_comment",
-						Type:     P3FieldTypeString,
+						Type:     P3TypeString,
 						Name:     "field_name",
 						Number:   1,
 						Repeated: false,
 					},
 					P3Field{
 						Comment:  "field_comment",
-						Type:     P3FieldTypeUInt64,
+						Type:     P3TypeUint64,
 						Name:     "field_name",
 						Number:   2,
 						Repeated: true,

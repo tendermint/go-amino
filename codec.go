@@ -75,7 +75,7 @@ type InterfaceOptions struct {
 
 type ConcreteInfo struct {
 
-	// These fields are only set when registered (as implementing an interface).
+	// These fields are only set when registered.
 	Registered       bool // Registered with RegisterConcrete().
 	PointerPreferred bool // Deserialize to pointer type if possible.
 	// NilPreferred     bool        // Deserialize to nil for empty structs if PointerPreferred.
@@ -206,6 +206,8 @@ func (cdc *Codec) RegisterInterface(ptr interface{}, iopts *InterfaceOptions) {
 // interface fields/elements to be encoded/decoded by go-amino.
 // Usage:
 // `amino.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)`
+// It can also be used to register options for genproto etc, regardless
+// of whether it implements an interface.
 func (cdc *Codec) RegisterConcrete(o interface{}, name string, copts *ConcreteOptions) {
 	cdc.assertNotSealed()
 

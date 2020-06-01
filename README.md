@@ -2,19 +2,19 @@
 
 This software implements Go bindings for the Amino encoding protocol.
 
-Amino is an object encoding specification. It is a subset of Proto3 with
-an extension for interface support.  See the [Proto3 spec](https://developers.google.com/protocol-buffers/docs/proto3)
-for more information on Proto3, which Amino is largely compatible with (but not with Proto2).
+Amino is an object encoding specification. It is a subset of Proto3 and a
+subset of Go with an extension for interface support, but it is tied to
+neither.
 
-The goal of the Amino encoding protocol is to bring parity into logic objects
-and persistence objects.
+The goal of the Amino encoding protocol is to enable logic objects to become
+persisted/serialized in a future-compatible way, in a way that streamlines
+development from prototyping to production and maintenance.
 
 **DISCLAIMER:** We're still building out the ecosystem, which is currently most
 developed in Go.  But Amino is not just for Go — if you'd like to contribute by
 creating supporting libraries in various languages from scratch, or by adapting
 existing Protobuf3 libraries, please [open an issue on
 GitHub](https://github.com/tendermint/go-amino/issues)!
-
 
 # Why Amino?
 
@@ -56,12 +56,10 @@ would be able to support caller-defined concrete types of an interface.
 Instead, the `oneof` feature of Protobuf3 requires the concrete types to be
 pre-declared in the definition of the `oneof` field.
 
-Protobuf would be better if it supported interfaces/implementations as in most
-modern object-oriented languages. Since it is not, the generated code is often
-not the logical objects that you really want to use in your application, so you
-end up duplicating the structure in the Protobuf schema file and writing
-translators to and from your logic objects.  Amino can eliminate this extra
-duplication and help streamline development from inception to maturity.
+Proto3 now supports Any, but its usage is still being defined.  Amino is a
+gg
+proposal for how this could work, and go-amino is a proposal in the context of
+Go.
 
 ## Amino in the Wild
 
@@ -199,3 +197,25 @@ for maps for the Amino:JSON codec, but it shouldn't be relied on.  Ideally,
 each Amino library should decode maps as a List of key-value structs (in the
 case of langauges without generics, the library should maybe provide a custom
 Map implementation).  TODO specify the standard for key-value items.
+
+## Amino and Proto3
+
+Amino objects are a subset of Proto3.
+* Enums are not supported.
+* Nested message declarations are not supported.
+
+Amino extends Proto3's Any system with a particular concrete type
+identification format (disfix bytes).
+
+## Amino and Go 
+
+Amino objects are a subset of Go.
+* Multi-dimensional slices/arrays are not (yet) supported.
+* Floats are nondeterministic, so aren't supported by default.
+* Complex types are not (yet) supported.
+* Chans, funcs, and maps are not supported.
+* Pointers are automatically supported in go-amino but it is an extension of
+  the theoretical Amino spec.
+
+Amino, unlike Gob, is beyond the Go language, though the initial implementation
+and thus the specification happens to be in Go (for now).

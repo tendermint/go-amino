@@ -8,4 +8,5 @@ require (
 	github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf
 	github.com/pkg/errors v0.8.1
 	github.com/stretchr/testify v1.4.0
+	golang.org/x/tools v0.0.0-20200530233709-52effbd89c51
 )

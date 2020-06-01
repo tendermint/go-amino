@@ -1,6 +1,7 @@
 package genproto
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/tendermint/go-amino/press"
@@ -15,25 +16,50 @@ import (
 // NOTE: enums are not supported, as Amino's philosophy is that value checking
 // should primarily be done on the application side.
 
-type P3FieldType string
+type P3Type string
 
 const (
-	P3FieldTypeDouble   P3FieldType = "double"
-	P3FieldTypeFloat    P3FieldType = "float"
-	P3FieldTypeInt32    P3FieldType = "int32"
-	P3FieldTypeInt64    P3FieldType = "int64"
-	P3FieldTypeUInt32   P3FieldType = "uint32"
-	P3FieldTypeUInt64   P3FieldType = "uint64"
-	P3FieldTypeSInt32   P3FieldType = "sint32"
-	P3FieldTypeFixed32  P3FieldType = "fixed32"
-	P3FieldTypeFixed64  P3FieldType = "fixed64"
-	P3FieldTypeSFixed32 P3FieldType = "sfixed32"
-	P3FieldTypeSFixed64 P3FieldType = "sfixed64"
-	P3FieldTypeSInt64   P3FieldType = "sint64"
-	P3FieldTypeBool     P3FieldType = "bool"
-	P3FieldTypeString   P3FieldType = "string"
-	P3FieldTypeBytes    P3FieldType = "bytes"
+	P3TypeDouble   P3Type = "double"
+	P3TypeFloat    P3Type = "float"
+	P3TypeInt32    P3Type = "int32"
+	P3TypeInt64    P3Type = "int64"
+	P3TypeUint32   P3Type = "uint32"
+	P3TypeUint64   P3Type = "uint64"
+	P3TypeSint32   P3Type = "sint32"
+	P3TypeSint64   P3Type = "sint64"
+	P3TypeFixed32  P3Type = "fixed32"
+	P3TypeFixed64  P3Type = "fixed64"
+	P3TypeSfixed32 P3Type = "sfixed32"
+	P3TypeSfixed64 P3Type = "sfixed64"
+	P3TypeBool     P3Type = "bool"
+	P3TypeString   P3Type = "string"
+	P3TypeBytes    P3Type = "bytes"
 )
+
+func NewCustomP3Type(typeName string) P3Type {
+	if typeName == string(P3TypeDouble) ||
+		typeName == string(P3TypeFloat) ||
+		typeName == string(P3TypeInt32) ||
+		typeName == string(P3TypeInt64) ||
+		typeName == string(P3TypeUint32) ||
+		typeName == string(P3TypeUint64) ||
+		typeName == string(P3TypeSint32) ||
+		typeName == string(P3TypeSint64) ||
+		typeName == string(P3TypeFixed32) ||
+		typeName == string(P3TypeFixed64) ||
+		typeName == string(P3TypeSfixed32) ||
+		typeName == string(P3TypeSfixed64) ||
+		typeName == string(P3TypeBool) ||
+		typeName == string(P3TypeString) ||
+		typeName == string(P3TypeBytes) {
+		panic(fmt.Sprintf("field type %v already defined", typeName))
+	}
+	// check typeName
+	if len(typeName) == 0 {
+		panic("custom p3 type name can't be empty")
+	}
+	return P3Type(typeName)
+}
 
 type P3Doc struct {
 	Comment  string
@@ -49,10 +75,10 @@ type P3Message struct {
 
 type P3Field struct {
 	Comment  string
-	Type     P3FieldType
-	Name     string
-	Number   int
 	Repeated bool
+	Type     P3Type
+	Name     string
+	Number   uint32
 }
 
 //----------------------------------------
