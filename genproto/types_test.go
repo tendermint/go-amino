@@ -3,8 +3,6 @@ package genproto
 import (
 	"github.com/stretchr/testify/assert"
 	"testing"
-
-	"github.com/tendermint/go-amino/press"
 )
 
 // NOTE: actual first.
@@ -13,8 +11,6 @@ func assertEquals(t *testing.T, actual interface{}, expected interface{}) {
 }
 
 func TestPrintP3Types(t *testing.T) {
-	p := press.NewPress()
-
 	doc := P3Doc{
 		Comment: "doc comment",
 		Syntax:  "some_syntax",
@@ -47,7 +43,7 @@ func TestPrintP3Types(t *testing.T) {
 		},
 	}
 
-	proto3Schema := doc.PrintCode(p).Print()
+	proto3Schema := doc.Print()
 	assertEquals(t, proto3Schema, `// Auto-generated Proto3 schema file, generatedy by go-amino
 // doc comment
 

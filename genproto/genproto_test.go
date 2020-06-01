@@ -5,5 +5,5 @@ import (
 )
 
 func TestBasic(t *testing.T) {
-	RunExample()
+	GenerateProtoForPatterns("./example")
 }

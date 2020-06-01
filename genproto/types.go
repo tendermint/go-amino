@@ -59,7 +59,13 @@ type P3Field struct {
 //----------------------------------------
 // Functions for printing P3 objects
 
+func (doc P3Doc) Print() string {
+	p := press.NewPress()
+	return doc.PrintCode(p).Print()
+}
+
 func (doc P3Doc) PrintCode(p *press.Press) *press.Press {
+	// TODO move this comment out so we print doc.Comment only.
 	p.Pl("// Auto-generated Proto3 schema file, generatedy by go-amino")
 	printComments(p, doc.Comment)
 	p.Ln()

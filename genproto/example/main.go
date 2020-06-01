@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/tendermint/go-amino/genproto/example/submodule"
+)
 
 // amino
 type StructA struct {
@@ -16,6 +19,8 @@ type StructB struct {
 	fieldB int
 	FieldC int
 	FieldD uint32
+	FieldE submodule.StructSM
+	FieldF StructA
 }
 
 func main() {
