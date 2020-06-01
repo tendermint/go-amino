@@ -43,9 +43,8 @@ func TestPrintP3Types(t *testing.T) {
 	}
 
 	proto3Schema := doc.Print()
-	assertEquals(t, proto3Schema, `// doc comment
-
-syntax = "proto3";
+	assertEquals(t, proto3Schema, `syntax = "proto3";
+// doc comment
 
 // message comment
 message message_name {

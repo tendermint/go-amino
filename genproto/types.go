@@ -66,12 +66,16 @@ func (doc P3Doc) Print() string {
 func (doc P3Doc) PrintCode(p *press.Press) *press.Press {
 	p.Pl("syntax = \"proto3\";")
 	printComments(p, doc.Comment)
-	p.Ln()
 	for _, msg := range doc.Messages {
 		p.Ln()
 		msg.PrintCode(p)
 	}
 	return p
+}
+
+func (msg P3Message) Print() string {
+	p := press.NewPress()
+	return msg.PrintCode(p).Print()
 }
 
 func (msg P3Message) PrintCode(p *press.Press) *press.Press {
