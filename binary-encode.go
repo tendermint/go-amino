@@ -47,7 +47,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		if err != nil {
 			return
 		}
-		rinfo, err = cdc.getTypeInfoWlock(info.AminoMarshalReprType)
+		rinfo, err = cdc.getTypeInfoWLock(info.AminoMarshalReprType)
 		if err != nil {
 			return
 		}
@@ -229,7 +229,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 
 	// Get *TypeInfo for concrete type.
 	var cinfo *TypeInfo
-	cinfo, err = cdc.getTypeInfoWlock(crt)
+	cinfo, err = cdc.getTypeInfoWLock(crt)
 	if err != nil {
 		return
 	}
@@ -311,7 +311,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 	if ert.Kind() == reflect.Uint8 {
 		panic("should not happen")
 	}
-	einfo, err := cdc.getTypeInfoWlock(ert)
+	einfo, err := cdc.getTypeInfoWLock(ert)
 	if err != nil {
 		return
 	}
@@ -434,7 +434,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 		for _, field := range info.Fields {
 			// Get type info for field.
 			var finfo *TypeInfo
-			finfo, err = cdc.getTypeInfoWlock(field.Type)
+			finfo, err = cdc.getTypeInfoWLock(field.Type)
 			if err != nil {
 				return
 			}

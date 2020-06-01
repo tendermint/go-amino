@@ -71,7 +71,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		if err != nil {
 			return
 		}
-		rinfo, err = cdc.getTypeInfoWlock(info.AminoMarshalReprType)
+		rinfo, err = cdc.getTypeInfoWLock(info.AminoMarshalReprType)
 		if err != nil {
 			return
 		}
@@ -160,7 +160,7 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 
 	// Get *TypeInfo for concrete type.
 	var cinfo *TypeInfo
-	cinfo, err = cdc.getTypeInfoWlock(crt)
+	cinfo, err = cdc.getTypeInfoWLock(crt)
 	if err != nil {
 		return
 	}
@@ -240,7 +240,7 @@ func (cdc *Codec) encodeReflectJSONList(w io.Writer, info *TypeInfo, rv reflect.
 
 		// Write elements with comma.
 		var einfo *TypeInfo
-		einfo, err = cdc.getTypeInfoWlock(ert)
+		einfo, err = cdc.getTypeInfoWLock(ert)
 		if err != nil {
 			return
 		}
@@ -297,7 +297,7 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 		// Get dereferenced field value and info.
 		var frv, _, isNil = derefPointers(rv.Field(field.Index))
 		var finfo *TypeInfo
-		finfo, err = cdc.getTypeInfoWlock(field.Type)
+		finfo, err = cdc.getTypeInfoWLock(field.Type)
 		if err != nil {
 			return
 		}
@@ -394,7 +394,7 @@ func (cdc *Codec) encodeReflectJSONMap(w io.Writer, info *TypeInfo, rv reflect.V
 			err = writeStr(w, `null`)
 		} else {
 			var vinfo *TypeInfo
-			vinfo, err = cdc.getTypeInfoWlock(vrv.Type())
+			vinfo, err = cdc.getTypeInfoWLock(vrv.Type())
 			if err != nil {
 				return
 			}

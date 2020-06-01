@@ -208,7 +208,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	var bz []byte
 	buf := new(bytes.Buffer)
 	rt := rv.Type()
-	info, err := cdc.getTypeInfoWlock(rt)
+	info, err := cdc.getTypeInfoWLock(rt)
 	if err != nil {
 		return nil, err
 	}
@@ -366,7 +366,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	}
 	rv = rv.Elem()
 	rt := rv.Type()
-	info, err := cdc.getTypeInfoWlock(rt)
+	info, err := cdc.getTypeInfoWLock(rt)
 	if err != nil {
 		return err
 	}
@@ -499,7 +499,7 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 	}
 	rt := rv.Type()
 	w := new(bytes.Buffer)
-	info, err := cdc.getTypeInfoWlock(rt)
+	info, err := cdc.getTypeInfoWLock(rt)
 	if err != nil {
 		return nil, err
 	}
@@ -547,7 +547,7 @@ func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
 	}
 	rv = rv.Elem()
 	rt := rv.Type()
-	info, err := cdc.getTypeInfoWlock(rt)
+	info, err := cdc.getTypeInfoWLock(rt)
 	if err != nil {
 		return err
 	}
