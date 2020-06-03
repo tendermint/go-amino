@@ -7,6 +7,8 @@ import (
 	"github.com/tendermint/go-amino/press"
 )
 
+//----------------------------------------
+
 // NOTE: The goal is not complete Proto3 compatibility (unless there is
 // widespread demand for maintaining this repo for that purpose).  Rather, the
 // point is to define enough such that the subset that is needed for Amino
@@ -16,51 +18,66 @@ import (
 // NOTE: enums are not supported, as Amino's philosophy is that value checking
 // should primarily be done on the application side.
 
-type P3Type string
-
-const (
-	P3TypeDouble   P3Type = "double"
-	P3TypeFloat    P3Type = "float"
-	P3TypeInt32    P3Type = "int32"
-	P3TypeInt64    P3Type = "int64"
-	P3TypeUint32   P3Type = "uint32"
-	P3TypeUint64   P3Type = "uint64"
-	P3TypeSint32   P3Type = "sint32"
-	P3TypeSint64   P3Type = "sint64"
-	P3TypeFixed32  P3Type = "fixed32"
-	P3TypeFixed64  P3Type = "fixed64"
-	P3TypeSfixed32 P3Type = "sfixed32"
-	P3TypeSfixed64 P3Type = "sfixed64"
-	P3TypeBool     P3Type = "bool"
-	P3TypeString   P3Type = "string"
-	P3TypeBytes    P3Type = "bytes"
-)
-
-func NewCustomP3Type(typeName string) P3Type {
-	if typeName == string(P3TypeDouble) ||
-		typeName == string(P3TypeFloat) ||
-		typeName == string(P3TypeInt32) ||
-		typeName == string(P3TypeInt64) ||
-		typeName == string(P3TypeUint32) ||
-		typeName == string(P3TypeUint64) ||
-		typeName == string(P3TypeSint32) ||
-		typeName == string(P3TypeSint64) ||
-		typeName == string(P3TypeFixed32) ||
-		typeName == string(P3TypeFixed64) ||
-		typeName == string(P3TypeSfixed32) ||
-		typeName == string(P3TypeSfixed64) ||
-		typeName == string(P3TypeBool) ||
-		typeName == string(P3TypeString) ||
-		typeName == string(P3TypeBytes) {
-		panic(fmt.Sprintf("field type %v already defined", typeName))
-	}
-	// check typeName
-	if len(typeName) == 0 {
-		panic("custom p3 type name can't be empty")
-	}
-	return P3Type(typeName)
+type P3Type interface {
+	AssertIsP3Type()
 }
 
+func (P3ScalarType) AssertIsP3Type()  {}
+func (P3MessageType) AssertIsP3Type() {}
+
+type P3ScalarType string
+
+const (
+	P3ScalarTypeDouble   P3ScalarType = "double"
+	P3ScalarTypeFloat    P3ScalarType = "float"
+	P3ScalarTypeInt32    P3ScalarType = "int32"
+	P3ScalarTypeInt64    P3ScalarType = "int64"
+	P3ScalarTypeUint32   P3ScalarType = "uint32"
+	P3ScalarTypeUint64   P3ScalarType = "uint64"
+	P3ScalarTypeSint32   P3ScalarType = "sint32"
+	P3ScalarTypeSint64   P3ScalarType = "sint64"
+	P3ScalarTypeFixed32  P3ScalarType = "fixed32"
+	P3ScalarTypeFixed64  P3ScalarType = "fixed64"
+	P3ScalarTypeSfixed32 P3ScalarType = "sfixed32"
+	P3ScalarTypeSfixed64 P3ScalarType = "sfixed64"
+	P3ScalarTypeBool     P3ScalarType = "bool"
+	P3ScalarTypeString   P3ScalarType = "string"
+	P3ScalarTypeBytes    P3ScalarType = "bytes"
+)
+
+type P3MessageType struct {
+	Package string // proto3 package name, optional.
+	Name    string // message name.
+}
+
+func NewP3MessageType(pkg string, name string) P3MessageType {
+	if name == string(P3ScalarTypeDouble) ||
+		name == string(P3ScalarTypeFloat) ||
+		name == string(P3ScalarTypeInt32) ||
+		name == string(P3ScalarTypeInt64) ||
+		name == string(P3ScalarTypeUint32) ||
+		name == string(P3ScalarTypeUint64) ||
+		name == string(P3ScalarTypeSint32) ||
+		name == string(P3ScalarTypeSint64) ||
+		name == string(P3ScalarTypeFixed32) ||
+		name == string(P3ScalarTypeFixed64) ||
+		name == string(P3ScalarTypeSfixed32) ||
+		name == string(P3ScalarTypeSfixed64) ||
+		name == string(P3ScalarTypeBool) ||
+		name == string(P3ScalarTypeString) ||
+		name == string(P3ScalarTypeBytes) {
+		panic(fmt.Sprintf("field type %v already defined", name))
+	}
+	// check name
+	if len(name) == 0 {
+		panic("custom p3 type name can't be empty")
+	}
+	return P3MessageType{Package: pkg, Name: name}
+}
+
+// NOTE: P3Doc and its fields are meant to hold basic AST-like information.  No
+// validity checking happens here... it should happen before these values are
+// set.
 type P3Doc struct {
 	Comment  string
 	Messages []P3Message
@@ -84,6 +101,7 @@ type P3Field struct {
 //----------------------------------------
 // Functions for printing P3 objects
 
+// NOTE: P3Doc imports must be set correctly.
 func (doc P3Doc) Print() string {
 	p := press.NewPress()
 	return doc.PrintCode(p).Print()
