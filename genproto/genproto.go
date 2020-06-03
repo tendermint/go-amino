@@ -112,6 +112,8 @@ func (p3c *P3Context) GenerateProto3MessagePartial(cdc *amino.Codec, rt reflect.
 		return
 	}
 
+	p3msg.Name = info.Type.Name()
+
 	for _, field := range info.StructInfo.Fields {
 		p3Type, p3FieldRepeated :=
 			p3c.reflectTypeToP3Type(cdc, field.Type)
@@ -206,6 +208,7 @@ func (p3c *P3Context) reflectTypeToP3Type(cdc *amino.Codec, rt reflect.Type) (p3
 		// TODO if the package is the same as the container's package,
 		// no need to set the p3pkg name, it can be empty.
 		p3pkg := p3c.GetP3PackageOrDefault(info.Type.PkgPath())
+		fmt.Println("---", info.Type.Name())
 		return NewP3MessageType(p3pkg, info.Type.Name()), false
 	default:
 		panic("unexpected rt kind")
