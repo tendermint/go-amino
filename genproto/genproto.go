@@ -90,7 +90,7 @@ func DefaultP3pkgFromGopkg(gopkg string) string {
 
 // Given a codec and some reflection type, generate the Proto3 message
 // (partial) schema.
-func (p3c *P3Context) GenerateProto3MessageSchema(cdc *amino.Codec, rt reflect.Type) (p3msg P3Message, err error) {
+func (p3c *P3Context) GenerateProto3MessagePartial(cdc *amino.Codec, rt reflect.Type) (p3msg P3Message, err error) {
 
 	var info *amino.TypeInfo
 	info, err = cdc.GetTypeInfo(rt)
@@ -130,7 +130,20 @@ func (p3c *P3Context) GenerateProto3MessageSchema(cdc *amino.Codec, rt reflect.T
 
 // Given the arguments, create a new P3Doc.
 func (p3c *P3Context) GenerateProto3Schema(cdc *amino.Codec, rtz ...reflect.Type) (p3doc P3Doc, err error) {
-	// TODO
+	for _, rt := range rtz {
+		p3msg, err := p3c.GenerateProto3MessagePartial(cdc, rt)
+		if err != nil {
+			return P3Doc{}, err
+		}
+		p3doc.Messages = append(p3doc.Messages, p3msg)
+	}
+	for _, filenames := range p3c.p3imports {
+		for _, filename := range filenames {
+			p3imp := P3Import{Path: filename}
+			p3doc.Imports = append(p3doc.Imports, p3imp)
+		}
+	}
+	return p3doc, nil
 }
 
 // NOTE: if rt is a struct, the returned proto3 type is

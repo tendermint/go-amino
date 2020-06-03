@@ -13,9 +13,13 @@ func TestBasic(t *testing.T) {
 	p3c := NewP3Context()
 	cdc := amino.NewCodec()
 	obj := sm1.StructSM{}
-	p3message, err := p3c.GenerateProto3MessageSchema(cdc, reflect.TypeOf(obj))
+	p3message, err := p3c.GenerateProto3MessagePartial(cdc, reflect.TypeOf(obj))
 	assert.Nil(t, err)
 	t.Log(p3message.Print())
+
+	p3doc, err := p3c.GenerateProto3Schema(cdc, reflect.TypeOf(obj))
+	assert.Nil(t, err)
+	t.Log(p3doc.Print())
 
 	// XXX
 }

@@ -2,6 +2,7 @@ package genproto
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/tendermint/go-amino/press"
@@ -75,13 +76,27 @@ func NewP3MessageType(pkg string, name string) P3MessageType {
 	return P3MessageType{Package: pkg, Name: name}
 }
 
+func (p3mt P3MessageType) String() string {
+	if p3mt.Package == "" {
+		return p3mt.Name
+	} else {
+		return fmt.Sprintf("%v.%v", p3mt.Package, p3mt.Name)
+	}
+}
+
 // NOTE: P3Doc and its fields are meant to hold basic AST-like information.  No
 // validity checking happens here... it should happen before these values are
 // set.
 type P3Doc struct {
 	Comment  string
+	Imports  []P3Import
 	Messages []P3Message
 	// Enums []P3Enums // enums not supported, no need.
+}
+
+type P3Import struct {
+	Path string
+	// Public bool // not used (yet)
 }
 
 type P3Message struct {
@@ -110,10 +125,18 @@ func (doc P3Doc) Print() string {
 func (doc P3Doc) PrintCode(p *press.Press) *press.Press {
 	p.Pl("syntax = \"proto3\";")
 	printComments(p, doc.Comment)
+	for _, imp := range doc.Imports {
+		imp.PrintCode(p)
+	}
 	for _, msg := range doc.Messages {
 		p.Ln()
 		msg.PrintCode(p)
 	}
+	return p
+}
+
+func (imp P3Import) PrintCode(p *press.Press) *press.Press {
+	p.Pl("import %v;", strconv.Quote(imp.Path))
 	return p
 }
 
