@@ -18,19 +18,34 @@ func TestBasic(t *testing.T) {
 	assertEquals(t, p3message.Print(), `message StructSM {
 	int64 FieldA = 1;
 	string FieldB = 2;
-	tendermint.go-amino.genproto.example.submodule2.StructSM2 FieldC = 3;
+	go_amino.genproto.example.submodule2.StructSM2 FieldC = 3;
 }
 `)
 
-	p3doc, err := p3c.GenerateProto3Schema(cdc, reflect.TypeOf(obj))
+	p3doc, err := p3c.GenerateProto3Schema("", cdc, reflect.TypeOf(obj))
 	assert.Nil(t, err)
 	assertEquals(t, p3doc.Print(), `syntax = "proto3";
+
+// imports
 import "vendor/github.com/tendermint/go-amino/genproto/example/submodule2/types.proto";
 
+// messages
 message StructSM {
 	int64 FieldA = 1;
 	string FieldB = 2;
-	tendermint.go-amino.genproto.example.submodule2.StructSM2 FieldC = 3;
+	go_amino.genproto.example.submodule2.StructSM2 FieldC = 3;
+}`)
 }
-`)
+
+func TestDefaultP3pkgFromGopkg(t *testing.T) {
+	testDefault := func(gopkg string, expected string) {
+		assertEquals(t, DefaultP3pkgFromGopkg(gopkg), expected)
+	}
+
+	// NOTE: add desired mapping invariants here and make the function intelligent.
+	testDefault("github.com/tendermint/tendermint/go_amino", "tendermint.go_amino")
+	testDefault("google.golang.org/protobuf/types/known/anypb", "protobuf.types.known.anypb")
+	testDefault("go/ast", "go.ast")
+	testDefault("math/big", "math.big")
+	testDefault("sort", "sort")
 }

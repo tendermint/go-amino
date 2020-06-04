@@ -3,6 +3,7 @@ package genproto
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"reflect"
 	"strings"
 
@@ -25,6 +26,8 @@ type P3Context struct {
 	p3imports map[string][]string
 	// By default, proto 3 schema files are found in "{p3importPrefix}{gopkg}/types.proto"
 	p3importPrefix string
+	// by default, DefaultP3pkgFromGopkg
+	p3pkgDeriver func(string) string
 }
 
 func NewP3Context() *P3Context {
@@ -32,6 +35,7 @@ func NewP3Context() *P3Context {
 		go2p3pkg:       make(map[string]string),
 		p3imports:      make(map[string][]string),
 		p3importPrefix: "vendor/",
+		p3pkgDeriver:   DefaultP3pkgFromGopkg,
 	}
 }
 
@@ -51,14 +55,21 @@ func (p3c *P3Context) GetP3Package(gopkg string) (p3pkg string, ok bool) {
 	return
 }
 
-// If not found, p3pkg is derived automatically from the gopkg, and ok is still true.
-// There is no conflict resolution.
-// If no import files for p3pkg were registered, the default "types.proto" in the
-// "/vendors" directory is used.
-func (p3c *P3Context) GetP3PackageOrDefault(gopkg string) (p3pkg string) {
+// If not found, p3pkg and import filename is derived automatically from the
+// gopkg.  Override default behavior with P3Context.Register* methods.
+//
+//  * If no import files for p3pkg were registered, the default
+//    "types.proto" in the "/vendors" directory is used.
+//  * Attempt to strip the domain and organization from the gopkg, and replace
+//    '/' with dots.  See DefaultP3pkgFromGopkg().
+//
+// Behavior when .Register() gets called after this function mutates state is
+// not defined.  Perhaps .Seal() to enforce that all .Register() happens
+// before.
+func (p3c *P3Context) GetP3PackageOrDeriveDefaults(gopkg string) (p3pkg string) {
 	p3pkg, ok := p3c.go2p3pkg[gopkg]
 	if !ok {
-		p3pkg = DefaultP3pkgFromGopkg(gopkg)
+		p3pkg = p3c.p3pkgDeriver(gopkg)
 		// precautionary warning
 		for gopkgFound, p3pkgFound := range p3c.go2p3pkg {
 			if p3pkgFound == p3pkg {
@@ -67,8 +78,8 @@ func (p3c *P3Context) GetP3PackageOrDefault(gopkg string) (p3pkg string) {
 				fmt.Printf("WARNING, proto3 package %v already registered with %v, but also is derived from %v", p3pkg, gopkgFound, gopkg)
 			}
 		}
-		// If no files for p3pkg were registered,
-		// also derive the p3 schema file import file.
+		// If no files for p3pkg were registered (yet),
+		// also derive the default p3 schema file import file.
 		if _, ok := p3c.p3imports[p3pkg]; !ok {
 			p3import := p3c.p3importPrefix + gopkg + "/types.proto" // TODO make safe
 			p3c.p3imports[p3pkg] = []string{p3import}
@@ -78,14 +89,37 @@ func (p3c *P3Context) GetP3PackageOrDefault(gopkg string) (p3pkg string) {
 	return
 }
 
+//  * Attempt to strip the domain and organization from the gopkg, and replace
+//    '/' with dots, and hyphens with underscores.
+// This should be somewhat intelligent.
 func DefaultP3pkgFromGopkg(gopkg string) string {
 	if gopkg == "" {
 		panic("gopkg cannot be empty")
 	}
 	parts := strings.Split(gopkg, "/")
-	// if parts[0] is domain TODO
-	afterDomain := parts[1:]
-	return strings.Join(afterDomain, ".")
+	if strings.Contains(parts[0], ".") {
+		switch parts[0] {
+		case "google.golang.org":
+			// e.g. google.golang.org/protobuf/types/known/anypb
+			//   -> protobuf.types.known.anypb
+			parts = parts[1:]
+		case "golang.org":
+			// e.g. golang.org/x/crypto/acme
+			//   -> x.crypto.acme
+			// (creating a convention that 'x' stands for golang.org/x/)
+			parts = parts[1:]
+		case "github.com", "gitlab.com":
+			parts = parts[2:]
+		default:
+			// by default, be safer and include what may be the org.
+			parts = parts[1:]
+		}
+	} else {
+		// Looks like a system package?
+		return strings.Join(parts, ".")
+	}
+	// Replace hypens with underscores, after dot-joining.
+	return strings.ReplaceAll(strings.Join(parts, "."), "-", "_")
 }
 
 // Given a codec and some reflection type, generate the Proto3 message
@@ -131,7 +165,21 @@ func (p3c *P3Context) GenerateProto3MessagePartial(cdc *amino.Codec, rt reflect.
 }
 
 // Given the arguments, create a new P3Doc.
-func (p3c *P3Context) GenerateProto3Schema(cdc *amino.Codec, rtz ...reflect.Type) (p3doc P3Doc, err error) {
+// pkg is optional.
+func (p3c *P3Context) GenerateProto3Schema(p3pkg string, cdc *amino.Codec, rtz ...reflect.Type) (p3doc P3Doc, err error) {
+
+	// Set the package.
+	p3doc.Package = p3pkg
+
+	// Set imports.
+	for _, filenames := range p3c.p3imports {
+		for _, filename := range filenames {
+			p3imp := P3Import{Path: filename}
+			p3doc.Imports = append(p3doc.Imports, p3imp)
+		}
+	}
+
+	// Set Message schemas.
 	for _, rt := range rtz {
 		p3msg, err := p3c.GenerateProto3MessagePartial(cdc, rt)
 		if err != nil {
@@ -139,13 +187,18 @@ func (p3c *P3Context) GenerateProto3Schema(cdc *amino.Codec, rtz ...reflect.Type
 		}
 		p3doc.Messages = append(p3doc.Messages, p3msg)
 	}
-	for _, filenames := range p3c.p3imports {
-		for _, filename := range filenames {
-			p3imp := P3Import{Path: filename}
-			p3doc.Imports = append(p3doc.Imports, p3imp)
-		}
-	}
+
 	return p3doc, nil
+}
+
+// Convenience.
+func (p3c *P3Context) WriteProto3Schema(filename string, p3pkg string, cdc *amino.Codec, rtz ...reflect.Type) (err error) {
+	p3doc, err := p3c.GenerateProto3Schema(p3pkg, cdc, rtz...)
+	if err != nil {
+		return err
+	}
+	ioutil.WriteFile(filename, []byte(p3doc.Print()), 0644)
+	return nil
 }
 
 // NOTE: if rt is a struct, the returned proto3 type is
@@ -207,7 +260,7 @@ func (p3c *P3Context) reflectTypeToP3Type(cdc *amino.Codec, rt reflect.Type) (p3
 	case reflect.Struct:
 		// TODO if the package is the same as the container's package,
 		// no need to set the p3pkg name, it can be empty.
-		p3pkg := p3c.GetP3PackageOrDefault(info.Type.PkgPath())
+		p3pkg := p3c.GetP3PackageOrDeriveDefaults(info.Type.PkgPath())
 		fmt.Println("---", info.Type.Name())
 		return NewP3MessageType(p3pkg, info.Type.Name()), false
 	default:

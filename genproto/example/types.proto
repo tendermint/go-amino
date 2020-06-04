@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+// messages
+message StructA {
+	int64 FieldC = 1;
+	uint32 FieldD = 2;
+}
+message StructB {
+	int64 FieldC = 1;
+	uint32 FieldD = 2;
+	go_amino.genproto.example.submodule.StructSM FieldE = 3;
+	main.StructA FieldF = 4;
+}

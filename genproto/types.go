@@ -88,6 +88,7 @@ func (p3mt P3MessageType) String() string {
 // validity checking happens here... it should happen before these values are
 // set.
 type P3Doc struct {
+	Package  string // XXX
 	Comment  string
 	Imports  []P3Import
 	Messages []P3Message
@@ -119,18 +120,39 @@ type P3Field struct {
 // NOTE: P3Doc imports must be set correctly.
 func (doc P3Doc) Print() string {
 	p := press.NewPress()
-	return doc.PrintCode(p).Print()
+	return strings.TrimSpace(doc.PrintCode(p).Print())
 }
 
 func (doc P3Doc) PrintCode(p *press.Press) *press.Press {
 	p.Pl("syntax = \"proto3\";")
-	printComments(p, doc.Comment)
-	for _, imp := range doc.Imports {
-		imp.PrintCode(p)
+	if doc.Package != "" {
+		p.Pl("package %v;", doc.Package)
 	}
-	for _, msg := range doc.Messages {
+	// Print comments, if any.
+	p.Ln()
+	if doc.Comment != "" {
+		printComments(p, doc.Comment)
 		p.Ln()
+	}
+	// Print imports, if any.
+	for i, imp := range doc.Imports {
+		if i == 0 {
+			p.Pl("// imports")
+		}
+		imp.PrintCode(p)
+		if i == len(doc.Imports)-1 {
+			p.Ln()
+		}
+	}
+	// Print message schemas, if any.
+	for i, msg := range doc.Messages {
+		if i == 0 {
+			p.Pl("// messages")
+		}
 		msg.PrintCode(p)
+		if i == len(doc.Messages)-1 {
+			p.Ln()
+		}
 	}
 	return p
 }

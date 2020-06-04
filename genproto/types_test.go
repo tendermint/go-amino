@@ -44,8 +44,10 @@ func TestPrintP3Types(t *testing.T) {
 
 	proto3Schema := doc.Print()
 	assertEquals(t, proto3Schema, `syntax = "proto3";
+
 // doc comment
 
+// messages
 // message comment
 message message_name {
 	// field_comment
@@ -53,9 +55,7 @@ message message_name {
 	// field_comment
 	repeated uint64 field_name = 2;
 }
-
 // message comment 2
 message message_name_2 {
-}
-`)
+}`)
 }
