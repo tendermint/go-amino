@@ -122,7 +122,7 @@ func (p3c *P3Context) GetImportPath(p3type P3Type) string {
 	infos := p3c.GetAllPackageInfos()
 	for _, info := range infos {
 		if info.P3Pkg == p3pkg {
-			return path.Join(info.Dirname, "types.proto")
+			return path.Join(p3c.p3importPrefix, info.GoPkg, "types.proto")
 		}
 	}
 	panic(fmt.Sprintf("proto3 package %v not recognized", p3pkg))
@@ -158,7 +158,6 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 		p3FieldType, p3FieldRepeated :=
 			p3c.reflectTypeToP3Type(field.Type)
 		// If the p3 field package is the same, omit the prefix.
-		fmt.Println(">>", p3FieldType, ">>", p3doc, ">>", field.Type)
 		if p3FieldType.GetPackage() == p3doc.Package {
 			p3FieldMessageType := p3FieldType.(P3MessageType)
 			p3FieldMessageType.SetOmitPackage()
