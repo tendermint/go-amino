@@ -21,12 +21,15 @@ import (
 
 type P3Type interface {
 	AssertIsP3Type()
+	GetPackage() string // proto3 package prefix
 }
 
 func (P3ScalarType) AssertIsP3Type()  {}
 func (P3MessageType) AssertIsP3Type() {}
 
 type P3ScalarType string
+
+func (P3ScalarType) GetPackage() string { return "" }
 
 const (
 	P3ScalarTypeDouble   P3ScalarType = "double"
@@ -47,8 +50,9 @@ const (
 )
 
 type P3MessageType struct {
-	Package string // proto3 package name, optional.
-	Name    string // message name.
+	Package     string // proto3 package name, optional.
+	Name        string // message name.
+	OmitPackage bool   // if true, Package is not printed.
 }
 
 func NewP3MessageType(pkg string, name string) P3MessageType {
@@ -76,8 +80,21 @@ func NewP3MessageType(pkg string, name string) P3MessageType {
 	return P3MessageType{Package: pkg, Name: name}
 }
 
+var (
+	P3AnyType P3MessageType = NewP3MessageType("", "Any")
+)
+
+// May be empty if it isn't set (for locally declared messages).
+func (p3mt P3MessageType) GetPackage() string {
+	return p3mt.Package
+}
+
+func (p3mt *P3MessageType) SetOmitPackage() {
+	p3mt.OmitPackage = true
+}
+
 func (p3mt P3MessageType) String() string {
-	if p3mt.Package == "" {
+	if p3mt.OmitPackage || p3mt.Package == "" {
 		return p3mt.Name
 	} else {
 		return fmt.Sprintf("%v.%v", p3mt.Package, p3mt.Name)
@@ -86,13 +103,22 @@ func (p3mt P3MessageType) String() string {
 
 // NOTE: P3Doc and its fields are meant to hold basic AST-like information.  No
 // validity checking happens here... it should happen before these values are
-// set.
+// set.  Convenience functions that require much more context like P3Context are OK.
 type P3Doc struct {
 	Package  string // XXX
 	Comment  string
 	Imports  []P3Import
 	Messages []P3Message
 	// Enums []P3Enums // enums not supported, no need.
+}
+
+func (doc *P3Doc) AddImport(path string) {
+	for _, p3import := range doc.Imports {
+		if p3import.Path == path {
+			return // do nothing.
+		}
+	}
+	doc.Imports = append(doc.Imports, P3Import{Path: path})
 }
 
 type P3Import struct {

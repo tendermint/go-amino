@@ -1,0 +1,8 @@
+syntax = "proto3";
+package submodule2;
+
+// messages
+message StructSM2 {
+	int64 FieldA = 1;
+	string FieldB = 2;
+}

@@ -1,12 +1,9 @@
 package main
 
 import (
-	"fmt"
-	"reflect"
-
-	"github.com/tendermint/go-amino"
 	"github.com/tendermint/go-amino/genproto"
 	"github.com/tendermint/go-amino/genproto/example/submodule"
+	"github.com/tendermint/go-amino/genproto/example/submodule2"
 )
 
 // amino
@@ -25,20 +22,14 @@ type StructB struct {
 	FieldD uint32
 	FieldE submodule.StructSM
 	FieldF StructA
+	FieldG interface{}
 }
 
 func main() {
-	fmt.Println("dontcare")
-
-	// Testing that amino structs defined in main also work.
-	p3c := genproto.NewP3Context()
-	// p3c.RegisterPackageMapping("github.com/tendermint/go-amino/genproto/example/submodule", "example.submodule", []string{"example/submodule/types.go"})
-	p3c.RegisterPackageMapping("github.com/tendermint/go-amino/genproto/example/submodule", "example.submodule", nil)
-	cdc := amino.NewCodec()
-	err := p3c.WriteProto3Schema("types.proto", "main", cdc,
-		reflect.TypeOf(StructA{}),
-		reflect.TypeOf(StructB{}))
-	if err != nil {
-		panic(err)
-	}
+	// Defined in genproto.go
+	genproto.WriteProto3Schemas(
+		PackageInfo,
+		submodule.PackageInfo,
+		submodule2.PackageInfo,
+	)
 }
