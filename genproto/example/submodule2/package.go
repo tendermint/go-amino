@@ -1,12 +1,12 @@
 package submodule2
 
 import (
-	"github.com/tendermint/go-amino/genproto"
+	"github.com/tendermint/go-amino"
 )
 
-var PackageInfo = genproto.NewPackageInfo(
+var PackageInfo = amino.RegisterPackageInfo(
 	"github.com/tendermint/go-amino/genproto/example/submodule2",
 	"submodule2",
-).WithStructs(
+).WithTypes(
 	StructSM2{},
 )

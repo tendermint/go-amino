@@ -133,10 +133,7 @@ func main() {
 	}
 
 	cdc := amino.NewCodec()
-	cdc.RegisterConcrete(&tests.ComplexSt{}, "com.tendermint/complex_st", nil)
-	cdc.RegisterConcrete(&tests.PrimitivesStruct{}, "com.tendermint/primitive_st", nil)
-	cdc.RegisterConcrete(&tests.ArraysStruct{}, "com.tendermint/arrays_st", nil)
-	cdc.RegisterConcrete(&tests.SlicesStruct{}, "com.tendermint/slices_st", nil)
+	cdc.RegisterPackageInfo(tests.PackageInfo)
 
 	for i, seed := range seeds {
 		blob, err := cdc.MarshalBinaryLengthPrefixed(seed)

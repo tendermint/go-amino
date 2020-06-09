@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/tendermint/go-amino"
-	"github.com/tendermint/go-amino/codepress"
+	"github.com/tendermint/go-amino/libs/press"
 )
 
 type SampleStruct struct {
@@ -15,7 +15,7 @@ type SampleStruct struct {
 }
 
 func TestBasic(t *testing.T) {
-	p := codepress.NewCodePress()
+	p := press.NewPress()
 	fmt.Println(p)
 	ss := SampleStruct{"cat", "dog"}
 

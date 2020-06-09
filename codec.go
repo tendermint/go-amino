@@ -2,90 +2,30 @@ package amino
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"fmt"
 	"io"
 	"reflect"
 	"strings"
 	"sync"
 	"unicode"
-
-	"github.com/pkg/errors"
 )
-
-//----------------------------------------
-// PrefixBytes/DisambBytes/DisfixBytes types
-
-// Lengths
-const (
-	PrefixBytesLen = 4
-	DisambBytesLen = 3
-	DisfixBytesLen = PrefixBytesLen + DisambBytesLen
-)
-
-// Prefix types
-type (
-	PrefixBytes [PrefixBytesLen]byte
-	DisambBytes [DisambBytesLen]byte
-	DisfixBytes [DisfixBytesLen]byte // Disamb+Prefix
-)
-
-// Copy into PrefixBytes
-func NewPrefixBytes(prefixBytes []byte) PrefixBytes {
-	pb := PrefixBytes{}
-	copy(pb[:], prefixBytes)
-	return pb
-}
-
-func (pb PrefixBytes) Bytes() []byte             { return pb[:] }
-func (pb PrefixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(pb[:], bz) }
-func (db DisambBytes) Bytes() []byte             { return db[:] }
-func (db DisambBytes) EqualBytes(bz []byte) bool { return bytes.Equal(db[:], bz) }
-func (df DisfixBytes) Bytes() []byte             { return df[:] }
-func (df DisfixBytes) EqualBytes(bz []byte) bool { return bytes.Equal(df[:], bz) }
-
-// Return the DisambBytes and the PrefixBytes for a given name.
-func NameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
-	return nameToDisfix(name)
-}
 
 //----------------------------------------
 // Codec internals
 
 type TypeInfo struct {
-	Type      reflect.Type // Interface type.
+	Type      reflect.Type
 	PtrToType reflect.Type
 	ZeroValue reflect.Value
 	ZeroProto interface{}
-	InterfaceInfo
 	ConcreteInfo
 	StructInfo
 }
 
-type InterfaceInfo struct {
-	Priority     []DisfixBytes               // Disfix priority.
-	Implementers map[PrefixBytes][]*TypeInfo // Mutated over time.
-	InterfaceOptions
-}
-
-type InterfaceOptions struct {
-	Priority           []string // Disamb priority.
-	AlwaysDisambiguate bool     // If true, include disamb for all types.
-}
-
 type ConcreteInfo struct {
-
-	// These fields are only set when registered.
-	Registered       bool // Registered with RegisterConcrete().
-	PointerPreferred bool // Deserialize to pointer type if possible.
-	// NilPreferred     bool        // Deserialize to nil for empty structs if PointerPreferred.
-	Name            string      // Registered name.
-	Disamb          DisambBytes // Disambiguation bytes derived from name.
-	Prefix          PrefixBytes // Prefix bytes derived from name.
-	ConcreteOptions             // Registration options.
-
-	// These fields get set for all concrete types,
-	// even those not manually registered (e.g. are never interface values).
+	Registered             bool         // Registered with Register*().
+	PointerPreferred       bool         // Deserialize to pointer type if possible.
+	TypeURL                string       // <domain and path>/<p3 package no slashes>.<Type.Name>
 	IsAminoMarshaler       bool         // Implements MarshalAmino() (<ReprObject>, error).
 	AminoMarshalReprType   reflect.Type // <ReprType>
 	IsAminoUnmarshaler     bool         // Implements UnmarshalAmino(<ReprObject>) (error).
@@ -94,13 +34,6 @@ type ConcreteInfo struct {
 
 type StructInfo struct {
 	Fields []FieldInfo // If a struct.
-}
-
-func (cinfo ConcreteInfo) GetDisfix() DisfixBytes {
-	return toDisfix(cinfo.Disamb, cinfo.Prefix)
-}
-
-type ConcreteOptions struct {
 }
 
 type FieldInfo struct {
@@ -128,96 +61,56 @@ type FieldOptions struct {
 // Codec
 
 type Codec struct {
-	mtx              sync.RWMutex
-	sealed           bool
-	typeInfos        map[reflect.Type]*TypeInfo
-	interfaceInfos   []*TypeInfo
-	concreteInfos    []*TypeInfo
-	disfixToTypeInfo map[DisfixBytes]*TypeInfo
-	nameToTypeInfo   map[string]*TypeInfo
+	mtx       sync.RWMutex
+	sealed    bool
+	autoseal  bool
+	typeInfos map[reflect.Type]*TypeInfo
+	// proto3 name of format "<pkg path no slashes>.<MessageName>"
+	// which follows the TypeURL's last (and required) slash.
+	// only registered types have names.
+	nameToTypeInfo map[string]*TypeInfo
 }
 
 func NewCodec() *Codec {
 	cdc := &Codec{
-		sealed:           false,
-		typeInfos:        make(map[reflect.Type]*TypeInfo),
-		disfixToTypeInfo: make(map[DisfixBytes]*TypeInfo),
-		nameToTypeInfo:   make(map[string]*TypeInfo),
+		sealed:         false,
+		autoseal:       false,
+		typeInfos:      make(map[reflect.Type]*TypeInfo),
+		nameToTypeInfo: make(map[string]*TypeInfo),
 	}
 	return cdc
 }
 
-// This function should be used to register all interfaces that will be
-// encoded/decoded by go-amino.
-// Usage:
-// `amino.RegisterInterface((*MyInterface1)(nil), nil)`
-func (cdc *Codec) RegisterInterface(ptr interface{}, iopts *InterfaceOptions) {
+// The package isn't (yet) necessary besides to get the full name of concrete
+// types.
+func (cdc *Codec) RegisterPackageInfo(pkg *PackageInfo) {
 	cdc.assertNotSealed()
 
-	// Get reflect.Type from ptr.
-	rt := getTypeFromPointer(ptr)
-	if rt.Kind() != reflect.Interface {
-		panic(fmt.Sprintf("RegisterInterface expects an interface, got %v", rt))
+	for _, rt := range pkg.Types {
+		cdc.RegisterTypeFrom(rt, pkg)
 	}
-
-	// Construct InterfaceInfo
-	var info = cdc.newTypeInfoFromInterfaceType(rt, iopts)
-
-	// Finally, check conflicts and register.
-	func() {
-		cdc.mtx.Lock()
-		defer cdc.mtx.Unlock()
-
-		cdc.collectImplementersNolock(info)
-		err := cdc.checkConflictsInPrioNolock(info)
-		if err != nil {
-			panic(err)
-		}
-		cdc.setTypeInfoNolock(info)
-	}()
-	/*
-		NOTE: The above func block is a defensive pattern.
-
-		First of all, the defer call is necessary to recover from panics,
-		otherwise the Codec would become unusable after a single panic.
-
-		This “defer-panic-unlock” pattern requires a func block to denote the
-		boundary outside of which the defer call is guaranteed to have been
-		called.  In other words, using any other form of curly braces (e.g.  in
-		the form of a conditional or looping block) won't actually unlock when
-		it might appear to visually.  Consider:
-
-		```
-		var info = ...
-		{
-			cdc.mtx.Lock()
-			defer cdc.mtx.Unlock()
-
-			...
-		}
-		// Here, cdc.mtx.Unlock() hasn't been called yet.
-		```
-
-		So, while the above code could be simplified, it's there for defense.
-	*/
 }
 
 // This function should be used to register concrete types that will appear in
 // interface fields/elements to be encoded/decoded by go-amino.
+// You may want to use RegisterPackageInfo() instead which registers everything in
+// a package.
 // Usage:
-// `amino.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)`
-// It can also be used to register options for genproto etc, regardless
-// of whether it implements an interface.
-func (cdc *Codec) RegisterConcrete(o interface{}, name string, copts *ConcreteOptions) {
+// `amino.RegisterTypeFrom(MyStruct1{}, "/tm.cryp.MyStruct1")`
+func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *PackageInfo) {
 	cdc.assertNotSealed()
 
+	var typeURL string
 	var pointerPreferred bool
 
-	// Get reflect.Type.
-	rt := reflect.TypeOf(o)
-	if rt.Kind() == reflect.Interface {
-		panic(fmt.Sprintf("expected a non-interface: %v", rt))
+	// Get p3 full name.
+	if exists, err := pkg.HasType(rt); !exists {
+		panic(err)
+	} else {
+		// ignore irrelevant error message
 	}
+	typeURL = pkg.TypeURLForType(rt)
+	// Get pointerPreferred.
 	if rt.Kind() == reflect.Ptr {
 		rt = rt.Elem()
 		if rt.Kind() == reflect.Ptr {
@@ -226,20 +119,19 @@ func (cdc *Codec) RegisterConcrete(o interface{}, name string, copts *ConcreteOp
 		}
 		if rt.Kind() == reflect.Interface {
 			// MARKER: No interface-pointers
-			panic(fmt.Sprintf("registering interface-pointers not yet supported: *%v", rt))
+			panic(fmt.Sprintf("expected a non-interface (got interface pointer): %v", rt))
 		}
 		pointerPreferred = true
 	}
 
 	// Construct ConcreteInfo.
-	var info = cdc.newTypeInfoFromRegisteredConcreteType(rt, pointerPreferred, name, copts)
+	var info = NewTypeInfo(rt, pointerPreferred, typeURL)
 
-	// Finally, check conflicts and register.
+	// Finally, register.
 	func() {
 		cdc.mtx.Lock()
 		defer cdc.mtx.Unlock()
 
-		cdc.addCheckConflictsWithConcreteNolock(info)
 		cdc.setTypeInfoNolock(info)
 	}()
 }
@@ -252,24 +144,35 @@ func (cdc *Codec) Seal() *Codec {
 	return cdc
 }
 
+func (cdc *Codec) Autoseal() *Codec {
+	cdc.mtx.Lock()
+	defer cdc.mtx.Unlock()
+
+	if cdc.sealed {
+		panic("already sealed")
+	}
+	cdc.autoseal = true
+	return cdc
+}
+
 // PrintTypes writes all registered types in a markdown-style table.
 // The table's header is:
 //
-// | Type  | Name | Prefix | Notes |
+// | Type  | TypeURL | Notes |
 //
-// Where Type is the golang type name and Name is the name the type was registered with.
+// Where Type is the golang type name and TypeURL is the type_url the type was registered with.
 func (cdc *Codec) PrintTypes(out io.Writer) error {
 	cdc.mtx.RLock()
 	defer cdc.mtx.RUnlock()
 	// print header
-	if _, err := io.WriteString(out, "| Type | Name | Prefix | Length | Notes |\n"); err != nil {
+	if _, err := io.WriteString(out, "| Type | TypeURL | Length | Notes |\n"); err != nil {
 		return err
 	}
-	if _, err := io.WriteString(out, "| ---- | ---- | ------ | ----- | ------ |\n"); err != nil {
+	if _, err := io.WriteString(out, "| ---- | ------- | ------ | ----- |\n"); err != nil {
 		return err
 	}
 	// only print concrete types for now (if we want everything, we can iterate over the typeInfos map instead)
-	for _, i := range cdc.concreteInfos {
+	for _, i := range cdc.typeInfos {
 		if _, err := io.WriteString(out, "| "); err != nil {
 			return err
 		}
@@ -280,13 +183,7 @@ func (cdc *Codec) PrintTypes(out io.Writer) error {
 		if _, err := io.WriteString(out, " | "); err != nil {
 			return err
 		}
-		if _, err := io.WriteString(out, i.Name); err != nil {
-			return err
-		}
-		if _, err := io.WriteString(out, " | "); err != nil {
-			return err
-		}
-		if _, err := io.WriteString(out, fmt.Sprintf("0x%X", i.Prefix)); err != nil {
+		if _, err := io.WriteString(out, i.TypeURL); err != nil {
 			return err
 		}
 		if _, err := io.WriteString(out, " | "); err != nil {
@@ -337,6 +234,19 @@ func (cdc *Codec) assertNotSealed() {
 	}
 }
 
+func (cdc *Codec) assertSealed() {
+	cdc.mtx.Lock()
+	defer cdc.mtx.Unlock()
+
+	if cdc.autoseal {
+		cdc.sealed = true
+		cdc.autoseal = false
+	}
+	if !cdc.sealed {
+		panic("codec must first be sealed")
+	}
+}
+
 func (cdc *Codec) setTypeInfoNolock(info *TypeInfo) {
 
 	if info.Type.Kind() == reflect.Ptr {
@@ -347,21 +257,12 @@ func (cdc *Codec) setTypeInfoNolock(info *TypeInfo) {
 	}
 
 	cdc.typeInfos[info.Type] = info
-	if info.Type.Kind() == reflect.Interface {
-		cdc.interfaceInfos = append(cdc.interfaceInfos, info)
-	} else if info.Registered {
-		cdc.concreteInfos = append(cdc.concreteInfos, info)
-		disfix := info.GetDisfix()
-		if existing, ok := cdc.disfixToTypeInfo[disfix]; ok {
-			panic(fmt.Sprintf("disfix <%X> already registered for %v", disfix, existing.Type))
+	if info.Registered {
+		name := typeURLtoName(info.TypeURL)
+		if existing, ok := cdc.nameToTypeInfo[name]; ok {
+			panic(fmt.Sprintf("name <%s> already registered for %v", name, existing.Type))
 		}
-		if existing, ok := cdc.nameToTypeInfo[info.Name]; ok {
-			panic(fmt.Sprintf("name <%s> already registered for %v", info.Name, existing.Type))
-		}
-		cdc.disfixToTypeInfo[disfix] = info
-		cdc.nameToTypeInfo[info.Name] = info
-		//cdc.prefixToTypeInfos[prefix] =
-		//	append(cdc.prefixToTypeInfos[prefix], info)
+		cdc.nameToTypeInfo[name] = info
 	}
 }
 
@@ -387,57 +288,16 @@ func (cdc *Codec) getTypeInfoWLock(rt reflect.Type) (info *TypeInfo, err error) 
 
 	info, ok := cdc.typeInfos[rt]
 	if !ok {
-		if rt.Kind() == reflect.Interface {
-			err = fmt.Errorf("unregistered interface %v", rt)
-			cdc.mtx.Unlock()
-			return
-		}
-
-		info = cdc.newTypeInfoUnregistered(rt)
+		info = NewTypeInfoUnregistered(rt)
 		cdc.setTypeInfoNolock(info)
 	}
 	cdc.mtx.Unlock()
 	return info, nil
 }
 
-// iinfo: TypeInfo for the interface for which we must decode a
-// concrete type with prefix bytes pb.
-func (cdc *Codec) getTypeInfoFromPrefixRLock(iinfo *TypeInfo, pb PrefixBytes) (info *TypeInfo, err error) {
-	// We do not use defer cdc.mtx.Unlock() here due to performance overhead of
-	// defer in go1.11 (and prior versions). Ensure new code paths unlock the
-	// mutex.
-	cdc.mtx.RLock()
-
-	infos, ok := iinfo.Implementers[pb]
-	if !ok {
-		err = fmt.Errorf("unrecognized prefix bytes %X", pb)
-		cdc.mtx.RUnlock()
-		return
-	}
-	if len(infos) > 1 {
-		err = fmt.Errorf("conflicting concrete types registered for %X: e.g. %v and %v", pb, infos[0].Type, infos[1].Type)
-		cdc.mtx.RUnlock()
-		return
-	}
-	info = infos[0]
-	cdc.mtx.RUnlock()
-	return
-}
-
-func (cdc *Codec) getTypeInfoFromDisfixRLock(df DisfixBytes) (info *TypeInfo, err error) {
-	// We do not use defer cdc.mtx.Unlock() here due to performance overhead of
-	// defer in go1.11 (and prior versions). Ensure new code paths unlock the
-	// mutex.
-	cdc.mtx.RLock()
-
-	info, ok := cdc.disfixToTypeInfo[df]
-	if !ok {
-		err = fmt.Errorf("unrecognized disambiguation+prefix bytes %X", df)
-		cdc.mtx.RUnlock()
-		return
-	}
-	cdc.mtx.RUnlock()
-	return
+func (cdc *Codec) getTypeInfoFromTypeURLRLock(typeURL string) (info *TypeInfo, err error) {
+	name := typeURLtoName(typeURL)
+	return cdc.getTypeInfoFromNameRLock(name)
 }
 
 func (cdc *Codec) getTypeInfoFromNameRLock(name string) (info *TypeInfo, err error) {
@@ -456,7 +316,7 @@ func (cdc *Codec) getTypeInfoFromNameRLock(name string) (info *TypeInfo, err err
 	return
 }
 
-func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
+func parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 	if rt.Kind() != reflect.Struct {
 		panic("should not happen")
 	}
@@ -469,7 +329,7 @@ func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 		if !isExported(field) {
 			continue // field is unexported
 		}
-		skip, fopts := cdc.parseFieldOptions(field)
+		skip, fopts := parseFieldOptions(field)
 		if skip {
 			continue // e.g. json:"-"
 		}
@@ -507,7 +367,7 @@ func (cdc *Codec) parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 	return sinfo
 }
 
-func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, fopts FieldOptions) {
+func parseFieldOptions(field reflect.StructField) (skip bool, fopts FieldOptions) {
 	binTag := field.Tag.Get("binary")
 	aminoTag := field.Tag.Get("amino")
 	jsonTag := field.Tag.Get("json")
@@ -559,7 +419,9 @@ func (cdc *Codec) parseFieldOptions(field reflect.StructField) (skip bool, fopts
 }
 
 // Constructs a *TypeInfo automatically, not from registration.
-func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
+// No name or decoding preferece (pointer or not) is known,
+// so it cannot be used to decode into an interface.
+func NewTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 	if rt.Kind() == reflect.Ptr {
 		panic("unexpected pointer type") // should not happen.
 	}
@@ -573,7 +435,7 @@ func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
 	if rt.Kind() == reflect.Struct {
-		info.StructInfo = cdc.parseStructInfo(rt)
+		info.StructInfo = parseStructInfo(rt)
 	}
 	if rm, ok := rt.MethodByName("MarshalAmino"); ok {
 		info.ConcreteInfo.IsAminoMarshaler = true
@@ -586,109 +448,17 @@ func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 	return info
 }
 
-func (cdc *Codec) newTypeInfoFromInterfaceType(rt reflect.Type, iopts *InterfaceOptions) *TypeInfo {
-	if rt.Kind() != reflect.Interface {
-		panic(fmt.Sprintf("expected interface type, got %v", rt))
-	}
-
-	var info = new(TypeInfo)
-	info.Type = rt
-	info.PtrToType = reflect.PtrTo(rt)
-	info.ZeroValue = reflect.Zero(rt)
-	info.ZeroProto = reflect.Zero(rt).Interface()
-	info.InterfaceInfo.Implementers = make(map[PrefixBytes][]*TypeInfo)
-	if iopts != nil {
-		info.InterfaceInfo.InterfaceOptions = *iopts
-		info.InterfaceInfo.Priority = make([]DisfixBytes, len(iopts.Priority))
-		// Construct Priority []DisfixBytes
-		for i, name := range iopts.Priority {
-			disamb, prefix := nameToDisfix(name)
-			disfix := toDisfix(disamb, prefix)
-			info.InterfaceInfo.Priority[i] = disfix
-		}
-	}
-	return info
-}
-
-func (cdc *Codec) newTypeInfoFromRegisteredConcreteType(rt reflect.Type, pointerPreferred bool,
-	name string, copts *ConcreteOptions) *TypeInfo {
+func NewTypeInfo(rt reflect.Type, pointerPreferred bool, typeURL string) *TypeInfo {
 	if rt.Kind() == reflect.Interface ||
 		rt.Kind() == reflect.Ptr {
 		panic(fmt.Sprintf("expected non-interface non-pointer concrete type, got %v", rt))
 	}
 
-	var info = cdc.newTypeInfoUnregistered(rt)
+	var info = NewTypeInfoUnregistered(rt)
 	info.ConcreteInfo.Registered = true
 	info.ConcreteInfo.PointerPreferred = pointerPreferred
-	info.ConcreteInfo.Name = name
-	info.ConcreteInfo.Disamb = nameToDisamb(name)
-	info.ConcreteInfo.Prefix = nameToPrefix(name)
-	if copts != nil {
-		info.ConcreteOptions = *copts
-	}
+	info.ConcreteInfo.TypeURL = typeURL
 	return info
-}
-
-// Find all conflicting prefixes for concrete types
-// that "implement" the interface.  "Implement" in quotes because
-// we only consider the pointer, for extra safety.
-func (cdc *Codec) collectImplementersNolock(info *TypeInfo) {
-	for _, cinfo := range cdc.concreteInfos {
-		if cinfo.PtrToType.Implements(info.Type) {
-			info.Implementers[cinfo.Prefix] = append(
-				info.Implementers[cinfo.Prefix], cinfo)
-		}
-	}
-}
-
-// Ensure that prefix-conflicting implementing concrete types
-// are all registered in the priority list.
-// Returns an error if a disamb conflict is found.
-func (cdc *Codec) checkConflictsInPrioNolock(iinfo *TypeInfo) error {
-
-	for _, cinfos := range iinfo.Implementers {
-		if len(cinfos) < 2 {
-			continue
-		}
-		for _, cinfo := range cinfos {
-			var inPrio = false
-			for _, disfix := range iinfo.InterfaceInfo.Priority {
-				if cinfo.GetDisfix() == disfix {
-					inPrio = true
-				}
-			}
-			if !inPrio {
-				return errors.Errorf("%v conflicts with %v other(s). Add it to the priority list for %v.",
-					cinfo.Type, len(cinfos), iinfo.Type)
-			}
-		}
-	}
-	return nil
-}
-
-func (cdc *Codec) addCheckConflictsWithConcreteNolock(cinfo *TypeInfo) {
-
-	// Iterate over registered interfaces that this "implements".
-	// "Implement" in quotes because we only consider the pointer, for extra
-	// safety.
-	for _, iinfo := range cdc.interfaceInfos {
-		if !cinfo.PtrToType.Implements(iinfo.Type) {
-			continue
-		}
-
-		// Add cinfo to iinfo.Implementers.
-		var origImpls = iinfo.Implementers[cinfo.Prefix]
-		iinfo.Implementers[cinfo.Prefix] = append(origImpls, cinfo)
-
-		// Finally, check that all conflicts are in `.Priority`.
-		// NOTE: This could be optimized, but it's non-trivial.
-		err := cdc.checkConflictsInPrioNolock(iinfo)
-		if err != nil {
-			// Return to previous state.
-			iinfo.Implementers[cinfo.Prefix] = origImpls
-			panic(err)
-		}
-	}
 }
 
 //----------------------------------------
@@ -698,32 +468,17 @@ func (ti TypeInfo) String() string {
 	buf := new(bytes.Buffer)
 	buf.Write([]byte("TypeInfo{"))
 	buf.Write([]byte(fmt.Sprintf("Type:%v,", ti.Type)))
-	if ti.Type.Kind() == reflect.Interface {
-		buf.Write([]byte(fmt.Sprintf("Priority:%v,", ti.Priority)))
-		buf.Write([]byte("Implementers:{"))
-		for pb, cinfos := range ti.Implementers {
-			buf.Write([]byte(fmt.Sprintf("\"%X\":", pb)))
-			buf.Write([]byte(fmt.Sprintf("%v,", cinfos)))
-		}
-		buf.Write([]byte("}"))
-		buf.Write([]byte(fmt.Sprintf("Priority:%v,", ti.InterfaceOptions.Priority)))
-		buf.Write([]byte(fmt.Sprintf("AlwaysDisambiguate:%v,", ti.InterfaceOptions.AlwaysDisambiguate)))
+	if ti.ConcreteInfo.Registered {
+		buf.Write([]byte("Registered:true,"))
+		buf.Write([]byte(fmt.Sprintf("PointerPreferred:%v,", ti.PointerPreferred)))
+		buf.Write([]byte(fmt.Sprintf("TypeURL:\"%v\",", ti.TypeURL)))
+	} else {
+		buf.Write([]byte("Registered:false,"))
 	}
-	if ti.Type.Kind() != reflect.Interface {
-		if ti.ConcreteInfo.Registered {
-			buf.Write([]byte("Registered:true,"))
-			buf.Write([]byte(fmt.Sprintf("PointerPreferred:%v,", ti.PointerPreferred)))
-			buf.Write([]byte(fmt.Sprintf("Name:\"%v\",", ti.Name)))
-			buf.Write([]byte(fmt.Sprintf("Disamb:\"%X\",", ti.Disamb)))
-			buf.Write([]byte(fmt.Sprintf("Prefix:\"%X\",", ti.Prefix)))
-		} else {
-			buf.Write([]byte("Registered:false,"))
-		}
-		buf.Write([]byte(fmt.Sprintf("AminoMarshalReprType:\"%v\",", ti.AminoMarshalReprType)))
-		buf.Write([]byte(fmt.Sprintf("AminoUnmarshalReprType:\"%v\",", ti.AminoUnmarshalReprType)))
-		if ti.Type.Kind() == reflect.Struct {
-			buf.Write([]byte(fmt.Sprintf("Fields:%v,", ti.Fields)))
-		}
+	buf.Write([]byte(fmt.Sprintf("AminoMarshalReprType:\"%v\",", ti.AminoMarshalReprType)))
+	buf.Write([]byte(fmt.Sprintf("AminoUnmarshalReprType:\"%v\",", ti.AminoUnmarshalReprType)))
+	if ti.Type.Kind() == reflect.Struct {
+		buf.Write([]byte(fmt.Sprintf("Fields:%v,", ti.Fields)))
 	}
 	buf.Write([]byte("}"))
 	return buf.String()
@@ -747,40 +502,6 @@ func isExported(field reflect.StructField) bool {
 	// is the correct spec to use, so this might be wrong.
 
 	return unicode.IsUpper(first)
-}
-
-func nameToDisamb(name string) (db DisambBytes) {
-	db, _ = nameToDisfix(name)
-	return
-}
-
-func nameToPrefix(name string) (pb PrefixBytes) {
-	_, pb = nameToDisfix(name)
-	return
-}
-
-func nameToDisfix(name string) (db DisambBytes, pb PrefixBytes) {
-	hasher := sha256.New()
-	if _, err := hasher.Write([]byte(name)); err != nil {
-		return
-	}
-	bz := hasher.Sum(nil)
-	for bz[0] == 0x00 {
-		bz = bz[1:]
-	}
-	copy(db[:], bz[0:3])
-	bz = bz[3:]
-	for bz[0] == 0x00 {
-		bz = bz[1:]
-	}
-	copy(pb[:], bz[0:4])
-	return
-}
-
-func toDisfix(db DisambBytes, pb PrefixBytes) (df DisfixBytes) {
-	copy(df[0:3], db[0:3])
-	copy(df[3:7], pb[0:4])
-	return
 }
 
 func marshalAminoReprType(rm reflect.Method) (rrt reflect.Type) {
@@ -820,4 +541,12 @@ func unmarshalAminoReprType(rm reflect.Method) (rrt reflect.Type) {
 		panic(fmt.Sprintf("Representative objects cannot be pointers; got %v", rrt))
 	}
 	return
+}
+
+func typeURLtoName(typeURL string) (name string) {
+	parts := strings.Split(typeURL, "/")
+	if len(parts) == 1 {
+		panic(fmt.Sprintf("invalid type_url name, must contain at least one slash and be followed by the full name"))
+	}
+	return parts[len(parts)-1]
 }

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tendermint/go-amino/press"
+	"github.com/tendermint/go-amino/libs/press"
 )
 
 //----------------------------------------

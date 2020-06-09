@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/tendermint/go-amino/packageinfo"
 )
 
 type Foo struct {
@@ -43,14 +44,14 @@ func (f *Foo) UnmarshalAmino(repr []pair) error {
 	return nil
 }
 
+var testPackageInfo = packageinfo.NewPackageInfo("", "", "").
+	WithDependencies().
+	WithTypes(string(""), int(0), ([]*Foo)(nil))
+
 func TestMarshalAminoBinary(t *testing.T) {
 
 	cdc := NewCodec()
-	cdc.RegisterInterface((*interface{})(nil), nil)
-	// register a bunch of concrete "implementations" which are type aliases:
-	cdc.RegisterConcrete(string(""), "string", nil)
-	cdc.RegisterConcrete(int(0), "int", nil)
-	cdc.RegisterConcrete(([]*Foo)(nil), "[]*Foo", nil)
+	cdc.RegisterPackageInfo(testPackageInfo)
 
 	var f = Foo{
 		a: "K",
@@ -74,10 +75,7 @@ func TestMarshalAminoBinary(t *testing.T) {
 func TestMarshalAminoJSON(t *testing.T) {
 
 	cdc := NewCodec()
-	cdc.RegisterInterface((*interface{})(nil), nil)
-	cdc.RegisterConcrete(string(""), "string", nil)
-	cdc.RegisterConcrete(int(0), "int", nil)
-	cdc.RegisterConcrete(([]*Foo)(nil), "[]*Foo", nil)
+	cdc.RegisterPackageInfo(testPackageInfo)
 
 	var f = Foo{
 		a: "K",

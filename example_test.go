@@ -44,11 +44,11 @@ func Example() {
 		Peers int
 	}
 
+	// amino.RegisterPackageInfo registers globally.
+	var _ = amino.RegisterPackageInfo("example.com/amino_test", "amino_test").
+		WithTypes(bcMessage{}, bcResponse{}, bcStatus{})
+
 	var cdc = amino.NewCodec()
-	cdc.RegisterInterface((*Message)(nil), nil)
-	cdc.RegisterConcrete(&bcMessage{}, "bcMessage", nil)
-	cdc.RegisterConcrete(&bcResponse{}, "bcResponse", nil)
-	cdc.RegisterConcrete(&bcStatus{}, "bcStatus", nil)
 
 	var bm = &bcMessage{Message: "ABC", Height: 100}
 	var msg = bm

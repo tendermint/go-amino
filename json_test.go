@@ -13,16 +13,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	amino "github.com/tendermint/go-amino"
+	packageinfo "github.com/tendermint/go-amino/packageinfo"
 )
 
+var transportPackageInfo = packageinfo.NewPackageInfo("github.com/tendermint/go-amino_test", "amino_test", "dontcare").
+	WithTypes(&Transport{}, Car(""), insurancePlan(0), Boat(""), Plane{})
+
 func registerTransports(cdc *amino.Codec) {
-	cdc.RegisterConcrete(&Transport{}, "our/transport", nil)
-	cdc.RegisterInterface((*Vehicle)(nil), &amino.InterfaceOptions{AlwaysDisambiguate: true})
-	cdc.RegisterInterface((*Asset)(nil), &amino.InterfaceOptions{AlwaysDisambiguate: true})
-	cdc.RegisterConcrete(Car(""), "car", nil)
-	cdc.RegisterConcrete(insurancePlan(0), "insuranceplan", nil)
-	cdc.RegisterConcrete(Boat(""), "boat", nil)
-	cdc.RegisterConcrete(Plane{}, "plane", nil)
+	cdc.RegisterPackageInfo(transportPackageInfo)
 }
 
 func TestMarshalJSON(t *testing.T) {

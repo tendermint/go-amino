@@ -5,29 +5,29 @@ import (
 	"reflect"
 
 	"github.com/tendermint/go-amino"
-	"github.com/tendermint/go-amino/codepress"
+	"github.com/tendermint/go-amino/libs/press"
 )
 
 // shortcut
 var _fmt = fmt.Sprintf
 
-func PrintIntEncoder(p *codepress.CodePress, ref string) {
-	p.Pl("{").I(func(p *codepress.CodePress) {
+func PrintIntEncoder(p *press.Press, ref string) {
+	p.Pl("{").I(func(p *press.Press) {
 		p.Pl("var buf[10]byte")
 		p.Pl("n := binary.PutVarint(buf[:], %v)", ref)
 		p.Pl("_, err = w.Write(buf[0:n])")
 	}).Pl("}")
 }
 
-func PrintStructFieldEncoder(p *codepress.CodePress, ref string, info amino.FieldInfo) {
+func PrintStructFieldEncoder(p *press.Press, ref string, info amino.FieldInfo) {
 	name := info.Name
 	fref := ref + "." + name // TODO document restriction on name types to make naive "+" possible.
 	done := p.RandID("done")
 	cond := printStructFieldSkipCond(p, fref, info)
-	p.Pl("{").I(func(p *codepress.CodePress) {
+	p.Pl("{").I(func(p *press.Press) {
 		p.Pl("// Struct field %v", name)
 		p.Pl("// Maybe skip?")
-		p.Pl("// if (%v) {", cond).I(func(p *codepress.CodePress) {
+		p.Pl("// if (%v) {", cond).I(func(p *press.Press) {
 			p.Pl("goto %v", done)
 		}).Pl("}")
 		p.Pl("pos1 := w.Len()")
@@ -40,14 +40,14 @@ func PrintStructFieldEncoder(p *codepress.CodePress, ref string, info amino.Fiel
 		p.Pl("pos3 := w.Len()")
 		// Maybe skip the writing of zero structs unless also WriteEmpty.
 		if info.Type.Kind() == reflect.Ptr && !info.WriteEmpty {
-			p.Pl("if (pos2 == pos3-1 && w.PeekLastByte() == 0x00) {").I(func(p *codepress.CodePress) {
+			p.Pl("if (pos2 == pos3-1 && w.PeekLastByte() == 0x00) {").I(func(p *press.Press) {
 				p.Pl("w.Truncate(pos1)")
 			}).Pl("}")
 		}
 	}).Pl("}")
 }
 
-func printStructFieldSkipCond(p *codepress.CodePress, fref string, info amino.FieldInfo) string {
+func printStructFieldSkipCond(p *press.Press, fref string, info amino.FieldInfo) string {
 	// If the value is nil or empty, do not encode.
 	// Amino "zero" structs are not yet well defined/understood.
 	// Field values that are zero structs (and !WriteEmpty) are not skipped

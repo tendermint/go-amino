@@ -206,7 +206,7 @@ func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
 		return Typ3Varint
 	case reflect.Int32, reflect.Uint32:
 		if opts.BinFixed32 {
-			return Typ3_4Byte
+			return Typ34Byte
 		}
 		return Typ3Varint
 
@@ -216,7 +216,7 @@ func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
 	case reflect.Float64:
 		return Typ38Byte
 	case reflect.Float32:
-		return Typ3_4Byte
+		return Typ34Byte
 	default:
 		panic(fmt.Sprintf("unsupported field type %v", rt))
 	}

@@ -169,9 +169,14 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 		return
 	}
 
+	// XXX This is not correct, see
+	// https://developers.google.com/protocol-buffers/docs/reference/java/com/google/protobuf/Any
+	// and especially about "well known types",
+	// which can be found here: https://pkg.go.dev/github.com/golang/protobuf/ptypes?tab=doc.
+
 	// Write interface wrapper.
 	// Part 1:
-	err = writeStr(w, _fmt(`{"type":"%s","value":`, cinfo.Name))
+	err = writeStr(w, _fmt(`{"@type":"%s","value":`, cinfo.TypeURL))
 	if err != nil {
 		return
 	}

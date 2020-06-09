@@ -7,8 +7,11 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
+	"strings"
 
 	amino "github.com/tendermint/go-amino"
+	tmstrings "github.com/tendermint/tendermint/libs/strings"
 )
 
 func main() {
@@ -20,10 +23,8 @@ func main() {
 
 	// Parse flags...
 	var colorize bool
-	var concreteName string
 	flgs := flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	flgs.BoolVar(&colorize, "color", false, "Just print the colored bytes and exit.")
-	flgs.StringVar(&concreteName, "concrete-name", "", "Just print the concrete bytes for a concrete name and exit.")
 	err := flgs.Parse(os.Args[1:])
 	if err == flag.ErrHelp {
 		fmt.Println(`Usage: aminoscan <STRUCT HEXBYTES> or --help
@@ -50,13 +51,6 @@ func main() {
 		return
 	}
 
-	// If we just want to print the concrete bytes...
-	if concreteName != "" {
-		db, pb := amino.NameToDisfix(concreteName)
-		fmt.Printf("Disamb bytes: %X\nPrefix bytes: %X\n", db, pb)
-		return
-	}
-
 	// Parse struct Amino bytes.
 	bz := hexDecode(os.Args[1]) // Read input hex bytes.
 	fmt.Println(Yellow("## Root Struct (assumed)"))
@@ -74,7 +68,7 @@ func scanAny(typ amino.Typ3, bz []byte, indent string) (s string, n int, err err
 		s, n, err = scan8Byte(bz, indent)
 	case amino.Typ3ByteLength:
 		s, n, err = scanByteLength(bz, indent)
-	case amino.Typ3_4Byte:
+	case amino.Typ34Byte:
 		s, n, err = scan4Byte(bz, indent)
 	default:
 		panic("should not happen")
@@ -142,12 +136,19 @@ func scanByteLength(bz []byte, indent string) (s string, n int, err error) {
 		err = errors.New("while reading 8byte field, EOF was encountered")
 		return
 	}
-	s = Cyan(fmt.Sprintf("%X", bz[:_n]))
+	lengthStr := fmt.Sprintf("%X (%v bytes) ", bz[:_n], length)
+	lengthStrLen := len(lengthStr) // for indenting later
+	s = Cyan(lengthStr)
 	slide(&bz, &n, _n)
 	// Read the remaining bytes.
-	s += Green(fmt.Sprintf("%X", bz[:length]))
+	contents := bz[:length]
+	s += Green(fmt.Sprintf("%X", contents))
 	slide(&bz, &n, length)
-	fmt.Printf("%s%s (%v bytes)\n", indent, s, length)
+	fmt.Printf("%s%s\n", indent, s)
+	// If ascii string, also show the string in quotes.
+	if tmstrings.IsASCIIText(string(contents)) {
+		fmt.Printf("%s%s\n", indent+strings.Repeat(" ", lengthStrLen), Green("("+strconv.Quote(string(contents))+" in ASCII)"))
+	}
 	return
 }
 

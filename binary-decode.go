@@ -26,7 +26,10 @@ const (
 
 // This is the main entrypoint for decoding all types from binary form. This
 // function calls decodeReflectBinary*, and generally those functions should
-// only call this one, for the prefix bytes are consumed here when present.
+// only call this one, for overrides all happen here.
+// "bare" is ignored when the value is a primitive type,
+// or a byteslice or bytearray, but this is confusing and
+// should probably be improved with explicit expectations.
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 	rv reflect.Value, fopts FieldOptions, bare bool) (n int, err error) {
@@ -345,35 +348,76 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		bz = buf
 	}
 
-	// Consume disambiguation / prefix bytes.
-	disamb, hasDisamb, prefix, hasPrefix, _n, err := DecodeDisambPrefixBytes(bz)
+	// Consume first field of TypeURL.
+	fnum, typ, _n, err := decodeFieldNumberAndTyp3(bz)
 	if slide(&bz, &n, _n) && err != nil {
-		return n, err
+		return
+	}
+	if fnum != 1 || typ != Typ3ByteLength {
+		err = fmt.Errorf("expected Any field number 1 TypeURL, got num %v typ %v", fnum, typ)
+		return
 	}
 
-	// Get concrete type info from disfix/prefix.
-	var cinfo *TypeInfo
-	switch {
-	case hasDisamb:
-		cinfo, err = cdc.getTypeInfoFromDisfixRLock(toDisfix(disamb, prefix))
-	case hasPrefix:
-		cinfo, err = cdc.getTypeInfoFromPrefixRLock(iinfo, prefix)
-	default:
-		err = errors.New("expected disambiguation or prefix bytes")
+	// Consume string.
+	typeURL, _n, err := DecodeString(bz)
+	if slide(&bz, &n, _n) && err != nil {
+		return
 	}
+
+	// Get concrete type info from typeURL.
+	// (we don't consume the value bytes yet).
+	var cinfo *TypeInfo
+	cinfo, err = cdc.getTypeInfoFromTypeURLRLock(typeURL)
 	if err != nil {
 		return
 	}
 
-	// Construct the concrete type.
+	// Special case when value is default empty value.
+	if len(bz) == 0 {
+		rv.Set(cinfo.ZeroValue)
+		return
+	}
+
+	// Consume second field key of Value.
+	fnum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
+	if slide(&bz, &n, _n) && err != nil {
+		return
+	}
+	// fnum of greater than 2 is malformed for google.protobuf.Any,
+	// and not supported (will error).
+	if fnum != 2 || typ != Typ3ByteLength {
+		err = fmt.Errorf("expected Any field number 2 Value, got num %v typ %v", fnum, typ)
+		return
+	}
+	// Consume second field value, a byteslice.
+	value, _n, err := DecodeByteSlice(bz)
+	if slide(&bz, &n, _n) && err != nil {
+		return
+	}
+	// Earlier, we set bz to the byteslice read from buf.
+	// Ensure that all of bz was consumed.
+	if len(bz) > 0 {
+		err = errors.New("bytes left over after reading Any.")
+		return
+	}
+
+	// Switcharoo for convenience.
+	// From now we will read from value.
+	bz = value
+
+	// Construct the concrete type value.
 	var crv, irvSet = constructConcreteType(cinfo)
-	isKnownType := (cinfo.Type.Kind() != reflect.Map) && (cinfo.Type.Kind() != reflect.Func)
-	if !isStructOrRepeatedStruct(cinfo) &&
-		!isPointerToStructOrToRepeatedStruct(crv, cinfo.Type) &&
-		len(bz) > 0 &&
-		(crv.Kind() != reflect.Interface) &&
-		isKnownType &&
-		fopts.BinFieldNum == 1 {
+
+	// See if we need to read the typ3 encoding of an implicit struct.
+	// google.protobuf.Any values must be a struct, or an unpacked list which
+	// is indistinguishable from a struct.
+	//
+	// See corresponding encoding message in this file, and also
+	// Codec.UnmarshalBinaryBare()
+	var bareValue = true
+	if !isStructOrUnpacked(cinfo, fopts) &&
+		len(bz) > 0 {
+		// TODO test for when !isStructOrUnpacked(cinfo) but fopts.BinFieldNum != 1.
 		var (
 			fnum      uint32
 			typ       Typ3
@@ -392,19 +436,26 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 				typWanted, fnum, cinfo.Type, typ)
 		}
 		slide(&bz, &n, nFnumTyp3)
+		// If the typ3 is Typ3ByteLength, we want to ensure that the length
+		// prefix is written.  If !isStructOrUnpacked(cinfo) but typ3 is not a
+		// Typ3ByteLength, then the type is primitive and this argument is
+		// ignored anyways.
+		bare = false
 	}
 
 	// Decode into the concrete type.
-	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, fopts, true)
+	// Here is where we consume the value bytes, which are necessarily length
+	// prefixed, due to the type of field 2, so bareValue is false.
+	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, fopts, bareValue)
 	if slide(&bz, &n, _n) && err != nil {
 		rv.Set(irvSet) // Helps with debugging
 		return
 	}
 
-	// Earlier, we set bz to the byteslice read from buf.
+	// Earlier, we set bz to the value byteslice read from buf.
 	// Ensure that all of bz was consumed.
 	if len(bz) > 0 {
-		err = errors.New("bytes left over after reading interface contents")
+		err = errors.New("bytes left over after reading Any.Value.")
 		return
 	}
 
@@ -910,7 +961,7 @@ func consumeAny(typ3 Typ3, bz []byte) (n int, err error) {
 		_, _n, err = DecodeInt64(bz)
 	case Typ3ByteLength:
 		_, _n, err = DecodeByteSlice(bz)
-	case Typ3_4Byte:
+	case Typ34Byte:
 		_, _n, err = DecodeInt32(bz)
 	default:
 		err = fmt.Errorf("invalid typ3 bytes %v", typ3)
@@ -925,35 +976,6 @@ func consumeAny(typ3 Typ3, bz []byte) (n int, err error) {
 }
 
 //----------------------------------------
-
-func DecodeDisambPrefixBytes(bz []byte) (db DisambBytes, hasDb bool, pb PrefixBytes, hasPb bool, n int, err error) {
-	// Validate
-	if len(bz) < 4 {
-		err = errors.New("while reading prefix bytes, EOF was encountered")
-		return // hasPb = false
-	}
-	if bz[0] == 0x00 { // Disfix
-		// Validate
-		if len(bz) < 8 {
-			err = errors.New("while reading prefix bytes, EOF was encountered")
-			return // hasPb = false
-		}
-		copy(db[0:3], bz[1:4])
-		copy(pb[0:4], bz[4:8])
-		hasDb = true
-		hasPb = true
-		n = 8
-		return
-	}
-	// Prefix
-	// General case with no disambiguation
-	copy(pb[0:4], bz[0:4])
-	hasDb = false
-	hasPb = true
-	n = 4
-	return
-
-}
 
 // Read field key.
 func decodeFieldNumberAndTyp3(bz []byte) (num uint32, typ Typ3, n int, err error) {

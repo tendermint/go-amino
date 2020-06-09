@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	amino "github.com/tendermint/go-amino"
+	"github.com/tendermint/go-amino/tests"
 )
 
 type SimpleStruct struct {
@@ -244,9 +245,9 @@ func TestCodecSeal(t *testing.T) {
 	type Bar interface{}
 
 	cdc := amino.NewCodec()
-	cdc.RegisterInterface((*Foo)(nil), nil)
 	cdc.Seal()
 
-	assert.Panics(t, func() { cdc.RegisterInterface((*Bar)(nil), nil) })
-	assert.Panics(t, func() { cdc.RegisterConcrete(int(0), "int", nil) })
+	assert.Panics(t, func() { cdc.RegisterPackageInfo(tests.PackageInfo) })
 }
+
+// XXX Test registering duplicate names or concrete types not in a package.

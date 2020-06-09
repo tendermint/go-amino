@@ -17,9 +17,12 @@ import (
 
 // This is the main entrypoint for encoding all types in binary form.  This
 // function calls encodeReflectBinary*, and generally those functions should
-// only call this one, for the prefix bytes are only written here.
+// only call this one, for all overrides happen here.
 // The value may be a nil interface, but not a nil pointer.
 // The following contracts apply to all similar encode methods.
+// "bare" is ignored when the value is a primitive type,
+// or a byteslice or bytearray, but this is confusing and
+// should probably be improved with explicit expectations.
 // CONTRACT: rv is not a pointer
 // CONTRACT: rv is valid.
 func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value,
@@ -238,33 +241,62 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		return
 	}
 
-	// For Proto3 compatibility, encode interfaces as ByteLength.
+	// For Proto3 compatibility, encode interfaces as google.protobuf.Any
+	// Write field #1, TypeURL
 	buf := bytes.NewBuffer(nil)
-
-	// Write disambiguation bytes if needed.
-	needDisamb := false
-	if iinfo.AlwaysDisambiguate {
-		needDisamb = true
-	} else if len(iinfo.Implementers[cinfo.Prefix]) > 1 {
-		needDisamb = true
-	}
-	if needDisamb {
-		_, err = buf.Write(append([]byte{0x00}, cinfo.Disamb[:]...))
+	{
+		fnum := uint32(1)
+		err = encodeFieldNumberAndTyp3(buf, fnum, Typ3ByteLength)
+		if err != nil {
+			return
+		}
+		err = EncodeString(w, cinfo.TypeURL)
 		if err != nil {
 			return
 		}
 	}
 
-	// Write prefix bytes.
-	_, err = buf.Write(cinfo.Prefix.Bytes())
-	if err != nil {
-		return
+	// Write field value for #2, Value.
+	// We will append the length of buf2 to buf later.
+	buf2 := bytes.NewBuffer(nil)
+
+	// google.protobuf.Any values must be a struct, or an unpacked list which
+	// is indistinguishable from a struct.
+	if !isStructOrUnpacked(cinfo, fopts) {
+		writeEmpty := false
+		typ3 := typeToTyp3(cinfo.Type, FieldOptions{})
+		bare := typ3 != Typ3ByteLength
+		// Encode with an implicit struct, with a single field with number 1.
+		// The type of this implicit field determines whether any
+		// length-prefixing happens after the typ3 byte.
+		// The second FieldOptions is empty, because this isn't a list of
+		// Typ3ByteLength things, so however it is encoded, that option is no
+		// longer needed.
+		if err = cdc.writeFieldIfNotEmpty(buf2, 1, cinfo, FieldOptions{}, FieldOptions{}, rv, writeEmpty, bare); err != nil {
+			return
+		}
+	} else {
+		// The passed in BinFieldNum is only relevant for when the type is to
+		// be encoded unpacked (elements are Typ3ByteLength).  In that case,
+		// encodeReflectBinary will repeat the field number as set here, as if
+		// encoded with an implicit struct.
+		err = cdc.encodeReflectBinary(buf2, cinfo, rv, FieldOptions{BinFieldNum: 1}, true)
+		if err != nil {
+			return
+		}
 	}
 
-	// Write actual concrete value.
-	err = cdc.encodeReflectBinary(buf, cinfo, crv, fopts, true)
-	if err != nil {
-		return
+	// Write field for #2, Value, only if not empty.
+	if buf2.Len() > 0 {
+		fnum := uint32(2)
+		err = encodeFieldNumberAndTyp3(buf, fnum, Typ3ByteLength)
+		if err != nil {
+			return
+		}
+		err = EncodeByteSlice(buf, buf2.Bytes())
+		if err != nil {
+			return
+		}
 	}
 
 	if bare {
@@ -366,8 +398,15 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 					return
 				}
 			} else {
-				// Write the element value as a ByteLength.
-				// In case of any inner lists in unpacked form.
+				// Write the element value as a ByteLength prefixed.
+
+				// NOTE: In case of any (nested) inner lists in unpacked form,
+				// we again pass in BinFieldNum=1, but each inner list of field
+				// num = 1 items will still be byte-length prefixed, so
+				// multidimensional lists are still supported.
+				//
+				// In proto3 this would be resented with an auto-generated
+				// message which holds a list at field number 1.
 				efopts := fopts
 				efopts.BinFieldNum = 1
 				err = cdc.encodeReflectBinary(buf, einfo, erv, efopts, false)

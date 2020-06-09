@@ -3,6 +3,7 @@ package main;
 
 // imports
 import "proto/github.com/tendermint/go-amino/genproto/example/submodule/types.proto";
+import "google/protobuf/any.proto";
 
 // messages
 message StructA {
@@ -14,5 +15,5 @@ message StructB {
 	uint32 FieldD = 2;
 	submodule.StructSM FieldE = 3;
 	StructA FieldF = 4;
-	Any FieldG = 5;
+	google.protobuf.Any FieldG = 5;
 }

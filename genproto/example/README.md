@@ -4,4 +4,4 @@ appropriately.
 
 For now, we just add a symlink from
 proto/github.com/tendermint/go-amino/genproto/example to the example directory
-(recursive).
+(recursive).  go.mod is required for this hack.

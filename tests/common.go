@@ -250,7 +250,7 @@ type Concrete2 struct{}
 func (Concrete2) AssertInterface1() {}
 func (Concrete2) AssertInterface2() {}
 
-// Special case: this concrete implementation (of Interface1) is a type alias.
+// Special case: this concrete implementation (of Interface1) is a type definition.
 type ConcreteTypeDef [4]byte
 
 func (ConcreteTypeDef) AssertInterface1() {}

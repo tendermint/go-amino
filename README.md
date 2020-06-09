@@ -27,7 +27,9 @@ GitHub](https://github.com/tendermint/go-amino/issues)!
 * Schema must be upgradeable.
 * Sufficient structure must be parseable without a schema.
 * The encoder and decoder logic must be reasonably simple.
-* The serialization must be reasonably compact.
+* The serialization must be reasonably compact, assuming
+  a string/subsequence compaction string for compacting common strings
+  as in Any.TypeURL.
 * A sufficiently compatible JSON format must be maintained (but not general
   conversion to/from JSON)
 
@@ -42,24 +44,71 @@ programming language. Additionally, Amino has a fully compatible JSON encoding.
 
 ## Amino vs Protobuf3
 
-Amino wants to be Protobuf4. The bulk of this spec will explain how Amino
-differs from Protobuf3. Here, we will illustrate two key selling points for
-Amino.
+Work flow with Amino starts with Go structs, and proto3 schemas are generated
+for compatibility with clients in other languages.
 
-* Protobuf3 doesn't support interfaces.  It supports `oneof`, which works as a
-  kind of union type, but it doesn't translate well to "interfaces" and
-"implementations" in modern langauges such as C++ classes, Java
-interfaces/classes, Go interfaces/implementations, and Rust traits.  
+Amino uses reflection to produce proto3 compatible binary bytes.
+(It should, but it does not currently, produce compatible JSON bytes).
 
-If Protobuf supported interfaces, users of externally defined schema files
-would be able to support caller-defined concrete types of an interface.
-Instead, the `oneof` feature of Protobuf3 requires the concrete types to be
-pre-declared in the definition of the `oneof` field.
+The "genproto" package can be used to automatically generate proto3 schema
+files from Go code. So it supports projects that want to define message schemas
+in Go.
 
-Proto3 now supports Any, but its usage is still being defined.  Amino is a
-gg
-proposal for how this could work, and go-amino is a proposal in the context of
-Go.
+In the near future, Amino defined structs will use auto-generated code to
+use proto3's optimized serializer, by translating amino structs to
+protoc generate go code via auto-generated shim go code.  The generated proto3
+files will reside in the "proto3" folder of their respective packages.
+
+In the far future, Amino may generate more optimized Go code without relying on
+Google's protoc toolset.
+
+go-amino supports Any as Go interfaces.  In other OOP languages, the respective
+\*-amino libraries are expected to support similar types for Any in a similarly
+native way.
+
+### google.protobuf.Any support and Full Names
+
+Previous versions of amino used to have "disambiguation" and "prefix" bytes
+to distinguish among registered concrete types.  This system has been
+replaced with the canonical proto3 Any system.
+
+* https://github.com/protocolbuffers/protobuf-go/blob/69839c78c3baff8f1fb37f37b24127ecae185e03/reflect/protoreflect/proto.go#L444
+
+The name of concrete types must conform to proto3's
+Any.type\_url spec (generally, "\<domain\and\path\>/\<full.name\>").
+
+For performance, unless we are supporting amino/proto3 with some compression
+layer (with registered common strings like Any.type\_url)\*\*, the domain and
+path should be short.
+
+\*\* NOTE: If the length of domain names become an issue, it may be desirable to
+create a general purpose (de)compressor system that can turn registered common
+strings into short representations, LZW with preconfiguration if such doesn't exist already.
+Perhaps such a system could be used between two parties for negotiated
+shorthand communication via the sharing of Alias declarations, so between p2p
+parties, as well as for local persistence.
+
+Proto3 only requires the type URL to include at least one slash,
+* https://developers.google.com/protocol-buffers/docs/proto3#any
+* https://github.com/protocolbuffers/protobuf/blob/7bff8393cab939bfbb9b5c69b3fe76b4d83c41ee/src/google/protobuf/any_lite.cc#L96
+thus the shortest possible domain is empty. However, Google's proto3 generated code
+always produces type URLs that start with "type.googleapis.com/".
+
+Amino chooses to the empty domain, keeps the representation short, and assumes
+no domain information for security purposes (the user must provide them
+explicitly anyways).
+
+At the same time, the full name must also be sufficiently distinguishing of the
+message's resource ID/URI, as this is what proto3 tooling expects.  (example:
+https://github.com/protocolbuffers/protobuf-go/blob/69839c78c3baff8f1fb37f37b24127ecae185e03/reflect/protoregistry/registry.go#L525).
+
+Without compression, the shortest reasonable type URL for Tendermint's crypto
+libraries are of the form "/tm.cryp.PubKeySecp256k1", tm for tendermint, cryp
+for crypto libs, and the name of the struct (which could be shorter still).
+This is about 20 bytes of extra overhead than the previous 4-byte prefix
+system, but is more canonical (which we will need if we ever want binary
+signing), and can be optimized in the future.
+
 
 ## Amino in the Wild
 
@@ -69,116 +118,40 @@ https://github.com/tendermint/tendermint/blob/master/docs/spec/blockchain/encodi
 
 # Amino Spec
 
-### Interface
+#### Registering types and packages
 
-Amino is an encoding library that can handle Interfaces. This is achieved by
-prefixing bytes before each "concrete type".
+Previous versions of Amino used to require a local codec where types must be
+registered.  With the change to support Any and type URL strings,
+we no longer need to keep track of local codecs, unless we want to override
+default behavior from global registrations.
 
-A concrete type is a non-Interface type which implements a registered
-Interface. Not all types need to be registered as concrete types — only when
-they will be stored in Interface type fields (or in a List with Interface
-elements) do they need to be registered.  Registration of Interfaces and the
-implementing concrete types should happen upon initialization of the program to
-detect any problems (such as conflicting prefix bytes -- more on that later).
-
-#### Registering types
-
-To encode and decode an Interface, it has to be registered with `codec.RegisterInterface`
-and its respective concrete type implementers should be registered with `codec.RegisterConcrete`
+Each package should declare in a package local file (by convention called amino.go)
+which should look like the following:
 
 ```go
-amino.RegisterInterface((*MyInterface1)(nil), nil)
-amino.RegisterInterface((*MyInterface2)(nil), nil)
-amino.RegisterConcrete(MyStruct1{}, "com.tendermint/MyStruct1", nil)
-amino.RegisterConcrete(MyStruct2{}, "com.tendermint/MyStruct2", nil)
-amino.RegisterConcrete(&MyStruct3{}, "anythingcangoinhereifitsunique", nil)
+// see github.com/tendermint/go-amino/protogen/example/main.go
+package main
+
+import (
+	"github.com/tendermint/go-amino"
+	"github.com/tendermint/go-amino/genproto/example/submodule"
+)
+
+var PackageInfo = amino.RegisterPackageInfo(
+	"main", // The Go package path
+	"main", // The (shorter) Proto3 package path (no slashes).
+).WithDependencies(
+	submodule.PackageInfo, // Dependencies must be declared (for now).
+).WithTypes(
+	StructA{}, // Declaration of all structs to be managed by Amino.
+	StructB{}, // For example, protogen to generate proto3 schema files.
+	&StructC{}, // If pointer receivers are preferred when decoding to interfaces.
+)
 ```
 
-Notice that an Interface is represented by a nil pointer of that Interface.
-
-NOTE: Go-Amino tries to transparently deal with pointers (and pointer-pointers)
-when it can.  When it comes to decoding a concrete type into an Interface
-value, Go gives the user the option to register the concrete type as a pointer
-or non-pointer.  If and only if the value is registered as a pointer is the
-decoded value will be a pointer as well.
-
-#### Prefix bytes to identify the concrete type
-
-All registered concrete types are encoded with leading 4 bytes (called "prefix
-bytes"), even when it's not held in an Interface field/element.  In this way,
-Amino ensures that concrete types (almost) always have the same canonical
-representation.  The first byte of the prefix bytes must not be a zero byte,
-so there are `2^(8x4)-2^(8x3) = 4,278,190,080` possible values.
-
-When there are 1024 concrete types registered that implement the same Interface,
-the probability of there being a conflict is ~ 0.01%.
-
-This is assuming that all registered concrete types have unique natural names
-(e.g.  prefixed by a unique entity name such as "com.tendermint/", and not
-"mined/grinded" to produce a particular sequence of "prefix bytes"). Do not
-mine/grind to produce a particular sequence of prefix bytes, and avoid using
-dependencies that do so.
-
-```
-The Birthday Paradox: 1024 random registered types, Wire prefix bytes
-https://instacalc.com/51554
-
-possible = 4278190080                               = 4,278,190,080 
-registered = 1024                                   = 1,024 
-pairs = ((registered)*(registered-1)) / 2           = 523,776 
-no_collisions = ((possible-1) / possible)^pairs     = 0.99987757816 
-any_collisions = 1 - no_collisions                  = 0.00012242184 
-percent_any_collisions = any_collisions * 100       = 0.01224218414 
-```
-
-Since 4 bytes are not sufficient to ensure no conflicts, sometimes it is
-necessary to prepend more than the 4 prefix bytes for disambiguation.  Like the
-prefix bytes, the disambiguation bytes are also computed from the registered
-name of the concrete type.  There are 3 disambiguation bytes, and in binary
-form they always precede the prefix bytes.  The first byte of the
-disambiguation bytes must not be a zero byte, so there are 2^(8x3)-2^(8x2)
-possible values.
-
-```
-// Sample Amino encoded binary bytes with 4 prefix bytes.
-> [0xBB 0x9C 0x83 0xDD] [...]
-
-// Sample Amino encoded binary bytes with 3 disambiguation bytes and 4
-// prefix bytes.
-> 0x00 <0xA8 0xFC 0x54> [0xBB 0x9C 0x83 0xDD] [...]
-```
-
-The prefix bytes never start with a zero byte, so the disambiguation bytes are
-escaped with 0x00.
-
-The 4 prefix bytes always immediately precede the binary encoding of the
-concrete type.
-
-#### Computing the prefix and disambiguation bytes
-
-To compute the disambiguation bytes, we take `hash := sha256(concreteTypeName)`,
-and drop the leading 0x00 bytes.
-
-```
-> hash := sha256("com.tendermint.consensus/MyConcreteName")
-> hex.EncodeBytes(hash) // 0x{00 00 A8 FC 54 00 00 00 BB 9C 83 DD ...} (example)
-```
-
-In the example above, hash has two leading 0x00 bytes, so we drop them.
-
-```
-> rest = dropLeadingZeroBytes(hash) // 0x{A8 FC 54 00 00 00 BB 9C 83 DD ...}
-> disamb = rest[0:3]
-> rest = dropLeadingZeroBytes(rest[3:])
-> prefix = rest[0:4]
-```
-
-The first 3 bytes are called the "disambiguation bytes" (in angle brackets).
-The next 4 bytes are called the "prefix bytes" (in square brackets).
-
-```
-> <0xA8 0xFC 0x54> [0xBB 0x9C 9x83 9xDD] // <Disamb Bytes> and [Prefix Bytes]
-```
+You can still override global registrations with local \*amino.Codec state.
+This is used by genproto.P3Context, which may help development while writing
+migration scripts.  Feedback welcome in the issues section.
 
 ## Unsupported types
 

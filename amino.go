@@ -11,10 +11,15 @@ import (
 	"encoding/json"
 
 	"github.com/pkg/errors"
+	"github.com/tendermint/go-amino/packageinfo"
 )
 
+// Package "packageinfo" exists So dependencies can create packageinfos.
+// We export it here so this amino package can use it natively.
+type PackageInfo = packageinfo.PackageInfo
+
 var (
-	// Global methods for global sealed codec.
+	// Global methods for global auto-sealing codec.
 	gcdc *Codec
 
 	// we use this time to init. a zero value (opposed to reflect.Zero which gives time.Time{} / 01-01-01 00:00:00)
@@ -30,7 +35,7 @@ const (
 )
 
 func init() {
-	gcdc = NewCodec().Seal()
+	gcdc = NewCodec().Autoseal()
 	var err error
 	zeroTime, err = time.Parse(epochFmt, unixEpochStr)
 	if err != nil {
@@ -102,7 +107,7 @@ const (
 	Typ3ByteLength = Typ3(2)
 	//Typ3_Struct     = Typ3(3)
 	//Typ3_StructTerm = Typ3(4)
-	Typ3_4Byte = Typ3(5)
+	Typ34Byte = Typ3(5)
 	//Typ3_List       = Typ3(6)
 	//Typ3_Interface  = Typ3(7)
 )
@@ -119,7 +124,7 @@ func (typ Typ3) String() string {
 	//	return "Struct"
 	//case Typ3_StructTerm:
 	//	return "StructTerm"
-	case Typ3_4Byte:
+	case Typ34Byte:
 		return "4Byte"
 	//case Typ3_List:
 	//	return "List"
@@ -141,6 +146,7 @@ func (typ Typ3) String() string {
 // before encoding.  MarshalBinaryLengthPrefixed will panic if o is a nil-pointer,
 // or if o is invalid.
 func (cdc *Codec) MarshalBinaryLengthPrefixed(o interface{}) ([]byte, error) {
+	cdc.assertSealed()
 
 	// Write the bytes here.
 	var buf = new(bytes.Buffer)
@@ -194,7 +200,10 @@ func (cdc *Codec) MustMarshalBinaryLengthPrefixed(o interface{}) []byte {
 // MarshalBinaryBare encodes the object o according to the Amino spec.
 // MarshalBinaryBare doesn't prefix the byte-length of the encoding,
 // so the caller must handle framing.
+// Type information as in google.protobuf.Any isn't included, so manually wrap
+// before calling if you need to decode into an interface.
 func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
+	cdc.assertSealed()
 
 	// Dereference value if pointer.
 	var rv, _, isNilPtr = derefPointers(reflect.ValueOf(o))
@@ -212,42 +221,37 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	// in the case of of a repeated struct (e.g. type Alias []SomeStruct),
-	// we do not need to prepend with `(field_number << 3) | wire_type` as this
-	// would need to be done for each struct and not only for the first.
-	if rv.Kind() != reflect.Struct && !isStructOrRepeatedStruct(info) {
+	// Implicit struct or not?
+	// NOTE: similar to binary interface encoding.
+	fopts := FieldOptions{}
+	if !isStructOrUnpacked(info, fopts) {
 		writeEmpty := false
-		typ3 := typeToTyp3(info.Type, FieldOptions{})
+		typ3 := typeToTyp3(info.Type, fopts)
 		bare := typ3 != Typ3ByteLength
+		// Encode with an implicit struct, with a single field with number 1.
+		// The type of this implicit field determines whether any
+		// length-prefixing happens after the typ3 byte.
+		// The second FieldOptions is empty, because this isn't a list of
+		// Typ3_ByteLength things, so however it is encoded, that option is no
+		// longer needed.
 		if err = cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, bare); err != nil {
 			return nil, err
 		}
 		bz = buf.Bytes()
 	} else {
+		// The passed in BinFieldNum is only relevant for when the type is to
+		// be encoded unpacked (elements are Typ3_ByteLength).  In that case,
+		// encodeReflectBinary will repeat the field number as set here, as if
+		// encoded with an implicit struct.
 		err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{BinFieldNum: 1}, true)
 		if err != nil {
 			return nil, err
 		}
 		bz = buf.Bytes()
 	}
-	// If registered concrete, prepend prefix bytes.
-	if info.Registered {
-		// TODO: https://github.com/tendermint/go-amino/issues/267
-		//return MarshalBinaryBare(RegisteredAny{
-		//	AminoPreOrDisfix: info.Prefix.Bytes(),
-		//	Value: bz,
-		//})
-		pb := info.Prefix.Bytes()
-		bz = append(pb, bz...)
-	}
 
 	return bz, nil
 }
-
-//type RegisteredAny struct {
-//	AminoPreOrDisfix []byte
-//	Value []byte
-//}
 
 // Panics if error.
 func (cdc *Codec) MustMarshalBinaryBare(o interface{}) []byte {
@@ -359,6 +363,7 @@ func (cdc *Codec) MustUnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) 
 
 // UnmarshalBinaryBare will panic if ptr is a nil-pointer.
 func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
+	cdc.assertSealed()
 
 	rv := reflect.ValueOf(ptr)
 	if rv.Kind() != reflect.Ptr {
@@ -371,33 +376,18 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		return err
 	}
 
-	// If registered concrete, consume and verify prefix bytes.
-	if info.Registered {
-		// TODO: https://github.com/tendermint/go-amino/issues/267
-		pb := info.Prefix.Bytes()
-		if len(bz) < 4 {
-			return fmt.Errorf(
-				"unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X",
-				pb, bz,
-			)
-		} else if !bytes.Equal(bz[:4], pb) {
-			return fmt.Errorf(
-				"unmarshalBinaryBare expected to read prefix bytes %X (since it is registered concrete) but got %X",
-				pb, bz[:4],
-			)
-		}
-		bz = bz[4:]
-	}
-	// Only add length prefix if we have another typ3 then Typ3ByteLength.
-	// Default is non-length prefixed:
-	bare := true
+	// See if we need to read the typ3 encoding of an implicit struct.
+	//
+	// If the dest ptr is an interface, it is assumed that the object is
+	// wrapped in a google.protobuf.Any object, so skip this step.
+	//
+	// See corresponding encoding message in this file, and also
+	// binary-decode.
+	var bare = true
 	var nWrap int
-	isKnownType := (info.Type.Kind() != reflect.Map) && (info.Type.Kind() != reflect.Func)
-	if !isStructOrRepeatedStruct(info) &&
-		!isPointerToStructOrToRepeatedStruct(rv, rt) &&
+	if !isStructOrUnpacked(info, FieldOptions{}) &&
 		len(bz) > 0 &&
-		(rv.Kind() != reflect.Interface) &&
-		isKnownType {
+		(rv.Kind() != reflect.Interface) {
 		var (
 			fnum      uint32
 			typ       Typ3
@@ -417,7 +407,10 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		}
 
 		slide(&bz, &nWrap, nFnumTyp3)
-		bare = typeToTyp3(info.Type, FieldOptions{}) != Typ3ByteLength
+		// "bare" is ignored when primitive, byteslice, bytearray.
+		// When typ3 != ByteLength, then typ3 is one of Typ3Varint, Typ38Byte,
+		// Typ34Byte; and they are all primitive.
+		bare = false
 	}
 
 	// Decode contents into rv.
@@ -444,36 +437,19 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	return nil
 }
 
-func isStructOrRepeatedStruct(info *TypeInfo) bool {
+// Used to determine whether to create an implicit struct or not.  Notice that
+// the binary encoding of a list to be unpacked is indistinguishable from a
+// struct that contains that list.
+func isStructOrUnpacked(info *TypeInfo, fopt FieldOptions) bool {
 	if info.Type.Kind() == reflect.Struct {
 		return true
 	}
-	isRepeatedStructAr := info.Type.Kind() == reflect.Array && info.Type.Elem().Kind() == reflect.Struct
-	isRepeatedStructSl := info.Type.Kind() == reflect.Slice && info.Type.Elem().Kind() == reflect.Struct
-	return isRepeatedStructAr || isRepeatedStructSl
-}
-
-func isPointerToStructOrToRepeatedStruct(rv reflect.Value, rt reflect.Type) bool {
-	if rv.Kind() == reflect.Struct {
-		return true
+	if info.Type.Kind() == reflect.Array || info.Type.Kind() == reflect.Slice {
+		ert := info.Type.Elem()
+		typ3 := typeToTyp3(ert, fopt)
+		return typ3 == Typ3ByteLength
 	}
-
-	drv, isPtr, isNil := derefPointers(rv)
-	if isPtr && drv.Kind() == reflect.Struct {
-		return true
-	}
-
-	if isPtr && isNil {
-		rt = derefType(rt)
-		if rt.Kind() == reflect.Struct {
-			return true
-		}
-		return rt.Kind() == reflect.Slice && rt.Elem().Kind() == reflect.Struct ||
-			rt.Kind() == reflect.Array && rt.Elem().Kind() == reflect.Struct
-	}
-	isRepeatedStructSl := isPtr && drv.Kind() == reflect.Slice && drv.Elem().Kind() == reflect.Struct
-	isRepeatedStructAr := isPtr && drv.Kind() == reflect.Array && drv.Elem().Kind() == reflect.Struct
-	return isRepeatedStructAr || isRepeatedStructSl
+	return false
 }
 
 func derefType(rt reflect.Type) (drt reflect.Type) {
@@ -493,6 +469,8 @@ func (cdc *Codec) MustUnmarshalBinaryBare(bz []byte, ptr interface{}) {
 }
 
 func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
+	cdc.assertSealed()
+
 	rv := reflect.ValueOf(o)
 	if rv.Kind() == reflect.Invalid {
 		return []byte("null"), nil
@@ -503,26 +481,8 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	// Write the disfix wrapper if it is a registered concrete type.
-	if info.Registered {
-		err = writeStr(w, _fmt(`{"type":"%s","value":`, info.Name))
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Write the rest from rv.
 	if err = cdc.encodeReflectJSON(w, info, rv, FieldOptions{}); err != nil {
 		return nil, err
-	}
-
-	// disfix wrapper continued...
-	if info.Registered {
-		err = writeStr(w, `}`)
-		if err != nil {
-			return nil, err
-		}
 	}
 	return w.Bytes(), nil
 }
@@ -537,6 +497,7 @@ func (cdc *Codec) MustMarshalJSON(o interface{}) []byte {
 }
 
 func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
+	cdc.assertSealed()
 	if len(bz) == 0 {
 		return errors.New("cannot decode empty bytes")
 	}
@@ -550,19 +511,6 @@ func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
 	info, err := cdc.getTypeInfoWLock(rt)
 	if err != nil {
 		return err
-	}
-	// If registered concrete, consume and verify type wrapper.
-	if info.Registered {
-		// Consume type wrapper info.
-		name, data, err := decodeInterfaceJSON(bz)
-		if err != nil {
-			return err
-		}
-		// Check name against info.
-		if name != info.Name {
-			return errors.Errorf("wanted to decode %v but found %v", info.Name, name)
-		}
-		bz = data
 	}
 	return cdc.decodeReflectJSON(bz, info, rv, FieldOptions{})
 }
@@ -587,4 +535,27 @@ func (cdc *Codec) MarshalJSONIndent(o interface{}, prefix, indent string) ([]byt
 		return nil, err
 	}
 	return out.Bytes(), nil
+}
+
+//----------------------------------------
+
+// NOTE: Dirname is derived from the caller, using runtime caller analysis.
+// This function must be called from within gopkg, with no function decoration
+// or indirection.
+// If you must, refactor this method and create a new one this calls, which
+// takes shift.
+// NOTE: The returned PackageInfo is expected to be modified after return using
+// the modifier methods.  This means there will be some time discrepancy
+// between the registration at gcdc and the final form of PackageInfo.  Any
+// usage that requires the usage of the returned PackageInfo must happen after
+// the final modifications have been complete, otherwise the behavior is
+// undefined.  We could solve this with some kind of required "Seal()" on the
+// PackageInfo, or we can deprecate the modifiers and instead require option
+// arguments.
+func RegisterPackageInfo(gopkg string, p3pkg string) *PackageInfo {
+	dirname := packageinfo.GetCallersDirname()
+	pi := packageinfo.NewPackageInfo(gopkg, p3pkg, dirname)
+	// Register on the global cdc instance.
+	gcdc.RegisterPackageInfo(pi)
+	return pi
 }

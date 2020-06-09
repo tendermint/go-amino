@@ -23,11 +23,14 @@ import (
 //
 // It holds all the package infos needed to derive the full P3doc,
 // including p3 import paths, as well as where to write them,
-// because all of that information is encapsulated in genproto.PackageInfo.
+// because all of that information is encapsulated in amino.PackageInfo.
+//
+// It also holds a local amino.Codec instance, with package registrations
+// passed through.
 type P3Context struct {
 	// e.g. "github.com/tendermint/tendermint/abci/types" ->
 	//   &PackageInfo{...}
-	go2PackageInfo map[string]*PackageInfo
+	packages map[string]*amino.PackageInfo
 
 	// TODO
 	// // for beyond default "type.proto"
@@ -38,40 +41,33 @@ type P3Context struct {
 	// Proto 3 schema files are found in
 	// "{p3importPrefix}{gopkg}/types.proto"
 	p3importPrefix string
-
-	// Singleton for this P3Context.
-	// Interface/disfix info not relevant for proto3, so there is no need for
-	// the user to access this codec.  In other words, the default codec is
-	// sufficient.
-	cdc *amino.Codec
 }
 
 func NewP3Context() *P3Context {
 	return &P3Context{
-		go2PackageInfo: make(map[string]*PackageInfo),
+		packages:       make(map[string]*amino.PackageInfo),
 		p3importPrefix: "proto/",
-		cdc:            amino.NewCodec(),
 	}
 }
 
-func (p3c *P3Context) RegisterPackage(pi *PackageInfo) {
+func (p3c *P3Context) RegisterPackageInfo(pi *amino.PackageInfo) {
 	infos := crawlPackageInfos(pi, nil)
 	for _, info := range infos {
-		p3c.registerPackage(info)
+		p3c.registerPackageInfo(info)
 	}
 }
 
-func (p3c *P3Context) registerPackage(pi *PackageInfo) {
-	if found, ok := p3c.go2PackageInfo[pi.GoPkg]; ok {
+func (p3c *P3Context) registerPackageInfo(pi *amino.PackageInfo) {
+	if found, ok := p3c.packages[pi.GoPkg]; ok {
 		if found != pi {
 			panic(fmt.Errorf("found conflicting package mapping, %v -> %v but trying to overwrite with -> %v", pi.GoPkg, found, pi))
 		}
 	}
-	p3c.go2PackageInfo[pi.GoPkg] = pi
+	p3c.packages[pi.GoPkg] = pi
 }
 
-func (p3c *P3Context) GetPackageInfo(gopkg string) *PackageInfo {
-	pi, ok := p3c.go2PackageInfo[gopkg]
+func (p3c *P3Context) GetPackageInfo(gopkg string) *amino.PackageInfo {
+	pi, ok := p3c.packages[gopkg]
 	if !ok {
 		panic(fmt.Sprintf("package info unrecognized for %v (not registered directly nor indirectly as dependency", gopkg))
 	}
@@ -79,12 +75,12 @@ func (p3c *P3Context) GetPackageInfo(gopkg string) *PackageInfo {
 }
 
 // For a given package info, crawl and discover all package infos.
-func crawlPackageInfos(info *PackageInfo, seen map[*PackageInfo]struct{}) (res []*PackageInfo) {
+func crawlPackageInfos(info *amino.PackageInfo, seen map[*amino.PackageInfo]struct{}) (res []*amino.PackageInfo) {
 	if seen == nil {
-		seen = map[*PackageInfo]struct{}{}
+		seen = map[*amino.PackageInfo]struct{}{}
 	}
-	var crawl func(info *PackageInfo)
-	crawl = func(info *PackageInfo) {
+	var crawl func(info *amino.PackageInfo)
+	crawl = func(info *amino.PackageInfo) {
 		seen[info] = struct{}{}
 		for _, dependency := range info.Dependencies {
 			if _, ok := seen[dependency]; ok {
@@ -101,9 +97,9 @@ func crawlPackageInfos(info *PackageInfo, seen map[*PackageInfo]struct{}) (res [
 }
 
 // Crawls the package infos and flattens all dependencies.
-func (p3c *P3Context) GetAllPackageInfos() (res []*PackageInfo) {
-	seen := map[*PackageInfo]struct{}{}
-	for _, info := range p3c.go2PackageInfo {
+func (p3c *P3Context) GetAllPackageInfos() (res []*amino.PackageInfo) {
+	seen := map[*amino.PackageInfo]struct{}{}
+	for _, info := range p3c.packages {
 		infos := crawlPackageInfos(info, seen)
 		res = append(res, infos...)
 	}
@@ -132,11 +128,7 @@ func (p3c *P3Context) GetImportPath(p3type P3Type) string {
 // (partial) schema.  Imports are added to p3doc.
 func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type) (p3msg P3Message, err error) {
 
-	var info *amino.TypeInfo
-	info, err = p3c.cdc.GetTypeInfo(rt)
-	if err != nil {
-		return
-	}
+	var info *amino.TypeInfo = amino.NewTypeInfoUnregistered(rt)
 	if info.Type.Kind() != reflect.Struct {
 		err = errors.New("only structs can generate proto3 message schemas")
 		return
@@ -218,18 +210,11 @@ func (p3c *P3Context) reflectTypeToP3Type(rt reflect.Type) (p3type P3Type, repea
 
 	// If the kind is an interface type,
 	// just return an any.
-	// The p3c.cdc is a blank one with no registrations,
-	// so there isn't much else we can do atm.
 	if rt.Kind() == reflect.Interface {
 		return P3AnyType, false
 	}
 
-	var info *amino.TypeInfo
-	var err error
-	info, err = p3c.cdc.GetTypeInfo(rt)
-	if err != nil {
-		panic(err)
-	}
+	var info *amino.TypeInfo = amino.NewTypeInfoUnregistered(rt)
 
 	switch rt.Kind() {
 	case reflect.Bool:
@@ -286,10 +271,10 @@ func (p3c *P3Context) reflectTypeToP3Type(rt reflect.Type) (p3type P3Type, repea
 
 }
 
-func WriteProto3Schemas(infos ...*PackageInfo) {
+func WriteProto3Schemas(infos ...*amino.PackageInfo) {
 	for _, info := range infos {
 		p3c := NewP3Context()
-		p3c.RegisterPackage(info)
+		p3c.RegisterPackageInfo(info)
 		p3c.ValidateBasic()
 		filename := path.Join(info.Dirname, "types.proto")
 		err := p3c.WriteProto3Schema(filename, info.P3Pkg, info.StructTypes...)
