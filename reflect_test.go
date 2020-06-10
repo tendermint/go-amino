@@ -227,7 +227,6 @@ func TestCodecRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 	assert.Error(t, err) // This fails, because the interface was wrapped in an anonymous struct.
 
 	// try wrapping it in an Any struct
-	// TODO This works, so let's make it easy to do such, via some utility
 	// without changing the existing behavior.
 	type any struct {
 		TypeURL string
@@ -258,6 +257,11 @@ func TestCodecRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 	err = cdc.UnmarshalBinaryBare(bz, &i1)
 	assert.NoError(t, err)
 	assert.Equal(t, c3, i1)
+
+	// The easiest way is this:
+	bz2, err := cdc.MarshalBinaryInterfaceBare(anyc3)
+	assert.Nil(t, err)
+	assert.Equal(t, bz, bz2)
 }
 
 // Exactly like TestCodecRoundtripNonNilRegisteredTypeDef but with struct
@@ -268,7 +272,7 @@ func TestCodecRoundtripNonNilRegisteredWrappedValue(t *testing.T) {
 
 	c3 := tests.ConcreteWrappedBytes{Value: []byte("0123")}
 
-	bz, err := cdc.MarshalBinaryBare(c3) // XXX wrap with Any.
+	bz, err := cdc.MarshalBinaryInterfaceBare(c3)
 	assert.Nil(t, err)
 	assert.Equal(t, []byte{0x49, 0x3f, 0xa0, 0x4b, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
 		"ConcreteWrappedBytes incorrectly serialized") // XXX this should fail

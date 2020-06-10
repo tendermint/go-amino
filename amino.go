@@ -63,6 +63,14 @@ func MustMarshalBinaryBare(o interface{}) []byte {
 	return gcdc.MustMarshalBinaryBare(o)
 }
 
+func MarshalBinaryInterfaceBare(o interface{}) ([]byte, error) {
+	return gcdc.MarshalBinaryInterfaceBare(o)
+}
+
+func MustMarshalBinaryInterfaceBare(o interface{}) []byte {
+	return gcdc.MustMarshalBinaryInterfaceBare(o)
+}
+
 func UnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) error {
 	return gcdc.UnmarshalBinaryLengthPrefixed(bz, ptr)
 }
@@ -254,6 +262,50 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 // Panics if error.
 func (cdc *Codec) MustMarshalBinaryBare(o interface{}) []byte {
 	bz, err := cdc.MarshalBinaryBare(o)
+	if err != nil {
+		panic(err)
+	}
+	return bz
+}
+
+// MarshalBinaryInterfaceBare encodes the registered object
+// wrapped with google.protobuf.Any.
+func (cdc *Codec) MarshalBinaryInterfaceBare(o interface{}) ([]byte, error) {
+	cdc.doAutoseal()
+
+	// o cannot be nil, otherwise we don't know what type it is.
+	if o == nil {
+		return nil, errors.New("MarshalBinaryInterfaceBare() requires non-nil argument")
+	}
+
+	// Dereference value if pointer.
+	var rv, _, _ = derefPointers(reflect.ValueOf(o))
+	var rt = rv.Type()
+	var info *TypeInfo
+	info, err := cdc.getTypeInfoWLock(rt)
+	if err != nil {
+		return nil, err
+	}
+
+	// rv cannot be an interface.
+	if rv.Kind() == reflect.Interface {
+		return nil, errors.New("MarshalBinaryInterfaceBare() requires registered concrete type")
+	}
+
+	// Encode as interface.
+	buf := new(bytes.Buffer)
+	err = cdc.encodeReflectBinaryInterface(buf, info, rv, FieldOptions{}, true)
+	if err != nil {
+		return nil, err
+	}
+	bz := buf.Bytes()
+
+	return bz, nil
+}
+
+// Panics if error.
+func (cdc *Codec) MustMarshalBinaryInterfaceBare(o interface{}) []byte {
+	bz, err := cdc.MarshalBinaryInterfaceBare(o)
 	if err != nil {
 		panic(err)
 	}
