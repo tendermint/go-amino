@@ -250,52 +250,54 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		if err != nil {
 			return
 		}
-		err = EncodeString(w, cinfo.TypeURL)
+		err = EncodeString(buf, cinfo.TypeURL)
 		if err != nil {
 			return
 		}
 	}
-
-	// Write field value for #2, Value.
-	// We will append the length of buf2 to buf later.
-	buf2 := bytes.NewBuffer(nil)
-
-	// google.protobuf.Any values must be a struct, or an unpacked list which
-	// is indistinguishable from a struct.
-	if !isStructOrUnpacked(cinfo, fopts) {
-		writeEmpty := false
-		typ3 := typeToTyp3(cinfo.Type, FieldOptions{})
-		bare := typ3 != Typ3ByteLength
-		// Encode with an implicit struct, with a single field with number 1.
-		// The type of this implicit field determines whether any
-		// length-prefixing happens after the typ3 byte.
-		// The second FieldOptions is empty, because this isn't a list of
-		// Typ3ByteLength things, so however it is encoded, that option is no
-		// longer needed.
-		if err = cdc.writeFieldIfNotEmpty(buf2, 1, cinfo, FieldOptions{}, FieldOptions{}, rv, writeEmpty, bare); err != nil {
-			return
+	// Write field #2, Value, if not empty/default.
+	// writeFieldIfNotEmpty() is not a substitute for this slightly different
+	// logic here, because we need to enforce that the value is a []byte type
+	// as per google.protobuf.Any.
+	{
+		// google.protobuf.Any values must be a struct, or an unpacked list which
+		// is indistinguishable from a struct.
+		var buf2 = bytes.NewBuffer(nil)
+		if !isStructOrUnpacked(cinfo, fopts) {
+			writeEmpty := false
+			// Encode with an implicit struct, with a single field with number 1.
+			// The type of this implicit field determines whether any
+			// length-prefixing happens after the typ3 byte.
+			// The second FieldOptions is empty, because this isn't a list of
+			// Typ3ByteLength things, so however it is encoded, that option is no
+			// longer needed.
+			if err = cdc.writeFieldIfNotEmpty(buf2, 1, cinfo, FieldOptions{}, FieldOptions{}, crv, writeEmpty); err != nil {
+				return
+			}
+		} else {
+			// The passed in BinFieldNum is only relevant for when the type is to
+			// be encoded unpacked (elements are Typ3ByteLength).  In that case,
+			// encodeReflectBinary will repeat the field number as set here, as if
+			// encoded with an implicit struct.
+			err = cdc.encodeReflectBinary(buf2, cinfo, crv, FieldOptions{BinFieldNum: 1}, true)
+			if err != nil {
+				return
+			}
 		}
-	} else {
-		// The passed in BinFieldNum is only relevant for when the type is to
-		// be encoded unpacked (elements are Typ3ByteLength).  In that case,
-		// encodeReflectBinary will repeat the field number as set here, as if
-		// encoded with an implicit struct.
-		err = cdc.encodeReflectBinary(buf2, cinfo, rv, FieldOptions{BinFieldNum: 1}, true)
-		if err != nil {
-			return
-		}
-	}
-
-	// Write field for #2, Value, only if not empty.
-	if buf2.Len() > 0 {
-		fnum := uint32(2)
-		err = encodeFieldNumberAndTyp3(buf, fnum, Typ3ByteLength)
-		if err != nil {
-			return
-		}
-		err = EncodeByteSlice(buf, buf2.Bytes())
-		if err != nil {
-			return
+		bz2 := buf2.Bytes()
+		if len(bz2) == 0 || len(bz2) == 1 && bz2[0] == 0x00 {
+			// Do not write
+		} else {
+			// Write
+			fnum := uint32(2)
+			err = encodeFieldNumberAndTyp3(buf, fnum, Typ3ByteLength)
+			if err != nil {
+				return
+			}
+			err = EncodeByteSlice(buf, bz2)
+			if err != nil {
+				return
+			}
 		}
 	}
 
@@ -316,6 +318,8 @@ func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv r
 		panic("should not happen")
 	}
 	length := info.Type.Len()
+
+	// If rv is an interface, get the elem.
 
 	// Get byteslice.
 	var byteslice []byte
@@ -495,7 +499,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 			} else {
 				// write empty if explicitly set or if this is a pointer:
 				writeEmpty := field.WriteEmpty || frvIsPtr
-				err = cdc.writeFieldIfNotEmpty(buf, field.BinFieldNum, finfo, fopts, field.FieldOptions, dfrv, writeEmpty, false)
+				err = cdc.writeFieldIfNotEmpty(buf, field.BinFieldNum, finfo, fopts, field.FieldOptions, dfrv, writeEmpty)
 				if err != nil {
 					return
 				}
@@ -543,7 +547,6 @@ func (cdc *Codec) writeFieldIfNotEmpty(
 	fieldOpts FieldOptions, // the field's FieldOptions
 	derefedVal reflect.Value,
 	isWriteEmpty bool,
-	bare bool,
 ) error {
 	lBeforeKey := buf.Len()
 	// Write field key (number and type).
@@ -554,7 +557,7 @@ func (cdc *Codec) writeFieldIfNotEmpty(
 	lBeforeValue := buf.Len()
 
 	// Write field value from rv.
-	err = cdc.encodeReflectBinary(buf, finfo, derefedVal, fieldOpts, bare)
+	err = cdc.encodeReflectBinary(buf, finfo, derefedVal, fieldOpts, false)
 	if err != nil {
 		return err
 	}

@@ -277,7 +277,7 @@ func WriteProto3Schemas(infos ...*amino.PackageInfo) {
 		p3c.RegisterPackageInfo(info)
 		p3c.ValidateBasic()
 		filename := path.Join(info.Dirname, "types.proto")
-		err := p3c.WriteProto3Schema(filename, info.P3Pkg, info.StructTypes...)
+		err := p3c.WriteProto3Schema(filename, info.P3Pkg, info.Types...)
 		if err != nil {
 			panic(err)
 		}

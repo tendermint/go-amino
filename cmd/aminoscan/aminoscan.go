@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	amino "github.com/tendermint/go-amino"
-	tmstrings "github.com/tendermint/tendermint/libs/strings"
 )
 
 func main() {
@@ -146,7 +145,7 @@ func scanByteLength(bz []byte, indent string) (s string, n int, err error) {
 	slide(&bz, &n, length)
 	fmt.Printf("%s%s\n", indent, s)
 	// If ascii string, also show the string in quotes.
-	if tmstrings.IsASCIIText(string(contents)) {
+	if amino.IsASCIIText(string(contents)) {
 		fmt.Printf("%s%s\n", indent+strings.Repeat(" ", lengthStrLen), Green("("+strconv.Quote(string(contents))+" in ASCII)"))
 	}
 	return

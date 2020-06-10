@@ -18,8 +18,12 @@ type TypeInfo struct {
 	PtrToType reflect.Type
 	ZeroValue reflect.Value
 	ZeroProto interface{}
+	InterfaceInfo
 	ConcreteInfo
 	StructInfo
+}
+
+type InterfaceInfo struct {
 }
 
 type ConcreteInfo struct {
@@ -124,7 +128,7 @@ func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *PackageInfo) {
 		pointerPreferred = true
 	}
 
-	// Construct ConcreteInfo.
+	// Construct TypeInfo
 	var info = NewTypeInfo(rt, pointerPreferred, typeURL)
 
 	// Finally, register.
@@ -234,16 +238,13 @@ func (cdc *Codec) assertNotSealed() {
 	}
 }
 
-func (cdc *Codec) assertSealed() {
+func (cdc *Codec) doAutoseal() {
 	cdc.mtx.Lock()
 	defer cdc.mtx.Unlock()
 
 	if cdc.autoseal {
 		cdc.sealed = true
 		cdc.autoseal = false
-	}
-	if !cdc.sealed {
-		panic("codec must first be sealed")
 	}
 }
 
@@ -424,9 +425,6 @@ func parseFieldOptions(field reflect.StructField) (skip bool, fopts FieldOptions
 func NewTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 	if rt.Kind() == reflect.Ptr {
 		panic("unexpected pointer type") // should not happen.
-	}
-	if rt.Kind() == reflect.Interface {
-		panic("unexpected interface type") // should not happen.
 	}
 
 	var info = new(TypeInfo)

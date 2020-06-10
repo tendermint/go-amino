@@ -10,7 +10,7 @@ import (
 //----------------------------------------
 // Constants
 
-const printLog = false
+const printLog = true
 
 var (
 	timeType            = reflect.TypeOf(time.Time{})

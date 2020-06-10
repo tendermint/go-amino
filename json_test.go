@@ -16,7 +16,11 @@ import (
 	packageinfo "github.com/tendermint/go-amino/packageinfo"
 )
 
-var transportPackageInfo = packageinfo.NewPackageInfo("github.com/tendermint/go-amino_test", "amino_test", "dontcare").
+type Dummy struct{}
+
+var gopkg = reflect.TypeOf(Dummy{}).PkgPath()
+
+var transportPackageInfo = packageinfo.NewPackageInfo(gopkg, "amino_test", "dontcare").
 	WithTypes(&Transport{}, Car(""), insurancePlan(0), Boat(""), Plane{})
 
 func registerTransports(cdc *amino.Codec) {

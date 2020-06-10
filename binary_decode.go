@@ -364,6 +364,12 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
+	// Invalid typeURL value is invalid.
+	if !IsASCIIText(typeURL) {
+		err = fmt.Errorf("invalid type_url string bytes %X", typeURL)
+		return
+	}
+
 	// Get concrete type info from typeURL.
 	// (we don't consume the value bytes yet).
 	var cinfo *TypeInfo
@@ -389,9 +395,11 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		err = fmt.Errorf("expected Any field number 2 Value, got num %v typ %v", fnum, typ)
 		return
 	}
+	// Decode second field value of Value
 	// Consume second field value, a byteslice.
+	lenbz := len(bz)
 	value, _n, err := DecodeByteSlice(bz)
-	if slide(&bz, &n, _n) && err != nil {
+	if slide(&bz, nil, _n) && err != nil {
 		return
 	}
 	// Earlier, we set bz to the byteslice read from buf.
@@ -400,7 +408,9 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		err = errors.New("bytes left over after reading Any.")
 		return
 	}
-
+	// Increment n by length of length prefix for value.
+	// This lets us return the correct *n read.
+	n += lenbz - len(value)
 	// Switcharoo for convenience.
 	// From now we will read from value.
 	bz = value
@@ -440,7 +450,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		// prefix is written.  If !isStructOrUnpacked(cinfo) but typ3 is not a
 		// Typ3ByteLength, then the type is primitive and this argument is
 		// ignored anyways.
-		bare = false
+		bareValue = false
 	}
 
 	// Decode into the concrete type.

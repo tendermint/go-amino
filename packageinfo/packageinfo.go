@@ -42,7 +42,7 @@ func (pi *PackageInfo) WithTypes(objs ...interface{}) *PackageInfo {
 			objDerefType = objDerefType.Elem()
 		}
 		if objDerefType.PkgPath() != pi.GoPkg {
-			panic(fmt.Sprintf("unexpected package for %v, expected %v got %v", objDerefType, pi.GoPkg, objDerefType.PkgPath()))
+			panic(fmt.Sprintf("unexpected package for %v, expected %v got %v for obj %v obj type %v", objDerefType, pi.GoPkg, objDerefType.PkgPath(), obj, objType))
 		}
 		exists, err := pi.HasType(objType)
 		if exists {
@@ -93,7 +93,7 @@ func (pi *PackageInfo) NameForType(rt reflect.Type) string {
 	if !exists {
 		panic(err)
 	}
-	return path.Join(pi.P3Pkg, rt.Name())
+	return path.Join(pi.P3Pkg, strings.ReplaceAll(rt.Name(), "/", "."))
 }
 
 // panics of rt was not registered

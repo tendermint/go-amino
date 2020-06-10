@@ -146,7 +146,7 @@ func (typ Typ3) String() string {
 // before encoding.  MarshalBinaryLengthPrefixed will panic if o is a nil-pointer,
 // or if o is invalid.
 func (cdc *Codec) MarshalBinaryLengthPrefixed(o interface{}) ([]byte, error) {
-	cdc.assertSealed()
+	cdc.doAutoseal()
 
 	// Write the bytes here.
 	var buf = new(bytes.Buffer)
@@ -203,7 +203,7 @@ func (cdc *Codec) MustMarshalBinaryLengthPrefixed(o interface{}) []byte {
 // Type information as in google.protobuf.Any isn't included, so manually wrap
 // before calling if you need to decode into an interface.
 func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
-	cdc.assertSealed()
+	cdc.doAutoseal()
 
 	// Dereference value if pointer.
 	var rv, _, isNilPtr = derefPointers(reflect.ValueOf(o))
@@ -226,15 +226,13 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	fopts := FieldOptions{}
 	if !isStructOrUnpacked(info, fopts) {
 		writeEmpty := false
-		typ3 := typeToTyp3(info.Type, fopts)
-		bare := typ3 != Typ3ByteLength
 		// Encode with an implicit struct, with a single field with number 1.
 		// The type of this implicit field determines whether any
 		// length-prefixing happens after the typ3 byte.
 		// The second FieldOptions is empty, because this isn't a list of
 		// Typ3_ByteLength things, so however it is encoded, that option is no
 		// longer needed.
-		if err = cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty, bare); err != nil {
+		if err = cdc.writeFieldIfNotEmpty(buf, 1, info, FieldOptions{}, FieldOptions{}, rv, writeEmpty); err != nil {
 			return nil, err
 		}
 		bz = buf.Bytes()
@@ -363,7 +361,7 @@ func (cdc *Codec) MustUnmarshalBinaryLengthPrefixed(bz []byte, ptr interface{}) 
 
 // UnmarshalBinaryBare will panic if ptr is a nil-pointer.
 func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
-	cdc.assertSealed()
+	cdc.doAutoseal()
 
 	rv := reflect.ValueOf(ptr)
 	if rv.Kind() != reflect.Ptr {
@@ -469,7 +467,7 @@ func (cdc *Codec) MustUnmarshalBinaryBare(bz []byte, ptr interface{}) {
 }
 
 func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
-	cdc.assertSealed()
+	cdc.doAutoseal()
 
 	rv := reflect.ValueOf(o)
 	if rv.Kind() == reflect.Invalid {
@@ -497,7 +495,7 @@ func (cdc *Codec) MustMarshalJSON(o interface{}) []byte {
 }
 
 func (cdc *Codec) UnmarshalJSON(bz []byte, ptr interface{}) error {
-	cdc.assertSealed()
+	cdc.doAutoseal()
 	if len(bz) == 0 {
 		return errors.New("cannot decode empty bytes")
 	}
