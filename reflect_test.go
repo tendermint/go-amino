@@ -259,7 +259,7 @@ func TestCodecRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 	assert.Equal(t, c3, i1)
 
 	// The easiest way is this:
-	bz2, err := cdc.MarshalBinaryInterfaceBare(anyc3)
+	bz2, err := cdc.MarshalBinaryInterfaceBare(c3)
 	assert.Nil(t, err)
 	assert.Equal(t, bz, bz2)
 }

@@ -281,20 +281,23 @@ func (cdc *Codec) MarshalBinaryInterfaceBare(o interface{}) ([]byte, error) {
 	// Dereference value if pointer.
 	var rv, _, _ = derefPointers(reflect.ValueOf(o))
 	var rt = rv.Type()
-	var info *TypeInfo
-	info, err := cdc.getTypeInfoWLock(rt)
-	if err != nil {
-		return nil, err
-	}
 
 	// rv cannot be an interface.
 	if rv.Kind() == reflect.Interface {
 		return nil, errors.New("MarshalBinaryInterfaceBare() requires registered concrete type")
 	}
 
+	// Make a temporary interface var, to contain the value of o.
+	var ivar interface{} = rv.Interface()
+	var iinfo *TypeInfo
+	iinfo, err := cdc.getTypeInfoWLock(rt)
+	if err != nil {
+		return nil, err
+	}
+
 	// Encode as interface.
 	buf := new(bytes.Buffer)
-	err = cdc.encodeReflectBinaryInterface(buf, info, rv, FieldOptions{}, true)
+	err = cdc.encodeReflectBinaryInterface(buf, iinfo, reflect.ValueOf(&ivar).Elem(), FieldOptions{}, true)
 	if err != nil {
 		return nil, err
 	}
