@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -59,6 +58,15 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 			rv.Set(newPtr)
 		}
 		rv = rv.Elem()
+	}
+
+	// Handle the most special case, "well known".
+	if info.IsWellKnownType {
+		var ok bool
+		ok, n, err = decodeReflectBinaryWellKnown(bz, info, rv, fopts, bare)
+		if ok || err != nil {
+			return
+		}
 	}
 
 	// Handle override if a pointer to rv implements UnmarshalAmino.
@@ -373,7 +381,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	// Get concrete type info from typeURL.
 	// (we don't consume the value bytes yet).
 	var cinfo *TypeInfo
-	cinfo, err = cdc.getTypeInfoFromTypeURLRLock(typeURL)
+	cinfo, err = cdc.getTypeInfoFromTypeURLRLock(typeURL, fopts)
 	if err != nil {
 		return
 	}
@@ -425,9 +433,9 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	// See corresponding encoding message in this file, and also
 	// Codec.UnmarshalBinaryBare()
 	var bareValue = true
-	if !isStructOrUnpacked(cinfo, fopts) &&
+	if !cinfo.IsStructOrUnpacked(fopts) &&
 		len(bz) > 0 {
-		// TODO test for when !isStructOrUnpacked(cinfo) but fopts.BinFieldNum != 1.
+		// TODO test for when !cinfo.IsStructOrUnpacked() but fopts.BinFieldNum != 1.
 		var (
 			fnum      uint32
 			typ       Typ3
@@ -440,14 +448,14 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		if fnum != 1 {
 			return n, fmt.Errorf("expected field number: 1; got: %v", fnum)
 		}
-		typWanted := typeToTyp3(cinfo.Type, FieldOptions{})
+		typWanted := cinfo.GetTyp3(FieldOptions{})
 		if typ != typWanted {
 			return n, fmt.Errorf("expected field type %v for # %v of %v, got %v",
 				typWanted, fnum, cinfo.Type, typ)
 		}
 		slide(&bz, &n, nFnumTyp3)
 		// If the typ3 is Typ3ByteLength, we want to ensure that the length
-		// prefix is written.  If !isStructOrUnpacked(cinfo) but typ3 is not a
+		// prefix is written.  If !cinfo.IsStructOrUnpacked() but typ3 is not a
 		// Typ3ByteLength, then the type is primitive and this argument is
 		// ignored anyways.
 		bareValue = false
@@ -556,7 +564,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 	// If elem is not already a ByteLength type, read in packed form.
 	// This is a Proto wart due to Proto backwards compatibility issues.
 	// Amino2 will probably migrate to use the List typ3.
-	typ3 := typeToTyp3(einfo.Type, fopts)
+	typ3 := einfo.GetTyp3(fopts)
 	if typ3 != Typ3ByteLength {
 		// Read elements in packed form.
 		for i := 0; i < length; i++ {
@@ -734,7 +742,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	// If elem is not already a ByteLength type, read in packed form.
 	// This is a Proto wart due to Proto backwards compatibility issues.
 	// Amino2 will probably migrate to use the List typ3.
-	typ3 := typeToTyp3(einfo.Type, fopts)
+	typ3 := einfo.GetTyp3(fopts)
 	if typ3 != Typ3ByteLength {
 		// Read elems in packed form.
 		for {
@@ -849,86 +857,73 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 		bz = buf
 	}
 
-	switch info.Type {
-
-	case timeType:
-		// Special case: time.Time
-		var t time.Time
-		t, _n, err = DecodeTime(bz)
-		if slide(&bz, &n, _n) && err != nil {
+	// Track the last seen field number.
+	var lastFieldNum uint32
+	// Read each field.
+	for _, field := range info.Fields {
+		// Get field rv and info.
+		var frv = rv.Field(field.Index)
+		var finfo *TypeInfo
+		finfo, err = cdc.getTypeInfoWLock(field.Type)
+		if err != nil {
 			return
 		}
-		rv.Set(reflect.ValueOf(t))
 
-	default:
-		// Track the last seen field number.
-		var lastFieldNum uint32
-		// Read each field.
-		for _, field := range info.Fields {
-			// Get field rv and info.
-			var frv = rv.Field(field.Index)
-			var finfo *TypeInfo
-			finfo, err = cdc.getTypeInfoWLock(field.Type)
-			if err != nil {
+		// We're done if we've consumed all the bytes.
+		if len(bz) == 0 {
+			frv.Set(defaultValue(frv.Type()))
+			continue
+		}
+
+		if field.UnpackedList {
+			// This is a list that was encoded unpacked, e.g.
+			// with repeated field entries for each list item.
+			_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions, true)
+			if slide(&bz, &n, _n) && err != nil {
+				return
+			}
+		} else {
+			// Read field key (number and type).
+			var (
+				fnum uint32
+				typ  Typ3
+			)
+			fnum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
+			if field.BinFieldNum < fnum {
+				// Set zero field value.
+				frv.Set(defaultValue(frv.Type()))
+				continue
+				// Do not slide, we will read it again.
+			}
+			if fnum <= lastFieldNum {
+				err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fnum: %v\nbytes:%X",
+					fnum, lastFieldNum, bz)
+				return
+			}
+			lastFieldNum = fnum
+			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
 
-			// We're done if we've consumed all the bytes.
-			if len(bz) == 0 {
-				frv.Set(defaultValue(frv.Type()))
-				continue
+			// Validate fnum and typ.
+			// NOTE: In the future, we'll support upgradeability.
+			// So in the future, this may not match,
+			// so we will need to remove this sanity check.
+			if field.BinFieldNum != fnum {
+				err = errors.New(fmt.Sprintf("expected field # %v of %v, got %v",
+					field.BinFieldNum, info.Type, fnum))
+				return
 			}
-
-			if field.UnpackedList {
-				// This is a list that was encoded unpacked, e.g.
-				// with repeated field entries for each list item.
-				_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions, true)
-				if slide(&bz, &n, _n) && err != nil {
-					return
-				}
-			} else {
-				// Read field key (number and type).
-				var (
-					fnum uint32
-					typ  Typ3
-				)
-				fnum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
-				if field.BinFieldNum < fnum {
-					// Set zero field value.
-					frv.Set(defaultValue(frv.Type()))
-					continue
-					// Do not slide, we will read it again.
-				}
-				if fnum <= lastFieldNum {
-					err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fnum: %v\nbytes:%X",
-						fnum, lastFieldNum, bz)
-					return
-				}
-				lastFieldNum = fnum
-				if slide(&bz, &n, _n) && err != nil {
-					return
-				}
-
-				// Validate fnum and typ.
-				// NOTE: In the future, we'll support upgradeability.
-				// So in the future, this may not match,
-				// so we will need to remove this sanity check.
-				if field.BinFieldNum != fnum {
-					err = errors.New(fmt.Sprintf("expected field # %v of %v, got %v",
-						field.BinFieldNum, info.Type, fnum))
-					return
-				}
-				typWanted := typeToTyp3(finfo.Type, field.FieldOptions)
-				if typ != typWanted {
-					err = errors.New(fmt.Sprintf("expected field type %v for # %v of %v, got %v",
-						typWanted, fnum, info.Type, typ))
-					return
-				}
-				// Decode field into frv.
-				_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions, false)
-				if slide(&bz, &n, _n) && err != nil {
-					return
-				}
+			typWanted := finfo.GetTyp3(field.FieldOptions)
+			if typ != typWanted {
+				err = errors.New(fmt.Sprintf("expected field type %v for # %v of %v, got %v",
+					typWanted, fnum, info.Type, typ))
+				return
+			}
+			// Decode field into frv.
+			_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions, false)
+			if slide(&bz, &n, _n) && err != nil {
+				return
 			}
 		}
 

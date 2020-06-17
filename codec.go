@@ -34,6 +34,8 @@ type ConcreteInfo struct {
 	AminoMarshalReprType   reflect.Type // <ReprType>
 	IsAminoUnmarshaler     bool         // Implements UnmarshalAmino(<ReprObject>) (error).
 	AminoUnmarshalReprType reflect.Type // <ReprType>
+	IsWellKnownType        bool         // If true, the Any representation uses the "value" field (instead of embedding @type).
+	Elem                   *TypeInfo
 }
 
 type StructInfo struct {
@@ -56,9 +58,36 @@ type FieldOptions struct {
 	BinFixed32    bool   // (Binary) Encode as fixed32
 	BinFieldNum   uint32 // (Binary) max 1<<29-1
 
-	Unsafe        bool // e.g. if this field is a float.
-	WriteEmpty    bool // write empty structs and lists (default false except for pointers)
-	EmptyElements bool // Slice and Array elements are never nil, decode 0x00 as empty struct.
+	Unsafe         bool // e.g. if this field is a float.
+	WriteEmpty     bool // write empty structs and lists (default false except for pointers)
+	EmptyElements  bool // Slice and Array elements are never nil, decode 0x00 as empty struct.
+	UseGoogleTypes bool // If true, decodes Any timestamp and duration to google types.
+}
+
+//----------------------------------------
+// TypeInfo convenience
+
+func (info *TypeInfo) GetTyp3(fopts FieldOptions) Typ3 {
+	return typeToTyp3(info.Type, fopts)
+}
+
+// Used to determine whether to create an implicit struct or not.  Notice that
+// the binary encoding of a list to be unpacked is indistinguishable from a
+// struct that contains that list.
+// NOTE: we expect info.Elem to be prepopulated, constructed within the scope
+// of a Codec.
+func (info *TypeInfo) IsStructOrUnpacked(fopt FieldOptions) bool {
+	if info.Type.Kind() == reflect.Struct {
+		return true
+	}
+	// We can't just look at the kind and info.Type.Elem(),
+	// as for example, a []time.Duration should not be packed,
+	// but should be represented as a slice of structs.
+	// For these cases, we should expect info.Elem to be prepopulated.
+	if info.Type.Kind() == reflect.Array || info.Type.Kind() == reflect.Slice {
+		return info.Elem.GetTyp3(fopt) != Typ3ByteLength
+	}
+	return false
 }
 
 //----------------------------------------
@@ -129,7 +158,7 @@ func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *PackageInfo) {
 	}
 
 	// Construct TypeInfo
-	var info = NewTypeInfo(rt, pointerPreferred, typeURL)
+	var info = cdc.newTypeInfoForRegistration(rt, pointerPreferred, typeURL)
 
 	// Finally, register.
 	func() {
@@ -289,23 +318,35 @@ func (cdc *Codec) getTypeInfoWLock(rt reflect.Type) (info *TypeInfo, err error) 
 
 	info, ok := cdc.typeInfos[rt]
 	if !ok {
-		info = NewTypeInfoUnregistered(rt)
+		info = cdc.NewTypeInfoUnregistered(rt)
 		cdc.setTypeInfoNolock(info)
 	}
 	cdc.mtx.Unlock()
 	return info, nil
 }
 
-func (cdc *Codec) getTypeInfoFromTypeURLRLock(typeURL string) (info *TypeInfo, err error) {
+func (cdc *Codec) getTypeInfoFromTypeURLRLock(typeURL string, fopts FieldOptions) (info *TypeInfo, err error) {
 	name := typeURLtoName(typeURL)
-	return cdc.getTypeInfoFromNameRLock(name)
+	return cdc.getTypeInfoFromNameRLock(name, fopts)
 }
 
-func (cdc *Codec) getTypeInfoFromNameRLock(name string) (info *TypeInfo, err error) {
+func (cdc *Codec) getTypeInfoFromNameRLock(name string, fopts FieldOptions) (info *TypeInfo, err error) {
 	// We do not use defer cdc.mtx.Unlock() here due to performance overhead of
 	// defer in go1.11 (and prior versions). Ensure new code paths unlock the
 	// mutex.
 	cdc.mtx.RLock()
+
+	// Special cases: time and duration
+	if name == "google.protobuf.Timestamp" && !fopts.UseGoogleTypes {
+		cdc.mtx.RUnlock()
+		info, err = cdc.getTypeInfoWLock(timeType)
+		return
+	}
+	if name == "google.protobuf.Duration" && !fopts.UseGoogleTypes {
+		cdc.mtx.RUnlock()
+		info, err = cdc.getTypeInfoWLock(durationType)
+		return
+	}
 
 	info, ok := cdc.nameToTypeInfo[name]
 	if !ok {
@@ -316,6 +357,68 @@ func (cdc *Codec) getTypeInfoFromNameRLock(name string) (info *TypeInfo, err err
 	cdc.mtx.RUnlock()
 	return
 }
+
+//----------------------------------------
+// TypeInfo registration
+
+func (cdc *Codec) newTypeInfoForRegistration(rt reflect.Type, pointerPreferred bool, typeURL string) *TypeInfo {
+	if rt.Kind() == reflect.Interface ||
+		rt.Kind() == reflect.Ptr {
+		panic(fmt.Sprintf("expected non-interface non-pointer concrete type, got %v", rt))
+	}
+	var info = cdc.NewTypeInfoUnregistered(rt)
+	info.ConcreteInfo.Registered = true
+	info.ConcreteInfo.PointerPreferred = pointerPreferred
+	info.ConcreteInfo.TypeURL = typeURL
+	return info
+}
+
+// Constructs a *TypeInfo automatically, not from registration.  No name or
+// decoding preferece (pointer or not) is known, so it cannot be used to decode
+// into an interface.
+//
+// Does not get certain fields set, such as:
+//  * .ConcreteInfo.PointerPreferred - how it prefers to be decoded
+//  * .ConcreteInfo.TypeURL - for Any serialization
+// But it does set .ConcreteInfo.Elem, which may be modified by the Codec
+// instance.
+
+// NOTE: cdc.NewTypeInfoForRegistration() calls this first for initial
+// construction.
+func (cdc *Codec) NewTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
+	if rt.Kind() == reflect.Ptr {
+		panic("unexpected pointer type") // should not happen.
+	}
+
+	var info = new(TypeInfo)
+	info.Type = rt
+	info.PtrToType = reflect.PtrTo(rt)
+	info.ZeroValue = reflect.Zero(rt)
+	info.ZeroProto = reflect.Zero(rt).Interface()
+	if rt.Kind() == reflect.Struct {
+		info.StructInfo = parseStructInfo(rt)
+	}
+	if rm, ok := rt.MethodByName("MarshalAmino"); ok {
+		info.ConcreteInfo.IsAminoMarshaler = true
+		info.ConcreteInfo.AminoMarshalReprType = marshalAminoReprType(rm)
+	}
+	if rm, ok := reflect.PtrTo(rt).MethodByName("UnmarshalAmino"); ok {
+		info.ConcreteInfo.IsAminoUnmarshaler = true
+		info.ConcreteInfo.AminoUnmarshalReprType = unmarshalAminoReprType(rm)
+	}
+	info.ConcreteInfo.IsWellKnownType = isWellKnownType(rt)
+	if rt.Kind() == reflect.Array || rt.Kind() == reflect.Slice {
+		einfo, err := cdc.GetTypeInfo(rt.Elem())
+		if err != nil {
+			panic(err)
+		}
+		info.ConcreteInfo.Elem = einfo
+	}
+	return info
+}
+
+//----------------------------------------
+// ...
 
 func parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 	if rt.Kind() != reflect.Struct {
@@ -419,46 +522,6 @@ func parseFieldOptions(field reflect.StructField) (skip bool, fopts FieldOptions
 	return skip, fopts
 }
 
-// Constructs a *TypeInfo automatically, not from registration.
-// No name or decoding preferece (pointer or not) is known,
-// so it cannot be used to decode into an interface.
-func NewTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
-	if rt.Kind() == reflect.Ptr {
-		panic("unexpected pointer type") // should not happen.
-	}
-
-	var info = new(TypeInfo)
-	info.Type = rt
-	info.PtrToType = reflect.PtrTo(rt)
-	info.ZeroValue = reflect.Zero(rt)
-	info.ZeroProto = reflect.Zero(rt).Interface()
-	if rt.Kind() == reflect.Struct {
-		info.StructInfo = parseStructInfo(rt)
-	}
-	if rm, ok := rt.MethodByName("MarshalAmino"); ok {
-		info.ConcreteInfo.IsAminoMarshaler = true
-		info.ConcreteInfo.AminoMarshalReprType = marshalAminoReprType(rm)
-	}
-	if rm, ok := reflect.PtrTo(rt).MethodByName("UnmarshalAmino"); ok {
-		info.ConcreteInfo.IsAminoUnmarshaler = true
-		info.ConcreteInfo.AminoUnmarshalReprType = unmarshalAminoReprType(rm)
-	}
-	return info
-}
-
-func NewTypeInfo(rt reflect.Type, pointerPreferred bool, typeURL string) *TypeInfo {
-	if rt.Kind() == reflect.Interface ||
-		rt.Kind() == reflect.Ptr {
-		panic(fmt.Sprintf("expected non-interface non-pointer concrete type, got %v", rt))
-	}
-
-	var info = NewTypeInfoUnregistered(rt)
-	info.ConcreteInfo.Registered = true
-	info.ConcreteInfo.PointerPreferred = pointerPreferred
-	info.ConcreteInfo.TypeURL = typeURL
-	return info
-}
-
 //----------------------------------------
 // .String()
 
@@ -547,4 +610,45 @@ func typeURLtoName(typeURL string) (name string) {
 		panic(fmt.Sprintf("invalid type_url name, must contain at least one slash and be followed by the full name"))
 	}
 	return parts[len(parts)-1]
+}
+
+func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
+	// Special non-list cases:
+	switch rt {
+	case timeType:
+		return Typ3ByteLength // for completeness
+	case durationType:
+		return Typ3ByteLength // as a google.protobuf.Duration.
+	}
+	// General cases:
+	switch rt.Kind() {
+	case reflect.Interface:
+		return Typ3ByteLength
+	case reflect.Array, reflect.Slice:
+		return Typ3ByteLength
+	case reflect.String:
+		return Typ3ByteLength
+	case reflect.Struct, reflect.Map:
+		return Typ3ByteLength
+	case reflect.Int64, reflect.Uint64:
+		if opts.BinFixed64 {
+			return Typ38Byte
+		}
+		return Typ3Varint
+	case reflect.Int32, reflect.Uint32:
+		if opts.BinFixed32 {
+			return Typ34Byte
+		}
+		return Typ3Varint
+
+	case reflect.Int16, reflect.Int8, reflect.Int,
+		reflect.Uint16, reflect.Uint8, reflect.Uint, reflect.Bool:
+		return Typ3Varint
+	case reflect.Float64:
+		return Typ38Byte
+	case reflect.Float32:
+		return Typ34Byte
+	default:
+		panic(fmt.Sprintf("unsupported field type %v", rt))
+	}
 }

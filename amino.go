@@ -95,6 +95,10 @@ func MarshalJSON(o interface{}) ([]byte, error) {
 	return gcdc.MarshalJSON(o)
 }
 
+func MarshalJSONInterface(o interface{}) ([]byte, error) {
+	return gcdc.MarshalJSONInterface(o)
+}
+
 func UnmarshalJSON(bz []byte, ptr interface{}) error {
 	return gcdc.UnmarshalJSON(bz, ptr)
 }
@@ -232,7 +236,7 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	// Implicit struct or not?
 	// NOTE: similar to binary interface encoding.
 	fopts := FieldOptions{}
-	if !isStructOrUnpacked(info, fopts) {
+	if !info.IsStructOrUnpacked(fopts) {
 		writeEmpty := false
 		// Encode with an implicit struct, with a single field with number 1.
 		// The type of this implicit field determines whether any
@@ -438,7 +442,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	// binary-decode.
 	var bare = true
 	var nWrap int
-	if !isStructOrUnpacked(info, FieldOptions{}) &&
+	if !info.IsStructOrUnpacked(FieldOptions{}) &&
 		len(bz) > 0 &&
 		(rv.Kind() != reflect.Interface) {
 		var (
@@ -453,7 +457,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 		if fnum != 1 {
 			return fmt.Errorf("expected field number: 1; got: %v", fnum)
 		}
-		typWanted := typeToTyp3(info.Type, FieldOptions{})
+		typWanted := info.GetTyp3(FieldOptions{})
 		if typ != typWanted {
 			return fmt.Errorf("expected field type %v for # %v of %v, got %v",
 				typWanted, fnum, info.Type, typ)
@@ -490,21 +494,6 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	return nil
 }
 
-// Used to determine whether to create an implicit struct or not.  Notice that
-// the binary encoding of a list to be unpacked is indistinguishable from a
-// struct that contains that list.
-func isStructOrUnpacked(info *TypeInfo, fopt FieldOptions) bool {
-	if info.Type.Kind() == reflect.Struct {
-		return true
-	}
-	if info.Type.Kind() == reflect.Array || info.Type.Kind() == reflect.Slice {
-		ert := info.Type.Elem()
-		typ3 := typeToTyp3(ert, fopt)
-		return typ3 == Typ3ByteLength
-	}
-	return false
-}
-
 func derefType(rt reflect.Type) (drt reflect.Type) {
 	drt = rt
 	for drt.Kind() == reflect.Ptr {
@@ -538,6 +527,40 @@ func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {
 		return nil, err
 	}
 	return w.Bytes(), nil
+}
+
+func (cdc *Codec) MarshalJSONInterface(o interface{}) ([]byte, error) {
+	// o cannot be nil, otherwise we don't know what type it is.
+	if o == nil {
+		return nil, errors.New("MarshalJSONInterface() requires non-nil argument")
+	}
+
+	// Dereference value if pointer.
+	var rv, _, _ = derefPointers(reflect.ValueOf(o))
+	var rt = rv.Type()
+
+	// rv cannot be an interface.
+	if rv.Kind() == reflect.Interface {
+		return nil, errors.New("MarshalJSONInterface() requires registered concrete type")
+	}
+
+	// Make a temporary interface var, to contain the value of o.
+	var ivar interface{} = rv.Interface()
+	var iinfo *TypeInfo
+	iinfo, err := cdc.getTypeInfoWLock(rt)
+	if err != nil {
+		return nil, err
+	}
+
+	// Encode as interface.
+	buf := new(bytes.Buffer)
+	err = cdc.encodeReflectJSONInterface(buf, iinfo, reflect.ValueOf(&ivar).Elem(), FieldOptions{})
+	if err != nil {
+		return nil, err
+	}
+	bz := buf.Bytes()
+
+	return bz, nil
 }
 
 // MustMarshalJSON panics if an error occurs. Besides tha behaves exactly like MarshalJSON.

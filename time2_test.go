@@ -68,25 +68,25 @@ func TestMinMaxTimeEncode(t *testing.T) {
 	_, err = cdc.MarshalBinaryBare(tm)
 	assert.NoError(t, err)
 
-	tErr := time.Unix(minSeconds-1, 0)
+	tErr := time.Unix(minTimeSeconds-1, 0)
 	_, err = cdc.MarshalBinaryBare(tErr)
 	assert.Error(t, err)
 	assert.IsType(t, InvalidTimeErr(""), err)
 	t.Log(err)
 
-	tErrMaxSec := time.Unix(maxSeconds, 0)
+	tErrMaxSec := time.Unix(maxTimeSeconds, 0)
 	_, err = cdc.MarshalBinaryBare(tErrMaxSec)
 	assert.Error(t, err)
 	assert.IsType(t, InvalidTimeErr(""), err)
 	t.Log(err)
 
-	tMaxNs := time.Unix(0, maxNanos)
+	tMaxNs := time.Unix(0, maxTimeNanos)
 	_, err = cdc.MarshalBinaryBare(tMaxNs)
 	assert.NoError(t, err)
 
-	// we can't construct a time.Time with nanos > maxNanos
+	// we can't construct a time.Time with nanos > maxTimeNanos
 	// underlying seconds will be incremented -> still expect an error:
-	tErr2 := time.Unix(maxSeconds, maxNanos+1)
+	tErr2 := time.Unix(maxTimeSeconds, maxTimeNanos+1)
 	_, err = cdc.MarshalBinaryBare(tErr2)
 	assert.Error(t, err)
 }

@@ -109,6 +109,25 @@ This is about 20 bytes of extra overhead than the previous 4-byte prefix
 system, but is more canonical (which we will need if we ever want binary
 signing), and can be optimized in the future.
 
+### google.protobuf.Any JSON Representation for Well Known Types
+
+Google made a decsion a while ago that only Google well known types can
+be serialized as {@type:...,value:""} fields.
+
+See
+https://github.com/golang/protobuf/blob/d04d7b157bb510b1e0c10132224b616ac0e26b17/jsonpb/encode.go#L336,
+Also see the proto3 spec wording: "If the embedded message type is
+well-known and has a custom JSON representation, that representation
+will be embedded adding a field value which holds the custom JSON in
+addition to the @type field."
+
+In addition to these types, the native time and duration types are also
+supported as "well known types".  The type\_url will be
+"/google.protobuf.Timestamp" and "/google.protobuf.Duration" respectively, and
+the encoding format will be identitical to those well known types.
+
+When decoding interface values, by default the native types are constructed
+unless field options specify otherwise.
 
 ## Amino in the Wild
 

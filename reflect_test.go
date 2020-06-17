@@ -2,7 +2,6 @@ package amino
 
 import (
 	"bytes"
-	"fmt"
 	"math/rand"
 	"reflect"
 	"runtime/debug"
@@ -11,8 +10,8 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	fuzz "github.com/google/gofuzz"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/jaekwon/testify/assert"
+	"github.com/jaekwon/testify/require"
 
 	"github.com/tendermint/go-amino/tests"
 )
@@ -159,13 +158,14 @@ func TestCodecMarshalBinaryBarePassesOnRegistered(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.NoError(t, err, "correctly registered")
-	//                     0x0a --> field #1, of type 0x02 Typ3ByteLength (anonymous struct)
-	//                           0x12 --> length prefix of following bytes (18 bytes)
-	//                                 0x0a --> field #1, of type 0x02 Typ3ByteLength (Any)
-	//                                       0x10 --> length prefix of following bytes (12 bytes)
-	//                                             0x2f, ... 0x31 --> "/tests/Concrete1"
-	assert.Equal(t, []byte{0x0a, 0x12, 0x0a, 0x10, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x73, 0x2f, 0x43, 0x6f, 0x6e, 0x63, 0x72, 0x65, 0x74, 0x65, 0x31},
-		bz, "bytes did not match")
+	assert.Equal(t, bz,
+		//     0x0a --> field #1, of type 0x02 Typ3ByteLength (anonymous struct)
+		//           0x12 --> length prefix of following bytes (18 bytes)
+		//                 0x0a --> field #1, of type 0x02 Typ3ByteLength (Any)
+		//                       0x10 --> length prefix of following bytes (12 bytes)
+		//                             0x2f, ... 0x31 --> "/tests.Concrete1"
+		[]byte{0x0a, 0x12, 0x0a, 0x10, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x73, 0x2e, 0x43, 0x6f, 0x6e, 0x63, 0x72, 0x65, 0x74, 0x65, 0x31},
+		"bytes did not match")
 }
 
 func TestCodecRegisterAndMarshalMultipleConcrete(t *testing.T) {
@@ -176,26 +176,27 @@ func TestCodecRegisterAndMarshalMultipleConcrete(t *testing.T) {
 	{ // test tests.Concrete1, no conflict.
 		bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 		assert.NoError(t, err, "correctly registered")
-
-		//                     0x0a --> field #1, of type 0x02 Typ3ByteLength (anonymous struct)
-		//                           0x12 --> length prefix of following bytes (18 bytes)
-		//                                 0x0a --> field #1, of type 0x02 Typ3ByteLength (Any)
-		//                                       0x10 --> length prefix of following bytes (12 bytes)
-		//                                             0x2f, ... 0x31 --> "/tests/Concrete1"
-		assert.Equal(t, []byte{0x0a, 0x12, 0x0a, 0x10, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x73, 0x2f, 0x43, 0x6f, 0x6e, 0x63, 0x72, 0x65, 0x74, 0x65, 0x31},
-			bz, "bytes did not match")
+		assert.Equal(t, bz,
+			//     0x0a --> field #1, of type 0x02 Typ3ByteLength (anonymous struct)
+			//           0x12 --> length prefix of following bytes (18 bytes)
+			//                 0x0a --> field #1, of type 0x02 Typ3ByteLength (Any)
+			//                       0x10 --> length prefix of following bytes (12 bytes)
+			//                             0x2f, ... 0x31 --> "/tests.Concrete1"
+			[]byte{0x0a, 0x12, 0x0a, 0x10, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x73, 0x2e, 0x43, 0x6f, 0x6e, 0x63, 0x72, 0x65, 0x74, 0x65, 0x31},
+			"bytes did not match")
 	}
 
 	{ // test tests.Concrete2, no conflict
 		bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete2{}})
 		assert.NoError(t, err, "correctly registered")
-		//                     0x0a --> field #1, of type 0x02 Typ3ByteLength (anonymous struct)
-		//                           0x12 --> length prefix of following bytes (18 bytes)
-		//                                 0x0a --> field #1, of type 0x02 Typ3ByteLength (Any TypeURL)
-		//                                       0x10 --> length prefix of following bytes (12 bytes)
-		//                                             0x2f, ... 0x31 --> "/tests/Concrete2"
-		assert.Equal(t, []byte{0x0a, 0x12, 0x0a, 0x10, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x73, 0x2f, 0x43, 0x6f, 0x6e, 0x63, 0x72, 0x65, 0x74, 0x65, 0x32},
-			bz, "bytes did not match")
+		assert.Equal(t, bz,
+			//     0x0a --> field #1, of type 0x02 Typ3ByteLength (anonymous struct)
+			//           0x12 --> length prefix of following bytes (18 bytes)
+			//                 0x0a --> field #1, of type 0x02 Typ3ByteLength (Any TypeURL)
+			//                       0x10 --> length prefix of following bytes (12 bytes)
+			//                             0x2f, ... 0x31 --> "/tests.Concrete2"
+			[]byte{0x0a, 0x12, 0x0a, 0x10, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x73, 0x2e, 0x43, 0x6f, 0x6e, 0x63, 0x72, 0x65, 0x74, 0x65, 0x32},
+			"bytes did not match")
 	}
 }
 
@@ -209,18 +210,19 @@ func TestCodecRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{c3})
 	assert.Nil(t, err)
-	//                     0x0a --> field #1, of type 0x02 Typ3ByteLength (anonymous struct)
-	//                           0x20 --> length prefix of following bytes (32 bytes)
-	//                                 0x0a --> field #1, of type 0x02 Typ3ByteLength (Any TypeURL)
-	//                                       0x16 --> length prefix of following bytes (18 bytes)
-	//                                             0x2f, ... 0x31 --> "/tests/ConcreteTypeDef"
-	assert.Equal(t, []byte{0x0a, 0x20, 0x0a, 0x16, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x73, 0x2f, 0x43, 0x6f, 0x6e, 0x63, 0x72, 0x65, 0x74, 0x65, 0x54, 0x79, 0x70, 0x65, 0x44, 0x65, 0x66,
-		//                 0x12 --> field #2, of type 0x02 Typ3ByteLength (Any Value)
-		//                       0x06 --> length prefix of following bytes (6 bytes)
-		//                             0x0a --> field #1, one and only, of implicit struct.
-		//                                   0x04 --> length prefix of following bytes (4 bytes)
-		/*              */ 0x12, 0x06, 0x0a, 0x04, 0x30, 0x31, 0x32, 0x33},
-		bz, "ConcreteTypeDef incorrectly serialized")
+	assert.Equal(t, bz,
+		//     0x0a --> field #1, of type 0x02 Typ3ByteLength (anonymous struct)
+		//           0x20 --> length prefix of following bytes (32 bytes)
+		//                 0x0a --> field #1, of type 0x02 Typ3ByteLength (Any TypeURL)
+		//                       0x16 --> length prefix of following bytes (18 bytes)
+		//                             0x2f, ... 0x31 --> "/tests.ConcreteTypeDef"
+		[]byte{0x0a, 0x20, 0x0a, 0x16, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x73, 0x2e, 0x43, 0x6f, 0x6e, 0x63, 0x72, 0x65, 0x74, 0x65, 0x54, 0x79, 0x70, 0x65, 0x44, 0x65, 0x66,
+			//   0x12 --> field #2, of type 0x02 Typ3ByteLength (Any Value)
+			//         0x06 --> length prefix of following bytes (6 bytes)
+			//               0x0a --> field #1, one and only, of implicit struct.
+			//                     0x04 --> length prefix of following bytes (4 bytes)
+			/**/ 0x12, 0x06, 0x0a, 0x04, 0x30, 0x31, 0x32, 0x33},
+		"ConcreteTypeDef incorrectly serialized")
 
 	var i1 tests.Interface1
 	err = cdc.UnmarshalBinaryBare(bz, &i1)
@@ -233,7 +235,7 @@ func TestCodecRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 		Value   []byte
 	}
 	var anyc3 = any{
-		TypeURL: "/tests/ConcreteTypeDef",
+		TypeURL: "/tests.ConcreteTypeDef",
 		Value:   []byte{0x0a, 0x04, 0x30, 0x31, 0x32, 0x33}, // An implicit struct, the first field which is the length-prefixed 4 bytes.
 	}
 
@@ -241,17 +243,17 @@ func TestCodecRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 	// bz, err = cdc.MarshalBinaryBare(&i1c3)
 	bz, err = cdc.MarshalBinaryBare(anyc3)
 	assert.Nil(t, err)
-	fmt.Printf(">>>> %X\n", bz)
-	//                     0x0a --> field #1, of type 0x02 Typ3ByteLength (Any TypeURL)
-	//                           0x16 --> length prefix of following bytes (22 bytes)
-	//                                 0x2f, ... 0x33 --> "/tests/ConcreteTypeDef"
-	assert.Equal(t, []byte{0x0a, 0x16, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x73, 0x2f, 0x43, 0x6f, 0x6e, 0x63, 0x72, 0x65, 0x74, 0x65, 0x54, 0x79, 0x70, 0x65, 0x44, 0x65, 0x66,
-		//                 0x12 --> field #2, of type 0x02 Typ3ByteLength (Any Value)
-		//                       0x06 --> length prefix of following bytes (6 bytes)
-		//                             0x0a --> field #1, one and only, if implicit struct.
-		//                                   0x04 --> length prefix of following bytes (4 bytes)
-		/*              */ 0x12, 0x06, 0x0a, 0x04, 0x30, 0x31, 0x32, 0x33},
-		bz, "ConcreteTypeDef incorrectly serialized")
+	assert.Equal(t, bz,
+		//     0x0a --> field #1, of type 0x02 Typ3ByteLength (Any TypeURL)
+		//           0x16 --> length prefix of following bytes (22 bytes)
+		//                 0x2f, ... 0x33 --> "/tests.ConcreteTypeDef"
+		[]byte{0x0a, 0x16, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x73, 0x2e, 0x43, 0x6f, 0x6e, 0x63, 0x72, 0x65, 0x74, 0x65, 0x54, 0x79, 0x70, 0x65, 0x44, 0x65, 0x66,
+			//   0x12 --> field #2, of type 0x02 Typ3ByteLength (Any Value)
+			//         0x06 --> length prefix of following bytes (6 bytes)
+			//               0x0a --> field #1, one and only, if implicit struct.
+			//                     0x04 --> length prefix of following bytes (4 bytes)
+			/**/ 0x12, 0x06, 0x0a, 0x04, 0x30, 0x31, 0x32, 0x33},
+		"ConcreteTypeDef incorrectly serialized")
 
 	// This time it should work.
 	err = cdc.UnmarshalBinaryBare(bz, &i1)
@@ -274,8 +276,17 @@ func TestCodecRoundtripNonNilRegisteredWrappedValue(t *testing.T) {
 
 	bz, err := cdc.MarshalBinaryInterfaceBare(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x49, 0x3f, 0xa0, 0x4b, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
-		"ConcreteWrappedBytes incorrectly serialized") // XXX this should fail
+	assert.Equal(t, bz,
+		//     0x0a --> field #1, of type 0x02 Typ3ByteLength (Any TypeURL)
+		//           0x1b --> length prefix of following bytes (27 bytes)
+		//                 0x2f, ... 0x33 --> "/tests.ConcreteWrappedBytes"
+		[]byte{0x0a, 0x1b, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x73, 0x2e, 0x43, 0x6f, 0x6e, 0x63, 0x72, 0x65, 0x74, 0x65, 0x57, 0x72, 0x61, 0x70, 0x70, 0x65, 0x64, 0x42, 0x79, 0x74, 0x65, 0x73,
+			//   0x12 --> field #2, of type 0x02 Typ3ByteLength (Any Value)
+			//         0x06 --> length prefix of following bytes (6 bytes)
+			//               0x0a --> field #1, one and only, if implicit struct.
+			//                     0x04 --> length prefix of following bytes (4 bytes)
+			/**/ 0x12, 0x06, 0x0a, 0x04, 0x30, 0x31, 0x32, 0x33},
+		"ConcreteWrappedBytes incorrectly serialized")
 
 	var i1 tests.Interface1
 	err = cdc.UnmarshalBinaryBare(bz, &i1)
@@ -291,10 +302,11 @@ func TestCodecJSONRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 	var c3 tests.ConcreteTypeDef
 	copy(c3[:], []byte("0123"))
 
-	bz, err := cdc.MarshalJSON(c3) // XXX This should fail, not an interface field.
+	bz, err := cdc.MarshalJSONInterface(c3)
 	assert.Nil(t, err)
-	assert.Equal(t, `{"@type":"ConcreteTypeDef","value":"MDEyMw=="}`,
-		string(bz), "ConcreteTypeDef incorrectly serialized")
+	assert.Equal(t, string(bz),
+		`{"@type":"/tests.ConcreteTypeDef","value":"MDEyMw=="}`,
+		"ConcreteTypeDef incorrectly serialized")
 
 	var i1 tests.Interface1
 	err = cdc.UnmarshalJSON(bz, &i1)
@@ -310,9 +322,10 @@ func TestCodecRoundtripMarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) {
 	var c3 tests.ConcreteTypeDef
 	copy(c3[:], []byte("0123"))
 
-	bz, err := cdc.MarshalBinaryBare(c3) // XXX Wrap in Any
+	bz, err := cdc.MarshalBinaryInterfaceBare(c3) // XXX Wrap in Any
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x11, 0x1e, 0x93, 0x82, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
+	assert.Equal(t, bz,
+		[]byte{0x11, 0x1e, 0x93, 0x82, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33},
 		"ConcreteTypeDef incorrectly serialized") // XXX This should fail.
 
 	var i1 tests.Interface1
@@ -331,8 +344,9 @@ func TestCodecRoundtripUnmarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) 
 
 	bz, err := cdc.MarshalBinaryBare(c3a)
 	assert.Nil(t, err)
-	assert.Equal(t, []byte{0x11, 0x1e, 0x93, 0x82, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33}, bz,
-		"ConcreteTypeDef incorrectly serialized") // XXX This should fail.
+	assert.Equal(t, bz,
+		[]byte{0xa, 0x4, 0x30, 0x31, 0x32, 0x33},
+		"ConcreteTypeDef incorrectly serialized")
 
 	var c3b tests.ConcreteTypeDef
 	err = cdc.UnmarshalBinaryBare(bz, &c3b)

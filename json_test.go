@@ -20,7 +20,7 @@ type Dummy struct{}
 
 var gopkg = reflect.TypeOf(Dummy{}).PkgPath()
 
-var transportPackageInfo = packageinfo.NewPackageInfo(gopkg, "amino_test", "dontcare").
+var transportPackageInfo = packageinfo.NewPackageInfo(gopkg, "amino_test", "").
 	WithTypes(&Transport{}, Car(""), insurancePlan(0), Boat(""), Plane{})
 
 func registerTransports(cdc *amino.Codec) {

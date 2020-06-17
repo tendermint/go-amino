@@ -2,6 +2,7 @@ package amino
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,9 +45,10 @@ func (f *Foo) UnmarshalAmino(repr []pair) error {
 	return nil
 }
 
-var testPackageInfo = packageinfo.NewPackageInfo("", "", "").
+var gopkg = reflect.TypeOf(Foo{}).PkgPath()
+var testPackageInfo = packageinfo.NewPackageInfo(gopkg, "tests", "").
 	WithDependencies().
-	WithTypes(string(""), int(0), ([]*Foo)(nil))
+	WithTypes(&Foo{})
 
 func TestMarshalAminoBinary(t *testing.T) {
 

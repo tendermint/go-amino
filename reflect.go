@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"time"
 )
 
 //----------------------------------------
@@ -13,7 +12,6 @@ import (
 const printLog = false
 
 var (
-	timeType            = reflect.TypeOf(time.Time{})
 	jsonMarshalerType   = reflect.TypeOf(new(json.Marshaler)).Elem()
 	jsonUnmarshalerType = reflect.TypeOf(new(json.Unmarshaler)).Elem()
 	errorType           = reflect.TypeOf(new(error)).Elem()
@@ -186,40 +184,6 @@ func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
 		irvSet = crv
 	}
 	return
-}
-
-// CONTRACT: rt.Kind() != reflect.Ptr
-func typeToTyp3(rt reflect.Type, opts FieldOptions) Typ3 {
-	switch rt.Kind() {
-	case reflect.Interface:
-		return Typ3ByteLength
-	case reflect.Array, reflect.Slice:
-		return Typ3ByteLength
-	case reflect.String:
-		return Typ3ByteLength
-	case reflect.Struct, reflect.Map:
-		return Typ3ByteLength
-	case reflect.Int64, reflect.Uint64:
-		if opts.BinFixed64 {
-			return Typ38Byte
-		}
-		return Typ3Varint
-	case reflect.Int32, reflect.Uint32:
-		if opts.BinFixed32 {
-			return Typ34Byte
-		}
-		return Typ3Varint
-
-	case reflect.Int16, reflect.Int8, reflect.Int,
-		reflect.Uint16, reflect.Uint8, reflect.Uint, reflect.Bool:
-		return Typ3Varint
-	case reflect.Float64:
-		return Typ38Byte
-	case reflect.Float32:
-		return Typ34Byte
-	default:
-		panic(fmt.Sprintf("unsupported field type %v", rt))
-	}
 }
 
 func toReprObject(rv reflect.Value) (rrv reflect.Value, err error) {

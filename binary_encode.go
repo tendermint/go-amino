@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"reflect"
-	"time"
 
 	"github.com/davecgh/go-spew/spew"
 )
@@ -39,6 +38,15 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		defer func() {
 			fmt.Printf("(E) -> err: %v\n", err)
 		}()
+	}
+
+	// Handle the most special case, "well known".
+	if info.IsWellKnownType {
+		var ok bool
+		ok, err = encodeReflectBinaryWellKnown(w, info, rv, fopts, bare)
+		if ok || err != nil {
+			return
+		}
 	}
 
 	// Handle override if rv implements json.Marshaler.
@@ -263,7 +271,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		// google.protobuf.Any values must be a struct, or an unpacked list which
 		// is indistinguishable from a struct.
 		var buf2 = bytes.NewBuffer(nil)
-		if !isStructOrUnpacked(cinfo, fopts) {
+		if !cinfo.IsStructOrUnpacked(fopts) {
 			writeEmpty := false
 			// Encode with an implicit struct, with a single field with number 1.
 			// The type of this implicit field determines whether any
@@ -359,7 +367,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 	// If elem is not already a ByteLength type, write in packed form.
 	// This is a Proto wart due to Proto backwards compatibility issues.
 	// Amino2 will probably migrate to use the List typ3.  Please?  :)
-	typ3 := typeToTyp3(einfo.Type, fopts)
+	typ3 := einfo.GetTyp3(fopts)
 	if typ3 != Typ3ByteLength {
 		// Write elems in packed form.
 		for i := 0; i < rv.Len(); i++ {
@@ -464,45 +472,34 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 	// Here we incur it for root structs as well for ease of dev.
 	buf := bytes.NewBuffer(nil)
 
-	switch info.Type {
-
-	case timeType:
-		// Special case: time.Time
-		err = EncodeTime(buf, rv.Interface().(time.Time))
+	for _, field := range info.Fields {
+		// Get type info for field.
+		var finfo *TypeInfo
+		finfo, err = cdc.getTypeInfoWLock(field.Type)
 		if err != nil {
 			return
 		}
-
-	default:
-		for _, field := range info.Fields {
-			// Get type info for field.
-			var finfo *TypeInfo
-			finfo, err = cdc.getTypeInfoWLock(field.Type)
+		// Get dereferenced field value and info.
+		var frv = rv.Field(field.Index)
+		var frvIsPtr = frv.Kind() == reflect.Ptr
+		var dfrv, isDefault = isDefaultValue(frv)
+		if isDefault && !field.WriteEmpty {
+			// Do not encode default value fields
+			// (except when `amino:"write_empty"` is set).
+			continue
+		}
+		if field.UnpackedList {
+			// Write repeated field entries for each list item.
+			err = cdc.encodeReflectBinaryList(buf, finfo, dfrv, field.FieldOptions, true)
 			if err != nil {
 				return
 			}
-			// Get dereferenced field value and info.
-			var frv = rv.Field(field.Index)
-			var frvIsPtr = frv.Kind() == reflect.Ptr
-			var dfrv, isDefault = isDefaultValue(frv)
-			if isDefault && !field.WriteEmpty {
-				// Do not encode default value fields
-				// (except when `amino:"write_empty"` is set).
-				continue
-			}
-			if field.UnpackedList {
-				// Write repeated field entries for each list item.
-				err = cdc.encodeReflectBinaryList(buf, finfo, dfrv, field.FieldOptions, true)
-				if err != nil {
-					return
-				}
-			} else {
-				// write empty if explicitly set or if this is a pointer:
-				writeEmpty := field.WriteEmpty || frvIsPtr
-				err = cdc.writeFieldIfNotEmpty(buf, field.BinFieldNum, finfo, fopts, field.FieldOptions, dfrv, writeEmpty)
-				if err != nil {
-					return
-				}
+		} else {
+			// write empty if explicitly set or if this is a pointer:
+			writeEmpty := field.WriteEmpty || frvIsPtr
+			err = cdc.writeFieldIfNotEmpty(buf, field.BinFieldNum, finfo, fopts, field.FieldOptions, dfrv, writeEmpty)
+			if err != nil {
+				return
 			}
 		}
 	}
@@ -550,7 +547,7 @@ func (cdc *Codec) writeFieldIfNotEmpty(
 ) error {
 	lBeforeKey := buf.Len()
 	// Write field key (number and type).
-	err := encodeFieldNumberAndTyp3(buf, fieldNum, typeToTyp3(finfo.Type, fieldOpts))
+	err := encodeFieldNumberAndTyp3(buf, fieldNum, finfo.GetTyp3(fieldOpts))
 	if err != nil {
 		return err
 	}

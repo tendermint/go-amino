@@ -1,14 +1,9 @@
 package genproto
 
 import (
-	"github.com/stretchr/testify/assert"
+	"github.com/jaekwon/testify/assert"
 	"testing"
 )
-
-// NOTE: actual first.
-func assertEquals(t *testing.T, actual interface{}, expected interface{}) {
-	assert.Equal(t, expected, actual)
-}
 
 func TestPrintP3Types(t *testing.T) {
 	doc := P3Doc{
@@ -43,7 +38,7 @@ func TestPrintP3Types(t *testing.T) {
 	}
 
 	proto3Schema := doc.Print()
-	assertEquals(t, proto3Schema, `syntax = "proto3";
+	assert.Equal(t, proto3Schema, `syntax = "proto3";
 
 // doc comment
 

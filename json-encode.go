@@ -1,11 +1,11 @@
 package amino
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"reflect"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -42,25 +42,16 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		return
 	}
 
-	// Special case:
-	if rv.Type() == timeType {
-		// Amino time strips the timezone.
-		// NOTE: This must be done before json.Marshaler override below.
-		ct := rv.Interface().(time.Time).Round(0).UTC()
-		rv = reflect.ValueOf(ct)
-	}
-	// Handle override if rv implements json.Marshaler.
-	if rv.CanAddr() { // Try pointer first.
-		if rv.Addr().Type().Implements(jsonMarshalerType) {
-			err = invokeMarshalJSON(w, rv.Addr())
+	// Handle the most special case, "well known".
+	if info.IsWellKnownType {
+		var ok bool
+		ok, err = encodeReflectJSONWellKnown(w, info, rv, fopts)
+		if ok || err != nil {
 			return
 		}
-	} else if rv.Type().Implements(jsonMarshalerType) {
-		err = invokeMarshalJSON(w, rv)
-		return
 	}
 
-	// Handle override if rv implements json.Marshaler.
+	// Handle override if rv implements amino.Marshaler.
 	if info.IsAminoMarshaler {
 		// First, encode rv into repr instance.
 		var (
@@ -169,32 +160,52 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 		return
 	}
 
-	// XXX This is not correct, see
-	// https://developers.google.com/protocol-buffers/docs/reference/java/com/google/protobuf/Any
-	// and especially about "well known types",
-	// which can be found here: https://pkg.go.dev/github.com/golang/protobuf/ptypes?tab=doc.
-
-	// Write interface wrapper.
-	// Part 1:
-	err = writeStr(w, _fmt(`{"@type":"%s","value":`, cinfo.TypeURL))
-	if err != nil {
+	// Write Value to buffer
+	buf := new(bytes.Buffer)
+	cdc.encodeReflectJSON(buf, cinfo, crv, fopts)
+	value := buf.Bytes()
+	if len(value) == 0 {
+		err = errors.New("JSON bytes cannot be empty")
 		return
 	}
-	// Part 2:
-	defer func() {
+	if cinfo.IsWellKnownType {
+		// Sanity check
+		if value[0] == '{' || value[len(value)-1] == '}' {
+			err = errors.Errorf("unexpected JSON object %s", value)
+			return
+		}
+		// Write TypeURL
+		err = writeStr(w, _fmt(`{"@type":"%s","value":`, cinfo.TypeURL))
 		if err != nil {
 			return
 		}
+		// Write Value
+		err = writeStr(w, string(value))
+		if err != nil {
+			return
+		}
+		// Write closing brace.
 		err = writeStr(w, `}`)
-	}()
-
-	// NOTE: In the future, we may write disambiguation bytes
-	// here, if it is only to be written for interface values.
-	// Currently, go-amino JSON *always* writes disfix bytes for
-	// all registered concrete types.
-
-	err = cdc.encodeReflectJSON(w, cinfo, crv, fopts)
-	return err
+		return
+	} else {
+		// Sanity check
+		if value[0] != '{' || value[len(value)-1] != '}' {
+			err = errors.Errorf("expected JSON object but got %s", value)
+			return
+		}
+		// Write TypeURL
+		err = writeStr(w, _fmt(`{"@type":"%s"`, cinfo.TypeURL))
+		if err != nil {
+			return
+		}
+		// Write Value
+		if len(value) > 2 {
+			err = writeStr(w, string(value[1:]))
+		} else {
+			err = writeStr(w, `}`)
+		}
+		return
+	}
 }
 
 func (cdc *Codec) encodeReflectJSONList(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
@@ -416,16 +427,6 @@ func (cdc *Codec) encodeReflectJSONMap(w io.Writer, info *TypeInfo, rv reflect.V
 
 //----------------------------------------
 // Misc.
-
-// CONTRACT: rv implements json.Marshaler.
-func invokeMarshalJSON(w io.Writer, rv reflect.Value) error {
-	blob, err := rv.Interface().(json.Marshaler).MarshalJSON()
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(blob)
-	return err
-}
 
 func invokeStdlibJSONMarshal(w io.Writer, v interface{}) error {
 	// Note: Please don't stream out the output because that adds a newline

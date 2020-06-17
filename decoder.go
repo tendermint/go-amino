@@ -144,7 +144,7 @@ func DecodeUvarint(bz []byte) (u uint64, n int, err error) {
 }
 
 //----------------------------------------
-// Other
+// Other Primitives
 
 func DecodeBool(bz []byte) (b bool, n int, err error) {
 	const size int = 1
@@ -190,39 +190,84 @@ func DecodeFloat64(bz []byte) (f float64, n int, err error) {
 	return
 }
 
-// DecodeTime decodes seconds (int64) and nanoseconds (int32) since January 1,
+//----------------------------------------
+// Time and Duration
+
+// DecodeTimeValue decodes seconds (int64) and nanoseconds (int32) since January 1,
 // 1970 UTC, and returns the corresponding time.  If nanoseconds is not in the
-// range [0, 999999999], or if seconds is too large, the behavior is
-// undefined.
-// TODO return error if behavior is undefined.
+// range [0, 999999999], or if seconds is too large, an error is returned.
+func DecodeTimeValue(bz []byte) (s int64, ns int32, n int, err error) {
+	// Read sec and nanosec.
+	s, n, err = decodeSeconds(&bz)
+	if err != nil {
+		return
+	}
+	ns, err = decodeNanos(&bz, &n)
+	if err != nil {
+		return
+	}
+	// Validations
+	err = validateTimeValue(s, ns)
+	if err != nil {
+		return
+	}
+	return
+}
+
 func DecodeTime(bz []byte) (t time.Time, n int, err error) {
 	// Defensively set default to to zeroTime (1970, not 0001)
 	t = zeroTime
-
-	// Read sec and nanosec.
-	var sec int64
-	var nsec int32
-	if len(bz) > 0 {
-		sec, n, err = decodeSeconds(&bz)
-		if err != nil {
-			return
-		}
+	s, ns, n, err := DecodeTimeValue(bz)
+	if err != nil {
+		return
 	}
-	if len(bz) > 0 {
-		nsec, err = decodeNanos(&bz, &n)
-		if err != nil {
-			return
-		}
-	}
-
 	// Construct time.
-	t = time.Unix(sec, int64(nsec))
+	t = time.Unix(s, int64(ns))
 	// Strip timezone and monotonic for deep equality.
 	t = t.UTC().Truncate(0)
 	return
 }
 
+func DecodeDurationValue(bz []byte) (s int64, ns int32, n int, err error) {
+	// Read sec and nanosec.
+	s, n, err = decodeSeconds(&bz)
+	if err != nil {
+		return
+	}
+	ns, err = decodeNanos(&bz, &n)
+	if err != nil {
+		return
+	}
+	// Validations
+	err = validateDurationValue(s, ns)
+	if err != nil {
+		return
+	}
+	return
+}
+
+func DecodeDuration(bz []byte) (d time.Duration, n int, err error) {
+	// Defensively set default to to zeroDuration
+	s, ns, n, err := DecodeDurationValue(bz)
+	if err != nil {
+		return
+	}
+	// Validations
+	err = validateDurationValueGo(s, ns)
+	if err != nil {
+		return
+	}
+	// Construct Duration.
+	d = time.Duration(s&1e9 + int64(ns))
+	return
+}
+
+// If bz is empty, returns err=nil.
+// Does not validate.
 func decodeSeconds(bz *[]byte) (int64, int, error) {
+	if len(*bz) == 0 {
+		return 0, 0, nil
+	}
 	// Optionally decode field number 1 and Typ3 (8Byte).
 	// only slide if we need to:
 	var n int
@@ -240,12 +285,7 @@ func decodeSeconds(bz *[]byte) (int64, int, error) {
 		// if seconds where negative before casting them to uint64, we yield
 		// the original signed value:
 		res := int64(sec)
-		if res < minSeconds || res >= maxSeconds {
-			return 0, n, InvalidTimeErr(fmt.Sprintf("seconds have to be > %d and < %d, got: %d",
-				minSeconds, maxSeconds, res))
-		}
 		return res, n, err
-
 	case fieldNum == 2 && typ == Typ3Varint:
 		// skip: do not slide, no error, will read again
 		return 0, n, nil
@@ -254,7 +294,12 @@ func decodeSeconds(bz *[]byte) (int64, int, error) {
 	}
 }
 
+// If bz is empty, returns err=nil.
+// Validates whether ns is in range, but caller may want to check for non-negativity.
 func decodeNanos(bz *[]byte, n *int) (int32, error) {
+	if len(*bz) == 0 {
+		return 0, nil
+	}
 	// Optionally decode field number 2 and Typ3 (4Byte).
 	fieldNum, typ, _n, err := decodeFieldNumberAndTyp3(*bz)
 	if err != nil {
@@ -262,13 +307,14 @@ func decodeNanos(bz *[]byte, n *int) (int32, error) {
 	}
 	if fieldNum == 2 && typ == Typ3Varint {
 		slide(bz, n, _n)
-		nsec, _n, err := DecodeUvarint(*bz)
+		nsec_, _n, err := DecodeUvarint(*bz)
 		if slide(bz, n, _n) && err != nil {
 			return 0, err
 		}
+		nsec := int64(nsec_)
 		// Validation check.
-		if maxNanos < nsec {
-			return 0, InvalidTimeErr(fmt.Sprintf("nanoseconds not in interval [0, 999999999] %v", nsec))
+		if 1e9 <= nsec || nsec <= -1e9 {
+			return 0, InvalidTimeErr(fmt.Sprintf("nanoseconds not in interval [-999999999, 999999999] %v", nsec))
 		}
 		// this cast from uint64 to int32 is OK, due to above restriction:
 		return int32(nsec), nil
@@ -276,6 +322,9 @@ func decodeNanos(bz *[]byte, n *int) (int32, error) {
 	// skip over (no error)
 	return 0, nil
 }
+
+//----------------------------------------
+// Byte Slices and Strings
 
 func DecodeByteSlice(bz []byte) (bz2 []byte, n int, err error) {
 	var count uint64

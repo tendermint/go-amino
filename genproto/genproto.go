@@ -41,12 +41,16 @@ type P3Context struct {
 	// Proto 3 schema files are found in
 	// "{p3importPrefix}{gopkg}/types.proto"
 	p3importPrefix string
+
+	// This is only necessary to construct TypeInfo.
+	cdc *amino.Codec
 }
 
 func NewP3Context() *P3Context {
 	return &P3Context{
 		packages:       make(map[string]*amino.PackageInfo),
 		p3importPrefix: "proto/",
+		cdc:            amino.NewCodec(),
 	}
 }
 
@@ -107,10 +111,8 @@ func (p3c *P3Context) GetAllPackageInfos() (res []*amino.PackageInfo) {
 }
 
 func (p3c *P3Context) ValidateBasic() {
-	infos := p3c.GetAllPackageInfos()
-	for _, info := range infos {
-		info.ValidateBasic()
-	}
+	// TODO: do verifications across packages.
+	// infos := p3c.GetAllPackageInfos()
 }
 
 func (p3c *P3Context) GetImportPath(p3type P3Type) string {
@@ -128,7 +130,7 @@ func (p3c *P3Context) GetImportPath(p3type P3Type) string {
 // (partial) schema.  Imports are added to p3doc.
 func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type) (p3msg P3Message, err error) {
 
-	var info *amino.TypeInfo = amino.NewTypeInfoUnregistered(rt)
+	var info *amino.TypeInfo = p3c.cdc.NewTypeInfoUnregistered(rt)
 	if info.Type.Kind() != reflect.Struct {
 		err = errors.New("only structs can generate proto3 message schemas")
 		return
@@ -214,7 +216,7 @@ func (p3c *P3Context) reflectTypeToP3Type(rt reflect.Type) (p3type P3Type, repea
 		return P3AnyType, false
 	}
 
-	var info *amino.TypeInfo = amino.NewTypeInfoUnregistered(rt)
+	var info *amino.TypeInfo = p3c.cdc.NewTypeInfoUnregistered(rt)
 
 	switch rt.Kind() {
 	case reflect.Bool:

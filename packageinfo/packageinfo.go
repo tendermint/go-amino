@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path"
 	"reflect"
+	"regexp"
 	"runtime"
-	"strings"
 )
 
 type PackageInfo struct {
@@ -19,7 +19,12 @@ type PackageInfo struct {
 // Like amino.RegisterPackage (which is probably what you're looking for unless
 // you are developing on go-amino dependencies), but without global amino
 // registration.
+// Panics if invalid arguments are given, such as slashes in p3pkg, invalid go
+// pkg paths, or a relative dirname.
 func NewPackageInfo(gopkg string, p3pkg string, dirname string) *PackageInfo {
+	assertValidGoPkg(gopkg)
+	assertValidP3Pkg(p3pkg)
+	assertValidDirname(dirname)
 	return &PackageInfo{
 		GoPkg:        gopkg,
 		Dirname:      dirname,
@@ -55,21 +60,6 @@ func (pi *PackageInfo) WithTypes(objs ...interface{}) *PackageInfo {
 	return pi
 }
 
-func (pi *PackageInfo) ValidateBasic() {
-	if pi.GoPkg == "" {
-		panic("go pkg can't be empty")
-	}
-	if pi.Dirname == "" {
-		panic("dirname can't be empty")
-	}
-	if pi.P3Pkg == "" {
-		panic("p3 pkg can't be empty")
-	}
-	if strings.Contains(pi.P3Pkg, "/") {
-		panic("p3 pkg can't contain any slashes")
-	} // TODO use REGEX
-}
-
 // err is always non-nil and includes some generic message.
 // (since the caller may either expect the type in the package or not).
 func (pi *PackageInfo) HasType(rt reflect.Type) (exists bool, err error) {
@@ -93,7 +83,7 @@ func (pi *PackageInfo) NameForType(rt reflect.Type) string {
 	if !exists {
 		panic(err)
 	}
-	return path.Join(pi.P3Pkg, strings.ReplaceAll(rt.Name(), "/", "."))
+	return fmt.Sprintf("%v.%v", pi.P3Pkg, rt.Name())
 }
 
 // panics of rt was not registered
@@ -116,4 +106,50 @@ func GetCallersDirname() string {
 		panic("could not derive caller's package directory")
 	}
 	return dirname
+}
+
+var (
+	RE_DOMAIN     = `[[:alnum:]-_]+[[:alnum:]-_.]+\.[a-zA-Z]{2,4}`
+	RE_GOPKG_PART = `[[:alpha:]-_]+`
+	RE_GOPKG      = fmt.Sprintf(`(?:%v|%v)(?:/%v)*`, RE_DOMAIN, RE_GOPKG_PART, RE_GOPKG_PART)
+	RE_P3PKG_PART = `[[:alpha:]_]+`
+	RE_P3PKG      = fmt.Sprintf(`%v(?:\.:%v)*`, RE_P3PKG_PART, RE_P3PKG_PART)
+)
+
+func assertValidGoPkg(gopkg string) {
+	matched, err := regexp.Match(RE_GOPKG, []byte(gopkg))
+	if err != nil {
+		panic(err)
+	}
+	if !matched {
+		panic(fmt.Sprintf("not a valid go package path: %v", gopkg))
+	}
+}
+
+func assertValidP3Pkg(p3pkg string) {
+	matched, err := regexp.Match(RE_P3PKG, []byte(p3pkg))
+	if err != nil {
+		panic(err)
+	}
+	if !matched {
+		panic(fmt.Sprintf("not a valid proto3 package path: %v", p3pkg))
+	}
+}
+
+// The dirname is only used to tell code generation tools where to put them.  I
+// suppose the default could be empty for convenience, as long as it isn't a
+// relative path that tries to access parent directories.
+func assertValidDirname(dirname string) {
+	if dirname == "" {
+		// Default dirname of empty is allowed, for convenience.
+		// Any generated files would be written in the current directory.
+		// Dirname should not be set to "." or "./".
+		return
+	}
+	if !path.IsAbs(dirname) {
+		panic(fmt.Sprintf("dirname if present should be absolute, but got %v", dirname))
+	}
+	if path.Dir(dirname+"/dummy") != dirname {
+		panic(fmt.Sprintf("dirname not canonical. got %v, expected %v", dirname, path.Dir(dirname+"/dummy")))
+	}
 }
