@@ -9,9 +9,11 @@ import (
 	"github.com/tendermint/go-amino/packageinfo"
 )
 
+type FooList []*Foo
+
 type Foo struct {
 	a string
-	b int
+	b int32
 	c []*Foo
 	D string // exposed
 }
@@ -32,15 +34,15 @@ func (f Foo) MarshalAmino() ([]pair, error) { // nolint: golint
 	return []pair{
 		{"a", f.a},
 		{"b", f.b},
-		{"c", f.c},
+		{"c", FooList(f.c)},
 		{"D", f.D},
 	}, nil
 }
 
 func (f *Foo) UnmarshalAmino(repr []pair) error {
 	f.a = repr[0].get("a").(string)
-	f.b = repr[1].get("b").(int)
-	f.c = repr[2].get("c").([]*Foo)
+	f.b = repr[1].get("b").(int32)
+	f.c = repr[2].get("c").(FooList)
 	f.D = repr[3].get("D").(string)
 	return nil
 }
@@ -48,7 +50,7 @@ func (f *Foo) UnmarshalAmino(repr []pair) error {
 var gopkg = reflect.TypeOf(Foo{}).PkgPath()
 var testPackageInfo = packageinfo.NewPackageInfo(gopkg, "tests", "").
 	WithDependencies().
-	WithTypes(&Foo{})
+	WithTypes(FooList(nil))
 
 func TestMarshalAminoBinary(t *testing.T) {
 

@@ -424,6 +424,10 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	// Switcharoo for convenience.
 	// From now we will read from value.
 	bz = value
+	// Now fopts field number (for unpacked lists) is reset to 1,
+	// otherwise the rest of the field options are inherited.  NOTE:
+	// make a function to abstract this.
+	fopts.BinFieldNum = 1
 
 	// See if we need to read the typ3 encoding of an implicit struct.
 	// google.protobuf.Any values must be a struct, or an unpacked list which
@@ -453,10 +457,9 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 				typWanted, fnum, cinfo.Type, typ)
 		}
 		slide(&bz, &n, nFnumTyp3)
-		// If the typ3 is Typ3ByteLength, we want to ensure that the length
-		// prefix is written.  If !cinfo.IsStructOrUnpacked() but typ3 is not a
-		// Typ3ByteLength, then the type is primitive and this argument is
-		// ignored anyways.
+		// We have written the implicit struct field key.  Now what
+		// follows should be encoded with bare=false, though if typ3 !=
+		// Typ3ByteLength, bare is ignored anyways.
 		bareValue = false
 	}
 

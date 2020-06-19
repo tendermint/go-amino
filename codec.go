@@ -117,6 +117,7 @@ func NewCodec() *Codec {
 		typeInfos:      make(map[reflect.Type]*TypeInfo),
 		nameToTypeInfo: make(map[string]*TypeInfo),
 	}
+	cdc.registerWellKnownTypes()
 	return cdc
 }
 
@@ -139,17 +140,17 @@ func (cdc *Codec) RegisterPackageInfo(pkg *PackageInfo) {
 func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *PackageInfo) {
 	cdc.assertNotSealed()
 
-	var typeURL string
-	var pointerPreferred bool
-
 	// Get p3 full name.
+	var typeURL string
 	if exists, err := pkg.HasType(rt); !exists {
 		panic(err)
 	} else {
 		// ignore irrelevant error message
 	}
 	typeURL = pkg.TypeURLForType(rt)
+
 	// Get pointerPreferred.
+	var pointerPreferred bool
 	if rt.Kind() == reflect.Ptr {
 		rt = rt.Elem()
 		if rt.Kind() == reflect.Ptr {
@@ -163,6 +164,12 @@ func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *PackageInfo) {
 		pointerPreferred = true
 	}
 
+	cdc.registerType(rt, typeURL, pointerPreferred, true)
+}
+
+func (cdc *Codec) registerType(rt reflect.Type, typeURL string, pointerPreferred bool, registerName bool) {
+	cdc.assertNotSealed()
+
 	// Construct TypeInfo
 	var info = cdc.newTypeInfoForRegistration(rt, pointerPreferred, typeURL)
 
@@ -171,7 +178,7 @@ func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *PackageInfo) {
 		cdc.mtx.Lock()
 		defer cdc.mtx.Unlock()
 
-		cdc.setTypeInfoWLocked(info)
+		cdc.setTypeInfoWLocked(info, registerName)
 	}()
 }
 
@@ -283,8 +290,12 @@ func (cdc *Codec) doAutoseal() {
 	}
 }
 
-// assumes write lock is held
-func (cdc *Codec) setTypeInfoWLocked(info *TypeInfo) {
+// assumes write lock is held.
+// registerName should generally be true when info.Registered, except when
+// registering secondary types for a given (full) name, such as
+// google.protobuf.*.  If set to false and info.Registered, the name must
+// already be registered.
+func (cdc *Codec) setTypeInfoWLocked(info *TypeInfo, registerName bool) {
 
 	if info.Type.Kind() == reflect.Ptr {
 		panic(fmt.Sprintf("unexpected pointer type"))
@@ -296,10 +307,17 @@ func (cdc *Codec) setTypeInfoWLocked(info *TypeInfo) {
 	cdc.typeInfos[info.Type] = info
 	if info.Registered {
 		name := typeURLtoName(info.TypeURL)
-		if existing, ok := cdc.nameToTypeInfo[name]; ok {
-			panic(fmt.Sprintf("name <%s> already registered for %v", name, existing.Type))
+		existing, ok := cdc.nameToTypeInfo[name]
+		if registerName {
+			if ok {
+				panic(fmt.Sprintf("name <%s> already registered for %v", name, existing.Type))
+			}
+			cdc.nameToTypeInfo[name] = info
+		} else {
+			if !ok {
+				panic(fmt.Sprintf("name <%s> not yet registered", name))
+			}
 		}
-		cdc.nameToTypeInfo[name] = info
 	}
 }
 
@@ -312,13 +330,12 @@ func (cdc *Codec) GetTypeInfo(rt reflect.Type) (info *TypeInfo, err error) {
 }
 
 func (cdc *Codec) getTypeInfoWLock(rt reflect.Type) (info *TypeInfo, err error) {
-	// We do not use defer cdc.mtx.Unlock() here due to performance overhead of
-	// defer in go1.11 (and prior versions). Ensure new code paths unlock the
-	// mutex.
-	// TODO: evaluate the need to ever defer from using defer.
 	cdc.mtx.Lock() // requires wlock because we might set.
+	// NOTE: We must defer, or at least recover, otherwise panics in
+	// getTypeInfoWLocked() will render the codec locked.
+	defer cdc.mtx.Unlock()
+
 	info, err = cdc.getTypeInfoWLocked(rt)
-	cdc.mtx.Unlock()
 	return info, err
 }
 
@@ -331,7 +348,7 @@ func (cdc *Codec) getTypeInfoWLocked(rt reflect.Type) (info *TypeInfo, err error
 	info, ok := cdc.typeInfos[rt]
 	if !ok {
 		info = cdc.newTypeInfoUnregisteredWLocked(rt)
-		cdc.setTypeInfoWLocked(info)
+		cdc.setTypeInfoWLocked(info, true)
 	}
 	return info, nil
 }
@@ -404,8 +421,13 @@ func (cdc *Codec) NewTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 }
 
 func (cdc *Codec) newTypeInfoUnregisteredWLocked(rt reflect.Type) *TypeInfo {
-	if rt.Kind() == reflect.Ptr {
+	switch rt.Kind() {
+	case reflect.Ptr:
 		panic("unexpected pointer type") // should not happen.
+	case reflect.Map:
+		panic("map type not supported")
+	case reflect.Func:
+		panic("func type not supported")
 	}
 
 	var info = new(TypeInfo)

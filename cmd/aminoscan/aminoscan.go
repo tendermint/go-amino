@@ -135,18 +135,20 @@ func scanByteLength(bz []byte, indent string) (s string, n int, err error) {
 		err = errors.New("while reading 8byte field, EOF was encountered")
 		return
 	}
-	lengthStr := fmt.Sprintf("%X (%v bytes) ", bz[:_n], length)
-	lengthStrLen := len(lengthStr) // for indenting later
-	s = Cyan(lengthStr)
+	lengthStrLong := fmt.Sprintf("%X (%v bytes) ", bz[:_n], length)
+	lengthStrLongLen := len(lengthStrLong) // for indenting later
+	lengthStrShort := fmt.Sprintf("%X", bz[:_n])
+	s = Cyan(lengthStrShort)
 	slide(&bz, &n, _n)
 	// Read the remaining bytes.
 	contents := bz[:length]
-	s += Green(fmt.Sprintf("%X", contents))
+	contentsStr := fmt.Sprintf("%X", contents)
+	s += Green(contentsStr)
 	slide(&bz, &n, length)
-	fmt.Printf("%s%s\n", indent, s)
+	fmt.Printf("%s%s%s\n", indent, Cyan(lengthStrLong), Green(contentsStr))
 	// If ascii string, also show the string in quotes.
 	if amino.IsASCIIText(string(contents)) {
-		fmt.Printf("%s%s\n", indent+strings.Repeat(" ", lengthStrLen), Green("("+strconv.Quote(string(contents))+" in ASCII)"))
+		fmt.Printf("%s%s\n", indent+strings.Repeat(" ", lengthStrLongLen), Green("("+strconv.Quote(string(contents))+" in ASCII)"))
 	}
 	return
 }

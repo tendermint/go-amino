@@ -267,6 +267,8 @@ func (ConcreteWrappedBytes) AssertInterface1() {}
 type InterfaceFieldsStruct struct {
 	F1 Interface1
 	F2 Interface1
+	F3 interface{}
+	F4 interface{}
 }
 
 func (*InterfaceFieldsStruct) AssertInterface1() {}
