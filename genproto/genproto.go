@@ -130,6 +130,11 @@ func (p3c *P3Context) GetImportPath(p3type P3Type) string {
 // (partial) schema.  Imports are added to p3doc.
 func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type) (p3msg P3Message, err error) {
 
+	if p3doc.Package == "" {
+		err = errors.New("cannot generate message partials in the root package \"\".")
+		return
+	}
+
 	var info *amino.TypeInfo = p3c.cdc.NewTypeInfoUnregistered(rt)
 	if info.Type.Kind() != reflect.Struct {
 		err = errors.New("only structs can generate proto3 message schemas")
@@ -180,6 +185,11 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 // Given the arguments, create a new P3Doc.
 // pkg is optional.
 func (p3c *P3Context) GenerateProto3Schema(p3pkg string, rtz ...reflect.Type) (p3doc P3Doc, err error) {
+
+	if p3pkg == "" {
+		err = errors.New("cannot generate schema in the root package \"\".")
+		return
+	}
 
 	// Set the package.
 	p3doc.Package = p3pkg

@@ -97,9 +97,6 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	case reflect.Struct:
 		err = cdc.decodeReflectJSONStruct(bz, info, rv, fopts)
 
-	case reflect.Map:
-		err = cdc.decodeReflectJSONMap(bz, info, rv, fopts)
-
 	//----------------------------------------
 	// Signed, Unsigned
 
@@ -416,60 +413,6 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 			return
 		}
 	}
-
-	return nil
-}
-
-// CONTRACT: rv.CanAddr() is true.
-func (cdc *Codec) decodeReflectJSONMap(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
-	if !rv.CanAddr() {
-		panic("rv not addressable")
-	}
-	if printLog {
-		fmt.Println("(d) decodeReflectJSONMap")
-		defer func() {
-			fmt.Printf("(d) -> err: %v\n", err)
-		}()
-	}
-
-	// Map all the fields(keys) to their blobs/bytes.
-	// NOTE: In decodeReflectBinaryMap, we don't need to do this,
-	// since fields are encoded in order.
-	var rawMap = make(map[string]json.RawMessage)
-	err = json.Unmarshal(bz, &rawMap)
-	if err != nil {
-		return
-	}
-
-	var krt = rv.Type().Key()
-	if krt.Kind() != reflect.String {
-		err = fmt.Errorf("decodeReflectJSONMap: key type must be string") // TODO also support []byte and maybe others
-		return
-	}
-	var vinfo *TypeInfo
-	vinfo, err = cdc.getTypeInfoWLock(rv.Type().Elem())
-	if err != nil {
-		return
-	}
-
-	var mrv = reflect.MakeMapWithSize(rv.Type(), len(rawMap))
-	for key, valueBytes := range rawMap {
-
-		// Get map value rv.
-		vrv := reflect.New(mrv.Type().Elem()).Elem()
-
-		// Decode valueBytes into vrv.
-		err = cdc.decodeReflectJSON(valueBytes, vinfo, vrv, fopts)
-		if err != nil {
-			return
-		}
-
-		// And set.
-		krv := reflect.New(reflect.TypeOf("")).Elem()
-		krv.SetString(key)
-		mrv.SetMapIndex(krv, vrv)
-	}
-	rv.Set(mrv)
 
 	return nil
 }

@@ -20,7 +20,8 @@ include tools.mk
 ### Testing
 
 test:
-	go test $(shell go list ./... | grep -v vendor)
+	go test -v $(shell go list ./... | grep -v vendor | grep -v fuzz)
+	go test -v $(shell go list ./... | grep -v vendor | grep fuzz)
 
 gofuzz_binary:
 	rm -rf tests/fuzz/binary/corpus/

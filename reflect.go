@@ -98,6 +98,8 @@ func derefPointersZero(rv reflect.Value) (drv reflect.Value, isPtr bool, isNilPt
 // dereferenced value.
 // A zero/empty struct is not considered default for this
 // function.
+// NOTE: Also works for Maps and Chans, though they are not
+// otherwise supported by Amino.  For future?
 func isDefaultValue(rv reflect.Value) (erv reflect.Value, isDefaultValue bool) {
 	rv, _, isNilPtr := derefPointers(rv)
 	if isNilPtr {
@@ -159,6 +161,8 @@ func defaultValue(rt reflect.Type) (rv reflect.Value) {
 	return reflect.Zero(rt)
 }
 
+// NOTE: Also works for Maps and Chans, though they are not
+// otherwise supported by Amino.  For future?
 func isNil(rv reflect.Value) bool {
 	switch rv.Kind() {
 	case reflect.Interface, reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr, reflect.Slice:

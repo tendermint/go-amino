@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -39,11 +40,10 @@ func TestMarshalJSON(t *testing.T) {
 		{&noExportedFields{a: 10, b: "foo"}, "{}", ""}, // #1
 		{nil, "null", ""},                              // #2
 		{&oneExportedField{}, `{"A":""}`, ""},          // #3
-		{Vehicle(Car("Tesla")),
-			`{"type":"car","value":"Tesla"}`, ""}, // #4
-		{Car("Tesla"), `{"type":"car","value":"Tesla"}`, ""}, // #5
-		{&oneExportedField{A: "Z"}, `{"A":"Z"}`, ""},         // #6
-		{[]string{"a", "bc"}, `["a","bc"]`, ""},              // #7
+		{Car(""), `""`, ""},                            // #4
+		{Car("Tesla"), `"Tesla"`, ""},                  // #5
+		{&oneExportedField{A: "Z"}, `{"A":"Z"}`, ""},   // #6
+		{[]string{"a", "bc"}, `["a","bc"]`, ""},        // #7
 		{[]interface{}{"a", "bc", 10, 10.93, 1e3},
 			``, "unregistered"}, // #8
 		{aPointerField{Foo: new(int), Name: "name"},
@@ -68,41 +68,39 @@ func TestMarshalJSON(t *testing.T) {
 		}, // #13
 		{
 			Transport{},
-			`{"type":"our/transport","value":{"Vehicle":null,"Capacity":"0"}}`, "",
+			`{"Vehicle":null,"Capacity":"0"}`, "",
 		}, // #14
 		{
 			Transport{Vehicle: Car("Bugatti")},
-			`{"type":"our/transport","value":{"Vehicle":{"type":"car","value":"Bugatti"},"Capacity":"0"}}`, "",
+			`{"Vehicle":{"@type":"/amino_test.Car","value":"Bugatti"},"Capacity":"0"}`, "",
 		}, // #15
 		{
 			BalanceSheet{Assets: []Asset{Car("Corolla"), insurancePlan(1e7)}},
-			`{"assets":[{"type":"car","value":"Corolla"},{"type":"insuranceplan","value":"10000000"}]}`, "",
+			`{"assets":[{"@type":"/amino_test.Car","value":"Corolla"},{"@type":"/amino_test.insurancePlan","value":"10000000"}]}`, "",
 		}, // #16
 		{
 			Transport{Vehicle: Boat("Poseidon"), Capacity: 1789},
-			`{"type":"our/transport","value":{"Vehicle":{"type":"boat","value":"Poseidon"},"Capacity":"1789"}}`, "",
+			`{"Vehicle":{"@type":"/amino_test.Boat","value":"Poseidon"},"Capacity":"1789"}`, "",
 		}, // #17
 		{
 			withCustomMarshaler{A: &aPointerField{Foo: intPtr(12)}, F: customJSONMarshaler(10)},
-			`{"fx":"Tendermint","A":{"Foo":"12"}}`, "",
-		}, // #18
+			`{"fx":"10","A":{"Foo":"12"}}`, "",
+		}, // #18 (NOTE: MarshalJSON of customJSONMarshaler has no effect)
 		{
 			func() json.Marshaler { v := customJSONMarshaler(10); return &v }(),
-			`"Tendermint"`, "",
-		}, // #19
-
-		// We don't yet support interface pointer registration i.e. `*interface{}`
+			`"10"`, "",
+		}, // #19 (NOTE: MarshalJSON of customJSONMarshaler has no effect)
 		{
-			interfacePtr("a"), "", "unregistered interface interface {}",
+			interfacePtr("a"), `{"@type":"/google.protobuf.StringValue","value":"a"}`, "",
 		}, // #20
-		{&fp{"Foo", 10}, "<FP-MARSHALJSON>", ""}, // #21
-		{(*fp)(nil), "null", ""},                 // #22
+		{&fp{"Foo", 10}, `"Foo@10"`, ""}, // #21
+		{(*fp)(nil), "null", ""},         // #22
 		{struct {
 			FP      *fp
 			Package string
 		}{FP: &fp{"Foo", 10}, Package: "bytes"},
-			`{"FP":<FP-MARSHALJSON>,"Package":"bytes"}`, "",
-		}, // #23,
+			`{"FP":"Foo@10","Package":"bytes"}`, "",
+		}, // #23
 	}
 
 	for i, tt := range cases {
@@ -110,7 +108,7 @@ func TestMarshalJSON(t *testing.T) {
 		blob, err := cdc.MarshalJSON(tt.in)
 		if tt.wantErr != "" {
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-				t.Errorf("#%d:\ngot:\n\t%q\nwant non-nil error containing\n\t%q", i,
+				t.Errorf("#%d:\ngot:\n\t%v\nwant non-nil error containing\n\t%q", i,
 					err, tt.wantErr)
 			}
 			continue
@@ -156,37 +154,38 @@ type fp struct {
 	Version int
 }
 
-func (f *fp) MarshalJSON() ([]byte, error) {
-	return []byte("<FP-MARSHALJSON>"), nil
+func (f fp) MarshalAmino() (string, error) {
+	return fmt.Sprintf("%v@%v", f.Name, f.Version), nil
 }
 
-func (f *fp) UnmarshalJSON(blob []byte) error {
-	f.Name = string(blob)
-	return nil
+func (f *fp) UnmarshalAmino(repr string) (err error) {
+	parts := strings.Split(repr, "@")
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid format %v", repr)
+	}
+	f.Name = parts[0]
+	f.Version, err = strconv.Atoi(parts[1])
+	return
 }
-
-var _ json.Marshaler = (*fp)(nil)
-var _ json.Unmarshaler = (*fp)(nil)
 
 type innerFP struct {
 	PC uint64
 	FP *fp
 }
 
+// We don't support maps.
 func TestUnmarshalMap(t *testing.T) {
+	jsonBytes := []byte("dontcare")
 	obj := new(map[string]int)
 	cdc := amino.NewCodec()
-
-	invalidJSONMapBytes := []byte(`{"some_key": 2}`)
-	// we expect quoted values for javascript / JSON numbers:
-	err := cdc.UnmarshalJSON(invalidJSONMapBytes, &obj)
-	assert.Error(t, err)
-
-	validJSONMapBytes := []byte(`{"some_key": "2"}`)
-	err = cdc.UnmarshalJSON(validJSONMapBytes, obj)
-	assert.NoError(t, err)
-
-	// ... nor encoding it.
+	assert.Panics(t, func() {
+		err := cdc.UnmarshalJSON(jsonBytes, &obj)
+		assert.Fail(t, "should have paniced but got err: %v", err)
+	})
+	assert.Panics(t, func() {
+		err := cdc.UnmarshalJSON(jsonBytes, obj)
+		assert.Fail(t, "should have paniced but got err: %v", err)
+	})
 	assert.Panics(t, func() {
 		bz, err := cdc.MarshalJSON(obj)
 		assert.Fail(t, "should have paniced but got bz: %X err: %v", bz, err)
@@ -235,10 +234,10 @@ func TestUnmarshalJSON(t *testing.T) {
 			`{"null"}`, new(int), nil, "invalid character",
 		},
 		{ // #4
-			`{"type":"our/transport","value":{"Vehicle":null,"Capacity":"0"}}`, new(Transport), new(Transport), "",
+			`{"Vehicle":null,"Capacity":"0"}`, new(Transport), new(Transport), "",
 		},
 		{ // #5
-			`{"type":"our/transport","value":{"Vehicle":{"type":"car","value":"Bugatti"},"Capacity":"10"}}`,
+			`{"Vehicle":{"@type":"/amino_test.Car","value":"Bugatti"},"Capacity":"10"}`,
 			new(Transport),
 			&Transport{
 				Vehicle:  Car("Bugatti"),
@@ -246,7 +245,7 @@ func TestUnmarshalJSON(t *testing.T) {
 			}, "",
 		},
 		{ // #6
-			`{"type":"car","value":"Bugatti"}`, new(Car), func() *Car { c := Car("Bugatti"); return &c }(), "",
+			`"Bugatti"`, new(Car), func() *Car { c := Car("Bugatti"); return &c }(), "",
 		},
 		{ // #7
 			`["1", "2", "3"]`, new([]int), func() interface{} {
@@ -261,23 +260,23 @@ func TestUnmarshalJSON(t *testing.T) {
 			}(), "",
 		},
 		{ // #9
-			`[1, "2", ["foo", "bar"]]`,
-			new([]interface{}), nil, "unregistered interface interface {}",
+			`[{"@type":"/google.protobuf.Int32Value","value":1},{"@type":"/google.protobuf.StringValue","value":"2"}]`,
+			new([]interface{}), &([]interface{}{int32(1), string("2")}), "",
 		},
 		{ // #10
 			`2.34`, floatPtr(2.34), nil, "float* support requires",
 		},
 		{ // #11
-			"<FooBar>", new(fp), &fp{"<FooBar>", 0}, "",
+			`"FooBar@1"`, new(fp), &fp{"FooBar", 1}, "",
 		},
 		{ // #12
-			"10", new(fp), &fp{Name: "10"}, "",
+			`"10@0"`, new(fp), &fp{Name: "10"}, "",
 		},
 		{ // #13
-			`{"PC":"125","FP":"10"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `"10"`}}, "",
+			`{"PC":"125","FP":"10@0"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `10`}}, "",
 		},
 		{ // #14
-			`{"PC":"125","FP":"<FP-FOO>"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `"<FP-FOO>"`}}, "",
+			`{"PC":"125","FP":"<FP-FOO>@0"}`, new(innerFP), &innerFP{PC: 125, FP: &fp{Name: `<FP-FOO>`}}, "",
 		},
 	}
 
@@ -422,7 +421,7 @@ type customJSONMarshaler int
 var _ json.Marshaler = (*customJSONMarshaler)(nil)
 
 func (cm customJSONMarshaler) MarshalJSON() ([]byte, error) {
-	return []byte(`"Tendermint"`), nil
+	return []byte(`"WRONG"`), nil
 }
 
 type withCustomMarshaler struct {
@@ -494,96 +493,17 @@ func TestAminoJSONTimeEncodeDecodeRoundTrip(t *testing.T) {
 	require.Equal(t, tAminoOut, tStdlibOut, "expecting amino.unmarshaled to be equal to json.unmarshaled")
 }
 
-//----------------------------------------
-
-func TestMarshalJSONMap(t *testing.T) {
-	var cdc = amino.NewCodec()
-
-	type SimpleStruct struct {
-		Foo int
-		Bar []byte
-	}
-
-	type MapsStruct struct {
-		Map1      map[string]string
-		Map1nil   map[string]string
-		Map1empty map[string]string
-
-		Map2      map[string]SimpleStruct
-		Map2nil   map[string]SimpleStruct
-		Map2empty map[string]SimpleStruct
-
-		Map3      map[string]*SimpleStruct
-		Map3nil   map[string]*SimpleStruct
-		Map3empty map[string]*SimpleStruct
-
-		/*
-			NOT SUPPORTED YET.  FIRST, DEFINE SPEC.
-			Map4      map[int]*SimpleStruct
-			Map4nil   map[int]*SimpleStruct
-			Map4empty map[int]*SimpleStruct
-		*/
-	}
-
-	ms := MapsStruct{
-		Map1:      map[string]string{"foo": "bar"},
-		Map1nil:   (map[string]string)(nil),
-		Map1empty: map[string]string{},
-
-		Map2:      map[string]SimpleStruct{"foo": {Foo: 1, Bar: []byte("bar")}},
-		Map2nil:   (map[string]SimpleStruct)(nil),
-		Map2empty: map[string]SimpleStruct{},
-
-		Map3:      map[string]*SimpleStruct{"foo": {Foo: 1, Bar: []byte("bar")}},
-		Map3nil:   (map[string]*SimpleStruct)(nil),
-		Map3empty: map[string]*SimpleStruct{},
-
-		/*
-			Map4:      map[int]*SimpleStruct{123: &SimpleStruct{Foo: 1, Bar: []byte("bar")}},
-			Map4nil:   (map[int]*SimpleStruct)(nil),
-			Map4empty: map[int]*SimpleStruct{},
-		*/
-	}
-
-	// ms2 is expected to be this.
-	ms3 := MapsStruct{
-		Map1:      map[string]string{"foo": "bar"},
-		Map1nil:   map[string]string{},
-		Map1empty: map[string]string{},
-
-		Map2:      map[string]SimpleStruct{"foo": {Foo: 1, Bar: []byte("bar")}},
-		Map2nil:   map[string]SimpleStruct{},
-		Map2empty: map[string]SimpleStruct{},
-
-		Map3:      map[string]*SimpleStruct{"foo": {Foo: 1, Bar: []byte("bar")}},
-		Map3nil:   map[string]*SimpleStruct{},
-		Map3empty: map[string]*SimpleStruct{},
-
-		/*
-			Map4:      map[int]*SimpleStruct{123: &SimpleStruct{Foo: 1, Bar: []byte("bar")}},
-			Map4nil:   (map[int]*SimpleStruct)(nil),
-			Map4empty: map[int]*SimpleStruct{},
-		*/
-	}
-
-	b, err := cdc.MarshalJSON(ms)
-	assert.Nil(t, err)
-
-	var ms2 MapsStruct
-	err = cdc.UnmarshalJSON(b, &ms2)
-	assert.Nil(t, err)
-	assert.Equal(t, ms3, ms2)
-}
-
 func TestMarshalJSONIndent(t *testing.T) {
 	var cdc = amino.NewCodec()
 	registerTransports(cdc)
-	obj := Car("Tesla")
-	indent := "  "
+	obj := Transport{Vehicle: Car("Tesla")}
 	expected := fmt.Sprintf(`{
-%s"type": "car",
-%s"value": "Tesla"
-}`, indent, indent)
+  "Vehicle": {
+    "@type": "/amino_test.Car",
+    "value": "Tesla"
+  },
+  "Capacity": "0"
+}`)
 
 	blob, err := cdc.MarshalJSONIndent(obj, "", "  ")
 	assert.Nil(t, err)
