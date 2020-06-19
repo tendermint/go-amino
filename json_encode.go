@@ -43,7 +43,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	}
 
 	// Handle the most special case, "well known".
-	if info.IsWellKnownType {
+	if info.IsJSONWellKnownType {
 		var ok bool
 		ok, err = encodeReflectJSONWellKnown(w, info, rv, fopts)
 		if ok || err != nil {
@@ -168,7 +168,7 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 		err = errors.New("JSON bytes cannot be empty")
 		return
 	}
-	if cinfo.IsWellKnownType {
+	if cinfo.IsJSONAnyValueType {
 		// Sanity check
 		if value[0] == '{' || value[len(value)-1] == '}' {
 			err = errors.Errorf("unexpected JSON object %s", value)
@@ -193,6 +193,7 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 			err = errors.Errorf("expected JSON object but got %s", value)
 			return
 		}
+		fmt.Println("!!3")
 		// Write TypeURL
 		err = writeStr(w, _fmt(`{"@type":"%s"`, cinfo.TypeURL))
 		if err != nil {
@@ -319,7 +320,7 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 		}
 		// If frv is empty and omitempty, skip it.
 		// NOTE: Unlike Amino:binary, we don't skip null fields unless "omitempty".
-		if field.JSONOmitEmpty && isEmpty(frv, field.ZeroValue) {
+		if field.JSONOmitEmpty && isJSONEmpty(frv, field.ZeroValue) {
 			continue
 		}
 		// Now we know we're going to write something.
@@ -451,7 +452,7 @@ func _fmt(s string, args ...interface{}) string {
 
 // For json:",omitempty".
 // Returns true for zero values, but also non-nil zero-length slices and strings.
-func isEmpty(rv reflect.Value, zrv reflect.Value) bool {
+func isJSONEmpty(rv reflect.Value, zrv reflect.Value) bool {
 	if !rv.IsValid() {
 		return true
 	}
@@ -465,4 +466,34 @@ func isEmpty(rv reflect.Value, zrv reflect.Value) bool {
 		}
 	}
 	return false
+}
+
+func isJSONAnyValueType(rt reflect.Type) bool {
+	if isJSONWellKnownType(rt) {
+		// All well known types are to be encoded as "{@type,value}" in
+		// JSON.  Some of these may be structs/objects, such as
+		// gAnyType, but nevertheless they must be encoded as
+		// {@type,value}, the latter specifically
+		// {@type:"/google.protobuf.Any",value:{@type,value}).
+		return true
+	} else {
+		// Otherwise, it depends on the kind.
+		switch rt.Kind() {
+		case
+			reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
+			reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16,
+			reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64,
+			// Primitive types get special {@type,value} treatment.  In
+			// binary form, most of these types would be encoded
+			// wrapped in an implicit struct, except for lists (both of
+			// bytes and of anything else), and for strings...
+			reflect.Array, reflect.Slice, reflect.String:
+			// ...which are all non-objects that must be encoded as
+			// {@type,value}.
+			return true
+		default:
+			return false
+		}
+		return false
+	}
 }

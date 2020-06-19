@@ -49,7 +49,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	}
 
 	// Handle the most special case, "well known".
-	if info.ConcreteInfo.IsWellKnownType {
+	if info.ConcreteInfo.IsJSONWellKnownType {
 		var ok bool
 		ok, err = decodeReflectJSONWellKnown(bz, info, rv, fopts)
 		if ok || err != nil {
@@ -204,7 +204,7 @@ func (cdc *Codec) decodeReflectJSONInterface(bz []byte, iinfo *TypeInfo, rv refl
 	}
 
 	// Extract the value bytes.
-	if cinfo.IsWellKnownType {
+	if cinfo.IsJSONAnyValueType {
 		bz = value
 	} else {
 		bz, err = deriveJSONObject(bz, typeURL)

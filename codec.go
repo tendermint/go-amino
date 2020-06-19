@@ -10,6 +10,9 @@ import (
 	"unicode"
 )
 
+// Useful for debugging.
+const printLog = false
+
 //----------------------------------------
 // Codec internals
 
@@ -34,7 +37,10 @@ type ConcreteInfo struct {
 	AminoMarshalReprType   reflect.Type // <ReprType>
 	IsAminoUnmarshaler     bool         // Implements UnmarshalAmino(<ReprObject>) (error).
 	AminoUnmarshalReprType reflect.Type // <ReprType>
-	IsWellKnownType        bool         // If true, the Any representation uses the "value" field (instead of embedding @type).
+	IsJSONValueType        bool         // If true, the Any representation uses the "value" field (instead of embedding @type).
+	IsBinaryWellKnownType  bool         // If true, use built-in functions to encode/decode.
+	IsJSONWellKnownType    bool         // If true, use built-in functions to encode/decode.
+	IsJSONAnyValueType     bool         // If true, the interface/Any representation uses the "value" field.
 	Elem                   *TypeInfo
 }
 
@@ -85,7 +91,7 @@ func (info *TypeInfo) IsStructOrUnpacked(fopt FieldOptions) bool {
 	// but should be represented as a slice of structs.
 	// For these cases, we should expect info.Elem to be prepopulated.
 	if info.Type.Kind() == reflect.Array || info.Type.Kind() == reflect.Slice {
-		return info.Elem.GetTyp3(fopt) != Typ3ByteLength
+		return info.Elem.GetTyp3(fopt) == Typ3ByteLength
 	}
 	return false
 }
@@ -165,7 +171,7 @@ func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *PackageInfo) {
 		cdc.mtx.Lock()
 		defer cdc.mtx.Unlock()
 
-		cdc.setTypeInfoNolock(info)
+		cdc.setTypeInfoWLocked(info)
 	}()
 }
 
@@ -277,7 +283,8 @@ func (cdc *Codec) doAutoseal() {
 	}
 }
 
-func (cdc *Codec) setTypeInfoNolock(info *TypeInfo) {
+// assumes write lock is held
+func (cdc *Codec) setTypeInfoWLocked(info *TypeInfo) {
 
 	if info.Type.Kind() == reflect.Ptr {
 		panic(fmt.Sprintf("unexpected pointer type"))
@@ -310,7 +317,12 @@ func (cdc *Codec) getTypeInfoWLock(rt reflect.Type) (info *TypeInfo, err error) 
 	// mutex.
 	// TODO: evaluate the need to ever defer from using defer.
 	cdc.mtx.Lock() // requires wlock because we might set.
+	info, err = cdc.getTypeInfoWLocked(rt)
+	cdc.mtx.Unlock()
+	return info, err
+}
 
+func (cdc *Codec) getTypeInfoWLocked(rt reflect.Type) (info *TypeInfo, err error) {
 	// Dereference pointer type.
 	for rt.Kind() == reflect.Ptr {
 		rt = rt.Elem()
@@ -318,10 +330,9 @@ func (cdc *Codec) getTypeInfoWLock(rt reflect.Type) (info *TypeInfo, err error) 
 
 	info, ok := cdc.typeInfos[rt]
 	if !ok {
-		info = cdc.NewTypeInfoUnregistered(rt)
-		cdc.setTypeInfoNolock(info)
+		info = cdc.newTypeInfoUnregisteredWLocked(rt)
+		cdc.setTypeInfoWLocked(info)
 	}
-	cdc.mtx.Unlock()
 	return info, nil
 }
 
@@ -386,6 +397,13 @@ func (cdc *Codec) newTypeInfoForRegistration(rt reflect.Type, pointerPreferred b
 // NOTE: cdc.NewTypeInfoForRegistration() calls this first for initial
 // construction.
 func (cdc *Codec) NewTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
+	cdc.mtx.Lock()
+	defer cdc.mtx.Unlock()
+
+	return cdc.newTypeInfoUnregisteredWLocked(rt)
+}
+
+func (cdc *Codec) newTypeInfoUnregisteredWLocked(rt reflect.Type) *TypeInfo {
 	if rt.Kind() == reflect.Ptr {
 		panic("unexpected pointer type") // should not happen.
 	}
@@ -406,9 +424,11 @@ func (cdc *Codec) NewTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 		info.ConcreteInfo.IsAminoUnmarshaler = true
 		info.ConcreteInfo.AminoUnmarshalReprType = unmarshalAminoReprType(rm)
 	}
-	info.ConcreteInfo.IsWellKnownType = isWellKnownType(rt)
+	info.ConcreteInfo.IsBinaryWellKnownType = isBinaryWellKnownType(rt)
+	info.ConcreteInfo.IsJSONWellKnownType = isJSONWellKnownType(rt)
+	info.ConcreteInfo.IsJSONAnyValueType = isJSONAnyValueType(rt)
 	if rt.Kind() == reflect.Array || rt.Kind() == reflect.Slice {
-		einfo, err := cdc.GetTypeInfo(rt.Elem())
+		einfo, err := cdc.getTypeInfoWLocked(rt.Elem())
 		if err != nil {
 			panic(err)
 		}

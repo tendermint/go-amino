@@ -106,7 +106,7 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 			"failed to unmarshal bytes %X (%s): %v\nptr: %v\n",
 			bz, bz, err, spw(ptr))
 
-		require.Equal(t, ptr, ptr2,
+		require.Equal(t, ptr2, ptr,
 			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
 			spw(ptr), spw(ptr2), bz, bz)
 	}
@@ -135,7 +135,7 @@ func _testDeepCopy(t *testing.T, rt reflect.Type) {
 
 		ptr2 := DeepCopy(ptr)
 
-		require.Equal(t, ptr, ptr2,
+		require.Equal(t, ptr2, ptr,
 			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
 			spw(ptr), spw(ptr2))
 	}
@@ -322,11 +322,19 @@ func TestCodecRoundtripMarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) {
 	var c3 tests.ConcreteTypeDef
 	copy(c3[:], []byte("0123"))
 
-	bz, err := cdc.MarshalBinaryInterfaceBare(c3) // XXX Wrap in Any
+	bz, err := cdc.MarshalBinaryInterfaceBare(c3)
 	assert.Nil(t, err)
 	assert.Equal(t, bz,
-		[]byte{0x11, 0x1e, 0x93, 0x82, 0xa, 0x4, 0x30, 0x31, 0x32, 0x33},
-		"ConcreteTypeDef incorrectly serialized") // XXX This should fail.
+		//     0x0a --> field #1, of type 0x02 Typ3ByteLength (Any TypeURL)
+		//           0x16 --> length prefix of following bytes (18 bytes)
+		//                 0x2f, ... 0x31 --> "/tests.ConcreteTypeDef"
+		[]byte{0x0a, 0x16, 0x2f, 0x74, 0x65, 0x73, 0x74, 0x73, 0x2e, 0x43, 0x6f, 0x6e, 0x63, 0x72, 0x65, 0x74, 0x65, 0x54, 0x79, 0x70, 0x65, 0x44, 0x65, 0x66,
+			//   0x12 --> field #2, of type 0x02 Typ3ByteLength (Any Value)
+			//         0x06 --> length prefix of following bytes (6 bytes)
+			//               0x0a --> field #1, one and only, of implicit struct.
+			//                     0x04 --> length prefix of following bytes (4 bytes)
+			/**/ 0x12, 0x06, 0x0a, 0x04, 0x30, 0x31, 0x32, 0x33},
+		"ConcreteTypeDef incorrectly serialized")
 
 	var i1 tests.Interface1
 	err = cdc.UnmarshalBinaryBare(bz, &i1)
@@ -356,7 +364,7 @@ func TestCodecRoundtripUnmarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) 
 
 func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
 	cdc := NewCodec()
-	cdc.RegisterTypeFrom(reflect.TypeOf(tests.InterfaceFieldsStruct{}), tests.PackageInfo)
+	cdc.RegisterTypeFrom(reflect.TypeOf(&tests.InterfaceFieldsStruct{}), tests.PackageInfo)
 
 	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
 	bz, err := cdc.MarshalBinaryLengthPrefixed(i1)
@@ -366,7 +374,7 @@ func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
 	err = cdc.UnmarshalBinaryLengthPrefixed(bz, i2)
 
 	assert.NoError(t, err)
-	require.Equal(t, i1, i2, "i1 and i2 should be the same after decoding")
+	require.Equal(t, i2, i1, "i1 and i2 should be the same after decoding")
 }
 
 //----------------------------------------

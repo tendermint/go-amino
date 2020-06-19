@@ -19,9 +19,12 @@ import (
 // only call this one, for all overrides happen here.
 // The value may be a nil interface, but not a nil pointer.
 // The following contracts apply to all similar encode methods.
-// "bare" is ignored when the value is a primitive type,
-// or a byteslice or bytearray, but this is confusing and
-// should probably be improved with explicit expectations.
+// The argument "bare" is ignored when the value is a primitive type, or a
+// byteslice or bytearray or generally a list type (except for unpacked lists,
+// which are more like structs).  EncodeByteSlice() is of course byte-length
+// prefixed, but EncodeTime() is not, as it is a struct.
+// For structs and struct-like things like unpacked lists, the "bare" argument
+// determines whether to include the length-prefix or not.
 // CONTRACT: rv is not a pointer
 // CONTRACT: rv is valid.
 func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value,
@@ -41,7 +44,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	}
 
 	// Handle the most special case, "well known".
-	if info.IsWellKnownType {
+	if info.IsBinaryWellKnownType {
 		var ok bool
 		ok, err = encodeReflectBinaryWellKnown(w, info, rv, fopts, bare)
 		if ok || err != nil {
@@ -220,10 +223,9 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		}()
 	}
 
-	// Special case when rv is nil, write 0x00 to denote an empty byteslice.
+	// Special case when rv is nil, write nothing or 0x00.
 	if rv.IsNil() {
-		_, err = w.Write([]byte{0x00})
-		return
+		return writeMaybeBare(w, nil, bare)
 	}
 
 	// Get concrete non-pointer reflect value & type.
@@ -309,14 +311,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		}
 	}
 
-	if bare {
-		// Write byteslice without byte-length prefixing.
-		_, err = w.Write(buf.Bytes())
-	} else {
-		// Write byte-length prefixed byteslice.
-		err = EncodeByteSlice(w, buf.Bytes())
-	}
-	return err
+	return writeMaybeBare(w, buf.Bytes(), bare)
 }
 
 func (cdc *Codec) encodeReflectBinaryByteArray(w io.Writer, info *TypeInfo, rv reflect.Value,
@@ -429,14 +424,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 		}
 	}
 
-	if bare {
-		// Write byteslice without byte-length prefixing.
-		_, err = w.Write(buf.Bytes())
-	} else {
-		// Write byte-length prefixed byteslice.
-		err = EncodeByteSlice(w, buf.Bytes())
-	}
-	return err
+	return writeMaybeBare(w, buf.Bytes(), bare)
 }
 
 // CONTRACT: info.Type.Elem().Kind() == reflect.Uint8
@@ -504,14 +492,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 		}
 	}
 
-	if bare {
-		// Write byteslice without byte-length prefixing.
-		_, err = w.Write(buf.Bytes())
-	} else {
-		// Write byte-length prefixed byteslice.
-		err = EncodeByteSlice(w, buf.Bytes())
-	}
-	return err
+	return writeMaybeBare(w, buf.Bytes(), bare)
 }
 
 //----------------------------------------
@@ -566,4 +547,27 @@ func (cdc *Codec) writeFieldIfNotEmpty(
 		buf.Truncate(lBeforeKey)
 	}
 	return nil
+}
+
+// NOTE: This is slightly less efficient than recursing as in the
+// implementation for encodeReflectBinaryWelKnown.
+func writeMaybeBare(w io.Writer, bz []byte, bare bool) (err error) {
+	// Special case
+	if len(bz) == 0 {
+		if bare {
+			return
+		} else {
+			_, err = w.Write([]byte{0x00})
+		}
+		return
+	}
+	// General case
+	if bare {
+		// Write byteslice without byte-length prefixing.
+		_, err = w.Write(bz)
+	} else {
+		// Write byte-length prefixed byteslice.
+		err = EncodeByteSlice(w, bz)
+	}
+	return err
 }

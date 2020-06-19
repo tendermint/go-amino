@@ -38,5 +38,5 @@ var PackageInfo = packageinfo.NewPackageInfo(
 	Concrete2{},
 	ConcreteTypeDef{},
 	ConcreteWrappedBytes{},
-	InterfaceFieldsStruct{},
+	&InterfaceFieldsStruct{},
 )

@@ -61,7 +61,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 	}
 
 	// Handle the most special case, "well known".
-	if info.IsWellKnownType {
+	if info.IsBinaryWellKnownType {
 		var ok bool
 		ok, n, err = decodeReflectBinaryWellKnown(bz, info, rv, fopts, bare)
 		if ok || err != nil {
@@ -341,19 +341,16 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
-	if !bare {
-		// Read byte-length prefixed byteslice.
-		var (
-			buf []byte
-			_n  int
-		)
-		buf, _n, err = DecodeByteSlice(bz)
-		if slide(&bz, nil, _n) && err != nil {
-			return
-		}
-		// This is a trick for debuggability -- we slide on &n more later.
-		n += UvarintSize(uint64(len(buf)))
-		bz = buf
+	// Strip if needed.
+	bz, err = decodeMaybeBare(bz, &n, bare)
+	if err != nil {
+		return
+	}
+
+	// Special case if nil interface.
+	if len(bz) == 0 {
+		rv.Set(iinfo.ZeroValue)
+		return
 	}
 
 	// Consume first field of TypeURL.
@@ -386,9 +383,14 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
+	// Construct the concrete type value.
+	var crv, irvSet = constructConcreteType(cinfo)
+
 	// Special case when value is default empty value.
+	// NOTE: For compatibility with other languages,
+	// nil-pointer interface values are forbidden.
 	if len(bz) == 0 {
-		rv.Set(cinfo.ZeroValue)
+		rv.Set(irvSet)
 		return
 	}
 
@@ -422,9 +424,6 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	// Switcharoo for convenience.
 	// From now we will read from value.
 	bz = value
-
-	// Construct the concrete type value.
-	var crv, irvSet = constructConcreteType(cinfo)
 
 	// See if we need to read the typ3 encoding of an implicit struct.
 	// google.protobuf.Any values must be a struct, or an unpacked list which
@@ -546,19 +545,10 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 		return
 	}
 
-	if !bare {
-		// Read byte-length prefixed byteslice.
-		var (
-			buf []byte
-			_n  int
-		)
-		buf, _n, err = DecodeByteSlice(bz)
-		if slide(&bz, nil, _n) && err != nil {
-			return
-		}
-		// This is a trick for debuggability -- we slide on &n more later.
-		n += UvarintSize(uint64(len(buf)))
-		bz = buf
+	// Bare if needed.
+	bz, err = decodeMaybeBare(bz, &n, bare)
+	if err != nil {
+		return
 	}
 
 	// If elem is not already a ByteLength type, read in packed form.
@@ -724,19 +714,10 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	esrt := reflect.SliceOf(ert)
 	var srv = reflect.Zero(esrt)
 
-	if !bare {
-		// Read byte-length prefixed byteslice.
-		var (
-			buf []byte
-			_n  int
-		)
-		buf, _n, err = DecodeByteSlice(bz)
-		if slide(&bz, nil, _n) && err != nil {
-			return
-		}
-		// This is a trick for debuggability -- we slide on &n more later.
-		n += UvarintSize(uint64(len(buf)))
-		bz = buf
+	// Strip if needed.
+	bz, err = decodeMaybeBare(bz, &n, bare)
+	if err != nil {
+		return
 	}
 
 	// If elem is not already a ByteLength type, read in packed form.
@@ -845,16 +826,10 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	// NOTE: The "Struct" typ3 doesn't get read here.
 	// It's already implied, either by struct-key or list-element-type-byte.
 
-	if !bare {
-		// Read byte-length prefixed byteslice.
-		var buf []byte
-		buf, _n, err = DecodeByteSlice(bz)
-		if slide(&bz, nil, _n) && err != nil {
-			return
-		}
-		// This is a trick for debuggability -- we slide on &n more later.
-		n += UvarintSize(uint64(len(buf)))
-		bz = buf
+	// Strip if needed.
+	bz, err = decodeMaybeBare(bz, &n, bare)
+	if err != nil {
+		return
 	}
 
 	// Track the last seen field number.
@@ -926,28 +901,28 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 				return
 			}
 		}
+	}
 
-		// Consume any remaining fields.
-		var (
-			fnum uint32
-			typ3 Typ3
-		)
-		for len(bz) > 0 {
-			fnum, typ3, _n, err = decodeFieldNumberAndTyp3(bz)
-			if slide(&bz, &n, _n) && err != nil {
-				return
-			}
-			if fnum <= lastFieldNum {
-				err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fnum: %v\nbytes:%X",
-					fnum, lastFieldNum, bz)
-				return
-			}
-			lastFieldNum = fnum
+	// Consume any remaining fields.
+	var (
+		fnum uint32
+		typ3 Typ3
+	)
+	for len(bz) > 0 {
+		fnum, typ3, _n, err = decodeFieldNumberAndTyp3(bz)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+		if fnum <= lastFieldNum {
+			err = fmt.Errorf("encountered fieldnNum: %v, but we have already seen fnum: %v\nbytes:%X",
+				fnum, lastFieldNum, bz)
+			return
+		}
+		lastFieldNum = fnum
 
-			_n, err = consumeAny(typ3, bz)
-			if slide(&bz, &n, _n) && err != nil {
-				return
-			}
+		_n, err = consumeAny(typ3, bz)
+		if slide(&bz, &n, _n) && err != nil {
+			return
 		}
 	}
 	return n, err
@@ -1002,4 +977,28 @@ func decodeFieldNumberAndTyp3(bz []byte) (num uint32, typ Typ3, n int, err error
 	}
 	num = uint32(num64)
 	return
+}
+
+//----------------------------------------
+// Misc.
+
+func decodeMaybeBare(bz []byte, n *int, bare bool) ([]byte, error) {
+	if bare {
+		return bz, nil
+	} else {
+		// Read byte-length prefixed byteslice.
+		var (
+			buf []byte
+			_n  int
+			err error
+		)
+		buf, _n, err = DecodeByteSlice(bz)
+		if slide(&bz, nil, _n) && err != nil {
+			return bz, err
+		}
+		// This is a trick for debuggability -- we slide on &n more later.
+		*n += UvarintSize(uint64(len(buf)))
+		bz = buf
+		return bz, nil
+	}
 }

@@ -9,8 +9,6 @@ import (
 //----------------------------------------
 // Constants
 
-const printLog = false
-
 var (
 	jsonMarshalerType   = reflect.TypeOf(new(json.Marshaler)).Elem()
 	jsonUnmarshalerType = reflect.TypeOf(new(json.Unmarshaler)).Elem()
@@ -182,6 +180,18 @@ func constructConcreteType(cinfo *TypeInfo) (crv, irvSet reflect.Value) {
 	} else {
 		crv = reflect.New(cinfo.Type).Elem()
 		irvSet = crv
+	}
+	return
+}
+
+// Like constructConcreteType(), but if pointer preferred, returns a nil one.
+// We like nil pointers for efficiency.
+func constructConcreteTypeNilPreferred(cinfo *TypeInfo) (crv reflect.Value) {
+	// Construct new concrete type.
+	if cinfo.PointerPreferred {
+		crv = reflect.Zero(cinfo.PtrToType)
+	} else {
+		crv = reflect.New(cinfo.Type).Elem()
 	}
 	return
 }

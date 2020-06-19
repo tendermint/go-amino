@@ -338,7 +338,7 @@ func DecodeByteSlice(bz []byte) (bz2 []byte, n int, err error) {
 		return
 	}
 	if len(bz) < int(count) {
-		err = fmt.Errorf("insufficient bytes decoding []byte of length %v", count)
+		err = fmt.Errorf("insufficient bytes decoding []byte of length %v: %X", count, bz)
 		return
 	}
 	bz2 = make([]byte, count)

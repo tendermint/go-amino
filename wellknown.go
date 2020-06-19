@@ -3,6 +3,7 @@ package amino
 // NOTE: We must not depend on protubuf libraries for serialization.
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"reflect"
@@ -39,7 +40,19 @@ var (
 	gBytesType     = reflect.TypeOf(wrapperspb.BytesValue{})
 )
 
-func isWellKnownType(rt reflect.Type) (wellKnown bool) {
+// These require special functions for encoding/decoding.
+func isBinaryWellKnownType(rt reflect.Type) (wellKnown bool) {
+	switch rt {
+	// Native types.
+	case timeType, durationType:
+		return true
+	}
+	return false
+}
+
+// These require special functions for encoding/decoding.
+func isJSONWellKnownType(rt reflect.Type) (wellKnown bool) {
+	// Special cases based on type.
 	switch rt {
 	// Native types.
 	case timeType, durationType:
@@ -51,6 +64,17 @@ func isWellKnownType(rt reflect.Type) (wellKnown bool) {
 		gUInt64Type, gInt32Type, gUInt32Type, gBoolType, gStringType,
 		gBytesType:
 		return true
+	}
+	// General cases based on kind.
+	switch rt.Kind() {
+	case
+		reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32,
+		reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16,
+		reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64,
+		reflect.Array, reflect.Slice, reflect.String:
+		return true
+	default:
+		return false
 	}
 	return false
 }
@@ -65,7 +89,6 @@ func encodeReflectJSONWellKnown(w io.Writer, info *TypeInfo, rv reflect.Value, f
 		// "RFC 3339, where generated output will always be Z-normalized
 		//  and uses 0, 3, 6 or 9 fractional digits."
 		t := rv.Interface().(time.Time)
-		t = t.Round(0).UTC()
 		err = EncodeJSONTime(w, t)
 		if err != nil {
 			return false, err
@@ -171,8 +194,22 @@ func decodeReflectJSONWellKnown(bz []byte, info *TypeInfo, rv reflect.Value, fop
 
 // Returns ok=false if nothing was done because the default behavior is fine.
 func encodeReflectBinaryWellKnown(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (ok bool, err error) {
+	// Validations.
 	if rv.Kind() == reflect.Interface {
 		panic("expected a concrete type to decode to")
+	}
+	// Maybe recurse with length-prefixing.
+	if !bare {
+		buf := bytes.NewBuffer(nil)
+		ok, err = encodeReflectBinaryWellKnown(buf, info, rv, fopts, true)
+		if err != nil {
+			return false, err
+		}
+		err = EncodeByteSlice(w, buf.Bytes())
+		if err != nil {
+			return false, err
+		}
+		return true, nil
 	}
 	switch info.Type {
 	// Native types.
@@ -198,23 +235,31 @@ func encodeReflectBinaryWellKnown(w io.Writer, info *TypeInfo, rv reflect.Value,
 
 // Returns ok=false if nothing was done because the default behavior is fine.
 func decodeReflectBinaryWellKnown(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions, bare bool) (ok bool, n int, err error) {
+	// Validations.
 	if rv.Kind() == reflect.Interface {
 		panic("expected a concrete type to decode to")
+	}
+	// Strip if needed.
+	bz, err = decodeMaybeBare(bz, &n, bare)
+	if err != nil {
+		return false, n, err
 	}
 	switch info.Type {
 	// Native types.
 	case timeType:
 		var t time.Time
-		t, n, err = DecodeTime(bz)
-		if err != nil {
+		var n_ int
+		t, n_, err = DecodeTime(bz)
+		if slide(&bz, &n, n_) && err != nil {
 			return false, n, err
 		}
 		rv.Set(reflect.ValueOf(t))
 		return true, n, nil
 	case durationType:
 		var d time.Duration
-		d, err = DecodeJSONDuration(bz, fopts)
-		if err != nil {
+		var n_ int
+		d, n_, err = DecodeDuration(bz)
+		if slide(&bz, &n, n_) && err != nil {
 			return false, n, err
 		}
 		rv.Set(reflect.ValueOf(d))
@@ -232,7 +277,7 @@ func EncodeJSONTimeValue(w io.Writer, s int64, ns int32) (err error) {
 		return err
 	}
 	// time.RFC3339Nano isn't exactly right (we need to get 3/6/9 fractional digits).
-	t := time.Unix(s, int64(ns))
+	t := time.Unix(s, int64(ns)).Round(0).UTC()
 	x := t.Format("2006-01-02T15:04:05.000000000")
 	x = strings.TrimSuffix(x, "000")
 	x = strings.TrimSuffix(x, "000")
@@ -242,6 +287,7 @@ func EncodeJSONTimeValue(w io.Writer, s int64, ns int32) (err error) {
 }
 
 func EncodeJSONTime(w io.Writer, t time.Time) (err error) {
+	t = t.Round(0).UTC()
 	return EncodeJSONTimeValue(w, t.Unix(), int32(t.Nanosecond()))
 }
 
