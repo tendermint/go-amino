@@ -133,7 +133,7 @@ func main() {
 	}
 
 	cdc := amino.NewCodec()
-	cdc.RegisterPackageInfo(tests.PackageInfo)
+	cdc.RegisterPackage(tests.Package)
 
 	for i, seed := range seeds {
 		blob, err := cdc.MarshalBinaryLengthPrefixed(seed)
