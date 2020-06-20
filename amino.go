@@ -4,19 +4,21 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"path"
 	"reflect"
+	"runtime"
 	"time"
 
 	"encoding/binary"
 	"encoding/json"
 
 	"github.com/pkg/errors"
-	"github.com/tendermint/go-amino/packageinfo"
+	"github.com/tendermint/go-amino/pkg"
 )
 
-// Package "packageinfo" exists So dependencies can create packageinfos.
+// Package "pkg" exists So dependencies can create Packages.
 // We export it here so this amino package can use it natively.
-type PackageInfo = packageinfo.PackageInfo
+type Package = pkg.Package
 
 var (
 	// Global methods for global auto-sealing codec.
@@ -53,6 +55,14 @@ func MarshalBinaryLengthPrefixedWriter(w io.Writer, o interface{}) (n int64, err
 
 func MustMarshalBinaryLengthPrefixed(o interface{}) []byte {
 	return gcdc.MustMarshalBinaryLengthPrefixed(o)
+}
+
+func MarshalBinaryInterfaceLengthPrefixed(o interface{}) ([]byte, error) {
+	return gcdc.MarshalBinaryInterfaceLengthPrefixed(o)
+}
+
+func MustMarshalBinaryInterfaceLengthPrefixed(o interface{}) []byte {
+	return gcdc.MustMarshalBinaryInterfaceLengthPrefixed(o)
 }
 
 func MarshalBinaryBare(o interface{}) ([]byte, error) {
@@ -203,6 +213,41 @@ func (cdc *Codec) MarshalBinaryLengthPrefixedWriter(w io.Writer, o interface{}) 
 // Panics if error.
 func (cdc *Codec) MustMarshalBinaryLengthPrefixed(o interface{}) []byte {
 	bz, err := cdc.MarshalBinaryLengthPrefixed(o)
+	if err != nil {
+		panic(err)
+	}
+	return bz
+}
+
+func (cdc *Codec) MarshalBinaryInterfaceLengthPrefixed(o interface{}) ([]byte, error) {
+	cdc.doAutoseal()
+
+	// Write the bytes here.
+	var buf = new(bytes.Buffer)
+
+	// Write the bz without length-prefixing.
+	bz, err := cdc.MarshalBinaryInterfaceBare(o)
+	if err != nil {
+		return nil, err
+	}
+
+	// Write uvarint(len(bz)).
+	err = EncodeUvarint(buf, uint64(len(bz)))
+	if err != nil {
+		return nil, err
+	}
+
+	// Write bz.
+	_, err = buf.Write(bz)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
+}
+
+func (cdc *Codec) MustMarshalBinaryInterfaceLengthPrefixed(o interface{}) []byte {
+	bz, err := cdc.MarshalBinaryInterfaceLengthPrefixed(o)
 	if err != nil {
 		panic(err)
 	}
@@ -615,23 +660,26 @@ func (cdc *Codec) MarshalJSONIndent(o interface{}, prefix, indent string) ([]byt
 
 //----------------------------------------
 
-// NOTE: Dirname is derived from the caller, using runtime caller analysis.
-// This function must be called from within gopkg, with no function decoration
-// or indirection.
-// If you must, refactor this method and create a new one this calls, which
-// takes shift.
-// NOTE: The returned PackageInfo is expected to be modified after return using
-// the modifier methods.  This means there will be some time discrepancy
-// between the registration at gcdc and the final form of PackageInfo.  Any
-// usage that requires the usage of the returned PackageInfo must happen after
-// the final modifications have been complete, otherwise the behavior is
-// undefined.  We could solve this with some kind of required "Seal()" on the
-// PackageInfo, or we can deprecate the modifiers and instead require option
-// arguments.
-func RegisterPackageInfo(gopkg string, p3pkg string) *PackageInfo {
-	dirname := packageinfo.GetCallersDirname()
-	pi := packageinfo.NewPackageInfo(gopkg, p3pkg, dirname)
-	// Register on the global cdc instance.
-	gcdc.RegisterPackageInfo(pi)
+// NOTE: do not modify the result.
+func RegisterPackage(pi *pkg.Package) *Package {
+	gcdc.RegisterPackage(pi)
 	return pi
+}
+
+func NewPackage(gopkg string, p3pkg string, dirname string) *Package {
+	return pkg.NewPackage(gopkg, p3pkg, dirname)
+}
+
+// NOTE: duplicated in pkg/pkg.go
+func GetCallersDirname() string {
+	var dirname = "" // derive from caller.
+	_, filename, _, ok := runtime.Caller(1)
+	if !ok {
+		panic("could not get caller to derive caller's package directory")
+	}
+	dirname = path.Dir(filename)
+	if filename == "" || dirname == "" {
+		panic("could not derive caller's package directory")
+	}
+	return dirname
 }

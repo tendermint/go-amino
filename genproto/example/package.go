@@ -5,12 +5,15 @@ import (
 	"github.com/tendermint/go-amino/genproto/example/submodule"
 )
 
-var PackageInfo = amino.RegisterPackageInfo(
-	"main",
-	"main",
-).WithDependencies(
-	submodule.PackageInfo,
-).WithTypes(
-	StructA{},
-	StructB{},
+var Package = amino.RegisterPackage(
+	amino.NewPackage(
+		"main",
+		"main",
+		amino.GetCallersDirname(),
+	).WithDependencies(
+		submodule.Package,
+	).WithTypes(
+		StructA{},
+		StructB{},
+	),
 )

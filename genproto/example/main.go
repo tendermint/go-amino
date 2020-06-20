@@ -28,8 +28,8 @@ type StructB struct {
 func main() {
 	// Defined in genproto.go
 	genproto.WriteProto3Schemas(
-		PackageInfo,
-		submodule.PackageInfo,
-		submodule2.PackageInfo,
+		Package,
+		submodule.Package,
+		submodule2.Package,
 	)
 }

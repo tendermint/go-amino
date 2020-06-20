@@ -14,18 +14,18 @@ import (
 	"github.com/stretchr/testify/require"
 
 	amino "github.com/tendermint/go-amino"
-	packageinfo "github.com/tendermint/go-amino/packageinfo"
+	"github.com/tendermint/go-amino/pkg"
 )
 
 type Dummy struct{}
 
 var gopkg = reflect.TypeOf(Dummy{}).PkgPath()
 
-var transportPackageInfo = packageinfo.NewPackageInfo(gopkg, "amino_test", "").
+var transportPackage = pkg.NewPackage(gopkg, "amino_test", "").
 	WithTypes(&Transport{}, Car(""), insurancePlan(0), Boat(""), Plane{})
 
 func registerTransports(cdc *amino.Codec) {
-	cdc.RegisterPackageInfo(transportPackageInfo)
+	cdc.RegisterPackage(transportPackage)
 }
 
 func TestMarshalJSON(t *testing.T) {

@@ -198,7 +198,7 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 		}
 		// Write Value
 		if len(value) > 2 {
-			err = writeStr(w, string(value[1:]))
+			err = writeStr(w, ","+string(value[1:]))
 		} else {
 			err = writeStr(w, `}`)
 		}

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tendermint/go-amino/packageinfo"
+	"github.com/tendermint/go-amino/pkg"
 )
 
 type FooList []*Foo
@@ -48,14 +48,14 @@ func (f *Foo) UnmarshalAmino(repr []pair) error {
 }
 
 var gopkg = reflect.TypeOf(Foo{}).PkgPath()
-var testPackageInfo = packageinfo.NewPackageInfo(gopkg, "tests", "").
+var testPackage = pkg.NewPackage(gopkg, "tests", "").
 	WithDependencies().
 	WithTypes(FooList(nil))
 
 func TestMarshalAminoBinary(t *testing.T) {
 
 	cdc := NewCodec()
-	cdc.RegisterPackageInfo(testPackageInfo)
+	cdc.RegisterPackage(testPackage)
 
 	var f = Foo{
 		a: "K",
@@ -79,7 +79,7 @@ func TestMarshalAminoBinary(t *testing.T) {
 func TestMarshalAminoJSON(t *testing.T) {
 
 	cdc := NewCodec()
-	cdc.RegisterPackageInfo(testPackageInfo)
+	cdc.RegisterPackage(testPackage)
 
 	var f = Foo{
 		a: "K",

@@ -247,7 +247,7 @@ func TestCodecSeal(t *testing.T) {
 	cdc := amino.NewCodec()
 	cdc.Seal()
 
-	assert.Panics(t, func() { cdc.RegisterPackageInfo(tests.PackageInfo) })
+	assert.Panics(t, func() { cdc.RegisterPackage(tests.Package) })
 }
 
 // XXX Test registering duplicate names or concrete types not in a package.

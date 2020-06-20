@@ -1,4 +1,4 @@
-package packageinfo
+package pkg
 
 import (
 	"reflect"
@@ -13,42 +13,42 @@ type Foo struct {
 	FieldB string
 }
 
-func TestNewPackageInfo(t *testing.T) {
+func TestNewPackage(t *testing.T) {
 	// This should panic, as slashes in p3pkg is not allowed.
 	assert.Panics(t, func() {
-		NewPackageInfo("foobar.com/some/path", "some/path", "").WithTypes(Foo{})
+		NewPackage("foobar.com/some/path", "some/path", "").WithTypes(Foo{})
 	}, "slash in p3pkg should not be allowed")
 
 	// This should panic, as the go pkg path includes a dot in the wrong place.
 	assert.Panics(t, func() {
-		NewPackageInfo("blah/foobar.com/some/path", "some.path", "").WithTypes(Foo{})
+		NewPackage("blah/foobar.com/some/path", "some.path", "").WithTypes(Foo{})
 	}, "invalid go pkg path")
 
 	// This should panic, as the go pkg path includes a leading slash.
 	assert.Panics(t, func() {
-		NewPackageInfo("/foobar.com/some/path", "some.path", "").WithTypes(Foo{})
+		NewPackage("/foobar.com/some/path", "some.path", "").WithTypes(Foo{})
 	}, "invalid go pkg path")
 
 	// This should panic, as the dirname is relative.
 	assert.Panics(t, func() {
-		NewPackageInfo("foobar.com/some/path", "some.path", "../someplace").WithTypes(Foo{})
+		NewPackage("foobar.com/some/path", "some.path", "../someplace").WithTypes(Foo{})
 	}, "invalid dirname")
 
-	info := NewPackageInfo("foobar.com/some/path", "some.path", "")
-	assert.NotNil(t, info)
+	pkg := NewPackage("foobar.com/some/path", "some.path", "")
+	assert.NotNil(t, pkg)
 }
 
 func TestNameForType(t *testing.T) {
 	// The Go package depends on how this test is invoked.
-	// Sometimes it is "github.com/tendermint/go-amino/packageinfo_test".
+	// Sometimes it is "github.com/tendermint/go-amino/packagepkg_test".
 	// Sometimes it is "command-line-arguments"
 	// Sometimes it is "command-line-arguments_test"
 	gopkg := reflect.TypeOf(Foo{}).PkgPath()
-	info := NewPackageInfo(gopkg, "some.path", "").WithTypes(Foo{})
+	pkg := NewPackage(gopkg, "some.path", "").WithTypes(Foo{})
 
-	assert.Equal(t, info.NameForType(reflect.TypeOf(Foo{})), "some.path.Foo")
+	assert.Equal(t, pkg.NameForType(reflect.TypeOf(Foo{})), "some.path.Foo")
 
-	typeURL := info.TypeURLForType(reflect.TypeOf(Foo{}))
+	typeURL := pkg.TypeURLForType(reflect.TypeOf(Foo{}))
 	assert.False(t, strings.Contains(typeURL[1:], "/"))
 	assert.Equal(t, string(typeURL[0]), "/")
 }
@@ -56,13 +56,13 @@ func TestNameForType(t *testing.T) {
 // If the struct wasn't registered, you can't get a name or type_url for it.
 func TestNameForUnexpectedType(t *testing.T) {
 	gopkg := reflect.TypeOf(Foo{}).PkgPath()
-	info := NewPackageInfo(gopkg, "some.path", "")
+	pkg := NewPackage(gopkg, "some.path", "")
 
 	assert.Panics(t, func() {
-		info.NameForType(reflect.TypeOf(Foo{}))
+		pkg.NameForType(reflect.TypeOf(Foo{}))
 	})
 
 	assert.Panics(t, func() {
-		info.TypeURLForType(reflect.TypeOf(Foo{}))
+		pkg.TypeURLForType(reflect.TypeOf(Foo{}))
 	})
 }

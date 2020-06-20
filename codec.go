@@ -123,7 +123,7 @@ func NewCodec() *Codec {
 
 // The package isn't (yet) necessary besides to get the full name of concrete
 // types.
-func (cdc *Codec) RegisterPackageInfo(pkg *PackageInfo) {
+func (cdc *Codec) RegisterPackage(pkg *Package) {
 	cdc.assertNotSealed()
 
 	for _, rt := range pkg.Types {
@@ -133,11 +133,11 @@ func (cdc *Codec) RegisterPackageInfo(pkg *PackageInfo) {
 
 // This function should be used to register concrete types that will appear in
 // interface fields/elements to be encoded/decoded by go-amino.
-// You may want to use RegisterPackageInfo() instead which registers everything in
+// You may want to use RegisterPackage() instead which registers everything in
 // a package.
 // Usage:
 // `amino.RegisterTypeFrom(MyStruct1{}, "/tm.cryp.MyStruct1")`
-func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *PackageInfo) {
+func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *Package) {
 	cdc.assertNotSealed()
 
 	// Get p3 full name.
@@ -649,7 +649,7 @@ func unmarshalAminoReprType(rm reflect.Method) (rrt reflect.Type) {
 func typeURLtoName(typeURL string) (name string) {
 	parts := strings.Split(typeURL, "/")
 	if len(parts) == 1 {
-		panic(fmt.Sprintf("invalid type_url name, must contain at least one slash and be followed by the full name"))
+		panic(fmt.Sprintf("invalid type_url name \"%v\", must contain at least one slash and be followed by the full name", typeURL))
 	}
 	return parts[len(parts)-1]
 }

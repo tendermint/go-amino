@@ -10,7 +10,7 @@ import (
 
 func TestBasic(t *testing.T) {
 	p3c := NewP3Context()
-	p3c.RegisterPackageInfo(sm1.PackageInfo)
+	p3c.RegisterPackage(sm1.Package)
 	p3doc := P3Doc{Package: "test"}
 	obj := sm1.StructSM{}
 	p3message, err := p3c.GenerateProto3MessagePartial(&p3doc, reflect.TypeOf(obj))

@@ -454,6 +454,12 @@ func deriveJSONObject(bz []byte, typeURL string) (res []byte, err error) {
 		return
 	}
 	str = strings.TrimLeft(str, " \t\r\n")
+	if !strings.HasPrefix(str, "{") {
+		err = fmt.Errorf("expected JSON object representing Any to start with '{', but got %v", string(bz))
+		return
+	}
+	str = str[1:]
+	str = strings.TrimLeft(str, " \t\r\n")
 	if !strings.HasPrefix(str, `"@type"`) {
 		err = fmt.Errorf("expected JSON object representing Any to start with \"@type\" field, but got %v", string(bz))
 		return

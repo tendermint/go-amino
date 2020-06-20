@@ -156,15 +156,18 @@ import (
 	"github.com/tendermint/go-amino/genproto/example/submodule"
 )
 
-var PackageInfo = amino.RegisterPackageInfo(
-	"main", // The Go package path
-	"main", // The (shorter) Proto3 package path (no slashes).
-).WithDependencies(
-	submodule.PackageInfo, // Dependencies must be declared (for now).
-).WithTypes(
-	StructA{}, // Declaration of all structs to be managed by Amino.
-	StructB{}, // For example, protogen to generate proto3 schema files.
-	&StructC{}, // If pointer receivers are preferred when decoding to interfaces.
+var Package = amino.RegisterPackage(
+	amino.NewPackage(
+		"main", // The Go package path
+		"main", // The (shorter) Proto3 package path (no slashes).
+		amino.GetCallersDirname(),
+	).WithDependencies(
+		submodule.Package, // Dependencies must be declared (for now).
+	).WithTypes(
+		StructA{}, // Declaration of all structs to be managed by Amino.
+		StructB{}, // For example, protogen to generate proto3 schema files.
+		&StructC{}, // If pointer receivers are preferred when decoding to interfaces.
+	),
 )
 ```
 

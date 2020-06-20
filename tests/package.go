@@ -1,16 +1,16 @@
 package tests
 
 import (
-	"github.com/tendermint/go-amino/packageinfo"
+	"github.com/tendermint/go-amino/pkg"
 )
 
-// Creates one much like amino.RegisterPackageInfo, but without registration.
+// Creates one much like amino.RegisterPackage, but without registration.
 // This is needed due to circular dependency issues for dependencies of Amino.
 // Another reason to strive for many independent modules.
-var PackageInfo = packageinfo.NewPackageInfo(
+var Package = pkg.NewPackage(
 	"github.com/tendermint/go-amino/tests",
 	"tests",
-	packageinfo.GetCallersDirname(),
+	pkg.GetCallersDirname(),
 ).WithDependencies().WithTypes(
 	EmptyStruct{},
 	PrimitivesStruct{},

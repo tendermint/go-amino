@@ -154,7 +154,7 @@ func TestCodecMarhsalBinaryBareFailsOnUnregisteredConcrete(t *testing.T) {
 
 func TestCodecMarshalBinaryBarePassesOnRegistered(t *testing.T) {
 	cdc := NewCodec()
-	cdc.RegisterTypeFrom(reflect.TypeOf(tests.Concrete1{}), tests.PackageInfo)
+	cdc.RegisterTypeFrom(reflect.TypeOf(tests.Concrete1{}), tests.Package)
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.NoError(t, err, "correctly registered")
@@ -170,8 +170,8 @@ func TestCodecMarshalBinaryBarePassesOnRegistered(t *testing.T) {
 
 func TestCodecRegisterAndMarshalMultipleConcrete(t *testing.T) {
 	cdc := NewCodec()
-	cdc.RegisterTypeFrom(reflect.TypeOf(tests.Concrete1{}), tests.PackageInfo)
-	cdc.RegisterTypeFrom(reflect.TypeOf(tests.Concrete2{}), tests.PackageInfo)
+	cdc.RegisterTypeFrom(reflect.TypeOf(tests.Concrete1{}), tests.Package)
+	cdc.RegisterTypeFrom(reflect.TypeOf(tests.Concrete2{}), tests.Package)
 
 	{ // test tests.Concrete1, no conflict.
 		bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
@@ -203,7 +203,7 @@ func TestCodecRegisterAndMarshalMultipleConcrete(t *testing.T) {
 // Serialize and deserialize a registered typedef.
 func TestCodecRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 	cdc := NewCodec()
-	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteTypeDef{}), tests.PackageInfo)
+	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteTypeDef{}), tests.Package)
 
 	c3 := tests.ConcreteTypeDef{}
 	copy(c3[:], []byte("0123"))
@@ -270,7 +270,7 @@ func TestCodecRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 // around the value instead of a type def.
 func TestCodecRoundtripNonNilRegisteredWrappedValue(t *testing.T) {
 	cdc := NewCodec()
-	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteWrappedBytes{}), tests.PackageInfo)
+	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteWrappedBytes{}), tests.Package)
 
 	c3 := tests.ConcreteWrappedBytes{Value: []byte("0123")}
 
@@ -297,7 +297,7 @@ func TestCodecRoundtripNonNilRegisteredWrappedValue(t *testing.T) {
 // Like TestCodecRoundtripNonNilRegisteredTypeDef, but JSON.
 func TestCodecJSONRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 	cdc := NewCodec()
-	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteTypeDef{}), tests.PackageInfo)
+	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteTypeDef{}), tests.Package)
 
 	var c3 tests.ConcreteTypeDef
 	copy(c3[:], []byte("0123"))
@@ -317,7 +317,7 @@ func TestCodecJSONRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 // Like TestCodecRoundtripNonNilRegisteredTypeDef, but serialize the concrete value directly.
 func TestCodecRoundtripMarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) {
 	cdc := NewCodec()
-	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteTypeDef{}), tests.PackageInfo)
+	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteTypeDef{}), tests.Package)
 
 	var c3 tests.ConcreteTypeDef
 	copy(c3[:], []byte("0123"))
@@ -345,7 +345,7 @@ func TestCodecRoundtripMarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) {
 // Like TestCodecRoundtripNonNilRegisteredTypeDef but read into concrete var.
 func TestCodecRoundtripUnmarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) {
 	cdc := NewCodec()
-	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteTypeDef{}), tests.PackageInfo)
+	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteTypeDef{}), tests.Package)
 
 	var c3a tests.ConcreteTypeDef
 	copy(c3a[:], []byte("0123"))
@@ -364,7 +364,7 @@ func TestCodecRoundtripUnmarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) 
 
 func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
 	cdc := NewCodec()
-	cdc.RegisterTypeFrom(reflect.TypeOf(&tests.InterfaceFieldsStruct{}), tests.PackageInfo)
+	cdc.RegisterTypeFrom(reflect.TypeOf(&tests.InterfaceFieldsStruct{}), tests.Package)
 
 	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
 	bz, err := cdc.MarshalBinaryLengthPrefixed(i1)
