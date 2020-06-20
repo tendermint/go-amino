@@ -77,8 +77,9 @@ func (pkg *Package) HasType(rt reflect.Type) (exists bool, err error) {
 	return false, fmt.Errorf("type %v not registered with package", rt)
 }
 
-// panics of rt was not registered
+// panics of rt was not registered.
 func (pkg *Package) NameForType(rt reflect.Type) string {
+	rt = derefType(rt)
 	exists, err := pkg.HasType(rt)
 	if !exists {
 		panic(err)
@@ -86,7 +87,7 @@ func (pkg *Package) NameForType(rt reflect.Type) string {
 	return fmt.Sprintf("%v.%v", pkg.P3Pkg, rt.Name())
 }
 
-// panics of rt was not registered
+// panics of rt (or a pointer to it) was not registered.
 func (pkg *Package) TypeURLForType(rt reflect.Type) string {
 	name := pkg.NameForType(rt)
 	return "/" + name
@@ -152,4 +153,12 @@ func assertValidDirname(dirname string) {
 	if path.Dir(dirname+"/dummy") != dirname {
 		panic(fmt.Sprintf("dirname not canonical. got %v, expected %v", dirname, path.Dir(dirname+"/dummy")))
 	}
+}
+
+func derefType(rt reflect.Type) (drt reflect.Type) {
+	drt = rt
+	for drt.Kind() == reflect.Ptr {
+		drt = drt.Elem()
+	}
+	return
 }

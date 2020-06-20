@@ -46,7 +46,7 @@ func Example() {
 			"amino_test",
 			amino.GetCallersDirname(),
 		).
-			WithTypes(bcMessage{}, bcResponse{}, bcStatus{}),
+			WithTypes(&bcMessage{}, &bcResponse{}, &bcStatus{}),
 	)
 
 	var bm = &bcMessage{Message: "ABC", Height: 100}
@@ -65,6 +65,6 @@ func Example() {
 
 	// Output:
 	// Encoded: 200A152F616D696E6F5F746573742E62634D65737361676512070A034142431064 (err: <nil>)
-	// Decoded: {ABC 100} (err: <nil>)
+	// Decoded: &{ABC 100} (err: <nil>)
 	// Decoded successfully: true
 }

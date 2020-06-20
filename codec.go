@@ -147,7 +147,6 @@ func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *Package) {
 	} else {
 		// ignore irrelevant error message
 	}
-	typeURL = pkg.TypeURLForType(rt)
 
 	// Get pointerPreferred.
 	var pointerPreferred bool
@@ -163,6 +162,9 @@ func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *Package) {
 		}
 		pointerPreferred = true
 	}
+
+	// Get type_url
+	typeURL = pkg.TypeURLForType(rt)
 
 	cdc.registerType(rt, typeURL, pointerPreferred, true)
 }
@@ -310,7 +312,7 @@ func (cdc *Codec) setTypeInfoWLocked(info *TypeInfo, registerName bool) {
 		existing, ok := cdc.nameToTypeInfo[name]
 		if registerName {
 			if ok {
-				panic(fmt.Sprintf("name <%s> already registered for %v", name, existing.Type))
+				panic(fmt.Sprintf("name <%s> already registered for %v (TypeURL: %v)", name, existing.Type, info.TypeURL))
 			}
 			cdc.nameToTypeInfo[name] = info
 		} else {
