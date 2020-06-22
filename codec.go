@@ -49,8 +49,8 @@ type StructInfo struct {
 }
 
 type FieldInfo struct {
+	*TypeInfo                  // Struct field TypeInfo
 	Name         string        // Struct field name
-	Type         reflect.Type  // Struct field type
 	Index        int           // Struct field index
 	ZeroValue    reflect.Value // Could be nil pointer unlike TypeInfo.ZeroValue.
 	UnpackedList bool          // True iff this field should be encoded as an unpacked list.
@@ -169,18 +169,24 @@ func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *Package) {
 	cdc.registerType(rt, typeURL, pointerPreferred, true)
 }
 
-func (cdc *Codec) registerType(rt reflect.Type, typeURL string, pointerPreferred bool, registerName bool) {
+func (cdc *Codec) registerType(rt reflect.Type, typeURL string, pointerPreferred bool, primary bool) {
 	cdc.assertNotSealed()
 
 	// Construct TypeInfo
 	var info = cdc.newTypeInfoForRegistration(rt, pointerPreferred, typeURL)
 
-	// Finally, register.
-	func() {
+	// Separate locking instance,
+	// do the registration
+	func() { // So it unlocks after scope.
 		cdc.mtx.Lock()
 		defer cdc.mtx.Unlock()
+		cdc.registerTypeInfoWLocked(info, primary)
+	}()
 
-		cdc.setTypeInfoWLocked(info, registerName)
+	func() { // And do it again...
+		cdc.mtx.Lock()
+		defer cdc.mtx.Unlock()
+		// Cuz why not.
 	}()
 }
 
@@ -293,32 +299,43 @@ func (cdc *Codec) doAutoseal() {
 }
 
 // assumes write lock is held.
-// registerName should generally be true when info.Registered, except when
-// registering secondary types for a given (full) name, such as
-// google.protobuf.*.  If set to false and info.Registered, the name must
-// already be registered.
-func (cdc *Codec) setTypeInfoWLocked(info *TypeInfo, registerName bool) {
+// primary should generally
+// be true, and must be true for the
+// first type set here that is info.Registered, except
+// when registering secondary types for a given (full)
+// name, such as google.protobuf.*.  If primary is set to
+// false and info.Registered, the name must already be
+// registered, and no side effects occur.
+// CONTRACT: info.Type is set
+// CONTRACT: if info.Registered, info.TypeURL is set
+func (cdc *Codec) registerTypeInfoWLocked(info *TypeInfo, primary bool) {
 
 	if info.Type.Kind() == reflect.Ptr {
 		panic(fmt.Sprintf("unexpected pointer type"))
 	}
-	if _, ok := cdc.typeInfos[info.Type]; ok {
-		panic(fmt.Sprintf("TypeInfo already exists for %v", info.Type))
+	if existing, ok := cdc.typeInfos[info.Type]; !ok || existing != info {
+		if !ok {
+			panic("unrecognized *TypeInfo")
+		} else {
+			panic(fmt.Sprintf("unexpected *TypeInfo: existing: %v, new: %v", existing, info))
+		}
+	}
+	if !info.Registered {
+		panic("expected registered info")
 	}
 
-	cdc.typeInfos[info.Type] = info
-	if info.Registered {
-		name := typeURLtoName(info.TypeURL)
-		existing, ok := cdc.nameToTypeInfo[name]
-		if registerName {
-			if ok {
-				panic(fmt.Sprintf("name <%s> already registered for %v (TypeURL: %v)", name, existing.Type, info.TypeURL))
-			}
-			cdc.nameToTypeInfo[name] = info
-		} else {
-			if !ok {
-				panic(fmt.Sprintf("name <%s> not yet registered", name))
-			}
+	// Everybody's dooing a brand-new dance, now
+	// Come on baby, doo the registration!
+	name := typeURLtoName(info.TypeURL)
+	existing, ok := cdc.nameToTypeInfo[name]
+	if primary {
+		if ok {
+			panic(fmt.Sprintf("name <%s> already registered for %v (TypeURL: %v)", name, existing.Type, info.TypeURL))
+		}
+		cdc.nameToTypeInfo[name] = info
+	} else {
+		if !ok {
+			panic(fmt.Sprintf("name <%s> not yet registered", name))
 		}
 	}
 }
@@ -341,6 +358,8 @@ func (cdc *Codec) getTypeInfoWLock(rt reflect.Type) (info *TypeInfo, err error) 
 	return info, err
 }
 
+// If a new one is constructed and cached in state,
+// it is not yet registered.
 func (cdc *Codec) getTypeInfoWLocked(rt reflect.Type) (info *TypeInfo, err error) {
 	// Dereference pointer type.
 	for rt.Kind() == reflect.Ptr {
@@ -350,7 +369,6 @@ func (cdc *Codec) getTypeInfoWLocked(rt reflect.Type) (info *TypeInfo, err error
 	info, ok := cdc.typeInfos[rt]
 	if !ok {
 		info = cdc.newTypeInfoUnregisteredWLocked(rt)
-		cdc.setTypeInfoWLocked(info, true)
 	}
 	return info, nil
 }
@@ -403,18 +421,25 @@ func (cdc *Codec) newTypeInfoForRegistration(rt reflect.Type, pointerPreferred b
 	return info
 }
 
-// Constructs a *TypeInfo automatically, not from registration.  No name or
-// decoding preferece (pointer or not) is known, so it cannot be used to decode
-// into an interface.
+// Constructs a *TypeInfo from scratch (except
+// depedencies).  The constructed TypeInfo is stored in
+// state, but not yet registered - no name or decoding
+// preferece (pointer or not) is known, so it cannot be
+// used to decode into an interface.
 //
-// Does not get certain fields set, such as:
-//  * .ConcreteInfo.PointerPreferred - how it prefers to be decoded
+// cdc.NewTypeInfoForRegistration() calls this first for
+// initial construction.  Unregistered type infos can
+// still represent circular types because they still
+// populate the internal lookup map, but they don't have
+// certain fields set, such as:
+//
+//  * .ConcreteInfo.PointerPreferred - how it prefers to
+//  be decoded
 //  * .ConcreteInfo.TypeURL - for Any serialization
-// But it does set .ConcreteInfo.Elem, which may be modified by the Codec
-// instance.
+//
+// But it does set .ConcreteInfo.Elem, which may be
+// modified by the Codec instance.
 
-// NOTE: cdc.NewTypeInfoForRegistration() calls this first for initial
-// construction.
 func (cdc *Codec) NewTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 	cdc.mtx.Lock()
 	defer cdc.mtx.Unlock()
@@ -432,13 +457,23 @@ func (cdc *Codec) newTypeInfoUnregisteredWLocked(rt reflect.Type) *TypeInfo {
 		panic("func type not supported")
 	}
 
+	// Populate this early so it gets found when
+	// getTypeInfoWLocked() is called, esp for
+	// parseStructInfoWLocked() which may cause infinite
+	// recursion if two structs reference each other in
+	// declaration.
+	// TODO: can protobuf support this? If not, we would
+	// still want to, but restrict what can be compiled
+	// to protobuf, or something.
 	var info = new(TypeInfo)
+	cdc.typeInfos[rt] = info
+
 	info.Type = rt
 	info.PtrToType = reflect.PtrTo(rt)
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
 	if rt.Kind() == reflect.Struct {
-		info.StructInfo = parseStructInfo(rt)
+		info.StructInfo = cdc.parseStructInfoWLocked(rt)
 	}
 	if rm, ok := rt.MethodByName("MarshalAmino"); ok {
 		info.ConcreteInfo.IsAminoMarshaler = true
@@ -464,7 +499,7 @@ func (cdc *Codec) newTypeInfoUnregisteredWLocked(rt reflect.Type) *TypeInfo {
 //----------------------------------------
 // ...
 
-func parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
+func (cdc *Codec) parseStructInfoWLocked(rt reflect.Type) (sinfo StructInfo) {
 	if rt.Kind() != reflect.Struct {
 		panic("should not happen")
 	}
@@ -500,10 +535,14 @@ func parseStructInfo(rt reflect.Type) (sinfo StructInfo) {
 		// NOTE: This is going to change a bit.
 		// NOTE: BinFieldNum starts with 1.
 		fopts.BinFieldNum = uint32(len(infos) + 1)
+		fieldTypeInfo, err := cdc.getTypeInfoWLocked(ftype)
+		if err != nil {
+			panic(err)
+		}
 		fieldInfo := FieldInfo{
+			TypeInfo:     fieldTypeInfo,
 			Name:         field.Name, // Mostly for debugging.
 			Index:        i,          // the field number for this go runtime (for decoding).
-			Type:         ftype,
 			ZeroValue:    reflect.Zero(ftype),
 			UnpackedList: unpackedList,
 			FieldOptions: fopts,

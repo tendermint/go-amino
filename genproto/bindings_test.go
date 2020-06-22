@@ -8,14 +8,12 @@ import (
 	"go/token"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/jaekwon/testify/assert"
 	"github.com/tendermint/go-amino/tests"
 )
 
 func TestGenerateProtoBindings(t *testing.T) {
-	file, err := GenerateProtoBindings(tests.Package, "pb")
+	file := GenerateProtoBindings(tests.Package, "pb")
 	spew.Dump(file)
-	assert.NoError(t, err)
 	t.Logf("%v", file)
 
 	// Print the function body into buffer buf.

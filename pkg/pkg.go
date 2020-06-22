@@ -12,6 +12,7 @@ type Package struct {
 	GoPkg        string
 	Dirname      string
 	P3Pkg        string
+	P3Import     string
 	Dependencies []*Package
 	Types        []reflect.Type
 }
@@ -29,6 +30,7 @@ func NewPackage(gopkg string, p3pkg string, dirname string) *Package {
 		GoPkg:        gopkg,
 		Dirname:      dirname,
 		P3Pkg:        p3pkg,
+		P3Import:     "",
 		Dependencies: nil,
 		Types:        nil,
 	}
@@ -60,6 +62,12 @@ func (pkg *Package) WithTypes(objs ...interface{}) *Package {
 	return pkg
 }
 
+// These files will get imported instead of the default "types.proto" if this package is a dependency.
+func (pkg *Package) WithP3Import(p3import string) *Package {
+	pkg.P3Import = p3import
+	return pkg
+}
+
 // err is always non-nil and includes some generic message.
 // (since the caller may either expect the type in the package or not).
 func (pkg *Package) HasType(rt reflect.Type) (exists bool, err error) {
@@ -77,8 +85,28 @@ func (pkg *Package) HasType(rt reflect.Type) (exists bool, err error) {
 	return false, fmt.Errorf("type %v not registered with package", rt)
 }
 
+func (pkg *Package) HasName(name string) (exists bool) {
+	for _, rt := range pkg.Types {
+		rt = derefType(rt)
+		if rt.Name() == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (pkg *Package) HasFullName(name string) (exists bool) {
+	for _, rt := range pkg.Types {
+		rt = derefType(rt)
+		if pkg.FullNameForType(rt) == name {
+			return true
+		}
+	}
+	return false
+}
+
 // panics of rt was not registered.
-func (pkg *Package) NameForType(rt reflect.Type) string {
+func (pkg *Package) FullNameForType(rt reflect.Type) string {
 	rt = derefType(rt)
 	exists, err := pkg.HasType(rt)
 	if !exists {
@@ -89,7 +117,7 @@ func (pkg *Package) NameForType(rt reflect.Type) string {
 
 // panics of rt (or a pointer to it) was not registered.
 func (pkg *Package) TypeURLForType(rt reflect.Type) string {
-	name := pkg.NameForType(rt)
+	name := pkg.FullNameForType(rt)
 	return "/" + name
 }
 

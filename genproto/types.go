@@ -21,7 +21,9 @@ import (
 
 type P3Type interface {
 	AssertIsP3Type()
-	GetPackage() string // proto3 package prefix
+	GetPackage() string  // proto3 package prefix
+	GetName() string     // proto3 name
+	GetFullName() string // proto3 full name
 }
 
 func (P3ScalarType) AssertIsP3Type()  {}
@@ -29,7 +31,9 @@ func (P3MessageType) AssertIsP3Type() {}
 
 type P3ScalarType string
 
-func (P3ScalarType) GetPackage() string { return "" }
+func (P3ScalarType) GetPackage() string     { return "" }
+func (st P3ScalarType) GetName() string     { return string(st) }
+func (st P3ScalarType) GetFullName() string { return string(st) }
 
 const (
 	P3ScalarTypeDouble   P3ScalarType = "double"
@@ -81,7 +85,7 @@ func NewP3MessageType(pkg string, name string) P3MessageType {
 }
 
 var (
-	P3AnyType P3MessageType = NewP3MessageType("", "Any")
+	P3AnyType P3MessageType = NewP3MessageType("google.protobuf", "Any")
 )
 
 // May be empty if it isn't set (for locally declared messages).
@@ -89,16 +93,24 @@ func (p3mt P3MessageType) GetPackage() string {
 	return p3mt.Package
 }
 
-func (p3mt *P3MessageType) SetOmitPackage() {
-	p3mt.OmitPackage = true
+func (p3mt P3MessageType) GetName() string {
+	return p3mt.Name
 }
 
-func (p3mt P3MessageType) String() string {
+func (p3mt P3MessageType) GetFullName() string {
 	if p3mt.OmitPackage || p3mt.Package == "" {
 		return p3mt.Name
 	} else {
 		return fmt.Sprintf("%v.%v", p3mt.Package, p3mt.Name)
 	}
+}
+
+func (p3mt *P3MessageType) SetOmitPackage() {
+	p3mt.OmitPackage = true
+}
+
+func (p3mt P3MessageType) String() string {
+	return p3mt.GetFullName()
 }
 
 // NOTE: P3Doc and its fields are meant to hold basic AST-like information.  No

@@ -26,7 +26,7 @@ func TestBasic(t *testing.T) {
 package test;
 
 // imports
-import "proto/github.com/tendermint/go-amino/genproto/example/submodule2/types.proto";`)
+import "github.com/tendermint/go-amino/genproto/example/submodule2/types.proto";`)
 
 	p3doc, err = p3c.GenerateProto3Schema("test", reflect.TypeOf(obj))
 	assert.Nil(t, err)
@@ -34,7 +34,7 @@ import "proto/github.com/tendermint/go-amino/genproto/example/submodule2/types.p
 package test;
 
 // imports
-import "proto/github.com/tendermint/go-amino/genproto/example/submodule2/types.proto";
+import "github.com/tendermint/go-amino/genproto/example/submodule2/types.proto";
 
 // messages
 message StructSM {

@@ -2,7 +2,7 @@ syntax = "proto3";
 package main;
 
 // imports
-import "proto/github.com/tendermint/go-amino/genproto/example/submodule/types.proto";
+import "github.com/tendermint/go-amino/genproto/example/submodule/types.proto";
 import "google/protobuf/any.proto";
 
 // messages

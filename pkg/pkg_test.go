@@ -38,7 +38,7 @@ func TestNewPackage(t *testing.T) {
 	assert.NotNil(t, pkg)
 }
 
-func TestNameForType(t *testing.T) {
+func TestFullNameForType(t *testing.T) {
 	// The Go package depends on how this test is invoked.
 	// Sometimes it is "github.com/tendermint/go-amino/packagepkg_test".
 	// Sometimes it is "command-line-arguments"
@@ -46,7 +46,7 @@ func TestNameForType(t *testing.T) {
 	gopkg := reflect.TypeOf(Foo{}).PkgPath()
 	pkg := NewPackage(gopkg, "some.path", "").WithTypes(Foo{})
 
-	assert.Equal(t, pkg.NameForType(reflect.TypeOf(Foo{})), "some.path.Foo")
+	assert.Equal(t, pkg.FullNameForType(reflect.TypeOf(Foo{})), "some.path.Foo")
 
 	typeURL := pkg.TypeURLForType(reflect.TypeOf(Foo{}))
 	assert.False(t, strings.Contains(typeURL[1:], "/"))
@@ -54,12 +54,12 @@ func TestNameForType(t *testing.T) {
 }
 
 // If the struct wasn't registered, you can't get a name or type_url for it.
-func TestNameForUnexpectedType(t *testing.T) {
+func TestFullNameForUnexpectedType(t *testing.T) {
 	gopkg := reflect.TypeOf(Foo{}).PkgPath()
 	pkg := NewPackage(gopkg, "some.path", "")
 
 	assert.Panics(t, func() {
-		pkg.NameForType(reflect.TypeOf(Foo{}))
+		pkg.FullNameForType(reflect.TypeOf(Foo{}))
 	})
 
 	assert.Panics(t, func() {

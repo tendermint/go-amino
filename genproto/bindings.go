@@ -1,31 +1,54 @@
 package genproto
 
 import (
+	"fmt"
 	"go/ast"
+	"go/token"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/tendermint/go-amino"
 )
 
-// Given genproto generated schema files for Go objects, generate mappers to
-// and from pb messages.  The purpose of this is to let Amino use
-// already-optimized probuf logic for serialization.
+// Given genproto generated schema files for Go objects, generate
+// mappers to and from pb messages.  The purpose of this is to let Amino
+// use already-optimized probuf logic for serialization.
+//
+// pbpkg is the import path to the pb compiled message structs.
+// Regardless of the import path, the local pkg identifier is
+// always "pbpkg"
+func GenerateProtoBindings(pi *amino.Package, pbpkg string) (file *ast.File) {
 
-func GenerateProtoBindings(pi *amino.Package, genpkg string) (file *ast.File, err error) {
+	// for TypeInfos.
+	cdc := amino.NewCodec()
+	cdc.RegisterPackage(pi)
+
 	file = &ast.File{
 		Name:  astId(pi.GoPkg),
 		Decls: nil,
 	}
+
 	for _, type_ := range pi.Types {
-		bindings, err := GenerateProtoBindingsForType(pi, type_, genpkg)
+		info, err := cdc.GetTypeInfo(type_)
 		if err != nil {
-			return nil, err
+			panic(err)
 		}
+		if info.Type.Kind() != reflect.Struct {
+			continue // Maybe consider supporting more.
+		}
+
+		// Generate translation functions.
+		bindings := GenerateProtoBindingsForType(pi, info)
 		file.Decls = append(file.Decls, bindings.toProto)
 		file.Decls = append(file.Decls, bindings.fromProto)
+
+		// Generate common methods.
+		decls := GenerateCommonMethodsForType(pi, info)
+		file.Decls = append(file.Decls, decls...)
 	}
-	return file, nil
+	return file
 }
 
 type protoBindings struct {
@@ -35,21 +58,151 @@ type protoBindings struct {
 	fromProto *ast.FuncDecl
 }
 
-func GenerateProtoBindingsForType(pi *amino.Package, type_ reflect.Type, genpkg string) (protoBindings, error) {
-	toProto := astFunc("ToPBMessage",
-		"o", type_.Name(),
-		astFields(),
-		astFields("msg", "proto.Message", "err", "error"),
-		nil,
-	)
-	fromProto := astFunc("FromPBMessage",
-		"o", type_.Name(),
-		astFields("msg", "proto.Message"),
-		astFields("err", "error"),
-		nil,
-	)
-	return protoBindings{toProto, fromProto}, nil
+func GenerateProtoBindingsForType(pi *amino.Package, info *amino.TypeInfo) (bindings protoBindings) {
+	if info.Type.Kind() != reflect.Struct {
+		panic("not yet supported")
+	}
+
+	//////////////////
+	// ToPBMessage()
+	{
+		var body = []ast.Stmt{}
+		// Body: constructor for pb message.
+		body = append(body, astDefine1(
+			astExpr("pb"), astExpr("err"),
+			astExpr("new(pbpkg."+info.Type.Name()+")"),
+		))
+
+		// Body: copying over fields.
+		for _, field := range info.Fields {
+			// If interface/any, special translation.
+			if field.Type.Kind() == reflect.Interface {
+				body = append(body, astDefine1(
+					astExpr("typeUrl"),
+					astExpr("o.GetTypeUrl()"),
+					// see GenerateCommonMethodForType().
+				))
+				body = append(body, astDefine1(
+					astExpr("bz"), astExpr("err"),
+					astExpr("cdc.MarshalBinaryBare(o."+field.Name+")"),
+				))
+				body = append(body, astIf(
+					astExpr("err!=nil"),
+					astReturn(),
+				))
+				body = append(body, astAssign1(
+					astExpr("pb."+field.Name),
+					astExpr("anypb.Any{TypeUrl:typeUrl,Value:bz}"),
+				))
+			} else {
+				// General translation.
+				// TODO: ensure correctness of casting.
+				body = append(body, astAssign1(
+					astExpr("pb."+field.Name),
+					astExpr("o."+field.Name),
+				))
+			}
+		}
+		// Body: return value.
+		body = append(body, astAssign2(
+			astExpr("msg"),
+			astExpr("pb"),
+		))
+		body = append(body, astReturn())
+
+		// Set toProto function.
+		bindings.toProto = astFunc("ToPBMessage",
+			"o", info.Type.Name(),
+			astFields("cdc", "*amino.Codec"),
+			astFields("msg", "proto.Message", "err", "error"),
+			astBlock(body...),
+		)
+	}
+
+	//////////////////
+	// FromPBMessage()
+	{
+		var body = []ast.Stmt{}
+
+		// Body: constructor for pb message.
+		body = append(body, astDefine1(
+			astExpr("err"),
+			astExpr("error(nil)"),
+			astExpr("pb"),
+			astExpr("*pbpkg."+info.Type.Name()+"(nil)"),
+		))
+
+		// Body: type assert to pb.
+		body = append(body, astAssign1(
+			astExpr("pb"),
+			astExpr("msg.(*pbpkg."+info.Type.Name()+")"),
+		))
+
+		// Body: copying over fields.
+		for _, field := range info.Fields {
+			// If interface/any, special translation.
+			if field.Type.Kind() == reflect.Interface {
+				body = append(body,
+					astDefine1(
+						astExpr("any"),
+						astExpr("pb."+field.Name),
+					),
+					astDefine1(
+						astExpr("typeUrl"),
+						astExpr("any.TypeUrl"),
+						astExpr("bz"),
+						astExpr("any.Value"),
+					),
+					astDefine1(
+						astExpr("err"),
+						astExpr("cdc.UnmarshalBinaryAny(typeUrl,bz, &o."+field.Name+")"),
+					),
+					astIf(
+						astExpr("err!=nil"),
+						astReturn(),
+					),
+				)
+			} else {
+				// General translation.
+				// TODO: ensure correctness of casting.
+				body = append(body, astAssign1(
+					astExpr("pb."+field.Name),
+					astExpr("o."+field.Name),
+				))
+			}
+		}
+		// Body: return value.
+		body = append(body, astAssign2(
+			astExpr("msg"),
+			astExpr("pb"),
+		))
+		body = append(body, astReturn())
+
+		bindings.fromProto = astFunc("FromPBMessage",
+			"o", "*"+info.Type.Name(),
+			astFields("cdc", "*amino.Codec", "msg", "proto.Message"),
+			astFields("err", "error"),
+			astBlock(body...),
+		)
+	}
+	return
 }
+
+func GenerateCommonMethodsForType(pi *amino.Package, info *amino.TypeInfo) (decls []ast.Decl) {
+	return []ast.Decl{
+		astFunc("GetTypeURL",
+			"", info.Type.Name(),
+			astFields(),
+			astFields("typeURL", "string"),
+			astBlock(
+				astReturn(astString(info.TypeURL)),
+			),
+		),
+	}
+}
+
+//----------------------------------------
+// ast convenience
 
 func astId(name string) *ast.Ident {
 	return &ast.Ident{Name: name}
@@ -122,9 +275,19 @@ func astFields(args ...string) *ast.FieldList {
 }
 
 // Parses simple expressions (but not all).
-// Useful for parsing strings to ast nodes, like
-// foo.bar["qwe"] or *bytes.Buffer
+// Useful for parsing strings to ast nodes, like foo.bar["qwe"](),
+// new(bytes.Buffer), *bytes.Buffer, package.MyStruct{FieldA:1}, numeric
+//  * num/char (e.g. e.g. 42, 0x7f, 3.14, 1e-9, 2.4i, 'a', '\x7f')
+//  * strings (e.g. "foo" or `\m\n\o`), nil, function calls
+//  * square bracket indexing
+//  * dot notation
+//  * star expression for pointers
+//  * struct construction
+//  * nil
+//  * type assertions, for EXPR.(EXPR) and also EXPR.(type).
+// NOTE: If the implementation isn't intuitive, it doesn't belong here.
 func astExpr(expr string) ast.Expr {
+	fmt.Println("EXPR ", expr)
 	if expr == "" {
 		panic("astExpr requires argument")
 	}
@@ -133,18 +296,281 @@ func astExpr(expr string) ast.Expr {
 			X: astExpr(expr[1:]),
 		}
 	}
-	if expr[len(expr)-1] == ']' {
-		idx := strings.LastIndex(expr, "[")
+	lastChar := expr[len(expr)-1]
+	switch lastChar {
+	case 'l':
+		if expr == "nil" {
+			return astId("nil")
+		}
+	case 'i':
+		num := astExpr(expr[:len(expr)-1]).(*ast.BasicLit)
+		if num.Kind != token.INT && num.Kind != token.FLOAT {
+			panic("expected int or float before 'i'")
+		}
+		num.Kind = token.IMAG
+		return num
+	case '\'':
+		firstChar := expr[0]
+		if firstChar != lastChar {
+			panic("unmatched quote")
+		}
+		return &ast.BasicLit{
+			Kind:  token.CHAR,
+			Value: string(expr[1 : len(expr)-1]),
+		}
+	case '"', '`':
+		firstChar := expr[0]
+		if firstChar != lastChar {
+			panic("unmatched quote")
+		}
+		return &ast.BasicLit{
+			Kind:  token.STRING,
+			Value: string(expr),
+		}
+	case ')':
+		left, _, right := chopRight(expr)
+		if left == "" {
+			// Special case, not a function call.
+			return astExpr(right)
+		} else if left[len(left)-1] == '.' {
+			// Special case, a type assert.
+			var x, t ast.Expr = astExpr(left), nil
+			if right == "type" {
+				t = nil
+			} else {
+				t = astExpr(right)
+			}
+			return &ast.TypeAssertExpr{
+				X:    x,
+				Type: t,
+			}
+		}
+
+		var fn = astExpr(left)
+		var args = []ast.Expr{}
+		parts := strings.Split(right, ",")
+		for _, part := range parts {
+			// NOTE: repeated commas have no effect,
+			// nor do trailing commas.
+			if len(part) > 0 {
+				args = append(args, astExpr(part))
+			}
+		}
+		return &ast.CallExpr{
+			Fun:  fn,
+			Args: args,
+		}
+	case '}':
+		left, _, right := chopRight(expr)
+		parts := strings.Split(right, ",")
+		var ty = astExpr(left)
+		var elts = []ast.Expr{}
+		for _, part := range parts {
+			elts = append(elts, astKVExpr(part))
+		}
+		return &ast.CompositeLit{
+			Type:       ty,
+			Elts:       elts,
+			Incomplete: false,
+		}
+	case ']':
+		left, _, right := chopRight(expr)
 		return &ast.IndexExpr{
-			X:     astExpr(expr[:idx]),
-			Index: astExpr(expr[idx+1 : len(expr)-1]),
+			X:     astExpr(left),
+			Index: astExpr(right),
 		}
 	}
-	if sel := strings.LastIndex(expr, "."); sel != -1 {
+	// Numeric int?
+	const (
+		DGTS = `(?:[0-9]+)`
+		HExX = `(?:0[xX][0-9a-fA-F]+)`
+		PSCI = `(?:[eE]+?[0-9]+)`
+		NSCI = `(?:[eE]-[1-9][0-9]+)`
+		ASCI = `(?:[eE][-+]?[0-9]+)`
+	)
+	isInt, err := regexp.Match(
+		`^-?(?:`+
+			DGTS+`|`+
+			HExX+`)`+PSCI+`?$`,
+		[]byte(expr),
+	)
+	if err != nil {
+		panic("should not happen")
+	}
+	if isInt {
+		return &ast.BasicLit{
+			Kind:  token.INT,
+			Value: string(expr),
+		}
+	}
+	// Numeric float?
+	isFloat, err := regexp.Match(
+		`^-?(?:`+
+			DGTS+`\.`+DGTS+ASCI+`?|`+
+			DGTS+NSCI+`)$`,
+		[]byte(expr),
+	)
+	if err != nil {
+		panic("should not happen")
+	}
+	if isFloat {
+		return &ast.BasicLit{
+			Kind:  token.FLOAT,
+			Value: string(expr),
+		}
+	}
+	// Doesn't end with a special character.
+	if idx := strings.LastIndex(expr, "."); idx != -1 {
+		fmt.Println("SELECTOR", expr)
 		return &ast.SelectorExpr{
-			X:   astExpr(expr[:sel]),
-			Sel: astId(expr[sel+1:]),
+			X:   astExpr(expr[:idx]),
+			Sel: astId(expr[idx+1:]),
 		}
 	}
 	return astId(expr)
+}
+
+func astKVExpr(kv string) *ast.KeyValueExpr {
+	fmt.Println("!!", kv)
+	parts := strings.Split(kv, ":")
+	if len(parts) != 2 {
+		panic("astKVExpr requires 1 colon")
+	}
+	return &ast.KeyValueExpr{
+		Key:   astExpr(parts[0]),
+		Value: astExpr(parts[1]),
+	}
+}
+
+func astBlock(body ...ast.Stmt) *ast.BlockStmt {
+	return &ast.BlockStmt{
+		List: body,
+	}
+}
+
+// the last argument is destructured.
+func astAssign1(exprs ...ast.Expr) *ast.AssignStmt {
+	return &ast.AssignStmt{
+		Lhs: exprs[:len(exprs)-1],
+		Tok: token.ASSIGN,
+		Rhs: exprs[len(exprs)-1:],
+	}
+}
+
+// even and odd arguments are paired.
+func astAssign2(exprs ...ast.Expr) *ast.AssignStmt {
+	even := []ast.Expr{}
+	odd := []ast.Expr{}
+	for i := 0; i < len(exprs); i += 2 {
+		even = append(even, exprs[i])
+		odd = append(odd, exprs[i+1])
+	}
+	return &ast.AssignStmt{
+		Lhs: even,
+		Tok: token.ASSIGN,
+		Rhs: odd,
+	}
+}
+
+// the last argument is destructured.
+func astDefine1(exprs ...ast.Expr) *ast.AssignStmt {
+	return &ast.AssignStmt{
+		Lhs: exprs[:len(exprs)-1],
+		Tok: token.DEFINE,
+		Rhs: exprs[len(exprs)-1:],
+	}
+}
+
+// even and odd arguments are paired.
+func astDefine2(exprs ...ast.Expr) *ast.AssignStmt {
+	even := []ast.Expr{}
+	odd := []ast.Expr{}
+	for i := 0; i < len(exprs); i += 2 {
+		even = append(even, exprs[i])
+		odd = append(odd, exprs[i+1])
+	}
+	return &ast.AssignStmt{
+		Lhs: even,
+		Tok: token.DEFINE,
+		Rhs: odd,
+	}
+}
+
+func astIf(cond ast.Expr, body ...ast.Stmt) *ast.IfStmt {
+	return &ast.IfStmt{
+		Cond: cond,
+		Body: astBlock(body...),
+	}
+}
+
+func astReturn(results ...ast.Expr) *ast.ReturnStmt {
+	return &ast.ReturnStmt{
+		Results: results,
+	}
+}
+
+// Given that 'in' ends with ')', '}', or ']',
+// scan the input string until the matching opener is found.
+// Tok is the corresponding opening token.
+func chopRight(in string) (a string, tok byte, b string) {
+	var (
+		curly int = 0
+		round int = 0
+		sqare int = 0
+	)
+	done := func() bool {
+		return curly == 0 && round == 0 && sqare == 0
+	}
+	switch in[len(in)-1] {
+	case '}', ')', ']':
+		// good
+	default:
+		panic("input doesn't start with brace: " + in)
+	}
+	for i := len(in) - 1; i >= 0; i-- {
+		results := func() (string, byte, string) {
+			return in[:i], in[i], in[i+1 : len(in)-1]
+		}
+		var chr = in[i]
+		switch chr {
+		case '}':
+			curly++
+		case ')':
+			round++
+		case ']':
+			sqare++
+		case '{':
+			curly--
+			if curly < 0 {
+				panic("mismatched curly: " + in)
+			}
+			if done() {
+				return results()
+			}
+		case '(':
+			round--
+			if round < 0 {
+				panic("mismatched round: " + in)
+			}
+			if done() {
+				return results()
+			}
+		case '[':
+			sqare--
+			if sqare < 0 {
+				panic("mismatched square: " + in)
+			}
+			if done() {
+				return results()
+			}
+		}
+	}
+	panic("mismatched braces: " + in + fmt.Sprintf("<<%v,%v,%v %v>>", curly, round, sqare, in))
+}
+
+func astString(s string) *ast.BasicLit {
+	return &ast.BasicLit{
+		Kind:  token.STRING,
+		Value: strconv.Quote(s),
+	}
 }

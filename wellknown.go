@@ -36,10 +36,10 @@ var (
 	uintType   = reflect.TypeOf(uint(0))
 
 	// google
-	gAnyType       = reflect.TypeOf(anypb.Any{})
-	gDurationType  = reflect.TypeOf(durationpb.Duration{})
-	gEmptyType     = reflect.TypeOf(emptypb.Empty{})
-	gStructType    = reflect.TypeOf(structpb.Struct{})
+	gAnyType      = reflect.TypeOf(anypb.Any{})
+	gDurationType = reflect.TypeOf(durationpb.Duration{})
+	gEmptyType    = reflect.TypeOf(emptypb.Empty{})
+	//gStructType    = reflect.TypeOf(structpb.Struct{}) MAP not yet supported
 	gValueType     = reflect.TypeOf(structpb.Value{})
 	gListType      = reflect.TypeOf(structpb.ListValue{})
 	gTimestampType = reflect.TypeOf(timestamppb.Timestamp{})
@@ -75,7 +75,7 @@ func (cdc *Codec) registerWellKnownTypes() {
 	cdc.registerType(gAnyType, "/google.protobuf.Any", ptr, register)
 	cdc.registerType(gDurationType, "/google.protobuf.Duration", ptr, preferNative)
 	cdc.registerType(gEmptyType, "/google.protobuf.Empty", ptr, register)
-	cdc.registerType(gStructType, "/google.protobuf.Struct", ptr, register)
+	// cdc.registerType(gStructType, "/google.protobuf.Struct", ptr, register) MAP not yet supported
 	cdc.registerType(gValueType, "/google.protobuf.Value", ptr, register)
 	cdc.registerType(gListType, "/google.protobuf.ListValue", ptr, register)
 	cdc.registerType(gTimestampType, "/google.protobuf.Timestamp", ptr, preferNative)
@@ -109,7 +109,7 @@ func isJSONWellKnownType(rt reflect.Type) (wellKnown bool) {
 		return true
 	// Google "well known" types.
 	case
-		gAnyType, gDurationType, gEmptyType, gStructType, gValueType,
+		gAnyType, gDurationType, gEmptyType /*gStructType,*/, gValueType,
 		gListType, gTimestampType /*,gDoubleType, gFloatType*/, gInt64Type,
 		gUInt64Type, gInt32Type, gUInt32Type, gBoolType, gStringType,
 		gBytesType:
@@ -171,7 +171,7 @@ func encodeReflectJSONWellKnown(w io.Writer, info *TypeInfo, rv reflect.Value, f
 	// TODO: port each below to above without proto dependency
 	// for marshaling code, to minimize dependencies.
 	case
-		gAnyType, gEmptyType, gStructType, gValueType,
+		gAnyType, gEmptyType /*gStructType,*/, gValueType,
 		gListType /*,gDoubleType, gFloatType*/, gInt64Type,
 		gUInt64Type, gInt32Type, gUInt32Type, gBoolType, gStringType,
 		gBytesType:
@@ -229,7 +229,7 @@ func decodeReflectJSONWellKnown(bz []byte, info *TypeInfo, rv reflect.Value, fop
 	// TODO: port each below to above without proto dependency
 	// for unmarshaling code, to minimize dependencies.
 	case
-		gAnyType, gEmptyType, gStructType, gValueType,
+		gAnyType, gEmptyType /*gStructType,*/, gValueType,
 		gListType /*,gDoubleType, gFloatType*/, gInt64Type,
 		gUInt64Type, gInt32Type, gUInt32Type, gBoolType, gStringType,
 		gBytesType:

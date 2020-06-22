@@ -322,6 +322,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 }
 
 // CONTRACT: rv.CanAddr() is true.
+// CONTRACT: rv.Kind() == reflect.Interface.
 func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv reflect.Value,
 	fopts FieldOptions, bare bool) (n int, err error) {
 	if !rv.CanAddr() {
@@ -369,6 +370,56 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 		return
 	}
 
+	// Consume second field of Value.
+	var value []byte = nil
+	var lenbz = len(bz)
+	if lenbz == 0 {
+		// Value is empty.
+	} else {
+		// Consume field key.
+		fnum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
+		if slide(&bz, &n, _n) && err != nil {
+			return
+		}
+		// fnum of greater than 2 is malformed for google.protobuf.Any,
+		// and not supported (will error).
+		if fnum != 2 || typ != Typ3ByteLength {
+			err = fmt.Errorf("expected Any field number 2 Value, got num %v typ %v", fnum, typ)
+			return
+		}
+		// Decode second field value of Value
+		// Consume second field value, a byteslice.
+		lenbz := len(bz)
+		value, _n, err = DecodeByteSlice(bz)
+		if slide(&bz, nil, _n) && err != nil {
+			return
+		}
+		// Earlier, we set bz to the byteslice read from
+		// buf.  Ensure that all of bz was consumed.
+		if len(bz) > 0 {
+			err = errors.New("bytes left over after reading Any.")
+			return
+		}
+		// Increment n by length of length prefix for
+		// value.  This lets us return the correct *n
+		// read.
+		n += lenbz - len(value)
+	}
+
+	// Decode typeURL and value to rv.
+	_n, err = cdc.decodeReflectBinaryAny(typeURL, value, rv, fopts)
+	if slide(nil, &n, _n) && err != nil {
+		return
+	}
+
+	return
+}
+
+// Returns the number of bytes read from value.
+// CONTRACT: rv.CanAddr() is true.
+// CONTRACT: rv.Kind() == reflect.Interface.
+func (cdc *Codec) decodeReflectBinaryAny(typeURL string, value []byte, rv reflect.Value, fopts FieldOptions) (n int, err error) {
+
 	// Invalid typeURL value is invalid.
 	if !IsASCIIText(typeURL) {
 		err = fmt.Errorf("invalid type_url string bytes %X", typeURL)
@@ -389,41 +440,11 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	// Special case when value is default empty value.
 	// NOTE: For compatibility with other languages,
 	// nil-pointer interface values are forbidden.
-	if len(bz) == 0 {
+	if len(value) == 0 {
 		rv.Set(irvSet)
 		return
 	}
 
-	// Consume second field key of Value.
-	fnum, typ, _n, err = decodeFieldNumberAndTyp3(bz)
-	if slide(&bz, &n, _n) && err != nil {
-		return
-	}
-	// fnum of greater than 2 is malformed for google.protobuf.Any,
-	// and not supported (will error).
-	if fnum != 2 || typ != Typ3ByteLength {
-		err = fmt.Errorf("expected Any field number 2 Value, got num %v typ %v", fnum, typ)
-		return
-	}
-	// Decode second field value of Value
-	// Consume second field value, a byteslice.
-	lenbz := len(bz)
-	value, _n, err := DecodeByteSlice(bz)
-	if slide(&bz, nil, _n) && err != nil {
-		return
-	}
-	// Earlier, we set bz to the byteslice read from buf.
-	// Ensure that all of bz was consumed.
-	if len(bz) > 0 {
-		err = errors.New("bytes left over after reading Any.")
-		return
-	}
-	// Increment n by length of length prefix for value.
-	// This lets us return the correct *n read.
-	n += lenbz - len(value)
-	// Switcharoo for convenience.
-	// From now we will read from value.
-	bz = value
 	// Now fopts field number (for unpacked lists) is reset to 1,
 	// otherwise the rest of the field options are inherited.  NOTE:
 	// make a function to abstract this.
@@ -437,14 +458,14 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	// Codec.UnmarshalBinaryBare()
 	var bareValue = true
 	if !cinfo.IsStructOrUnpacked(fopts) &&
-		len(bz) > 0 {
+		len(value) > 0 {
 		// TODO test for when !cinfo.IsStructOrUnpacked() but fopts.BinFieldNum != 1.
 		var (
 			fnum      uint32
 			typ       Typ3
 			nFnumTyp3 int
 		)
-		fnum, typ, nFnumTyp3, err = decodeFieldNumberAndTyp3(bz)
+		fnum, typ, nFnumTyp3, err = decodeFieldNumberAndTyp3(value)
 		if err != nil {
 			return n, errors.Wrap(err, "could not decode field number and type")
 		}
@@ -456,7 +477,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 			return n, fmt.Errorf("expected field type %v for # %v of %v, got %v",
 				typWanted, fnum, cinfo.Type, typ)
 		}
-		slide(&bz, &n, nFnumTyp3)
+		slide(&value, &n, nFnumTyp3)
 		// We have written the implicit struct field key.  Now what
 		// follows should be encoded with bare=false, though if typ3 !=
 		// Typ3ByteLength, bare is ignored anyways.
@@ -466,15 +487,14 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 	// Decode into the concrete type.
 	// Here is where we consume the value bytes, which are necessarily length
 	// prefixed, due to the type of field 2, so bareValue is false.
-	_n, err = cdc.decodeReflectBinary(bz, cinfo, crv, fopts, bareValue)
-	if slide(&bz, &n, _n) && err != nil {
+	_n, err := cdc.decodeReflectBinary(value, cinfo, crv, fopts, bareValue)
+	if slide(&value, &n, _n) && err != nil {
 		rv.Set(irvSet) // Helps with debugging
 		return
 	}
 
-	// Earlier, we set bz to the value byteslice read from buf.
-	// Ensure that all of bz was consumed.
-	if len(bz) > 0 {
+	// Ensure that all of value was consumed.
+	if len(value) > 0 {
 		err = errors.New("bytes left over after reading Any.Value.")
 		return
 	}

@@ -101,6 +101,14 @@ func MustUnmarshalBinaryBare(bz []byte, ptr interface{}) {
 	gcdc.MustUnmarshalBinaryBare(bz, ptr)
 }
 
+func UnmarshalBinaryAny(typeURL string, value []byte, ptr interface{}) error {
+	return gcdc.UnmarshalBinaryAny(typeURL, value, ptr)
+}
+
+func MustUnmarshalBinaryAny(typeURL string, value []byte, ptr interface{}) {
+	gcdc.MustUnmarshalBinaryAny(typeURL, value, ptr)
+}
+
 func MarshalJSON(o interface{}) ([]byte, error) {
 	return gcdc.MarshalJSON(o)
 }
@@ -159,6 +167,9 @@ func (typ Typ3) String() string {
 
 //----------------------------------------
 // *Codec methods
+
+//----------------------------------------
+// Marshal* methods
 
 // MarshalBinaryLengthPrefixed encodes the object o according to the Amino spec,
 // but prefixed by a uvarint encoding of the object to encode.
@@ -364,6 +375,9 @@ func (cdc *Codec) MustMarshalBinaryInterfaceBare(o interface{}) []byte {
 	return bz
 }
 
+//----------------------------------------
+// Unmarshal* methods
+
 // Like UnmarshalBinaryBare, but will first decode the byte-length prefix.
 // UnmarshalBinaryLengthPrefixed will panic if ptr is a nil-pointer.
 // Returns an error if not all of bz is consumed.
@@ -553,6 +567,28 @@ func (cdc *Codec) MustUnmarshalBinaryBare(bz []byte, ptr interface{}) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// UnmarshalBinaryAny decodes the registered object
+// from the Any fields.
+func (cdc *Codec) UnmarshalBinaryAny(typeURL string, value []byte, ptr interface{}) (err error) {
+	cdc.doAutoseal()
+
+	rv := reflect.ValueOf(ptr)
+	if rv.Kind() != reflect.Ptr {
+		return ErrNoPointer
+	}
+	rv = rv.Elem()
+	_, err = cdc.decodeReflectBinaryAny(typeURL, value, rv, FieldOptions{})
+	return
+}
+
+func (cdc *Codec) MustUnmarshalBinaryAny(typeURL string, value []byte, ptr interface{}) {
+	err := cdc.UnmarshalBinaryAny(typeURL, value, ptr)
+	if err != nil {
+		panic(err)
+	}
+	return
 }
 
 func (cdc *Codec) MarshalJSON(o interface{}) ([]byte, error) {

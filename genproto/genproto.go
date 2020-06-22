@@ -10,6 +10,7 @@ import (
 	"reflect"
 
 	"github.com/tendermint/go-amino"
+	anypb "google.golang.org/protobuf/types/known/anypb"
 )
 
 // TODO sort
@@ -35,7 +36,7 @@ type P3Context struct {
 	// TODO
 	// // for beyond default "type.proto"
 	// // e.g. "tendermint.abci.types" ->
-	// //   []string{"proto/github.com/tendermint/abci/types/types.proto"}}
+	// //   []string{"github.com/tendermint/abci/types/types.proto"}}
 	// moreP3Imports map[string][]string
 
 	// Proto 3 schema files are found in
@@ -47,11 +48,19 @@ type P3Context struct {
 }
 
 func NewP3Context() *P3Context {
-	return &P3Context{
+	p3c := &P3Context{
 		packages:       make(map[string]*amino.Package),
-		p3importPrefix: "proto/",
+		p3importPrefix: "",
 		cdc:            amino.NewCodec(),
 	}
+	// Register a singletone package for Any.
+	p3c.RegisterPackage(amino.NewPackage(
+		"google.golang.org/protobuf/types/known/anypb",
+		"google.protobuf",
+		"",
+	).WithP3Import("google/protobuf/any.proto").
+		WithTypes(&anypb.Any{}))
+	return p3c
 }
 
 func (p3c *P3Context) RegisterPackage(pi *amino.Package) {
@@ -120,10 +129,19 @@ func (p3c *P3Context) GetImportPath(p3type P3Type) string {
 	pkgs := p3c.GetAllPackages()
 	for _, pkg := range pkgs {
 		if pkg.P3Pkg == p3pkg {
-			return path.Join(p3c.p3importPrefix, pkg.GoPkg, "types.proto")
+			if pkg.HasName(p3type.GetName()) {
+				if pkg.P3Import != "" {
+					// For well known imports,
+					// such as google.protobuf.Any
+					return pkg.P3Import
+				} else {
+					// General case
+					return path.Join(p3c.p3importPrefix, pkg.GoPkg, "types.proto")
+				}
+			}
 		}
 	}
-	panic(fmt.Sprintf("proto3 package %v not recognized", p3pkg))
+	panic(fmt.Sprintf("proto3 type %v not recognized", p3type))
 }
 
 // Given a codec and some reflection type, generate the Proto3 message
@@ -283,6 +301,7 @@ func (p3c *P3Context) reflectTypeToP3Type(rt reflect.Type) (p3type P3Type, repea
 
 }
 
+// Writes in the same directory as the origin package.
 func WriteProto3Schemas(pkgs ...*amino.Package) {
 	for _, pkg := range pkgs {
 		p3c := NewP3Context()
