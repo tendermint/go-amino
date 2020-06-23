@@ -408,7 +408,7 @@ func (cdc *Codec) decodeReflectBinaryInterface(bz []byte, iinfo *TypeInfo, rv re
 
 	// Decode typeURL and value to rv.
 	_n, err = cdc.decodeReflectBinaryAny(typeURL, value, rv, fopts)
-	if slide(nil, &n, _n) && err != nil {
+	if slide(&value, &n, _n) && err != nil {
 		return
 	}
 

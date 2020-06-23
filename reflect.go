@@ -43,10 +43,12 @@ func checkUnsafe(field FieldInfo) {
 // CONTRACT: by the time this is called, len(bz) >= _n
 // Returns true so you can write one-liners.
 func slide(bz *[]byte, n *int, _n int) bool {
-	if _n < 0 || _n > len(*bz) {
-		panic(fmt.Sprintf("impossible slide: len:%v _n:%v", len(*bz), _n))
+	if bz != nil {
+		if _n < 0 || _n > len(*bz) {
+			panic(fmt.Sprintf("impossible slide: len:%v _n:%v", len(*bz), _n))
+		}
+		*bz = (*bz)[_n:]
 	}
-	*bz = (*bz)[_n:]
 	if n != nil {
 		*n += _n
 	}

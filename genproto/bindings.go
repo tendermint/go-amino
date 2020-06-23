@@ -125,7 +125,7 @@ func GenerateProtoBindingsForType(pi *amino.Package, info *amino.TypeInfo) (bind
 		var body = []ast.Stmt{}
 
 		// Body: constructor for pb message.
-		body = append(body, astDefine1(
+		body = append(body, astDefine2(
 			astExpr("err"),
 			astExpr("error(nil)"),
 			astExpr("pb"),
@@ -334,7 +334,7 @@ func astExpr(expr string) ast.Expr {
 			return astExpr(right)
 		} else if left[len(left)-1] == '.' {
 			// Special case, a type assert.
-			var x, t ast.Expr = astExpr(left), nil
+			var x, t ast.Expr = astExpr(left[:len(left)-1]), nil
 			if right == "type" {
 				t = nil
 			} else {
