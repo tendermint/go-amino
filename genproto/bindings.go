@@ -329,7 +329,6 @@ func astFields(args ...string) *ast.FieldList {
 //  * type assertions, for EXPR.(EXPR) and also EXPR.(type).
 // NOTE: If the implementation isn't intuitive, it doesn't belong here.
 func astExpr(expr string) ast.Expr {
-	fmt.Println("EXPR ", expr)
 	if expr == "" {
 		panic("astExpr requires argument")
 	}
@@ -463,7 +462,6 @@ func astExpr(expr string) ast.Expr {
 	}
 	// Doesn't end with a special character.
 	if idx := strings.LastIndex(expr, "."); idx != -1 {
-		fmt.Println("SELECTOR", expr)
 		return &ast.SelectorExpr{
 			X:   astExpr(expr[:idx]),
 			Sel: astId(expr[idx+1:]),

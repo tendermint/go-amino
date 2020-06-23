@@ -31,7 +31,7 @@ import "github.com/tendermint/go-amino/genproto/example/submodule2/types.proto";
 	p3doc, err = p3c.GenerateProto3SchemaForTypes(sm1.Package, reflect.TypeOf(obj))
 	assert.Nil(t, err)
 	assert.Equal(t, p3doc.Print(), `syntax = "proto3";
-package test;
+package submodule;
 
 // imports
 import "github.com/tendermint/go-amino/genproto/example/submodule2/types.proto";
