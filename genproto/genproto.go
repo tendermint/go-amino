@@ -63,28 +63,28 @@ func NewP3Context() *P3Context {
 	return p3c
 }
 
-func (p3c *P3Context) RegisterPackage(pi *amino.Package) {
-	pkgs := crawlPackages(pi, nil)
+func (p3c *P3Context) RegisterPackage(pkg *amino.Package) {
+	pkgs := crawlPackages(pkg, nil)
 	for _, pkg := range pkgs {
 		p3c.registerPackage(pkg)
 	}
 }
 
-func (p3c *P3Context) registerPackage(pi *amino.Package) {
-	if found, ok := p3c.packages[pi.GoPkg]; ok {
-		if found != pi {
-			panic(fmt.Errorf("found conflicting package mapping, %v -> %v but trying to overwrite with -> %v", pi.GoPkg, found, pi))
+func (p3c *P3Context) registerPackage(pkg *amino.Package) {
+	if found, ok := p3c.packages[pkg.GoPkg]; ok {
+		if found != pkg {
+			panic(fmt.Errorf("found conflicting package mappkgng, %v -> %v but trying to overwrite with -> %v", pkg.GoPkg, found, pkg))
 		}
 	}
-	p3c.packages[pi.GoPkg] = pi
+	p3c.packages[pkg.GoPkg] = pkg
 }
 
 func (p3c *P3Context) GetPackage(gopkg string) *amino.Package {
-	pi, ok := p3c.packages[gopkg]
+	pkg, ok := p3c.packages[gopkg]
 	if !ok {
 		panic(fmt.Sprintf("package info unrecognized for %v (not registered directly nor indirectly as dependency", gopkg))
 	}
-	return pi
+	return pkg
 }
 
 // For a given package info, crawl and discover all package infos.
@@ -202,15 +202,15 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 
 // Given the arguments, create a new P3Doc.
 // pkg is optional.
-func (p3c *P3Context) GenerateProto3Schema(p3pkg string, rtz ...reflect.Type) (p3doc P3Doc, err error) {
+func (p3c *P3Context) GenerateProto3SchemaForTypes(pkg *amino.Package, rtz ...reflect.Type) (p3doc P3Doc, err error) {
 
-	if p3pkg == "" {
+	if pkg.P3Pkg == "" {
 		err = errors.New("cannot generate schema in the root package \"\".")
 		return
 	}
 
 	// Set the package.
-	p3doc.Package = p3pkg
+	p3doc.Package = pkg.P3Pkg
 
 	// Set Message schemas.
 	for _, rt := range rtz {
@@ -225,9 +225,9 @@ func (p3c *P3Context) GenerateProto3Schema(p3pkg string, rtz ...reflect.Type) (p
 }
 
 // Convenience.
-func (p3c *P3Context) WriteProto3Schema(filename string, p3pkg string, rtz ...reflect.Type) (err error) {
-	fmt.Printf("writing proto3 schema to %v for package %v\n", filename, p3pkg)
-	p3doc, err := p3c.GenerateProto3Schema(p3pkg, rtz...)
+func (p3c *P3Context) WriteProto3SchemaForTypes(filename string, pkg *amino.Package, rtz ...reflect.Type) (err error) {
+	fmt.Printf("writing proto3 schema to %v for package %v\n", filename, pkg.P3Pkg)
+	p3doc, err := p3c.GenerateProto3SchemaForTypes(pkg, rtz...)
 	if err != nil {
 		return err
 	}
@@ -308,7 +308,7 @@ func WriteProto3Schemas(pkgs ...*amino.Package) {
 		p3c.RegisterPackage(pkg)
 		p3c.ValidateBasic()
 		filename := path.Join(pkg.Dirname, "types.proto")
-		err := p3c.WriteProto3Schema(filename, pkg.P3Pkg, pkg.Types...)
+		err := p3c.WriteProto3SchemaForTypes(filename, pkg, pkg.Types...)
 		if err != nil {
 			panic(err)
 		}

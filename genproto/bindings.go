@@ -1,9 +1,13 @@
 package genproto
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
+	"go/printer"
 	"go/token"
+	"io/ioutil"
+	"path"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -19,46 +23,84 @@ import (
 // pbpkg is the import path to the pb compiled message structs.
 // Regardless of the import path, the local pkg identifier is
 // always "pbpkg"
-func GenerateProtoBindings(pi *amino.Package, pbpkg string) (file *ast.File) {
+func GenerateProtoBindingsForTypes(pkg *amino.Package, rtz ...reflect.Type) (file *ast.File, err error) {
 
 	// for TypeInfos.
 	cdc := amino.NewCodec()
-	cdc.RegisterPackage(pi)
+	cdc.RegisterPackage(pkg)
 
 	file = &ast.File{
-		Name:  astId(pi.GoPkg),
+		Name:  astId(pkg.GoPkg),
 		Decls: nil,
 	}
 
-	for _, type_ := range pi.Types {
+	for _, type_ := range rtz {
 		info, err := cdc.GetTypeInfo(type_)
 		if err != nil {
-			panic(err)
+			return file, err
 		}
 		if info.Type.Kind() != reflect.Struct {
 			continue // Maybe consider supporting more.
 		}
 
 		// Generate translation functions.
-		bindings := GenerateProtoBindingsForType(pi, info)
+		bindings, err := generateTranslationMethodsForType(pkg, info)
+		if err != nil {
+			return file, err
+		}
 		file.Decls = append(file.Decls, bindings.toProto)
 		file.Decls = append(file.Decls, bindings.fromProto)
 
 		// Generate common methods.
-		decls := GenerateCommonMethodsForType(pi, info)
+		decls, err := generateCommonMethodsForType(pkg, info)
+		if err != nil {
+			return file, err
+		}
 		file.Decls = append(file.Decls, decls...)
 	}
-	return file
+	return file, nil
 }
 
-type protoBindings struct {
+// Writes in the same directory as the origin package.
+// Assumes pb imports in origGoPkg+"/pb".
+func WriteProtoBindings(pkgs ...*amino.Package) {
+	for _, pkg := range pkgs {
+		filename := path.Join(pkg.Dirname, "pb_bindings.go")
+		fmt.Printf("writing proto3 bindings to %v for package %v\n", filename, pkg)
+		err := WriteProtoBindingsForTypes(filename, pkg, pkg.Types...)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func WriteProtoBindingsForTypes(filename string, pkg *amino.Package, rtz ...reflect.Type) (err error) {
+	var buf bytes.Buffer
+	var fset = token.NewFileSet()
+	var file *ast.File
+	file, err = GenerateProtoBindingsForTypes(pkg, rtz...)
+	if err != nil {
+		return
+	}
+	err = printer.Fprint(&buf, fset, file)
+	if err != nil {
+		return
+	}
+	err = ioutil.WriteFile(filename, buf.Bytes(), 0644)
+	if err != nil {
+		return
+	}
+	return
+}
+
+type translationBindings struct {
 	// func (Obj) ToPBMessage() (proto.Message, error)
 	toProto *ast.FuncDecl
 	// func (*Obj) FromPBMessage(proto.Message) (error)
 	fromProto *ast.FuncDecl
 }
 
-func GenerateProtoBindingsForType(pi *amino.Package, info *amino.TypeInfo) (bindings protoBindings) {
+func generateTranslationMethodsForType(pkg *amino.Package, info *amino.TypeInfo) (bindings translationBindings, err error) {
 	if info.Type.Kind() != reflect.Struct {
 		panic("not yet supported")
 	}
@@ -80,7 +122,7 @@ func GenerateProtoBindingsForType(pi *amino.Package, info *amino.TypeInfo) (bind
 				body = append(body, astDefine1(
 					astExpr("typeUrl"),
 					astExpr("o.GetTypeUrl()"),
-					// see GenerateCommonMethodForType().
+					// see generateCommonMethodForType().
 				))
 				body = append(body, astDefine1(
 					astExpr("bz"), astExpr("err"),
@@ -188,7 +230,7 @@ func GenerateProtoBindingsForType(pi *amino.Package, info *amino.TypeInfo) (bind
 	return
 }
 
-func GenerateCommonMethodsForType(pi *amino.Package, info *amino.TypeInfo) (decls []ast.Decl) {
+func generateCommonMethodsForType(pkg *amino.Package, info *amino.TypeInfo) (decls []ast.Decl, err error) {
 	return []ast.Decl{
 		astFunc("GetTypeURL",
 			"", info.Type.Name(),
@@ -198,7 +240,7 @@ func GenerateCommonMethodsForType(pi *amino.Package, info *amino.TypeInfo) (decl
 				astReturn(astString(info.TypeURL)),
 			),
 		),
-	}
+	}, nil
 }
 
 //----------------------------------------
@@ -431,7 +473,6 @@ func astExpr(expr string) ast.Expr {
 }
 
 func astKVExpr(kv string) *ast.KeyValueExpr {
-	fmt.Println("!!", kv)
 	parts := strings.Split(kv, ":")
 	if len(parts) != 2 {
 		panic("astKVExpr requires 1 colon")

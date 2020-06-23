@@ -190,7 +190,6 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 			err = errors.Errorf("expected JSON object but got %s", value)
 			return
 		}
-		fmt.Println("!!3")
 		// Write TypeURL
 		err = writeStr(w, _fmt(`{"@type":"%s"`, cinfo.TypeURL))
 		if err != nil {

@@ -7,13 +7,13 @@ import (
 	"go/printer"
 	"go/token"
 
-	"github.com/davecgh/go-spew/spew"
+	"github.com/jaekwon/testify/assert"
 	"github.com/tendermint/go-amino/tests"
 )
 
 func TestGenerateProtoBindings(t *testing.T) {
-	file := GenerateProtoBindings(tests.Package, "pb")
-	spew.Dump(file)
+	file, err := GenerateProtoBindingsForTypes(tests.Package, tests.Package.Types...)
+	assert.NoError(t, err)
 	t.Logf("%v", file)
 
 	// Print the function body into buffer buf.

@@ -39,6 +39,8 @@ func main() {
 	// their .go origins.
 	genproto.WriteProto3Schemas(packages...)
 
+	genproto.WriteProtoBindings(packages...)
+
 	/*
 
 		// Before running protoc, gather
