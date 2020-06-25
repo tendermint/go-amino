@@ -34,12 +34,18 @@ func main() {
 		submodule2.Package,
 	}
 
-	// Defined in genproto.go.
-	// These will generate .proto files next to
-	// their .go origins.
-	genproto.WriteProto3Schemas(packages...)
+	for _, pkg := range packages {
+		// Defined in genproto.go.
+		// These will generate .proto files next to
+		// their .go origins.
+		genproto.WriteProto3Schema(pkg)
 
-	genproto.WriteProtoBindings(packages...)
+		// Generate Go code from .proto files generated above.
+		genproto.MakeProtoFolder(pkg, "proto")
+
+		// Generate bindings.go for other methods.
+		genproto.WriteProtoBindings(pkg)
+	}
 
 	/*
 

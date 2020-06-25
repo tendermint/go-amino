@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path"
 	"reflect"
 
@@ -14,11 +15,12 @@ import (
 )
 
 // TODO sort
-//  * Proto3 import file paths are by default always full (including domain)
-//    and basically the p3importPrefix plus the gopkg path.
-//    This lets proto3 schema import paths stay consistent even as dependency.
-//  * In the go mod world, the user is expected to run an independent tool
-//    to copy proto files to the p3importPrefix folder from go mod dependencies.
+//  * Proto3 import file paths are by default always full (including
+//  domain) and basically the gopkg path.  This lets proto3 schema
+//  import paths stay consistent even as dependency.
+//  * In the go mod world, the user is expected to run an independent
+//  tool to copy proto files to a proto folder from go mod dependencies.
+//  This is provided by MakeProtoFilder().
 
 // P3Context holds contextual information beyond the P3Doc.
 //
@@ -39,26 +41,22 @@ type P3Context struct {
 	// //   []string{"github.com/tendermint/abci/types/types.proto"}}
 	// moreP3Imports map[string][]string
 
-	// Proto 3 schema files are found in
-	// "{p3importPrefix}{gopkg}/types.proto"
-	p3importPrefix string
-
 	// This is only necessary to construct TypeInfo.
 	cdc *amino.Codec
 }
 
 func NewP3Context() *P3Context {
 	p3c := &P3Context{
-		packages:       make(map[string]*amino.Package),
-		p3importPrefix: "",
-		cdc:            amino.NewCodec(),
+		packages: make(map[string]*amino.Package),
+		cdc:      amino.NewCodec(),
 	}
 	// Register a singletone package for Any.
 	p3c.RegisterPackage(amino.NewPackage(
 		"google.golang.org/protobuf/types/known/anypb",
 		"google.protobuf",
 		"",
-	).WithP3Import("google/protobuf/any.proto").
+	).WithP3ImportPath("google/protobuf/any.proto").
+		WithP3ImportFile("").
 		WithTypes(&anypb.Any{}))
 	return p3c
 }
@@ -71,12 +69,12 @@ func (p3c *P3Context) RegisterPackage(pkg *amino.Package) {
 }
 
 func (p3c *P3Context) registerPackage(pkg *amino.Package) {
-	if found, ok := p3c.packages[pkg.GoPkg]; ok {
+	if found, ok := p3c.packages[pkg.GoPkgPath]; ok {
 		if found != pkg {
-			panic(fmt.Errorf("found conflicting package mappkgng, %v -> %v but trying to overwrite with -> %v", pkg.GoPkg, found, pkg))
+			panic(fmt.Errorf("found conflicting package mappkgng, %v -> %v but trying to overwrite with -> %v", pkg.GoPkgPath, found, pkg))
 		}
 	}
-	p3c.packages[pkg.GoPkg] = pkg
+	p3c.packages[pkg.GoPkgPath] = pkg
 }
 
 func (p3c *P3Context) GetPackage(gopkg string) *amino.Package {
@@ -124,20 +122,16 @@ func (p3c *P3Context) ValidateBasic() {
 	// pkgs := p3c.GetAllPackages()
 }
 
-func (p3c *P3Context) GetImportPath(p3type P3Type) string {
+// TODO: This could live as a method of the package, and only crawl the
+// dependencies of that package.  But a method implemented on P3Context
+// should function like this and print an intelligent error.
+func (p3c *P3Context) GetP3ImportPath(p3type P3Type) string {
 	p3pkg := p3type.GetPackage()
 	pkgs := p3c.GetAllPackages()
 	for _, pkg := range pkgs {
-		if pkg.P3Pkg == p3pkg {
+		if pkg.P3PkgName == p3pkg {
 			if pkg.HasName(p3type.GetName()) {
-				if pkg.P3Import != "" {
-					// For well known imports,
-					// such as google.protobuf.Any
-					return pkg.P3Import
-				} else {
-					// General case
-					return path.Join(p3c.p3importPrefix, pkg.GoPkg, "types.proto")
-				}
+				return pkg.P3ImportPath
 			}
 		}
 	}
@@ -183,7 +177,7 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 		// If the field package different, add the import to p3doc.
 		if field.Type.PkgPath() != pkgPath {
 			if p3FieldType.GetPackage() != "" {
-				importPath := p3c.GetImportPath(p3FieldType)
+				importPath := p3c.GetP3ImportPath(p3FieldType)
 				p3doc.AddImport(importPath)
 			}
 		}
@@ -204,13 +198,13 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 // pkg is optional.
 func (p3c *P3Context) GenerateProto3SchemaForTypes(pkg *amino.Package, rtz ...reflect.Type) (p3doc P3Doc, err error) {
 
-	if pkg.P3Pkg == "" {
+	if pkg.P3PkgName == "" {
 		err = errors.New("cannot generate schema in the root package \"\".")
 		return
 	}
 
 	// Set the package.
-	p3doc.Package = pkg.P3Pkg
+	p3doc.Package = pkg.P3PkgName
 
 	// Set Message schemas.
 	for _, rt := range rtz {
@@ -226,7 +220,7 @@ func (p3c *P3Context) GenerateProto3SchemaForTypes(pkg *amino.Package, rtz ...re
 
 // Convenience.
 func (p3c *P3Context) WriteProto3SchemaForTypes(filename string, pkg *amino.Package, rtz ...reflect.Type) (err error) {
-	fmt.Printf("writing proto3 schema to %v for package %v\n", filename, pkg.P3Pkg)
+	fmt.Printf("writing proto3 schema to %v for package %v\n", filename, pkg)
 	p3doc, err := p3c.GenerateProto3SchemaForTypes(pkg, rtz...)
 	if err != nil {
 		return err
@@ -294,7 +288,7 @@ func (p3c *P3Context) reflectTypeToP3Type(rt reflect.Type) (p3type P3Type, repea
 	case reflect.Struct:
 		// Look up the p3pkg type from p3 context.
 		pkg := p3c.GetPackage(info.Type.PkgPath())
-		return NewP3MessageType(pkg.P3Pkg, info.Type.Name()), false
+		return NewP3MessageType(pkg.P3PkgName, info.Type.Name()), false
 	default:
 		panic("unexpected rt kind")
 	}
@@ -302,13 +296,69 @@ func (p3c *P3Context) reflectTypeToP3Type(rt reflect.Type) (p3type P3Type, repea
 }
 
 // Writes in the same directory as the origin package.
-func WriteProto3Schemas(pkgs ...*amino.Package) {
-	for _, pkg := range pkgs {
-		p3c := NewP3Context()
-		p3c.RegisterPackage(pkg)
-		p3c.ValidateBasic()
-		filename := path.Join(pkg.Dirname, "types.proto")
-		err := p3c.WriteProto3SchemaForTypes(filename, pkg, pkg.Types...)
+func WriteProto3Schema(pkg *amino.Package) {
+	p3c := NewP3Context()
+	p3c.RegisterPackage(pkg)
+	p3c.ValidateBasic()
+	filename := path.Join(pkg.DirName, "types.proto")
+	err := p3c.WriteProto3SchemaForTypes(filename, pkg, pkg.Types...)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// Symlinks .proto files from pkg info to dirname, keeping the go path
+// structure as expected, <dirName>/path/to/gopkg/types.proto.
+// If Pkg.DirName is empty, the package is considered "well known", and
+// the mapping is not made.
+func MakeProtoFolder(pkg *amino.Package, dirName string) {
+	fmt.Printf("making proto3 schema folder for package %v\n", pkg)
+	p3c := NewP3Context()
+	p3c.RegisterPackage(pkg)
+
+	// Populate mapping.
+	// p3 import path -> p3 import file (abs path).
+	// e.g. "github.com/.../types.proto" ->
+	// "/gopath/pkg/mod/.../types.proto"
+	var p3imports = map[string]string{}
+	for _, dpkg := range p3c.GetAllPackages() {
+		if dpkg.P3ImportFile == "" {
+			// Skip well known packages like google.protobuf.Any
+			continue
+		}
+		p3path := dpkg.P3ImportPath
+		if p3path == "" {
+			panic("P3ImportPath cannot be empty")
+		}
+		p3file := dpkg.P3ImportFile
+		p3imports[p3path] = p3file
+	}
+
+	// Check validity.
+	if _, err := os.Stat(dirName); os.IsNotExist(err) {
+		panic(fmt.Sprintf("directory %v does not exist", dirName))
+	}
+
+	// Make symlinks.
+	for p3path, p3file := range p3imports {
+		loc := path.Join(dirName, p3path)
+		locdir := path.Dir(loc)
+		// Ensure that paths exist.
+		if _, err := os.Stat(locdir); os.IsNotExist(err) {
+			err = os.MkdirAll(locdir, os.ModePerm)
+			if err != nil {
+				panic(err)
+			}
+		}
+		// Delete existing symlink.
+		if _, err := os.Stat(loc); !os.IsNotExist(err) {
+			err := os.Remove(loc)
+			if err != nil {
+				panic(err)
+			}
+		}
+		// Write symlink.
+		err := os.Symlink(p3file, loc)
 		if err != nil {
 			panic(err)
 		}

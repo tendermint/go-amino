@@ -30,10 +30,20 @@ func GenerateProtoBindingsForTypes(pkg *amino.Package, rtz ...reflect.Type) (fil
 	cdc.RegisterPackage(pkg)
 
 	file = &ast.File{
-		Name:  astId(pkg.GoPkg),
-		Decls: nil,
+		Name:    astId(pkg.GoPkgName),
+		Decls:   nil,
+		Imports: nil,
 	}
 
+	// Generate Imports
+	file.Decls = append(file.Decls,
+		astImports(
+			"pbpkg", pkg.GoP3PkgPath,
+			"proto", "google.golang.org/protobuf/proto",
+		),
+	)
+
+	// Generate Decls
 	for _, type_ := range rtz {
 		info, err := cdc.GetTypeInfo(type_)
 		if err != nil {
@@ -62,15 +72,13 @@ func GenerateProtoBindingsForTypes(pkg *amino.Package, rtz ...reflect.Type) (fil
 }
 
 // Writes in the same directory as the origin package.
-// Assumes pb imports in origGoPkg+"/pb".
-func WriteProtoBindings(pkgs ...*amino.Package) {
-	for _, pkg := range pkgs {
-		filename := path.Join(pkg.Dirname, "pb_bindings.go")
-		fmt.Printf("writing proto3 bindings to %v for package %v\n", filename, pkg)
-		err := WriteProtoBindingsForTypes(filename, pkg, pkg.Types...)
-		if err != nil {
-			panic(err)
-		}
+// Assumes pb imports in origGoPkgPath+"/pb".
+func WriteProtoBindings(pkg *amino.Package) {
+	filename := path.Join(pkg.DirName, "pbbindings.go")
+	fmt.Printf("writing proto3 bindings to %v for package %v\n", filename, pkg)
+	err := WriteProtoBindingsForTypes(filename, pkg, pkg.Types...)
+	if err != nil {
+		panic(err)
 	}
 }
 
@@ -612,4 +620,21 @@ func astString(s string) *ast.BasicLit {
 		Kind:  token.STRING,
 		Value: strconv.Quote(s),
 	}
+}
+
+// even/odd args are paired,
+// name1, path1, name2, path2, etc.
+func astImports(nameAndPaths ...string) *ast.GenDecl {
+	decl := &ast.GenDecl{
+		Tok:   token.IMPORT,
+		Specs: []ast.Spec{},
+	}
+	for i := 0; i < len(nameAndPaths); i += 2 {
+		spec := &ast.ImportSpec{
+			Name: astId(nameAndPaths[i]),
+			Path: astString(nameAndPaths[i+1]),
+		}
+		decl.Specs = append(decl.Specs, spec)
+	}
+	return decl
 }

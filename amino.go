@@ -1,7 +1,8 @@
 package amino
 
+import "bytes"
+
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"path"

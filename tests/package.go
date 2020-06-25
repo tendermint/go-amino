@@ -10,7 +10,7 @@ import (
 var Package = pkg.NewPackage(
 	"github.com/tendermint/go-amino/tests",
 	"tests",
-	pkg.GetCallersDirname(),
+	pkg.GetCallersDirName(),
 ).WithDependencies().WithTypes(
 	EmptyStruct{},
 	PrimitivesStruct{},

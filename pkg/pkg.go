@@ -6,34 +6,75 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strings"
 )
 
 type Package struct {
-	GoPkg        string
-	Dirname      string
-	P3Pkg        string
-	P3Import     string
+	// General info
+	GoPkgPath    string
+	GoPkgName    string
+	DirName      string
 	Dependencies []*Package
 	Types        []reflect.Type
+
+	// Proto3 info
+	GoP3PkgPath  string
+	P3PkgName    string
+	P3ImportPath string
+	P3ImportFile string
 }
 
-// Like amino.RegisterPackage (which is probably what you're looking for unless
-// you are developkgng on go-amino dependencies), but without global amino
-// registration.
-// Panics if invalid arguments are given, such as slashes in p3pkg, invalid go
-// pkg paths, or a relative dirname.
-func NewPackage(gopkg string, p3pkg string, dirname string) *Package {
-	assertValidGoPkg(gopkg)
-	assertValidP3Pkg(p3pkg)
-	assertValidDirname(dirname)
-	return &Package{
-		GoPkg:        gopkg,
-		Dirname:      dirname,
-		P3Pkg:        p3pkg,
-		P3Import:     "",
+// Like amino.RegisterPackage (which is probably what you're looking for
+// unless you are developking on go-amino dependencies), but without
+// global amino registration.
+//
+// GoP3PkgPath (the import path for go files generated from protoc) are
+// by default set to "<GoPkgPath>/pb", but can be overridden by
+// WithGoP3PkgPath().  This is needed for improving the performance of
+// encoding and decoding by using protoc generated go code, but is
+// slated to be replaced by native Go generation.
+//
+// GoPkgName is by default derived from gopkgPath, but can also be
+// overridden with WithGoPkgName().
+//
+// P3ImportPath is what is imported in the p3 import spec.  Generally
+// this is GoPkgPath + "/types.proto", but packages can override this
+// behavior, and sometimes (e.g. for google.protobuf.Any) it is
+// necessary to provide fixed values.  This is not the absolute path to
+// the actual file.  That is P3ImportFile.
+//
+// Panics if invalid arguments are given, such as slashes in p3pkgName,
+// invalid go pkg paths, or a relative dirName.
+func NewPackage(gopkgPath string, p3pkgName string, dirName string) *Package {
+	assertValidGoPkgPath(gopkgPath)
+	assertValidDirName(dirName)
+	assertValidP3PkgName(p3pkgName)
+	pkg := &Package{
+		GoPkgPath:    gopkgPath,
+		GoPkgName:    defaultPkgName(gopkgPath),
+		DirName:      dirName,
 		Dependencies: nil,
 		Types:        nil,
+		GoP3PkgPath:  path.Join(gopkgPath, "pb"),
+		P3PkgName:    p3pkgName,
+		P3ImportPath: path.Join(gopkgPath, "types.proto"),
+		P3ImportFile: path.Join(dirName, "types.proto"),
 	}
+	return pkg
+}
+
+func (pkg *Package) String() string {
+	return fmt.Sprintf("pkg.Pkg(%v@%v)", pkg.GoPkgPath, pkg.DirName)
+}
+
+func (pkg *Package) WithGoP3PkgPath(gop3pkg string) *Package {
+	pkg.GoP3PkgPath = gop3pkg
+	return pkg
+}
+
+func (pkg *Package) WithGoP3PkgName(name string) *Package {
+	pkg.GoPkgName = name
+	return pkg
 }
 
 func (pkg *Package) WithDependencies(deps ...*Package) *Package {
@@ -48,8 +89,8 @@ func (pkg *Package) WithTypes(objs ...interface{}) *Package {
 		for objDerefType.Kind() == reflect.Ptr {
 			objDerefType = objDerefType.Elem()
 		}
-		if objDerefType.PkgPath() != pkg.GoPkg {
-			panic(fmt.Sprintf("unexpected package for %v, expected %v got %v for obj %v obj type %v", objDerefType, pkg.GoPkg, objDerefType.PkgPath(), obj, objType))
+		if objDerefType.PkgPath() != pkg.GoPkgPath {
+			panic(fmt.Sprintf("unexpected package for %v, expected %v got %v for obj %v obj type %v", objDerefType, pkg.GoPkgPath, objDerefType.PkgPath(), obj, objType))
 		}
 		exists, err := pkg.HasType(objType)
 		if exists {
@@ -62,9 +103,18 @@ func (pkg *Package) WithTypes(objs ...interface{}) *Package {
 	return pkg
 }
 
-// These files will get imported instead of the default "types.proto" if this package is a dependency.
-func (pkg *Package) WithP3Import(p3import string) *Package {
-	pkg.P3Import = p3import
+// This path will get imported instead of the default "types.proto"
+// if this package is a dependency.  This is not the filesystem path,
+// but the path imported within the proto schema file.  The filesystem
+// path is .P3ImportFile.
+func (pkg *Package) WithP3ImportPath(path string) *Package {
+	pkg.P3ImportPath = path
+	return pkg
+}
+
+// This file will get imported instead of the default "types.proto" if this package is a dependency.
+func (pkg *Package) WithP3ImportFile(file string) *Package {
+	pkg.P3ImportFile = file
 	return pkg
 }
 
@@ -112,7 +162,7 @@ func (pkg *Package) FullNameForType(rt reflect.Type) string {
 	if !exists {
 		panic(err)
 	}
-	return fmt.Sprintf("%v.%v", pkg.P3Pkg, rt.Name())
+	return fmt.Sprintf("%v.%v", pkg.P3PkgName, rt.Name())
 }
 
 // panics of rt (or a pointer to it) was not registered.
@@ -124,17 +174,17 @@ func (pkg *Package) TypeURLForType(rt reflect.Type) string {
 //----------------------------------------
 
 // Utility for whoever is making a NewPackage manually.
-func GetCallersDirname() string {
-	var dirname = "" // derive from caller.
+func GetCallersDirName() string {
+	var dirName = "" // derive from caller.
 	_, filename, _, ok := runtime.Caller(1)
 	if !ok {
 		panic("could not get caller to derive caller's package directory")
 	}
-	dirname = path.Dir(filename)
-	if filename == "" || dirname == "" {
+	dirName = path.Dir(filename)
+	if filename == "" || dirName == "" {
 		panic("could not derive caller's package directory")
 	}
-	return dirname
+	return dirName
 }
 
 var (
@@ -145,41 +195,41 @@ var (
 	RE_P3PKG      = fmt.Sprintf(`%v(?:\.:%v)*`, RE_P3PKG_PART, RE_P3PKG_PART)
 )
 
-func assertValidGoPkg(gopkg string) {
-	matched, err := regexp.Match(RE_GOPKG, []byte(gopkg))
+func assertValidGoPkgPath(gopkgPath string) {
+	matched, err := regexp.Match(RE_GOPKG, []byte(gopkgPath))
 	if err != nil {
 		panic(err)
 	}
 	if !matched {
-		panic(fmt.Sprintf("not a valid go package path: %v", gopkg))
+		panic(fmt.Sprintf("not a valid go package path: %v", gopkgPath))
 	}
 }
 
-func assertValidP3Pkg(p3pkg string) {
-	matched, err := regexp.Match(RE_P3PKG, []byte(p3pkg))
+func assertValidP3PkgName(p3pkgName string) {
+	matched, err := regexp.Match(RE_P3PKG, []byte(p3pkgName))
 	if err != nil {
 		panic(err)
 	}
 	if !matched {
-		panic(fmt.Sprintf("not a valid proto3 package path: %v", p3pkg))
+		panic(fmt.Sprintf("not a valid proto3 package path: %v", p3pkgName))
 	}
 }
 
-// The dirname is only used to tell code generation tools where to put them.  I
+// The dirName is only used to tell code generation tools where to put them.  I
 // suppose the default could be empty for convenience, as long as it isn't a
 // relative path that tries to access parent directories.
-func assertValidDirname(dirname string) {
-	if dirname == "" {
-		// Default dirname of empty is allowed, for convenience.
+func assertValidDirName(dirName string) {
+	if dirName == "" {
+		// Default dirName of empty is allowed, for convenience.
 		// Any generated files would be written in the current directory.
-		// Dirname should not be set to "." or "./".
+		// DirName should not be set to "." or "./".
 		return
 	}
-	if !path.IsAbs(dirname) {
-		panic(fmt.Sprintf("dirname if present should be absolute, but got %v", dirname))
+	if !path.IsAbs(dirName) {
+		panic(fmt.Sprintf("dirName if present should be absolute, but got %v", dirName))
 	}
-	if path.Dir(dirname+"/dummy") != dirname {
-		panic(fmt.Sprintf("dirname not canonical. got %v, expected %v", dirname, path.Dir(dirname+"/dummy")))
+	if path.Dir(dirName+"/dummy") != dirName {
+		panic(fmt.Sprintf("dirName not canonical. got %v, expected %v", dirName, path.Dir(dirName+"/dummy")))
 	}
 }
 
@@ -189,4 +239,13 @@ func derefType(rt reflect.Type) (drt reflect.Type) {
 		drt = drt.Elem()
 	}
 	return
+}
+
+func defaultPkgName(gopkgPath string) (name string) {
+	parts := strings.Split(gopkgPath, "/")
+	last := parts[len(parts)-1]
+	parts = strings.Split(last, "-")
+	name = parts[len(parts)-1]
+	name = strings.ToLower(name)
+	return name
 }
