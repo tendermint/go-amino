@@ -40,6 +40,7 @@ func GenerateProtoBindingsForTypes(pkg *amino.Package, rtz ...reflect.Type) (fil
 		astImports(
 			"pbpkg", pkg.GoP3PkgPath,
 			"proto", "google.golang.org/protobuf/proto",
+			"amino", "github.com/tendermint/go-amino",
 		),
 	)
 
@@ -118,9 +119,11 @@ func generateTranslationMethodsForType(pkg *amino.Package, info *amino.TypeInfo)
 	{
 		var body = []ast.Stmt{}
 		// Body: constructor for pb message.
-		body = append(body, astDefine1(
-			astExpr("pb"), astExpr("err"),
+		body = append(body, astDefine2(
+			astExpr("pb"),
 			astExpr("new(pbpkg."+info.Type.Name()+")"),
+			astExpr("err"),
+			astExpr("error(nil)"),
 		))
 
 		// Body: copying over fields.

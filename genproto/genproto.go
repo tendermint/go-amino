@@ -3,12 +3,16 @@ package genproto
 // p3c.SetProjectRootGopkg("example.com/main")
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"reflect"
+	"strings"
 
 	"github.com/tendermint/go-amino"
 	anypb "google.golang.org/protobuf/types/known/anypb"
@@ -56,7 +60,7 @@ func NewP3Context() *P3Context {
 		"google.protobuf",
 		"",
 	).WithP3ImportPath("google/protobuf/any.proto").
-		WithP3ImportFile("").
+		WithP3SchemaFile("").
 		WithTypes(&anypb.Any{}))
 	return p3c
 }
@@ -205,6 +209,7 @@ func (p3c *P3Context) GenerateProto3SchemaForTypes(pkg *amino.Package, rtz ...re
 
 	// Set the package.
 	p3doc.Package = pkg.P3PkgName
+	p3doc.GoPackage = pkg.GoP3PkgPath
 
 	// Set Message schemas.
 	for _, rt := range rtz {
@@ -322,7 +327,7 @@ func MakeProtoFolder(pkg *amino.Package, dirName string) {
 	// "/gopath/pkg/mod/.../types.proto"
 	var p3imports = map[string]string{}
 	for _, dpkg := range p3c.GetAllPackages() {
-		if dpkg.P3ImportFile == "" {
+		if dpkg.P3SchemaFile == "" {
 			// Skip well known packages like google.protobuf.Any
 			continue
 		}
@@ -330,7 +335,7 @@ func MakeProtoFolder(pkg *amino.Package, dirName string) {
 		if p3path == "" {
 			panic("P3ImportPath cannot be empty")
 		}
-		p3file := dpkg.P3ImportFile
+		p3file := dpkg.P3SchemaFile
 		p3imports[p3path] = p3file
 	}
 
@@ -362,5 +367,61 @@ func MakeProtoFolder(pkg *amino.Package, dirName string) {
 		if err != nil {
 			panic(err)
 		}
+	}
+}
+
+// Uses pkg.GoP3PkgPath to determine where the compiled file goes.  If
+// pkg.GoP3PkgPath is a subpath of pkg.GoPkgPath, then it will be
+// written in the relevant subpath in pkg.DirName.
+// `protosDir`: folder where .proto files for all dependencies live.
+func RunProtoc(pkg *amino.Package, protosDir string) {
+	if !strings.HasSuffix(pkg.P3SchemaFile, ".proto") {
+		panic(fmt.Sprintf("expected P3Importfile to have .proto suffix, got %v", pkg.P3SchemaFile))
+	}
+	inDir := filepath.Dir(pkg.P3SchemaFile)
+	inFile := filepath.Base(pkg.P3SchemaFile)
+	outDir := path.Join(inDir, "pb")
+	outFile := inFile[:len(inFile)-6] + ".pb.go"
+	// Ensure that paths exist.
+	if _, err := os.Stat(outDir); os.IsNotExist(err) {
+		err = os.MkdirAll(outDir, os.ModePerm)
+		if err != nil {
+			panic(err)
+		}
+	}
+	// First generate output to a temp dir.
+	tempDir, err := ioutil.TempDir("", "amino-genproto")
+	if err != nil {
+		return
+	}
+	// Run protoc
+	cmd := exec.Command("protoc", "-I="+inDir, "-I="+protosDir, "--go_out="+tempDir, pkg.P3SchemaFile)
+	fmt.Println("running protoc: ", cmd.String())
+	cmd.Stdin = nil
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &out
+	err = cmd.Run()
+	if err != nil {
+		panic(err)
+	}
+
+	// Copy file from tempDir to outDir.
+	copyFile(
+		path.Join(tempDir, pkg.GoP3PkgPath, outFile),
+		path.Join(outDir, outFile),
+	)
+}
+
+func copyFile(src string, dst string) {
+	// Read all content of src to data
+	data, err := ioutil.ReadFile(src)
+	if err != nil {
+		panic(err)
+	}
+	// Write data to dst
+	err = ioutil.WriteFile(dst, data, 0644)
+	if err != nil {
+		panic(err)
 	}
 }

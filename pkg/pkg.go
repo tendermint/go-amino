@@ -21,7 +21,7 @@ type Package struct {
 	GoP3PkgPath  string
 	P3PkgName    string
 	P3ImportPath string
-	P3ImportFile string
+	P3SchemaFile string
 }
 
 // Like amino.RegisterPackage (which is probably what you're looking for
@@ -30,9 +30,13 @@ type Package struct {
 //
 // GoP3PkgPath (the import path for go files generated from protoc) are
 // by default set to "<GoPkgPath>/pb", but can be overridden by
-// WithGoP3PkgPath().  This is needed for improving the performance of
+// WithGoP3PkgPath().  You may want to override this for main package,
+// for the subdirectory "pb" doesn't produce a "main/pb" package.  See
+// ./proto/example/pacakge.go for such usage.
+//
+// (This field is needed for improving the performance of
 // encoding and decoding by using protoc generated go code, but is
-// slated to be replaced by native Go generation.
+// slated to be replaced by native Go generation.)
 //
 // GoPkgName is by default derived from gopkgPath, but can also be
 // overridden with WithGoPkgName().
@@ -41,7 +45,7 @@ type Package struct {
 // this is GoPkgPath + "/types.proto", but packages can override this
 // behavior, and sometimes (e.g. for google.protobuf.Any) it is
 // necessary to provide fixed values.  This is not the absolute path to
-// the actual file.  That is P3ImportFile.
+// the actual file.  That is P3SchemaFile.
 //
 // Panics if invalid arguments are given, such as slashes in p3pkgName,
 // invalid go pkg paths, or a relative dirName.
@@ -58,7 +62,7 @@ func NewPackage(gopkgPath string, p3pkgName string, dirName string) *Package {
 		GoP3PkgPath:  path.Join(gopkgPath, "pb"),
 		P3PkgName:    p3pkgName,
 		P3ImportPath: path.Join(gopkgPath, "types.proto"),
-		P3ImportFile: path.Join(dirName, "types.proto"),
+		P3SchemaFile: path.Join(dirName, "types.proto"),
 	}
 	return pkg
 }
@@ -106,15 +110,15 @@ func (pkg *Package) WithTypes(objs ...interface{}) *Package {
 // This path will get imported instead of the default "types.proto"
 // if this package is a dependency.  This is not the filesystem path,
 // but the path imported within the proto schema file.  The filesystem
-// path is .P3ImportFile.
+// path is .P3SchemaFile.
 func (pkg *Package) WithP3ImportPath(path string) *Package {
 	pkg.P3ImportPath = path
 	return pkg
 }
 
 // This file will get imported instead of the default "types.proto" if this package is a dependency.
-func (pkg *Package) WithP3ImportFile(file string) *Package {
-	pkg.P3ImportFile = file
+func (pkg *Package) WithP3SchemaFile(file string) *Package {
+	pkg.P3SchemaFile = file
 	return pkg
 }
 

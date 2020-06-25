@@ -117,10 +117,11 @@ func (p3mt P3MessageType) String() string {
 // validity checking happens here... it should happen before these values are
 // set.  Convenience functions that require much more context like P3Context are OK.
 type P3Doc struct {
-	Package  string // XXX
-	Comment  string
-	Imports  []P3Import
-	Messages []P3Message
+	Package   string
+	GoPackage string // TODO replace with general options
+	Comment   string
+	Imports   []P3Import
+	Messages  []P3Message
 	// Enums []P3Enums // enums not supported, no need.
 }
 
@@ -172,6 +173,9 @@ func (doc P3Doc) PrintCode(p *press.Press) *press.Press {
 		printComments(p, doc.Comment)
 		p.Ln()
 	}
+	// Print options, if any.
+	p.Pl("option go_package = \"%v\";", doc.GoPackage)
+	p.Ln()
 	// Print imports, if any.
 	for i, imp := range doc.Imports {
 		if i == 0 {

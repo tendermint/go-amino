@@ -10,6 +10,8 @@ var Package = amino.RegisterPackage(
 		"main",
 		"main",
 		amino.GetCallersDirname(),
+	).WithGoP3PkgPath(
+		"github.com/tendermint/go-amino/genproto/example/pb",
 	).WithDependencies(
 		submodule.Package,
 	).WithTypes(

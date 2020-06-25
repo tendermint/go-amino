@@ -1,6 +1,8 @@
 syntax = "proto3";
 package submodule2;
 
+option go_package = "github.com/tendermint/go-amino/genproto/example/submodule2/pb";
+
 // messages
 message StructSM2 {
 	int64 FieldA = 1;
