@@ -18,6 +18,7 @@ const printLog = false
 
 type TypeInfo struct {
 	Type      reflect.Type // never a pointer kind.
+	Pkg       *Package     // package associated with Type.
 	PtrToType reflect.Type
 	ZeroValue reflect.Value
 	ZeroProto interface{}
@@ -172,14 +173,35 @@ func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *Package) {
 	// Get type_url
 	typeURL = pkg.TypeURLForType(rt)
 
-	cdc.registerType(rt, typeURL, pointerPreferred, true)
+	cdc.registerType(pkg, rt, typeURL, pointerPreferred, true)
 }
 
-func (cdc *Codec) registerType(rt reflect.Type, typeURL string, pointerPreferred bool, primary bool) {
+func (cdc *Codec) registerType(pkg *Package, rt reflect.Type, typeURL string, pointerPreferred bool, primary bool) {
 	cdc.assertNotSealed()
 
-	// Construct TypeInfo
-	var info = cdc.newTypeInfoForRegistration(rt, pointerPreferred, typeURL)
+	if rt.Kind() == reflect.Interface ||
+		rt.Kind() == reflect.Ptr {
+		panic(fmt.Sprintf("expected non-interface non-pointer concrete type, got %v", rt))
+	}
+
+	// Construct TypeInfo if one doesn't already exist.
+	var info, ok = cdc.typeInfos[rt]
+	if ok {
+		if info.Registered {
+			panic(fmt.Sprintf("type %v already registered", rt))
+		} else {
+			// we will be filling in an existing type.
+		}
+	} else {
+		// construct a new one.
+		info = cdc.newTypeInfoUnregisteredWLock(rt)
+	}
+
+	// Fill info for registered types.
+	info.Package = pkg
+	info.ConcreteInfo.Registered = true
+	info.ConcreteInfo.PointerPreferred = pointerPreferred
+	info.ConcreteInfo.TypeURL = typeURL
 
 	// Separate locking instance,
 	// do the registration
@@ -305,12 +327,10 @@ func (cdc *Codec) doAutoseal() {
 }
 
 // assumes write lock is held.
-// primary should generally
-// be true, and must be true for the
-// first type set here that is info.Registered, except
-// when registering secondary types for a given (full)
-// name, such as google.protobuf.*.  If primary is set to
-// false and info.Registered, the name must already be
+// primary should generally be true, and must be true for the first type set
+// here that is info.Registered, except when registering secondary types for a
+// given (full) name, such as google.protobuf.*.  If primary is set to false
+// and info.Registered, the name must already be
 // registered, and no side effects occur.
 // CONTRACT: info.Type is set
 // CONTRACT: if info.Registered, info.TypeURL is set
@@ -321,6 +341,7 @@ func (cdc *Codec) registerTypeInfoWLocked(info *TypeInfo, primary bool) {
 	}
 	if existing, ok := cdc.typeInfos[info.Type]; !ok || existing != info {
 		if !ok {
+			// See corresponding comment in newTypeInfoUnregisteredWLocked.
 			panic("unrecognized *TypeInfo")
 		} else {
 			panic(fmt.Sprintf("unexpected *TypeInfo: existing: %v, new: %v", existing, info))
@@ -415,38 +436,26 @@ func (cdc *Codec) getTypeInfoFromNameRLock(name string, fopts FieldOptions) (inf
 //----------------------------------------
 // TypeInfo registration
 
-func (cdc *Codec) newTypeInfoForRegistration(rt reflect.Type, pointerPreferred bool, typeURL string) *TypeInfo {
-	if rt.Kind() == reflect.Interface ||
-		rt.Kind() == reflect.Ptr {
-		panic(fmt.Sprintf("expected non-interface non-pointer concrete type, got %v", rt))
-	}
-	var info = cdc.NewTypeInfoUnregistered(rt)
-	info.ConcreteInfo.Registered = true
-	info.ConcreteInfo.PointerPreferred = pointerPreferred
-	info.ConcreteInfo.TypeURL = typeURL
-	return info
-}
-
 // Constructs a *TypeInfo from scratch (except
 // depedencies).  The constructed TypeInfo is stored in
 // state, but not yet registered - no name or decoding
 // preferece (pointer or not) is known, so it cannot be
 // used to decode into an interface.
 //
-// cdc.NewTypeInfoForRegistration() calls this first for
+// cdc.registerType() calls this first for
 // initial construction.  Unregistered type infos can
 // still represent circular types because they still
 // populate the internal lookup map, but they don't have
 // certain fields set, such as:
 //
+//  * .Package - defaults to nil until registered.
 //  * .ConcreteInfo.PointerPreferred - how it prefers to
 //  be decoded
 //  * .ConcreteInfo.TypeURL - for Any serialization
 //
 // But it does set .ConcreteInfo.Elem, which may be
 // modified by the Codec instance.
-
-func (cdc *Codec) NewTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
+func (cdc *Codec) newTypeInfoUnregisteredWLock(rt reflect.Type) *TypeInfo {
 	cdc.mtx.Lock()
 	defer cdc.mtx.Unlock()
 
@@ -462,19 +471,20 @@ func (cdc *Codec) newTypeInfoUnregisteredWLocked(rt reflect.Type) *TypeInfo {
 	case reflect.Func:
 		panic("func type not supported")
 	}
+	if _, exists := cdc.typeInfos[rt]; exists {
+		panic(fmt.Sprintf("type info already registered for %v", rt))
+	}
 
-	// Populate this early so it gets found when
-	// getTypeInfoWLocked() is called, esp for
-	// parseStructInfoWLocked() which may cause infinite
-	// recursion if two structs reference each other in
-	// declaration.
-	// TODO: can protobuf support this? If not, we would
-	// still want to, but restrict what can be compiled
-	// to protobuf, or something.
+	// Populate this early so it gets found when getTypeInfoWLocked() is
+	// called, esp for parseStructInfoWLocked() which may cause infinite
+	// recursion if two structs reference each other in declaration.
+	// TODO: can protobuf support this? If not, we would still want to, but
+	// restrict what can be compiled to protobuf, or something.
 	var info = new(TypeInfo)
 	cdc.typeInfos[rt] = info
 
 	info.Type = rt
+	info.Package = pkg
 	info.PtrToType = reflect.PtrTo(rt)
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
