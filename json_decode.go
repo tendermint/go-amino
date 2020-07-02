@@ -17,6 +17,7 @@ import (
 
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
+
 	if !rv.CanAddr() {
 		panic("rv not addressable")
 	}
@@ -38,15 +39,8 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		return
 	}
 
-	// Dereference-and-construct pointers all the way.
-	// This works for pointer-pointers.
-	for rv.Kind() == reflect.Ptr {
-		if rv.IsNil() {
-			newPtr := reflect.New(rv.Type().Elem())
-			rv.Set(newPtr)
-		}
-		rv = rv.Elem()
-	}
+	// Dereference-and-construct if pointer.
+	rv = maybeDerefAndConstruct(rv)
 
 	// Handle the most special case, "well known".
 	if info.ConcreteInfo.IsJSONWellKnownType {
@@ -58,14 +52,10 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	}
 
 	// Handle override if a pointer to rv implements UnmarshalAmino.
-	if info.IsAminoUnmarshaler {
+	if info.IsAminoMarshaler {
 		// First, decode repr instance from bytes.
-		rrv := reflect.New(info.AminoUnmarshalReprType).Elem()
-		var rinfo *TypeInfo
-		rinfo, err = cdc.getTypeInfoWLock(info.AminoUnmarshalReprType)
-		if err != nil {
-			return
-		}
+		rrv := reflect.New(info.ReprType.Type).Elem()
+		var rinfo *TypeInfo = info.ReprType
 		err = cdc.decodeReflectJSON(bz, rinfo, rrv, fopts)
 		if err != nil {
 			return
@@ -381,11 +371,7 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 
 		// Get field rv and info.
 		var frv = rv.Field(field.Index)
-		var finfo *TypeInfo
-		finfo, err = cdc.getTypeInfoWLock(field.Type)
-		if err != nil {
-			return
-		}
+		var finfo = field.TypeInfo
 
 		// Get value from rawMap.
 		var valueBytes = rawMap[field.JSONName]

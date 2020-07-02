@@ -141,7 +141,7 @@ func (pkg *Package) HasType(rt reflect.Type) (exists bool, err error) {
 
 func (pkg *Package) HasName(name string) (exists bool) {
 	for _, rt := range pkg.Types {
-		rt = derefType(rt)
+		_, rt = amino.DerefType(rt)
 		if rt.Name() == name {
 			return true
 		}
@@ -151,7 +151,7 @@ func (pkg *Package) HasName(name string) (exists bool) {
 
 func (pkg *Package) HasFullName(name string) (exists bool) {
 	for _, rt := range pkg.Types {
-		rt = derefType(rt)
+		_, rt = amino.DerefType(rt)
 		if pkg.FullNameForType(rt) == name {
 			return true
 		}
@@ -161,7 +161,7 @@ func (pkg *Package) HasFullName(name string) (exists bool) {
 
 // panics of rt was not registered.
 func (pkg *Package) FullNameForType(rt reflect.Type) string {
-	rt = derefType(rt)
+	_, rt = amino.DerefType(rt)
 	exists, err := pkg.HasType(rt)
 	if !exists {
 		panic(err)
@@ -173,6 +173,43 @@ func (pkg *Package) FullNameForType(rt reflect.Type) string {
 func (pkg *Package) TypeURLForType(rt reflect.Type) string {
 	name := pkg.FullNameForType(rt)
 	return "/" + name
+}
+
+// Finds a dependency package from the gopkg.  Well known packages are
+// not known here, so some dependencies may not show up, such as for
+// google.protobuf.Any for any interface fields.
+// For that, use a P3Context.GetPackage().
+func (pkg *Package) GetDependency(gopkg string) (*Package, error) {
+	all := pkg.CrawlPackages(nil)
+	for _, pkg := range all {
+		if pkg.GoPkgPath == gopkg {
+			return pkg, nil
+		}
+	}
+	return nil, fmt.Errorf("Go package not declared a (in)direct dependency of %v",
+		pkg.GoPkgPath)
+}
+
+// For a given package info, crawl and discover all package infos.
+func (pkg *Package) CrawlPackages(seen map[*Package]struct{}) (res []*Package) {
+	if seen == nil {
+		seen = map[*Package]struct{}{}
+	}
+	var crawl func(pkg *Package)
+	crawl = func(pkg *Package) {
+		seen[pkg] = struct{}{}
+		for _, dependency := range pkg.Dependencies {
+			if _, ok := seen[dependency]; ok {
+				continue
+			}
+			crawl(dependency)
+		}
+	}
+	crawl(pkg)
+	for pkg, _ := range seen {
+		res = append(res, pkg)
+	}
+	return res
 }
 
 //----------------------------------------
@@ -235,14 +272,6 @@ func assertValidDirName(dirName string) {
 	if path.Dir(dirName+"/dummy") != dirName {
 		panic(fmt.Sprintf("dirName not canonical. got %v, expected %v", dirName, path.Dir(dirName+"/dummy")))
 	}
-}
-
-func derefType(rt reflect.Type) (drt reflect.Type) {
-	drt = rt
-	for drt.Kind() == reflect.Ptr {
-		drt = drt.Elem()
-	}
-	return
 }
 
 func defaultPkgName(gopkgPath string) (name string) {

@@ -8,7 +8,8 @@ neither.
 
 The goal of the Amino encoding protocol is to enable logic objects to become
 persisted/serialized in a future-compatible way, in a way that streamlines
-development from prototyping to production and maintenance.
+development from prototyping to production and maintenance.  It also seeks to
+improve upon Proto3.
 
 **DISCLAIMER:** We're still building out the ecosystem, which is currently most
 developed in Go.  But Amino is not just for Go — if you'd like to contribute by
@@ -18,7 +19,7 @@ GitHub](https://github.com/tendermint/go-amino/issues)!
 
 # Why Amino?
 
-## Amino Goals
+## Amino 1.0 Goals
 
 * Bring parity into logic objects and persistent objects
   by supporting interfaces.
@@ -27,11 +28,8 @@ GitHub](https://github.com/tendermint/go-amino/issues)!
 * Schema must be upgradeable.
 * Sufficient structure must be parseable without a schema.
 * The encoder and decoder logic must be reasonably simple.
-* The serialization must be reasonably compact, assuming
-  a string/subsequence compaction string for compacting common strings
-  as in Any.TypeURL.
-* A sufficiently compatible JSON format must be maintained (but not general
-  conversion to/from JSON)
+* Be supportive of proto3 clients.
+* Lead way to Amino2.
 
 ## Amino vs JSON
 
@@ -128,6 +126,27 @@ the encoding format will be identitical to those well known types.
 
 When decoding interface values, by default the native types are constructed
 unless field options specify otherwise.
+
+### Why Amino2?
+
+Amino1.x is limited by its requirement to be compatible with Proto3 tooling.
+We want to move away from Proto3 for a more intuitive and more compact
+encoding standard.
+
+Issues with Proto3:
+
+```
+NOTE: Unlike encodeReflectJSON, rv may not be a pointer.  This is because the
+binary representation of pointers depend on the context.  A nil pointer in the
+context of a struct field is represented by its presence or absence in the
+encoding bytes (w/ bare=false, which normally would produce 0x00), whereas in
+the context of a list, (for amino 1.x anyways, which is constrained by proto3),
+nil pointers and non-nil pointers to empty structs have the same representation
+(0x00).  This is a Proto3 limitation -- choosing repeated fields as the method
+of encoding lists is an unfortunate hack.  Amino2 will resolve this issue.
+```
+
+Also, Amino innovates upon google.protobuf.Any.
 
 ## Amino in the Wild
 

@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.0.0-rc0 (June 28th, 2020)
+
+BREAKING CHANGE:
+ - Interfaces are encoded as google.protobuf.Any. As representations are
+   deterministic, local Codecs are no longer required.  Just register packages
+at the global level.
+ - Nested pointers are not allowed.  Pointers to primitives, structs, and
+   interfaces are allowed.  See
+https://github.com/tendermint/go-amino/pull/290#issuecomment-650717598.
+
 ## 0.15.0 (May 2, 2018)
 
 BREAKING CHANGE:

@@ -18,7 +18,10 @@ import (
 // This is the main entrypoint for encoding all types in json form.  This
 // function calls encodeReflectJSON*, and generally those functions should
 // only call this one, for the disfix wrapper is only written here.
-// NOTE: Unlike encodeReflectBinary, rv may be a pointer.
+// NOTE: Unlike encodeReflectBinary, rv may be a pointer.  This is because
+// unlike the binary representation, in JSON there is a concrete representation
+// of no value -- null.  So, a nil pointer here encodes as null, whereas
+// encodeReflectBinary() assumes that the pointer is already dereferenced.
 // CONTRACT: rv is valid.
 func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Value, fopts FieldOptions) (err error) {
 	if !rv.IsValid() {
@@ -33,13 +36,13 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	}
 
 	// Dereference value if pointer.
-	var isNilPtr bool
-	rv, _, isNilPtr = derefPointers(rv)
-
-	// Write null if necessary.
-	if isNilPtr {
-		err = writeStr(w, `null`)
-		return
+	var rvIsNil = false
+	if rv.Kind() == reflect.Value {
+		if rv.IsNil() {
+			err = writeStr(w, `null`)
+			return
+		}
+		rv = rv.Elem()
 	}
 
 	// Handle the most special case, "well known".
@@ -62,10 +65,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		if err != nil {
 			return
 		}
-		rinfo, err = cdc.getTypeInfoWLock(info.AminoMarshalReprType)
-		if err != nil {
-			return
-		}
+		rinfo = info.ReprType
 		// Then, encode the repr instance.
 		err = cdc.encodeReflectJSON(w, rinfo, rrv, fopts)
 		return
@@ -135,12 +135,13 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 	}
 
 	// Get concrete non-pointer reflect value & type.
-	var crv, isPtr, isNilPtr = derefPointers(rv.Elem())
-	if isPtr && crv.Kind() == reflect.Interface {
+	var crv = rv.Elem()
+	var _, crvIsPtr, crvIsNilPtr = maybeDerefPointer(crv)
+	if crvIsPtr && crv.Kind() == reflect.Interface {
 		// See "MARKER: No interface-pointers" in codec.go
 		panic("should not happen")
 	}
-	if isNilPtr {
+	if crvIsNilPtr {
 		panic(fmt.Sprintf("Illegal nil-pointer of type %v for registered interface %v. "+
 			"For compatibility with other languages, nil-pointer interface values are forbidden.", crv.Type(), iinfo.Type))
 	}
@@ -259,8 +260,10 @@ func (cdc *Codec) encodeReflectJSONList(w io.Writer, info *TypeInfo, rv reflect.
 		}
 		for i := 0; i < length; i++ {
 			// Get dereferenced element value and info.
-			var erv, _, isNil = derefPointers(rv.Index(i))
-			if isNil {
+			var erv = rv.Index(i)
+			if erv.Kind() == reflect.Ptr &&
+				erv.IsNil() {
+				// then
 				err = writeStr(w, `null`)
 			} else {
 				err = cdc.encodeReflectJSON(w, einfo, erv, fopts)
@@ -308,12 +311,16 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 	var writeComma = false
 	for _, field := range info.Fields {
 		// Get dereferenced field value and info.
-		var frv, _, isNil = derefPointers(rv.Field(field.Index))
-		var finfo *TypeInfo
-		finfo, err = cdc.getTypeInfoWLock(field.Type)
-		if err != nil {
-			return
+		var frv = rv.Field(field.Index)
+		var frvIsNil = false
+		if frv.Kind() == reflect.Ptr {
+			if frv.IsNil() {
+				frvIsNil = true
+			}
+			frv = frv.Elem()
 		}
+		var frv, _, isNil = derefPointers(rv.Field(field.Index))
+		var finfo = field.TypeInfo
 		// If frv is empty and omitempty, skip it.
 		// NOTE: Unlike Amino:binary, we don't skip null fields unless "omitempty".
 		if field.JSONOmitEmpty && isJSONEmpty(frv, field.ZeroValue) {

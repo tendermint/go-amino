@@ -26,9 +26,15 @@ const (
 // This is the main entrypoint for decoding all types from binary form. This
 // function calls decodeReflectBinary*, and generally those functions should
 // only call this one, for overrides all happen here.
-// "bare" is ignored when the value is a primitive type,
-// or a byteslice or bytearray, but this is confusing and
-// should probably be improved with explicit expectations.
+//
+// "bare" is ignored when the value is a primitive type, or a byteslice or
+// bytearray, but this is confusing and should probably be improved with
+// explicit expectations.
+//
+// This function will always construct an instance if rv.Kind() is pointer,
+// even if there is nothing left to read.  If a nil value is desired,
+// decodeReflectBinary() should not be called on rv.
+//
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 	rv reflect.Value, fopts FieldOptions, bare bool) (n int, err error) {
@@ -48,17 +54,8 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 	}
 	var _n int
 
-	// TODO consider the binary equivalent of json.Unmarshaller.
-
-	// Dereference-and-construct pointers all the way.
-	// This works for pointer-pointers.
-	for rv.Kind() == reflect.Ptr {
-		if rv.IsNil() {
-			newPtr := reflect.New(rv.Type().Elem())
-			rv.Set(newPtr)
-		}
-		rv = rv.Elem()
-	}
+	// Dereference-and-construct if pointer.
+	rv = maybeDerefAndConstruct(rv)
 
 	// Handle the most special case, "well known".
 	if info.IsBinaryWellKnownType {
@@ -70,11 +67,11 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 	}
 
 	// Handle override if a pointer to rv implements UnmarshalAmino.
-	if info.IsAminoUnmarshaler {
+	if info.IsAminoMarshaler {
 		// First, decode repr instance from bytes.
-		rrv := reflect.New(info.AminoUnmarshalReprType).Elem()
+		rrv := reflect.New(info.ReprType.Type).Elem()
 		var rinfo *TypeInfo
-		rinfo, err = cdc.getTypeInfoWLock(info.AminoUnmarshalReprType)
+		rinfo, err = cdc.getTypeInfoWLock(info.ReprType.Type)
 		if err != nil {
 			return
 		}
@@ -589,9 +586,11 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 				return
 			}
 			// Special case when reading default value, prefer nil.
+			// TODO: Maybe we can optimize and check for default value
+			// before any decoding happens, perhaps by checking 0x00.
 			if erv.Kind() == reflect.Ptr {
-				_, isDefault := isDefaultValue(erv)
-				if isDefault {
+				_, isNonstructDefault := isNonstructDefaultValue(erv)
+				if isNonstructDefault {
 					erv.Set(reflect.Zero(erv.Type()))
 					continue
 				}
@@ -761,8 +760,8 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 			}
 			// Special case when reading default value, prefer nil.
 			if ert.Kind() == reflect.Ptr {
-				_, isDefault := isDefaultValue(erv)
-				if isDefault {
+				_, isNonstructDefault := isNonstructDefaultValue(erv)
+				if isNonstructDefault {
 					srv = reflect.Append(srv, reflect.Zero(ert))
 					continue
 				}
@@ -861,11 +860,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 	for _, field := range info.Fields {
 		// Get field rv and info.
 		var frv = rv.Field(field.Index)
-		var finfo *TypeInfo
-		finfo, err = cdc.getTypeInfoWLock(field.Type)
-		if err != nil {
-			return
-		}
+		var finfo = field.TypeInfo
 
 		// We're done if we've consumed all the bytes.
 		if len(bz) == 0 {

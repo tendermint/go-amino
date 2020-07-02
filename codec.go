@@ -17,7 +17,7 @@ const printLog = false
 // Codec internals
 
 type TypeInfo struct {
-	Type      reflect.Type
+	Type      reflect.Type // never a pointer kind.
 	PtrToType reflect.Type
 	ZeroValue reflect.Value
 	ZeroProto interface{}
@@ -30,18 +30,16 @@ type InterfaceInfo struct {
 }
 
 type ConcreteInfo struct {
-	Registered             bool         // Registered with Register*().
-	PointerPreferred       bool         // Deserialize to pointer type if possible.
-	TypeURL                string       // <domain and path>/<p3 package no slashes>.<Type.Name>
-	IsAminoMarshaler       bool         // Implements MarshalAmino() (<ReprObject>, error).
-	AminoMarshalReprType   reflect.Type // <ReprType>
-	IsAminoUnmarshaler     bool         // Implements UnmarshalAmino(<ReprObject>) (error).
-	AminoUnmarshalReprType reflect.Type // <ReprType>
-	IsJSONValueType        bool         // If true, the Any representation uses the "value" field (instead of embedding @type).
-	IsBinaryWellKnownType  bool         // If true, use built-in functions to encode/decode.
-	IsJSONWellKnownType    bool         // If true, use built-in functions to encode/decode.
-	IsJSONAnyValueType     bool         // If true, the interface/Any representation uses the "value" field.
-	Elem                   *TypeInfo
+	Registered            bool      // Registered with Register*().
+	PointerPreferred      bool      // Deserialize to pointer type if possible.
+	TypeURL               string    // <domain and path>/<p3 package no slashes>.<Type.Name>
+	IsAminoMarshaler      bool      // Implements MarshalAmino() (<ReprObject>, error) and UnmarshalAmino(<ReprObject>) (error).
+	ReprType              *TypeInfo // <ReprType> if IsAminoMarshaler, that, or by default the identity Type.
+	IsJSONValueType       bool      // If true, the Any representation uses the "value" field (instead of embedding @type).
+	IsBinaryWellKnownType bool      // If true, use built-in functions to encode/decode.
+	IsJSONWellKnownType   bool      // If true, use built-in functions to encode/decode.
+	IsJSONAnyValueType    bool      // If true, the interface/Any representation uses the "value" field.
+	Elem                  *TypeInfo
 }
 
 type StructInfo struct {
@@ -49,7 +47,8 @@ type StructInfo struct {
 }
 
 type FieldInfo struct {
-	*TypeInfo                  // Struct field TypeInfo
+	Type         reflect.Type  // Struct field reflect.Type.
+	TypeInfo     *TypeInfo     // Dereferenced struct field TypeInfo
 	Name         string        // Struct field name
 	Index        int           // Struct field index
 	ZeroValue    reflect.Value // Could be nil pointer unlike TypeInfo.ZeroValue.
@@ -94,6 +93,13 @@ func (info *TypeInfo) IsStructOrUnpacked(fopt FieldOptions) bool {
 		return info.Elem.GetTyp3(fopt) == Typ3ByteLength
 	}
 	return false
+}
+
+//----------------------------------------
+// FieldInfo convenience
+
+func (finfo *FieldInfo) IsPtr() bool {
+	return finfo.Type.Kind() == reflect.Ptr
 }
 
 //----------------------------------------
@@ -358,8 +364,8 @@ func (cdc *Codec) getTypeInfoWLock(rt reflect.Type) (info *TypeInfo, err error) 
 	return info, err
 }
 
-// If a new one is constructed and cached in state,
-// it is not yet registered.
+// If a new one is constructed and cached in state, it is not yet registered.
+// Automatically dereferences rt pointers.
 func (cdc *Codec) getTypeInfoWLocked(rt reflect.Type) (info *TypeInfo, err error) {
 	// Dereference pointer type.
 	for rt.Kind() == reflect.Ptr {
@@ -475,13 +481,31 @@ func (cdc *Codec) newTypeInfoUnregisteredWLocked(rt reflect.Type) *TypeInfo {
 	if rt.Kind() == reflect.Struct {
 		info.StructInfo = cdc.parseStructInfoWLocked(rt)
 	}
+	var isAminoMarshaler bool
+	var reprType reflect.Type
 	if rm, ok := rt.MethodByName("MarshalAmino"); ok {
-		info.ConcreteInfo.IsAminoMarshaler = true
-		info.ConcreteInfo.AminoMarshalReprType = marshalAminoReprType(rm)
+		isAminoMarshaler = true
+		reprType = marshalAminoReprType(rm)
 	}
 	if rm, ok := reflect.PtrTo(rt).MethodByName("UnmarshalAmino"); ok {
-		info.ConcreteInfo.IsAminoUnmarshaler = true
-		info.ConcreteInfo.AminoUnmarshalReprType = unmarshalAminoReprType(rm)
+		if !isAminoMarshaler {
+			panic("Must implement both (o).MarshalAmino and (*o).UnmarshalAmino")
+		}
+		reprType2 := unmarshalAminoReprType(rm)
+		if reprType != reprType2 {
+			panic("Must match MarshalAmino and UnmarshalAmino repr types")
+		}
+	}
+	if isAminoMarshaler {
+		info.ConcreteInfo.IsAminoMarshaler = true
+		rinfo, err := cdc.getTypeInfoWLocked(reprType)
+		if err != nil {
+			panic(err)
+		}
+		info.ConcreteInfo.ReprType = rinfo
+	} else {
+		info.ConcreteInfo.IsAminoMarshaler = false
+		info.ConcreteInfo.ReprType = info
 	}
 	info.ConcreteInfo.IsBinaryWellKnownType = isBinaryWellKnownType(rt)
 	info.ConcreteInfo.IsJSONWellKnownType = isJSONWellKnownType(rt)
@@ -540,6 +564,7 @@ func (cdc *Codec) parseStructInfoWLocked(rt reflect.Type) (sinfo StructInfo) {
 			panic(err)
 		}
 		fieldInfo := FieldInfo{
+			Type:         ftype,
 			TypeInfo:     fieldTypeInfo,
 			Name:         field.Name, // Mostly for debugging.
 			Index:        i,          // the field number for this go runtime (for decoding).
@@ -619,8 +644,7 @@ func (ti TypeInfo) String() string {
 	} else {
 		buf.Write([]byte("Registered:false,"))
 	}
-	buf.Write([]byte(fmt.Sprintf("AminoMarshalReprType:\"%v\",", ti.AminoMarshalReprType)))
-	buf.Write([]byte(fmt.Sprintf("AminoUnmarshalReprType:\"%v\",", ti.AminoUnmarshalReprType)))
+	buf.Write([]byte(fmt.Sprintf("ReprType:\"%v\",", ti.ReprType)))
 	if ti.Type.Kind() == reflect.Struct {
 		buf.Write([]byte(fmt.Sprintf("Fields:%v,", ti.Fields)))
 	}

@@ -271,15 +271,21 @@ func (cdc *Codec) MustMarshalBinaryInterfaceLengthPrefixed(o interface{}) []byte
 // so the caller must handle framing.
 // Type information as in google.protobuf.Any isn't included, so manually wrap
 // before calling if you need to decode into an interface.
+// NOTE: nil-struct-pointers have no encoding. In the context of a struct,
+// the absence of a field does denote a nil-struct-pointer, but in general
+// this is not the case, so unlike MarshalJSON.
 func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 	cdc.doAutoseal()
 
 	// Dereference value if pointer.
-	var rv, _, isNilPtr = derefPointers(reflect.ValueOf(o))
-	if isNilPtr {
-		// NOTE: You can still do so by calling
-		// `.MarshalBinaryLengthPrefixed(struct{ *SomeType })` or so on.
-		panic("MarshalBinaryBare cannot marshal a nil pointer directly. Try wrapping in a struct?")
+	var rv = reflect.ValueOf(o)
+	if rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			panic("MarshalBinaryBare cannot marshal a nil pointer directly. Try wrapping in a struct?")
+			// NOTE: You can still do so by calling
+			// `.MarshalBinaryLengthPrefixed(struct{ *SomeType })` or so on.
+		}
+		rv = rv.Elem()
 	}
 
 	// Encode Amino:binary bytes.
@@ -554,14 +560,6 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	return nil
 }
 
-func derefType(rt reflect.Type) (drt reflect.Type) {
-	drt = rt
-	for drt.Kind() == reflect.Ptr {
-		drt = drt.Elem()
-	}
-	return
-}
-
 // Panics if error.
 func (cdc *Codec) MustUnmarshalBinaryBare(bz []byte, ptr interface{}) {
 	err := cdc.UnmarshalBinaryBare(bz, ptr)
@@ -618,7 +616,10 @@ func (cdc *Codec) MarshalJSONInterface(o interface{}) ([]byte, error) {
 	}
 
 	// Dereference value if pointer.
-	var rv, _, _ = derefPointers(reflect.ValueOf(o))
+	var rv = reflect.ValueOf(o)
+	if rv.Kind() == reflect.Ptr {
+		rv = rv.Elem()
+	}
 	var rt = rv.Type()
 
 	// rv cannot be an interface.

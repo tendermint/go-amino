@@ -89,33 +89,11 @@ func (p3c *P3Context) GetPackage(gopkg string) *amino.Package {
 	return pkg
 }
 
-// For a given package info, crawl and discover all package infos.
-func crawlPackages(pkg *amino.Package, seen map[*amino.Package]struct{}) (res []*amino.Package) {
-	if seen == nil {
-		seen = map[*amino.Package]struct{}{}
-	}
-	var crawl func(pkg *amino.Package)
-	crawl = func(pkg *amino.Package) {
-		seen[pkg] = struct{}{}
-		for _, dependency := range pkg.Dependencies {
-			if _, ok := seen[dependency]; ok {
-				continue
-			}
-			crawl(dependency)
-		}
-	}
-	crawl(pkg)
-	for pkg, _ := range seen {
-		res = append(res, pkg)
-	}
-	return res
-}
-
 // Crawls the packages and flattens all dependencies.
 func (p3c *P3Context) GetAllPackages() (res []*amino.Package) {
 	seen := map[*amino.Package]struct{}{}
 	for _, pkg := range p3c.packages {
-		pkgs := crawlPackages(pkg, seen)
+		pkgs := pkg.CrawlPackages(seen)
 		res = append(res, pkgs...)
 	}
 	return
@@ -171,7 +149,7 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 
 	for _, field := range info.StructInfo.Fields {
 		p3FieldType, p3FieldRepeated :=
-			p3c.reflectTypeToP3Type(field.Type)
+			p3c.reflectTypeToP3Type(field.ReprType)
 		// If the p3 field package is the same, omit the prefix.
 		if p3FieldType.GetPackage() == p3doc.Package {
 			p3FieldMessageType := p3FieldType.(P3MessageType)
@@ -179,7 +157,7 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 			p3FieldType = p3FieldMessageType
 		}
 		// If the field package different, add the import to p3doc.
-		if field.Type.PkgPath() != pkgPath {
+		if field.ReprType.PkgPath() != pkgPath {
 			if p3FieldType.GetPackage() != "" {
 				importPath := p3c.GetP3ImportPath(p3FieldType)
 				p3doc.AddImport(importPath)
@@ -235,17 +213,14 @@ func (p3c *P3Context) WriteProto3SchemaForTypes(filename string, pkg *amino.Pack
 }
 
 // If rt is a struct, the returned proto3 type is a P3MessageType.
+// `rt` should be the representation type in case IsAminoMarshaler.
 func (p3c *P3Context) reflectTypeToP3Type(rt reflect.Type) (p3type P3Type, repeated bool) {
-
-	// If the kind is an interface type,
-	// just return an any.
-	if rt.Kind() == reflect.Interface {
-		return P3AnyType, false
-	}
-
-	var info *amino.TypeInfo = p3c.cdc.NewTypeInfoUnregistered(rt)
+	// dereference type, in case pointer.
+	_, rt = amino.DerefType(rt)
 
 	switch rt.Kind() {
+	case reflect.Interface:
+		return P3AnyType, false
 	case reflect.Bool:
 		return P3ScalarTypeBool, false
 	case reflect.Int:
@@ -291,9 +266,9 @@ func (p3c *P3Context) reflectTypeToP3Type(rt reflect.Type) (p3type P3Type, repea
 	case reflect.String:
 		return P3ScalarTypeString, false
 	case reflect.Struct:
-		// Look up the p3pkg type from p3 context.
-		pkg := p3c.GetPackage(info.Type.PkgPath())
-		return NewP3MessageType(pkg.P3PkgName, info.Type.Name()), false
+		// Look up the p3pkg type from the go path, using P3Context.
+		pkg := p3c.GetPackage(rt.PkgPath())
+		return NewP3MessageType(pkg.P3PkgName, rt.Name()), false
 	default:
 		panic("unexpected rt kind")
 	}

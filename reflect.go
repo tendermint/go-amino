@@ -38,6 +38,10 @@ func checkUnsafe(field FieldInfo) {
 	case reflect.Float32, reflect.Float64:
 		panic("floating point types are unsafe for go-amino")
 	}
+	switch field.ReprType.Kind() {
+	case reflect.Float32, reflect.Float64:
+		panic("floating point types are unsafe for go-amino, even for repr types")
+	}
 }
 
 // CONTRACT: by the time this is called, len(bz) >= _n
@@ -55,15 +59,16 @@ func slide(bz *[]byte, n *int, _n int) bool {
 	return true
 }
 
-// Dereference pointer recursively.
+// maybe dereference pointer.
 // drv: the final non-pointer value (which may be invalid).
 // isPtr: whether rv.Kind() == reflect.Ptr.
 // isNilPtr: whether a nil pointer at any level.
-func derefPointers(rv reflect.Value) (drv reflect.Value, isPtr bool, isNilPtr bool) {
-	for rv.Kind() == reflect.Ptr {
-		isPtr = true
+// XXX rename to "derefIfPointer".
+func MaybeDerefValue(rv reflect.Value) (drv reflect.Value, rvIsPtr bool, rvIsNilPtr bool) {
+	if rv.Kind() == reflect.Ptr {
+		rvIsPtr = true
 		if rv.IsNil() {
-			isNilPtr = true
+			rvIsNilPtr = true
 			return
 		}
 		rv = rv.Elem()
@@ -72,61 +77,46 @@ func derefPointers(rv reflect.Value) (drv reflect.Value, isPtr bool, isNilPtr bo
 	return
 }
 
-// Dereference pointer recursively or return zero value.
-// drv: the final non-pointer value (which is never invalid).
-// isPtr: whether rv.Kind() == reflect.Ptr.
-// isNilPtr: whether a nil pointer at any level.
-func derefPointersZero(rv reflect.Value) (drv reflect.Value, isPtr bool, isNilPtr bool) {
-	for rv.Kind() == reflect.Ptr {
-		isPtr = true
-		if rv.IsNil() {
-			isNilPtr = true
-			rt := rv.Type().Elem()
-			for rt.Kind() == reflect.Ptr {
-				rt = rt.Elem()
-			}
-			drv = reflect.New(rt).Elem()
-			return
-		}
-		rv = rv.Elem()
+func MaybeDerefType(rt reflect.Type) (drt reflect.Value, rtIsPtr bool) {
+	if rt.Kind() == reflect.Ptr {
+		rtIsPtr = true
+		drt = rt.Elem()
+		return
 	}
 	drv = rv
 	return
 }
 
-// Returns isDefaultValue=true iff is ultimately nil or empty
-// after (recursive) dereferencing.
-// If isDefaultValue=false, erv is set to the non-nil non-default
-// dereferenced value.
-// A zero/empty struct is not considered default for this
-// function.
-// NOTE: Also works for Maps and Chans, though they are not
+// Returns isDefaultValue=true iff is zero.
+// NOTE: Also works for Maps, Chans, and Funcs, though they are not
 // otherwise supported by Amino.  For future?
-func isDefaultValue(rv reflect.Value) (erv reflect.Value, isDefaultValue bool) {
-	rv, _, isNilPtr := derefPointers(rv)
-	if isNilPtr {
-		return rv, true
-	}
+// Doesn't work for structs.  TODO reconsider structs.
+func isDefaultValue(rv reflect.Value) (isDefault bool) {
 	switch rv.Kind() {
+	case reflect.Ptr:
+		return rv.IsNil()
 	case reflect.Bool:
-		return rv, false
+		return rv.Bool() == false
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return rv, rv.Int() == 0
+		return rv.Int() == 0
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return rv, rv.Uint() == 0
+		return rv.Uint() == 0
 	case reflect.String:
-		return rv, rv.Len() == 0
+		return rv.Len() == 0
 	case reflect.Chan, reflect.Map, reflect.Slice:
-		return rv, rv.IsNil() || rv.Len() == 0
+		return rv.IsNil() || rv.Len() == 0
 	case reflect.Func, reflect.Interface:
-		return rv, rv.IsNil()
+		return rv.IsNil()
+	case reflect.Struct:
+		panic("not supported (yet?)")
 	default:
-		return rv, false
+		return false
 	}
 }
 
-// Returns the default value of a type.  For a time type or a pointer(s) to
-// time, the default value is not zero (or nil), but the time value of 1970.
+// Returns the default value of a type.  For a time type or a
+// pointer(s) to time, the default value is not zero (or nil), but the
+// time value of 1970.
 func defaultValue(rt reflect.Type) (rv reflect.Value) {
 	switch rt.Kind() {
 	case reflect.Ptr:
