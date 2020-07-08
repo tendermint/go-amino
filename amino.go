@@ -346,7 +346,7 @@ func (cdc *Codec) MarshalBinaryInterfaceBare(o interface{}) ([]byte, error) {
 	}
 
 	// Dereference value if pointer.
-	var rv, _, _ = derefPointers(reflect.ValueOf(o))
+	var rv, _, _ = maybeDerefValue(reflect.ValueOf(o))
 	var rt = rv.Type()
 
 	// rv cannot be an interface.

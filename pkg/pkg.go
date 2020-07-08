@@ -11,6 +11,7 @@ import (
 
 type Package struct {
 	// General info
+	Name         string // short name, like "main"
 	GoPkgPath    string
 	GoPkgName    string
 	DirName      string
@@ -54,6 +55,7 @@ func NewPackage(gopkgPath string, p3pkgName string, dirName string) *Package {
 	assertValidDirName(dirName)
 	assertValidP3PkgName(p3pkgName)
 	pkg := &Package{
+		Name:         defaultName(gopkgPath),
 		GoPkgPath:    gopkgPath,
 		GoPkgName:    defaultPkgName(gopkgPath),
 		DirName:      dirName,
@@ -69,6 +71,11 @@ func NewPackage(gopkgPath string, p3pkgName string, dirName string) *Package {
 
 func (pkg *Package) String() string {
 	return fmt.Sprintf("pkg.Pkg(%v@%v)", pkg.GoPkgPath, pkg.DirName)
+}
+
+func (pkg *Package) WithName(name string) *Package {
+	pkg.Name = name
+	return pkg
 }
 
 func (pkg *Package) WithGoP3PkgPath(gop3pkg string) *Package {
@@ -141,7 +148,9 @@ func (pkg *Package) HasType(rt reflect.Type) (exists bool, err error) {
 
 func (pkg *Package) HasName(name string) (exists bool) {
 	for _, rt := range pkg.Types {
-		_, rt = amino.DerefType(rt)
+		if rt.Kind() == reflect.Ptr {
+			rt = rt.Elem()
+		}
 		if rt.Name() == name {
 			return true
 		}
@@ -151,7 +160,9 @@ func (pkg *Package) HasName(name string) (exists bool) {
 
 func (pkg *Package) HasFullName(name string) (exists bool) {
 	for _, rt := range pkg.Types {
-		_, rt = amino.DerefType(rt)
+		if rt.Kind() == reflect.Ptr {
+			rt = rt.Elem()
+		}
 		if pkg.FullNameForType(rt) == name {
 			return true
 		}
@@ -161,7 +172,9 @@ func (pkg *Package) HasFullName(name string) (exists bool) {
 
 // panics of rt was not registered.
 func (pkg *Package) FullNameForType(rt reflect.Type) string {
-	_, rt = amino.DerefType(rt)
+	if rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+	}
 	exists, err := pkg.HasType(rt)
 	if !exists {
 		panic(err)
@@ -280,5 +293,13 @@ func defaultPkgName(gopkgPath string) (name string) {
 	parts = strings.Split(last, "-")
 	name = parts[len(parts)-1]
 	name = strings.ToLower(name)
+	return name
+}
+
+func defaultName(gopkgPath string) (name string) {
+	parts := strings.Split(gopkgPath, "/")
+	parts = strings.Split(parts[len(parts)-1], "-")
+	last := parts[len(parts)-1]
+	name = strings.ToLower(last)
 	return name
 }

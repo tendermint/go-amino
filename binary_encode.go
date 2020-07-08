@@ -243,7 +243,8 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 
 	// Get concrete non-pointer reflect value & type.
 	var crv = rv.Elem()
-	var dcrv, crvIsPtr, crvIsNilPtr = maybeDerefPointer(crv)
+	var crt = crv.Type()
+	var dcrv, crvIsPtr, crvIsNilPtr = maybeDerefValue(crv)
 	if crvIsPtr && dcrv.Kind() == reflect.Interface {
 		// See "MARKER: No interface-pointers" in codec.go
 		panic("should not happen")
@@ -405,7 +406,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 			}
 			// Get dereferenced element value and info.
 			var erv = rv.Index(i)
-			if isDefaultValue(erv) {
+			if isNonstructDefaultValue(erv) {
 				// Special case if:
 				//  - erv is a struct pointer and
 				//  - field option has EmptyElements set
@@ -483,8 +484,8 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 		var finfo = field.TypeInfo
 		// Get dereferenced field value and info.
 		var frv = rv.Field(field.Index)
-		var dfrv, frvIsPtr, _ = maybeDerefPointer(frv)
-		if isDefaultValue(frv) && !field.WriteEmpty {
+		var dfrv, frvIsPtr, _ = maybeDerefValue(frv)
+		if isNonstructDefaultValue(frv) && !field.WriteEmpty {
 			// Do not encode default value fields
 			// (except when `amino:"write_empty"` is set).
 			continue

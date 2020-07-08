@@ -66,7 +66,7 @@ func NewP3Context() *P3Context {
 }
 
 func (p3c *P3Context) RegisterPackage(pkg *amino.Package) {
-	pkgs := crawlPackages(pkg, nil)
+	pkgs := pkg.CrawlPackages(nil)
 	for _, pkg := range pkgs {
 		p3c.registerPackage(pkg)
 	}
@@ -129,8 +129,10 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 		return
 	}
 
-	var info *amino.TypeInfo = p3c.cdc.NewTypeInfoUnregistered(rt)
-	if info.Type.Kind() != reflect.Struct {
+	info, err := p3c.cdc.GetTypeInfo(rt)
+	if err != nil {
+		return
+	} else if info.Type.Kind() != reflect.Struct {
 		err = errors.New("only structs can generate proto3 message schemas")
 		return
 	}
@@ -149,7 +151,7 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 
 	for _, field := range info.StructInfo.Fields {
 		p3FieldType, p3FieldRepeated :=
-			p3c.reflectTypeToP3Type(field.ReprType)
+			p3c.reflectTypeToP3Type(field.TypeInfo.ReprType.Type)
 		// If the p3 field package is the same, omit the prefix.
 		if p3FieldType.GetPackage() == p3doc.Package {
 			p3FieldMessageType := p3FieldType.(P3MessageType)
@@ -157,7 +159,7 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 			p3FieldType = p3FieldMessageType
 		}
 		// If the field package different, add the import to p3doc.
-		if field.ReprType.PkgPath() != pkgPath {
+		if field.TypeInfo.ReprType.Package.GoPkgPath != pkgPath {
 			if p3FieldType.GetPackage() != "" {
 				importPath := p3c.GetP3ImportPath(p3FieldType)
 				p3doc.AddImport(importPath)
@@ -216,7 +218,12 @@ func (p3c *P3Context) WriteProto3SchemaForTypes(filename string, pkg *amino.Pack
 // `rt` should be the representation type in case IsAminoMarshaler.
 func (p3c *P3Context) reflectTypeToP3Type(rt reflect.Type) (p3type P3Type, repeated bool) {
 	// dereference type, in case pointer.
-	_, rt = amino.DerefType(rt)
+	if rt.Kind() == reflect.Ptr {
+		rt = rt.Elem()
+		if rt.Kind() == reflect.Ptr {
+			panic("nested pointers not supported")
+		}
+	}
 
 	switch rt.Kind() {
 	case reflect.Interface:

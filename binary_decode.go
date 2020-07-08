@@ -589,8 +589,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 			// TODO: Maybe we can optimize and check for default value
 			// before any decoding happens, perhaps by checking 0x00.
 			if erv.Kind() == reflect.Ptr {
-				_, isNonstructDefault := isNonstructDefaultValue(erv)
-				if isNonstructDefault {
+				if isNonstructDefaultValue(erv) {
 					erv.Set(reflect.Zero(erv.Type()))
 					continue
 				}
@@ -760,8 +759,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 			}
 			// Special case when reading default value, prefer nil.
 			if ert.Kind() == reflect.Ptr {
-				_, isNonstructDefault := isNonstructDefaultValue(erv)
-				if isNonstructDefault {
+				if isNonstructDefaultValue(erv) {
 					srv = reflect.Append(srv, reflect.Zero(ert))
 					continue
 				}

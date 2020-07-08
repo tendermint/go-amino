@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/structpb"
+	//"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -36,13 +36,13 @@ var (
 	uintType   = reflect.TypeOf(uint(0))
 
 	// google
-	gAnyType      = reflect.TypeOf(anypb.Any{})
-	gDurationType = reflect.TypeOf(durationpb.Duration{})
-	gEmptyType    = reflect.TypeOf(emptypb.Empty{})
-	//gStructType    = reflect.TypeOf(structpb.Struct{}) MAP not yet supported
-	gValueType     = reflect.TypeOf(structpb.Value{})
-	gListType      = reflect.TypeOf(structpb.ListValue{})
+	gAnyType       = reflect.TypeOf(anypb.Any{})
 	gTimestampType = reflect.TypeOf(timestamppb.Timestamp{})
+	gDurationType  = reflect.TypeOf(durationpb.Duration{})
+	gEmptyType     = reflect.TypeOf(emptypb.Empty{})
+	//gStructType    = reflect.TypeOf(structpb.Struct{}) MAP not yet supported
+	//gValueType     = reflect.TypeOf(structpb.Value{})
+	//gListType      = reflect.TypeOf(structpb.ListValue{})
 	//gDoubleType    = reflect.TypeOf(wrapperspb.DoubleValue{})
 	//gFloatType     = reflect.TypeOf(wrapperspb.FloatValue{})
 	gInt64Type  = reflect.TypeOf(wrapperspb.Int64Value{})
@@ -54,40 +54,112 @@ var (
 	gBytesType  = reflect.TypeOf(wrapperspb.BytesValue{})
 )
 
+var (
+	nativePkg = NewPackage(
+		"",
+		"",
+		"",
+	).
+		WithP3SchemaFile("").
+		WithTypes(
+			int64(0), uint64(0), int32(0), uint32(0), bool(false),
+			string(""), []byte(nil), int(0), uint(0),
+		)
+
+	timePkg = NewPackage(
+		"time",
+		"XXX",
+		"",
+	).
+		WithP3SchemaFile("").
+		WithTypes(
+			time.Now(),
+			time.Duration(0),
+		)
+
+	gAnyPkg = NewPackage(
+		"google.golang.org/protobuf/types/known/anypb",
+		"google.protobuf",
+		"",
+	).
+		WithP3ImportPath("google/protobuf/any.proto").
+		WithP3SchemaFile("").
+		WithTypes(&anypb.Any{})
+
+	gTimestampPkg = NewPackage(
+		"google.golang.org/protobuf/types/known/timestamppb",
+		"google.protobuf",
+		"",
+	).
+		WithP3ImportPath("google/protobuf/timestamp.proto").
+		WithP3SchemaFile("").
+		WithTypes(&timestamppb.Timestamp{})
+
+	gDurationPkg = NewPackage(
+		"google.golang.org/protobuf/types/known/durationpb",
+		"google.protobuf",
+		"",
+	).
+		WithP3ImportPath("google/protobuf/duration.proto").
+		WithP3SchemaFile("").
+		WithTypes(&durationpb.Duration{})
+
+	gEmptyPkg = NewPackage(
+		"google.golang.org/protobuf/types/known/emptypb",
+		"google.protobuf",
+		"",
+	).
+		WithP3ImportPath("google/protobuf/empty.proto").
+		WithP3SchemaFile("").
+		WithTypes(&emptypb.Empty{})
+
+	gWrappersPkg = NewPackage(
+		"google.golang.org/protobuf/types/known/wrapperspb",
+		"google.protobuf",
+		"",
+	).
+		WithP3ImportPath("google/protobuf/wrappers.proto").
+		WithP3SchemaFile("").
+		WithTypes(
+			&wrapperspb.BoolValue{},
+			&wrapperspb.BytesValue{},
+			&wrapperspb.DoubleValue{},
+			&wrapperspb.FloatValue{},
+			&wrapperspb.Int32Value{},
+			&wrapperspb.Int64Value{},
+			&wrapperspb.StringValue{},
+			&wrapperspb.UInt32Value{},
+			&wrapperspb.UInt64Value{},
+		)
+)
+
 func (cdc *Codec) registerWellKnownTypes() {
 	var register, preferNative = true, false
 	var ptr, noPtr = true, false
 	// native
-	cdc.registerType(timeType, "/google.protobuf.Timestamp", noPtr, register)
-	cdc.registerType(durationType, "/google.protobuf.Duration", noPtr, register)
-	//cdc.registerType(doubleType, "/google.protobuf.DoubleValue", noPtr, register)
-	//cdc.registerType(floatType, "/google.protobuf.FloatValue", noPtr, register)
-	cdc.registerType(int64Type, "/google.protobuf.Int64Value", noPtr, register)
-	cdc.registerType(uint64Type, "/google.protobuf.UInt64Value", noPtr, register)
-	cdc.registerType(int32Type, "/google.protobuf.Int32Value", noPtr, register)
-	cdc.registerType(uint32Type, "/google.protobuf.UInt32Value", noPtr, register)
-	cdc.registerType(boolType, "/google.protobuf.BoolValue", noPtr, register)
-	cdc.registerType(stringType, "/google.protobuf.StringValue", noPtr, register)
-	cdc.registerType(bytesType, "/google.protobuf.BytesValue", noPtr, register)
-	cdc.registerType(intType, "/google.protobuf.Int64Value", noPtr, preferNative)
-	cdc.registerType(uintType, "/google.protobuf.UInt64Value", noPtr, preferNative)
+	cdc.registerType(timePkg, timeType, "/google.protobuf.Timestamp", noPtr, register)
+	cdc.registerType(timePkg, durationType, "/google.protobuf.Duration", noPtr, register)
+	cdc.registerType(nativePkg, int64Type, "/google.protobuf.Int64Value", noPtr, register)
+	cdc.registerType(nativePkg, uint64Type, "/google.protobuf.UInt64Value", noPtr, register)
+	cdc.registerType(nativePkg, int32Type, "/google.protobuf.Int32Value", noPtr, register)
+	cdc.registerType(nativePkg, uint32Type, "/google.protobuf.UInt32Value", noPtr, register)
+	cdc.registerType(nativePkg, boolType, "/google.protobuf.BoolValue", noPtr, register)
+	cdc.registerType(nativePkg, stringType, "/google.protobuf.StringValue", noPtr, register)
+	cdc.registerType(nativePkg, bytesType, "/google.protobuf.BytesValue", noPtr, register)
+	cdc.registerType(nativePkg, intType, "/google.protobuf.Int64Value", noPtr, preferNative)
+	cdc.registerType(nativePkg, uintType, "/google.protobuf.UInt64Value", noPtr, preferNative)
 	// google
-	cdc.registerType(gAnyType, "/google.protobuf.Any", ptr, register)
-	cdc.registerType(gDurationType, "/google.protobuf.Duration", ptr, preferNative)
-	cdc.registerType(gEmptyType, "/google.protobuf.Empty", ptr, register)
-	// cdc.registerType(gStructType, "/google.protobuf.Struct", ptr, register) MAP not yet supported
-	cdc.registerType(gValueType, "/google.protobuf.Value", ptr, register)
-	cdc.registerType(gListType, "/google.protobuf.ListValue", ptr, register)
-	cdc.registerType(gTimestampType, "/google.protobuf.Timestamp", ptr, preferNative)
-	//cdc.registerType(gDoubleType, "/google.protobuf.DoubleValue", ptr, preferNative)
-	//cdc.registerType(gFloatType, "/google.protobuf.FloatValue", ptr, preferNative)
-	cdc.registerType(gInt64Type, "/google.protobuf.Int64Value", ptr, preferNative)
-	cdc.registerType(gUInt64Type, "/google.protobuf.UInt64Value", ptr, preferNative)
-	cdc.registerType(gInt32Type, "/google.protobuf.Int32Value", ptr, preferNative)
-	cdc.registerType(gUInt32Type, "/google.protobuf.UInt32Value", ptr, preferNative)
-	cdc.registerType(gBoolType, "/google.protobuf.BoolValue", ptr, preferNative)
-	cdc.registerType(gStringType, "/google.protobuf.StringValue", ptr, preferNative)
-	cdc.registerType(gBytesType, "/google.protobuf.BytesValue", ptr, preferNative)
+	cdc.registerType(gAnyPkg, gAnyType, "/google.protobuf.Any", ptr, register)
+	cdc.registerType(gDurationPkg, gDurationType, "/google.protobuf.Duration", ptr, preferNative)
+	cdc.registerType(gEmptyPkg, gEmptyType, "/google.protobuf.Empty", ptr, register)
+	cdc.registerType(gTimestampPkg, gTimestampType, "/google.protobuf.Timestamp", ptr, preferNative)
+	cdc.registerType(gWrappersPkg, gInt64Type, "/google.protobuf.Int64Value", ptr, preferNative)
+	cdc.registerType(gWrappersPkg, gUInt64Type, "/google.protobuf.UInt64Value", ptr, preferNative)
+	cdc.registerType(gWrappersPkg, gInt32Type, "/google.protobuf.Int32Value", ptr, preferNative)
+	cdc.registerType(gWrappersPkg, gUInt32Type, "/google.protobuf.UInt32Value", ptr, preferNative)
+	cdc.registerType(gWrappersPkg, gBoolType, "/google.protobuf.BoolValue", ptr, preferNative)
+	cdc.registerType(gWrappersPkg, gStringType, "/google.protobuf.StringValue", ptr, preferNative)
+	cdc.registerType(gWrappersPkg, gBytesType, "/google.protobuf.BytesValue", ptr, preferNative)
 }
 
 // These require special functions for encoding/decoding.
@@ -109,10 +181,11 @@ func isJSONWellKnownType(rt reflect.Type) (wellKnown bool) {
 		return true
 	// Google "well known" types.
 	case
-		gAnyType, gDurationType, gEmptyType /*gStructType,*/, gValueType,
-		gListType, gTimestampType /*,gDoubleType, gFloatType*/, gInt64Type,
-		gUInt64Type, gInt32Type, gUInt32Type, gBoolType, gStringType,
-		gBytesType:
+		gAnyType, gTimestampType, gDurationType, gEmptyType,
+		/*gStructType, gValueType, gListType,*/
+		/*gDoubleType, gFloatType,*/
+		gInt64Type, gUInt64Type, gInt32Type, gUInt32Type, gBoolType,
+		gStringType, gBytesType:
 		return true
 	}
 	// General cases based on kind.
@@ -171,10 +244,11 @@ func encodeReflectJSONWellKnown(w io.Writer, info *TypeInfo, rv reflect.Value, f
 	// TODO: port each below to above without proto dependency
 	// for marshaling code, to minimize dependencies.
 	case
-		gAnyType, gEmptyType /*gStructType,*/, gValueType,
-		gListType /*,gDoubleType, gFloatType*/, gInt64Type,
-		gUInt64Type, gInt32Type, gUInt32Type, gBoolType, gStringType,
-		gBytesType:
+		gAnyType, gEmptyType,
+		/*gStructType, gValueType, gListType,*/
+		/*gDoubleType, gFloatType,*/
+		gInt64Type, gUInt64Type, gInt32Type, gUInt32Type, gBoolType,
+		gStringType, gBytesType:
 		bz, err := proto.Marshal(rv.Interface().(proto.Message))
 		if err != nil {
 			return false, err
@@ -229,10 +303,11 @@ func decodeReflectJSONWellKnown(bz []byte, info *TypeInfo, rv reflect.Value, fop
 	// TODO: port each below to above without proto dependency
 	// for unmarshaling code, to minimize dependencies.
 	case
-		gAnyType, gEmptyType /*gStructType,*/, gValueType,
-		gListType /*,gDoubleType, gFloatType*/, gInt64Type,
-		gUInt64Type, gInt32Type, gUInt32Type, gBoolType, gStringType,
-		gBytesType:
+		gAnyType, gEmptyType,
+		/*gStructType, gValueType, gListType,*/
+		/*gDoubleType, gFloatType,*/
+		gInt64Type, gUInt64Type, gInt32Type, gUInt32Type, gBoolType,
+		gStringType, gBytesType:
 		err := proto.Unmarshal(bz, rv.Addr().Interface().(proto.Message))
 		if err != nil {
 			return false, err

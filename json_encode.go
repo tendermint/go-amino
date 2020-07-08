@@ -36,8 +36,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	}
 
 	// Dereference value if pointer.
-	var rvIsNil = false
-	if rv.Kind() == reflect.Value {
+	if rv.Kind() == reflect.Ptr {
 		if rv.IsNil() {
 			err = writeStr(w, `null`)
 			return
@@ -136,7 +135,7 @@ func (cdc *Codec) encodeReflectJSONInterface(w io.Writer, iinfo *TypeInfo, rv re
 
 	// Get concrete non-pointer reflect value & type.
 	var crv = rv.Elem()
-	var _, crvIsPtr, crvIsNilPtr = maybeDerefPointer(crv)
+	var _, crvIsPtr, crvIsNilPtr = maybeDerefValue(crv)
 	if crvIsPtr && crv.Kind() == reflect.Interface {
 		// See "MARKER: No interface-pointers" in codec.go
 		panic("should not happen")
@@ -310,17 +309,9 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 
 	var writeComma = false
 	for _, field := range info.Fields {
-		// Get dereferenced field value and info.
-		var frv = rv.Field(field.Index)
-		var frvIsNil = false
-		if frv.Kind() == reflect.Ptr {
-			if frv.IsNil() {
-				frvIsNil = true
-			}
-			frv = frv.Elem()
-		}
-		var frv, _, isNil = derefPointers(rv.Field(field.Index))
 		var finfo = field.TypeInfo
+		// Get dereferenced field value and info.
+		var frv, _, frvIsNil = maybeDerefValue(rv.Field(field.Index))
 		// If frv is empty and omitempty, skip it.
 		// NOTE: Unlike Amino:binary, we don't skip null fields unless "omitempty".
 		if field.JSONOmitEmpty && isJSONEmpty(frv, field.ZeroValue) {
@@ -346,7 +337,7 @@ func (cdc *Codec) encodeReflectJSONStruct(w io.Writer, info *TypeInfo, rv reflec
 			return
 		}
 		// Write field value.
-		if isNil {
+		if frvIsNil {
 			err = writeStr(w, `null`)
 		} else {
 			err = cdc.encodeReflectJSON(w, finfo, frv, field.FieldOptions)

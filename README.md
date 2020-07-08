@@ -233,3 +233,9 @@ Amino objects are a subset of Go.
 
 Amino, unlike Gob, is beyond the Go language, though the initial implementation
 and thus the specification happens to be in Go (for now).
+
+## Limitations
+
+* Pointer types in arrays and slices lose pointer information.
+* Nested pointers are not allowed.
+* Recursive ReprType not allowed.

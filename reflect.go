@@ -34,11 +34,11 @@ func checkUnsafe(field FieldInfo) {
 	if field.Unsafe {
 		return
 	}
-	switch field.Type.Kind() {
+	switch field.TypeInfo.Type.Kind() {
 	case reflect.Float32, reflect.Float64:
 		panic("floating point types are unsafe for go-amino")
 	}
-	switch field.ReprType.Kind() {
+	switch field.TypeInfo.ReprType.Type.Kind() {
 	case reflect.Float32, reflect.Float64:
 		panic("floating point types are unsafe for go-amino, even for repr types")
 	}
@@ -59,12 +59,11 @@ func slide(bz *[]byte, n *int, _n int) bool {
 	return true
 }
 
-// maybe dereference pointer.
+// maybe dereference if pointer.
 // drv: the final non-pointer value (which may be invalid).
 // isPtr: whether rv.Kind() == reflect.Ptr.
 // isNilPtr: whether a nil pointer at any level.
-// XXX rename to "derefIfPointer".
-func MaybeDerefValue(rv reflect.Value) (drv reflect.Value, rvIsPtr bool, rvIsNilPtr bool) {
+func maybeDerefValue(rv reflect.Value) (drv reflect.Value, rvIsPtr bool, rvIsNilPtr bool) {
 	if rv.Kind() == reflect.Ptr {
 		rvIsPtr = true
 		if rv.IsNil() {
@@ -77,21 +76,26 @@ func MaybeDerefValue(rv reflect.Value) (drv reflect.Value, rvIsPtr bool, rvIsNil
 	return
 }
 
-func MaybeDerefType(rt reflect.Type) (drt reflect.Value, rtIsPtr bool) {
-	if rt.Kind() == reflect.Ptr {
-		rtIsPtr = true
-		drt = rt.Elem()
-		return
+// Dereference-and-construct pointers.
+func maybeDerefAndConstruct(rv reflect.Value) reflect.Value {
+	if rv.Kind() == reflect.Ptr {
+		if rv.IsNil() {
+			newPtr := reflect.New(rv.Type().Elem())
+			rv.Set(newPtr)
+		}
+		rv = rv.Elem()
 	}
-	drv = rv
-	return
+	if rv.Kind() == reflect.Ptr {
+		panic("unexpected pointer pointer")
+	}
+	return rv
 }
 
 // Returns isDefaultValue=true iff is zero.
 // NOTE: Also works for Maps, Chans, and Funcs, though they are not
 // otherwise supported by Amino.  For future?
-// Doesn't work for structs.  TODO reconsider structs.
-func isDefaultValue(rv reflect.Value) (isDefault bool) {
+// Doesn't work for structs.
+func isNonstructDefaultValue(rv reflect.Value) (isDefault bool) {
 	switch rv.Kind() {
 	case reflect.Ptr:
 		return rv.IsNil()

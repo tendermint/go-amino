@@ -18,7 +18,7 @@ const printLog = false
 
 type TypeInfo struct {
 	Type      reflect.Type // never a pointer kind.
-	Pkg       *Package     // package associated with Type.
+	Package   *Package     // package associated with Type.
 	PtrToType reflect.Type
 	ZeroValue reflect.Value
 	ZeroProto interface{}
@@ -40,7 +40,8 @@ type ConcreteInfo struct {
 	IsBinaryWellKnownType bool      // If true, use built-in functions to encode/decode.
 	IsJSONWellKnownType   bool      // If true, use built-in functions to encode/decode.
 	IsJSONAnyValueType    bool      // If true, the interface/Any representation uses the "value" field.
-	Elem                  *TypeInfo
+	Elem                  *TypeInfo // Set if Type.Kind() is Slice or Array.
+	ElemIsPtr             bool      // Set true iff Type.Elem().Kind() is Pointer.
 }
 
 type StructInfo struct {
@@ -148,7 +149,6 @@ func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *Package) {
 	cdc.assertNotSealed()
 
 	// Get p3 full name.
-	var typeURL string
 	if exists, err := pkg.HasType(rt); !exists {
 		panic(err)
 	} else {
@@ -171,11 +171,11 @@ func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *Package) {
 	}
 
 	// Get type_url
-	typeURL = pkg.TypeURLForType(rt)
-
+	typeURL := pkg.TypeURLForType(rt)
 	cdc.registerType(pkg, rt, typeURL, pointerPreferred, true)
 }
 
+// This function exists so that typeURL etc can be overridden.
 func (cdc *Codec) registerType(pkg *Package, rt reflect.Type, typeURL string, pointerPreferred bool, primary bool) {
 	cdc.assertNotSealed()
 
@@ -484,7 +484,6 @@ func (cdc *Codec) newTypeInfoUnregisteredWLocked(rt reflect.Type) *TypeInfo {
 	cdc.typeInfos[rt] = info
 
 	info.Type = rt
-	info.Package = pkg
 	info.PtrToType = reflect.PtrTo(rt)
 	info.ZeroValue = reflect.Zero(rt)
 	info.ZeroProto = reflect.Zero(rt).Interface()
@@ -526,6 +525,7 @@ func (cdc *Codec) newTypeInfoUnregisteredWLocked(rt reflect.Type) *TypeInfo {
 			panic(err)
 		}
 		info.ConcreteInfo.Elem = einfo
+		info.ConcreteInfo.ElemIsPtr = rt.Elem().Kind() == reflect.Ptr
 	}
 	return info
 }
