@@ -91,10 +91,9 @@ func maybeDerefAndConstruct(rv reflect.Value) reflect.Value {
 	return rv
 }
 
-// Returns isDefaultValue=true iff is zero.
+// Returns isDefaultValue=true iff is zero and isn't a struct.
 // NOTE: Also works for Maps, Chans, and Funcs, though they are not
 // otherwise supported by Amino.  For future?
-// Doesn't work for structs.
 func isNonstructDefaultValue(rv reflect.Value) (isDefault bool) {
 	switch rv.Kind() {
 	case reflect.Ptr:
@@ -112,7 +111,7 @@ func isNonstructDefaultValue(rv reflect.Value) (isDefault bool) {
 	case reflect.Func, reflect.Interface:
 		return rv.IsNil()
 	case reflect.Struct:
-		panic("not supported (yet?)")
+		return false
 	default:
 		return false
 	}

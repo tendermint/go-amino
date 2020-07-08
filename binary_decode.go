@@ -585,15 +585,6 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return
 			}
-			// Special case when reading default value, prefer nil.
-			// TODO: Maybe we can optimize and check for default value
-			// before any decoding happens, perhaps by checking 0x00.
-			if erv.Kind() == reflect.Ptr {
-				if isNonstructDefaultValue(erv) {
-					erv.Set(reflect.Zero(erv.Type()))
-					continue
-				}
-			}
 		}
 		// Ensure that we read the whole buffer.
 		if len(bz) > 0 {
@@ -757,14 +748,6 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return
 			}
-			// Special case when reading default value, prefer nil.
-			if ert.Kind() == reflect.Ptr {
-				if isNonstructDefaultValue(erv) {
-					srv = reflect.Append(srv, reflect.Zero(ert))
-					continue
-				}
-			}
-			// Otherwise append to slice.
 			srv = reflect.Append(srv, erv)
 		}
 	} else {

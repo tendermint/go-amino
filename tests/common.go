@@ -112,12 +112,14 @@ type PointerSlicesStruct struct {
 	EmptyPtSl   []*EmptyStruct
 }
 
+/* amino 1.2 removed nested pointer support.
 // NOTE: See registered fuzz funcs for *byte, **byte, and ***byte.
 type NestedPointersStruct struct {
 	Ptr1 *byte
 	Ptr2 **byte
 	Ptr3 ***byte
 }
+*/
 
 type ComplexSt struct {
 	PrField PrimitivesStruct
@@ -177,7 +179,7 @@ var StructTypes = []interface{}{
 	(*SlicesStruct)(nil),
 	(*PointersStruct)(nil),
 	(*PointerSlicesStruct)(nil),
-	(*NestedPointersStruct)(nil),
+	// (*NestedPointersStruct)(nil),
 	(*ComplexSt)(nil),
 	(*EmbeddedSt1)(nil),
 	(*EmbeddedSt2)(nil),

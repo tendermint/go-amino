@@ -34,11 +34,11 @@ func TestMarshalUnmarshalBinaryPointer0(t *testing.T) {
 	var s = newSimpleStruct()
 	cdc := amino.NewCodec()
 	b, err := cdc.MarshalBinaryLengthPrefixed(s) // no indirection
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var s2 SimpleStruct
 	err = cdc.UnmarshalBinaryLengthPrefixed(b, &s2) // no indirection
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, s, s2)
 
 }
@@ -48,11 +48,11 @@ func TestMarshalUnmarshalBinaryPointer1(t *testing.T) {
 	var s = newSimpleStruct()
 	cdc := amino.NewCodec()
 	b, err := cdc.MarshalBinaryLengthPrefixed(&s) // extra indirection
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var s2 SimpleStruct
 	err = cdc.UnmarshalBinaryLengthPrefixed(b, &s2) // no indirection
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, s, s2)
 
 }
@@ -62,14 +62,10 @@ func TestMarshalUnmarshalBinaryPointer2(t *testing.T) {
 	var s = newSimpleStruct()
 	var ptr = &s
 	cdc := amino.NewCodec()
-	b, err := cdc.MarshalBinaryLengthPrefixed(&ptr) // double extra indirection
-	assert.Nil(t, err)
-
-	var s2 SimpleStruct
-	err = cdc.UnmarshalBinaryLengthPrefixed(b, &s2) // no indirection
-	assert.Nil(t, err)
-	assert.Equal(t, s, s2)
-
+	assert.Panics(t, func() {
+		cdc.MarshalBinaryLengthPrefixed(&ptr) // double extra indirection panics.
+		cdc.RegisterPackage(tests.Package)
+	})
 }
 
 func TestMarshalUnmarshalBinaryPointer3(t *testing.T) {
@@ -77,7 +73,7 @@ func TestMarshalUnmarshalBinaryPointer3(t *testing.T) {
 	var s = newSimpleStruct()
 	cdc := amino.NewCodec()
 	b, err := cdc.MarshalBinaryLengthPrefixed(s) // no indirection
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var s2 *SimpleStruct
 	err = cdc.UnmarshalBinaryLengthPrefixed(b, &s2) // extra indirection
@@ -91,7 +87,7 @@ func TestMarshalUnmarshalBinaryPointer4(t *testing.T) {
 	var ptr = &s
 	cdc := amino.NewCodec()
 	b, err := cdc.MarshalBinaryLengthPrefixed(&ptr) // extra indirection
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	var s2 *SimpleStruct
 	err = cdc.UnmarshalBinaryLengthPrefixed(b, &s2) // extra indirection

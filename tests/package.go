@@ -19,7 +19,7 @@ var Package = pkg.NewPackage(
 	SlicesStruct{},
 	PointersStruct{},
 	PointerSlicesStruct{},
-	NestedPointersStruct{},
+	//NestedPointersStruct{},
 	ComplexSt{},
 	EmbeddedSt1{},
 	EmbeddedSt2{},

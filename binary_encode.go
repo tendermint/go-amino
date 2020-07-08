@@ -261,7 +261,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 		return
 	}
 	if !cinfo.Registered {
-		err = fmt.Errorf("cannot encode unregistered concrete type %v", crt.Elem())
+		err = fmt.Errorf("cannot encode unregistered concrete type %v", crt)
 		return
 	}
 
@@ -385,6 +385,8 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 			if ert.Kind() == reflect.Ptr {
 				if erv.IsNil() {
 					erv = reflect.New(ert.Elem()).Elem()
+				} else {
+					erv = erv.Elem()
 				}
 			}
 			// Write the element value.
@@ -395,7 +397,8 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 		}
 	} else { // typ3 == Typ3ByteLength
 		// NOTE: ert is for the element value, while einfo.Type is dereferenced.
-		isErtStructPointer := ert.Kind() == reflect.Ptr && einfo.Type.Kind() == reflect.Struct
+		ertIsPointer := ert.Kind() == reflect.Ptr
+		ertIsStruct := einfo.Type.Kind() == reflect.Struct
 
 		// Write elems in unpacked form.
 		for i := 0; i < rv.Len(); i++ {
@@ -410,7 +413,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 				// Special case if:
 				//  - erv is a struct pointer and
 				//  - field option has EmptyElements set
-				if isErtStructPointer && fopts.EmptyElements {
+				if ertIsStruct && ertIsPointer && fopts.EmptyElements {
 					// NOTE: Not sure what to do here, but for future-proofing,
 					// we explicitly fail on nil pointers, just like
 					// Proto3's Golang client does.
@@ -435,10 +438,15 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 				// message which holds a list at field number 1.
 				efopts := fopts
 				efopts.BinFieldNum = 1
-				err = cdc.encodeReflectBinary(buf, einfo, erv, efopts, false)
+				derv := erv
+				if ertIsPointer {
+					derv = erv.Elem()
+				}
+				err = cdc.encodeReflectBinary(buf, einfo, derv, efopts, false)
 				if err != nil {
 					return
 				}
+
 			}
 		}
 	}

@@ -68,7 +68,7 @@ var (
 
 	timePkg = NewPackage(
 		"time",
-		"XXX",
+		"",
 		"",
 	).
 		WithP3SchemaFile("").

@@ -390,6 +390,9 @@ func (cdc *Codec) getTypeInfoWLock(rt reflect.Type) (info *TypeInfo, err error) 
 func (cdc *Codec) getTypeInfoWLocked(rt reflect.Type) (info *TypeInfo, err error) {
 	// Dereference pointer type.
 	for rt.Kind() == reflect.Ptr {
+		if rt.Elem().Kind() == reflect.Ptr {
+			return nil, fmt.Errorf("cannot support nested pointers, got %v", rt)
+		}
 		rt = rt.Elem()
 	}
 

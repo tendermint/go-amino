@@ -51,22 +51,37 @@ type Package struct {
 // Panics if invalid arguments are given, such as slashes in p3pkgName,
 // invalid go pkg paths, or a relative dirName.
 func NewPackage(gopkgPath string, p3pkgName string, dirName string) *Package {
-	assertValidGoPkgPath(gopkgPath)
-	assertValidDirName(dirName)
-	assertValidP3PkgName(p3pkgName)
-	pkg := &Package{
-		Name:         defaultName(gopkgPath),
-		GoPkgPath:    gopkgPath,
-		GoPkgName:    defaultPkgName(gopkgPath),
-		DirName:      dirName,
-		Dependencies: nil,
-		Types:        nil,
-		GoP3PkgPath:  path.Join(gopkgPath, "pb"),
-		P3PkgName:    p3pkgName,
-		P3ImportPath: path.Join(gopkgPath, "types.proto"),
-		P3SchemaFile: path.Join(dirName, "types.proto"),
+	if gopkgPath == "" && (p3pkgName != "" || dirName != "") {
+		panic("if goPkgPath is empty, p3PkgName and dirName must also be")
 	}
-	return pkg
+	if gopkgPath != "" {
+		assertValidGoPkgPath(gopkgPath)
+	}
+	if p3pkgName != "" {
+		assertValidP3PkgName(p3pkgName)
+	}
+	assertValidDirName(dirName)
+	if gopkgPath != "" {
+		pkg := &Package{
+			Name:         defaultName(gopkgPath),
+			GoPkgPath:    gopkgPath,
+			GoPkgName:    defaultPkgName(gopkgPath),
+			DirName:      dirName,
+			Dependencies: nil,
+			Types:        nil,
+			GoP3PkgPath:  path.Join(gopkgPath, "pb"),
+			P3PkgName:    p3pkgName,
+			P3ImportPath: path.Join(gopkgPath, "types.proto"),
+			P3SchemaFile: path.Join(dirName, "types.proto"),
+		}
+		return pkg
+	} else {
+		pkg := &Package{
+			Dependencies: nil,
+			Types:        nil,
+		}
+		return pkg
+	}
 }
 
 func (pkg *Package) String() string {

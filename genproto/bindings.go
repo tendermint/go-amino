@@ -891,23 +891,27 @@ func _a(args ...interface{}) *ast.AssignStmt {
 	tok := token.ILLEGAL
 	rhs := []ast.Expr(nil)
 
+	setTok := func(t token.Token) {
+		if tok != token.ILLEGAL {
+			panic("too many assignment operators")
+		}
+		tok = t
+	}
+
 	for _, arg := range args {
 		if s, ok := arg.(string); ok {
-			if tok == token.ILLEGAL {
-				switch s {
-				case "=":
-					tok = token.ASSIGN
-					continue
-				case ":=":
-					tok = token.DEFINE
-					continue
-				default:
-					arg = _x(s)
-				}
-			} else {
-				panic("too many assignment operators")
+			switch s {
+			case "=":
+				setTok(token.ASSIGN)
+				continue
+			case ":=":
+				setTok(token.DEFINE)
+				continue
+			default:
+				arg = _x(s)
 			}
 		}
+		// append to lhs or rhs depending on tok.
 		if tok == token.ILLEGAL {
 			lhs = append(lhs, arg.(ast.Expr))
 		} else {
