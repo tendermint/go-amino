@@ -94,48 +94,14 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 	case reflect.Array:
 		if info.Type.Elem().Kind() == reflect.Uint8 {
 			err = cdc.encodeReflectBinaryByteArray(w, info, rv, fopts)
-		} else if kind := info.Type.Elem().Kind(); kind == reflect.Slice || kind == reflect.Array {
-			// for proto3 compatibility, we do not allow multidimensional arrays,
-			// unless the elements involved are bytes (e.g. [][]byte)
-			if info.Type.Elem().Elem().Kind() != reflect.Uint8 { // byte is an alias for uint8
-				elem := info.Type.Elem()
-				for {
-					if elem.Kind() == reflect.Slice || elem.Kind() == reflect.Array {
-						elem = elem.Elem()
-						continue
-					}
-					if elem.Kind() == reflect.Uint8 { // byte is an alias for uint8
-						break
-					}
-					err = errors.New("multidimensional arrays not allowed")
-					break
-				}
-			}
 		} else {
 			err = cdc.encodeReflectBinaryList(w, info, rv, fopts, bare)
 		}
 
 	case reflect.Slice:
-		switch info.Type.Elem().Kind() {
-
-		case reflect.Uint8:
+		if info.Type.Elem().Kind() == reflect.Uint8 {
 			err = cdc.encodeReflectBinaryByteSlice(w, info, rv, fopts)
-		case reflect.Slice, reflect.Array:
-			// for proto3 compatibility, we do not allow multidimensional slices,
-			// unless the elements involved are bytes (e.g. [][]byte)
-			elem := info.Type.Elem()
-			for {
-				if elem.Kind() == reflect.Slice || elem.Kind() == reflect.Array {
-					elem = elem.Elem()
-					continue
-				}
-				if elem.Kind() == reflect.Uint8 { // byte is an alias for uint8
-					break
-				}
-				err = errors.New("multidimensional slices not allowed")
-				break
-			}
-		default:
+		} else {
 			err = cdc.encodeReflectBinaryList(w, info, rv, fopts, bare)
 		}
 
@@ -432,7 +398,8 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 				// NOTE: In case of any (nested) inner lists in unpacked form,
 				// we again pass in BinFieldNum=1, but each inner list of field
 				// num = 1 items will still be byte-length prefixed, so
-				// multidimensional lists are still supported.
+				// multidimensional lists are represented as lists of implicit
+				// structs.
 				//
 				// In proto3 this would be resented with an auto-generated
 				// message which holds a list at field number 1.

@@ -19,7 +19,7 @@ type Package struct {
 	Types        []reflect.Type
 
 	// Proto3 info
-	GoP3PkgPath  string
+	P3GoPkgPath  string
 	P3PkgName    string
 	P3ImportPath string
 	P3SchemaFile string
@@ -29,9 +29,9 @@ type Package struct {
 // unless you are developking on go-amino dependencies), but without
 // global amino registration.
 //
-// GoP3PkgPath (the import path for go files generated from protoc) are
+// P3GoPkgPath (the import path for go files generated from protoc) are
 // by default set to "<GoPkgPath>/pb", but can be overridden by
-// WithGoP3PkgPath().  You may want to override this for main package,
+// WithP3GoPkgPath().  You may want to override this for main package,
 // for the subdirectory "pb" doesn't produce a "main/pb" package.  See
 // ./proto/example/pacakge.go for such usage.
 //
@@ -69,7 +69,7 @@ func NewPackage(gopkgPath string, p3pkgName string, dirName string) *Package {
 			DirName:      dirName,
 			Dependencies: nil,
 			Types:        nil,
-			GoP3PkgPath:  path.Join(gopkgPath, "pb"),
+			P3GoPkgPath:  path.Join(gopkgPath, "pb"),
 			P3PkgName:    p3pkgName,
 			P3ImportPath: path.Join(gopkgPath, "types.proto"),
 			P3SchemaFile: path.Join(dirName, "types.proto"),
@@ -93,12 +93,12 @@ func (pkg *Package) WithName(name string) *Package {
 	return pkg
 }
 
-func (pkg *Package) WithGoP3PkgPath(gop3pkg string) *Package {
-	pkg.GoP3PkgPath = gop3pkg
+func (pkg *Package) WithP3GoPkgPath(p3gopkg string) *Package {
+	pkg.P3GoPkgPath = p3gopkg
 	return pkg
 }
 
-func (pkg *Package) WithGoP3PkgName(name string) *Package {
+func (pkg *Package) WithP3GoPkgName(name string) *Package {
 	pkg.GoPkgName = name
 	return pkg
 }

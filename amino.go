@@ -286,6 +286,9 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 			// `.MarshalBinaryLengthPrefixed(struct{ *SomeType })` or so on.
 		}
 		rv = rv.Elem()
+		if rv.Kind() == reflect.Ptr {
+			panic("nested pointers not allowed")
+		}
 	}
 
 	// Encode Amino:binary bytes.

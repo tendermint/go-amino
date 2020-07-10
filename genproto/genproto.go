@@ -189,7 +189,7 @@ func (p3c *P3Context) GenerateProto3SchemaForTypes(pkg *amino.Package, rtz ...re
 
 	// Set the package.
 	p3doc.Package = pkg.P3PkgName
-	p3doc.GoPackage = pkg.GoP3PkgPath
+	p3doc.GoPackage = pkg.P3GoPkgPath
 
 	// Set Message schemas.
 	for _, rt := range rtz {
@@ -352,8 +352,8 @@ func MakeProtoFolder(pkg *amino.Package, dirName string) {
 	}
 }
 
-// Uses pkg.GoP3PkgPath to determine where the compiled file goes.  If
-// pkg.GoP3PkgPath is a subpath of pkg.GoPkgPath, then it will be
+// Uses pkg.P3GoPkgPath to determine where the compiled file goes.  If
+// pkg.P3GoPkgPath is a subpath of pkg.GoPkgPath, then it will be
 // written in the relevant subpath in pkg.DirName.
 // `protosDir`: folder where .proto files for all dependencies live.
 func RunProtoc(pkg *amino.Package, protosDir string) {
@@ -390,7 +390,7 @@ func RunProtoc(pkg *amino.Package, protosDir string) {
 
 	// Copy file from tempDir to outDir.
 	copyFile(
-		path.Join(tempDir, pkg.GoP3PkgPath, outFile),
+		path.Join(tempDir, pkg.P3GoPkgPath, outFile),
 		path.Join(outDir, outFile),
 	)
 }
