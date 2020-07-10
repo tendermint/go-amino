@@ -15,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/tendermint/go-amino"
-	anypb "google.golang.org/protobuf/types/known/anypb"
 )
 
 // TODO sort
@@ -54,14 +53,6 @@ func NewP3Context() *P3Context {
 		packages: make(map[string]*amino.Package),
 		cdc:      amino.NewCodec(),
 	}
-	// Register a singletone package for Any.
-	p3c.RegisterPackage(amino.NewPackage(
-		"google.golang.org/protobuf/types/known/anypb",
-		"google.protobuf",
-		"",
-	).WithP3ImportPath("google/protobuf/any.proto").
-		WithP3SchemaFile("").
-		WithTypes(&anypb.Any{}))
 	return p3c
 }
 
@@ -79,6 +70,7 @@ func (p3c *P3Context) registerPackage(pkg *amino.Package) {
 		}
 	}
 	p3c.packages[pkg.GoPkgPath] = pkg
+	p3c.cdc.RegisterPackage(pkg)
 }
 
 func (p3c *P3Context) GetPackage(gopkg string) *amino.Package {

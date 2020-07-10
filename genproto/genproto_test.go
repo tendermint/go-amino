@@ -33,6 +33,8 @@ import "github.com/tendermint/go-amino/genproto/example/submodule2/types.proto";
 	assert.Equal(t, p3doc.Print(), `syntax = "proto3";
 package submodule;
 
+option go_package = "github.com/tendermint/go-amino/genproto/example/submodule/pb";
+
 // imports
 import "github.com/tendermint/go-amino/genproto/example/submodule2/types.proto";
 

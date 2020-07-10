@@ -97,6 +97,34 @@ func (info *TypeInfo) IsStructOrUnpacked(fopt FieldOptions) bool {
 	return false
 }
 
+func (info *TypeInfo) String() string {
+	if info.Type == nil {
+		// since we set it on the codec map
+		// before it's fully populated.
+		return "<new TypeInfo>"
+	}
+	buf := new(bytes.Buffer)
+	buf.Write([]byte("TypeInfo{"))
+	buf.Write([]byte(fmt.Sprintf("Type:%v,", info.Type)))
+	if info.ConcreteInfo.Registered {
+		buf.Write([]byte("Registered:true,"))
+		buf.Write([]byte(fmt.Sprintf("PointerPreferred:%v,", info.PointerPreferred)))
+		buf.Write([]byte(fmt.Sprintf("TypeURL:\"%v\",", info.TypeURL)))
+	} else {
+		buf.Write([]byte("Registered:false,"))
+	}
+	if info.ReprType == info {
+		buf.Write([]byte(fmt.Sprintf("ReprType:<self>,")))
+	} else {
+		buf.Write([]byte(fmt.Sprintf("ReprType:\"%v\",", info.ReprType)))
+	}
+	if info.Type.Kind() == reflect.Struct {
+		buf.Write([]byte(fmt.Sprintf("Fields:%v,", info.Fields)))
+	}
+	buf.Write([]byte("}"))
+	return buf.String()
+}
+
 //----------------------------------------
 // FieldInfo convenience
 
@@ -130,10 +158,17 @@ func NewCodec() *Codec {
 }
 
 // The package isn't (yet) necessary besides to get the full name of concrete
-// types.
+// types.  Registers all dependencies of pkg recursively.  This operation is
+// idempotent -- pkgs already registered may be registered again.
 func (cdc *Codec) RegisterPackage(pkg *Package) {
 	cdc.assertNotSealed()
 
+	// Register dependencies if needed.
+	for _, dep := range pkg.Dependencies {
+		cdc.RegisterPackage(dep)
+	}
+
+	// Register types for package.
 	for _, rt := range pkg.Types {
 		cdc.RegisterTypeFrom(rt, pkg)
 	}
@@ -188,7 +223,18 @@ func (cdc *Codec) registerType(pkg *Package, rt reflect.Type, typeURL string, po
 	var info, ok = cdc.typeInfos[rt]
 	if ok {
 		if info.Registered {
-			panic(fmt.Sprintf("type %v already registered", rt))
+			// If idempotent operation, ignore silenty.
+			// Otherwise, panic.
+			if info.Package != pkg {
+				panic(fmt.Sprintf("type %v already registered with different package %v", rt, info.Package))
+			}
+			if info.ConcreteInfo.PointerPreferred != pointerPreferred {
+				panic(fmt.Sprintf("type %v already registered with different pointer preference", rt))
+			}
+			if info.ConcreteInfo.TypeURL != typeURL {
+				panic(fmt.Sprintf("type %v already registered with different type URL %v", rt, info.TypeURL))
+			}
+			return // silently
 		} else {
 			// we will be filling in an existing type.
 		}
@@ -484,6 +530,9 @@ func (cdc *Codec) newTypeInfoUnregisteredWLocked(rt reflect.Type) *TypeInfo {
 	// TODO: can protobuf support this? If not, we would still want to, but
 	// restrict what can be compiled to protobuf, or something.
 	var info = new(TypeInfo)
+	if _, exists := cdc.typeInfos[rt]; exists {
+		panic("should not happen, instance already exists")
+	}
 	cdc.typeInfos[rt] = info
 
 	info.Type = rt
@@ -641,32 +690,6 @@ func parseFieldOptions(field reflect.StructField) (skip bool, fopts FieldOptions
 	}
 
 	return skip, fopts
-}
-
-//----------------------------------------
-// .String()
-
-func (ti *TypeInfo) String() string {
-	buf := new(bytes.Buffer)
-	buf.Write([]byte("TypeInfo{"))
-	buf.Write([]byte(fmt.Sprintf("Type:%v,", ti.Type)))
-	if ti.ConcreteInfo.Registered {
-		buf.Write([]byte("Registered:true,"))
-		buf.Write([]byte(fmt.Sprintf("PointerPreferred:%v,", ti.PointerPreferred)))
-		buf.Write([]byte(fmt.Sprintf("TypeURL:\"%v\",", ti.TypeURL)))
-	} else {
-		buf.Write([]byte("Registered:false,"))
-	}
-	if ti.ReprType == ti {
-		buf.Write([]byte(fmt.Sprintf("ReprType:<self>,")))
-	} else {
-		buf.Write([]byte(fmt.Sprintf("ReprType:\"%v\",", ti.ReprType)))
-	}
-	if ti.Type.Kind() == reflect.Struct {
-		buf.Write([]byte(fmt.Sprintf("Fields:%v,", ti.Fields)))
-	}
-	buf.Write([]byte("}"))
-	return buf.String()
 }
 
 //----------------------------------------

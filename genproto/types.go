@@ -174,8 +174,10 @@ func (doc P3Doc) PrintCode(p *press.Press) *press.Press {
 		p.Ln()
 	}
 	// Print options, if any.
-	p.Pl("option go_package = \"%v\";", doc.GoPackage)
-	p.Ln()
+	if doc.GoPackage != "" {
+		p.Pl("option go_package = \"%v\";", doc.GoPackage)
+		p.Ln()
+	}
 	// Print imports, if any.
 	for i, imp := range doc.Imports {
 		if i == 0 {
