@@ -224,7 +224,7 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, pbo a
 	case reflect.Interface:
 		b = append(b,
 			// see generateCommonMethodForType().
-			_a("typeUrl", ":=", _call(_sel(goo, "GetTypeUrl"), nil)),
+			_a("typeUrl", ":=", _call(_sel(goo, "GetTypeUrl"))),
 			_a("bz", "err", ":=", _call(_sel(_i("cdc"), "MarshalBinaryBare"), goo)),
 			_if(_x("err__!=__nil"),
 				_return(),

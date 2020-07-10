@@ -29,6 +29,10 @@ var (
 	uint64Type = reflect.TypeOf(uint64(0))
 	int32Type  = reflect.TypeOf(int32(0))
 	uint32Type = reflect.TypeOf(uint32(0))
+	int16Type  = reflect.TypeOf(int16(0))
+	uint16Type = reflect.TypeOf(uint16(0))
+	int8Type   = reflect.TypeOf(int8(0))
+	uint8Type  = reflect.TypeOf(uint8(0))
 	boolType   = reflect.TypeOf(bool(false))
 	stringType = reflect.TypeOf(string(""))
 	bytesType  = reflect.TypeOf([]byte(nil))
@@ -136,6 +140,11 @@ var (
 func (cdc *Codec) registerWellKnownTypes() {
 	var register, preferNative = true, false
 	var ptr, noPtr = true, false
+	// native not supported by protobuf
+	cdc.registerType(nativePkg, uint16Type, "/amino.UInt16", noPtr, register) // XXX create them, and consider switching other types over.
+	cdc.registerType(nativePkg, uint8Type, "/amino.UInt8", noPtr, register)
+	cdc.registerType(nativePkg, int16Type, "/amino.Int16", noPtr, register)
+	cdc.registerType(nativePkg, int8Type, "/amino.Int8", noPtr, register)
 	// native
 	cdc.registerType(timePkg, timeType, "/google.protobuf.Timestamp", noPtr, register)
 	cdc.registerType(timePkg, durationType, "/google.protobuf.Duration", noPtr, register)

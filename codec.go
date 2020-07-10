@@ -646,7 +646,7 @@ func parseFieldOptions(field reflect.StructField) (skip bool, fopts FieldOptions
 //----------------------------------------
 // .String()
 
-func (ti TypeInfo) String() string {
+func (ti *TypeInfo) String() string {
 	buf := new(bytes.Buffer)
 	buf.Write([]byte("TypeInfo{"))
 	buf.Write([]byte(fmt.Sprintf("Type:%v,", ti.Type)))
@@ -657,7 +657,11 @@ func (ti TypeInfo) String() string {
 	} else {
 		buf.Write([]byte("Registered:false,"))
 	}
-	buf.Write([]byte(fmt.Sprintf("ReprType:\"%v\",", ti.ReprType)))
+	if ti.ReprType == ti {
+		buf.Write([]byte(fmt.Sprintf("ReprType:<self>,")))
+	} else {
+		buf.Write([]byte(fmt.Sprintf("ReprType:\"%v\",", ti.ReprType)))
+	}
 	if ti.Type.Kind() == reflect.Struct {
 		buf.Write([]byte(fmt.Sprintf("Fields:%v,", ti.Fields)))
 	}
