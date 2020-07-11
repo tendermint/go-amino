@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+
+	"github.com/tendermint/go-amino/pkg"
 )
 
 // Useful for debugging.
@@ -144,6 +146,7 @@ type Codec struct {
 	// which follows the TypeURL's last (and required) slash.
 	// only registered types have names.
 	nameToTypeInfo map[string]*TypeInfo
+	packages       pkg.PackageSet
 }
 
 func NewCodec() *Codec {
@@ -152,6 +155,7 @@ func NewCodec() *Codec {
 		autoseal:       false,
 		typeInfos:      make(map[reflect.Type]*TypeInfo),
 		nameToTypeInfo: make(map[string]*TypeInfo),
+		packages:       pkg.NewPackageSet(),
 	}
 	cdc.registerWellKnownTypes()
 	return cdc
@@ -213,6 +217,9 @@ func (cdc *Codec) RegisterTypeFrom(rt reflect.Type, pkg *Package) {
 // This function exists so that typeURL etc can be overridden.
 func (cdc *Codec) registerType(pkg *Package, rt reflect.Type, typeURL string, pointerPreferred bool, primary bool) {
 	cdc.assertNotSealed()
+
+	// Add package to packages if new.
+	cdc.packages.Add(pkg)
 
 	if rt.Kind() == reflect.Interface ||
 		rt.Kind() == reflect.Ptr {
@@ -413,8 +420,18 @@ func (cdc *Codec) registerTypeInfoWLocked(info *TypeInfo, primary bool) {
 	}
 }
 
+// XXX TODO: make this safe so modifications don't affect runtime codec,
+// and ensure that it stays safe.
+// NOTE: do not modify the returned Packages.
+func (cdc *Codec) GetPackages() pkg.PackageSet {
+	cdc.mtx.RLock()
+	defer cdc.mtx.RUnlock()
+
+	return cdc.packages
+}
+
 // This is used primarily for gengo.
-// TODO: make this safe so modifications don't affect runtime codec,
+// XXX TODO: make this safe so modifications don't affect runtime codec,
 // and ensure that it stays safe.
 // NOTE: do not modify the returned TypeInfo.
 func (cdc *Codec) GetTypeInfo(rt reflect.Type) (info *TypeInfo, err error) {

@@ -21,9 +21,9 @@ import (
 
 type P3Type interface {
 	AssertIsP3Type()
-	GetPackage() string  // proto3 package prefix
-	GetName() string     // proto3 name
-	GetFullName() string // proto3 full name
+	GetPackageName() string // proto3 package prefix
+	GetName() string        // proto3 name
+	GetFullName() string    // proto3 full name
 }
 
 func (P3ScalarType) AssertIsP3Type()  {}
@@ -31,7 +31,7 @@ func (P3MessageType) AssertIsP3Type() {}
 
 type P3ScalarType string
 
-func (P3ScalarType) GetPackage() string     { return "" }
+func (P3ScalarType) GetPackageName() string { return "" }
 func (st P3ScalarType) GetName() string     { return string(st) }
 func (st P3ScalarType) GetFullName() string { return string(st) }
 
@@ -54,9 +54,9 @@ const (
 )
 
 type P3MessageType struct {
-	Package     string // proto3 package name, optional.
+	PackageName string // proto3 package name, optional.
 	Name        string // message name.
-	OmitPackage bool   // if true, Package is not printed.
+	OmitPackage bool   // if true, PackageName is not printed.
 }
 
 func NewP3MessageType(pkg string, name string) P3MessageType {
@@ -81,7 +81,7 @@ func NewP3MessageType(pkg string, name string) P3MessageType {
 	if len(name) == 0 {
 		panic("custom p3 type name can't be empty")
 	}
-	return P3MessageType{Package: pkg, Name: name}
+	return P3MessageType{PackageName: pkg, Name: name}
 }
 
 var (
@@ -89,8 +89,8 @@ var (
 )
 
 // May be empty if it isn't set (for locally declared messages).
-func (p3mt P3MessageType) GetPackage() string {
-	return p3mt.Package
+func (p3mt P3MessageType) GetPackageName() string {
+	return p3mt.PackageName
 }
 
 func (p3mt P3MessageType) GetName() string {
@@ -98,10 +98,10 @@ func (p3mt P3MessageType) GetName() string {
 }
 
 func (p3mt P3MessageType) GetFullName() string {
-	if p3mt.OmitPackage || p3mt.Package == "" {
+	if p3mt.OmitPackage || p3mt.PackageName == "" {
 		return p3mt.Name
 	} else {
-		return fmt.Sprintf("%v.%v", p3mt.Package, p3mt.Name)
+		return fmt.Sprintf("%v.%v", p3mt.PackageName, p3mt.Name)
 	}
 }
 
@@ -117,11 +117,11 @@ func (p3mt P3MessageType) String() string {
 // validity checking happens here... it should happen before these values are
 // set.  Convenience functions that require much more context like P3Context are OK.
 type P3Doc struct {
-	Package   string
-	GoPackage string // TODO replace with general options
-	Comment   string
-	Imports   []P3Import
-	Messages  []P3Message
+	PackageName string
+	GoPackage   string // TODO replace with general options
+	Comment     string
+	Imports     []P3Import
+	Messages    []P3Message
 	// Enums []P3Enums // enums not supported, no need.
 }
 
@@ -164,8 +164,8 @@ func (doc P3Doc) Print() string {
 
 func (doc P3Doc) PrintCode(p *press.Press) *press.Press {
 	p.Pl("syntax = \"proto3\";")
-	if doc.Package != "" {
-		p.Pl("package %v;", doc.Package)
+	if doc.PackageName != "" {
+		p.Pl("package %v;", doc.PackageName)
 	}
 	// Print comments, if any.
 	p.Ln()

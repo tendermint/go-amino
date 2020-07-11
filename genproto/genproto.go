@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	"github.com/tendermint/go-amino"
+	"github.com/tendermint/go-amino/pkg"
 )
 
 // TODO sort
@@ -36,7 +37,7 @@ import (
 type P3Context struct {
 	// e.g. "github.com/tendermint/tendermint/abci/types" ->
 	//   &Package{...}
-	packages map[string]*amino.Package
+	packages pkg.PackageSet
 
 	// TODO
 	// // for beyond default "type.proto"
@@ -50,7 +51,7 @@ type P3Context struct {
 
 func NewP3Context() *P3Context {
 	p3c := &P3Context{
-		packages: make(map[string]*amino.Package),
+		packages: pkg.NewPackageSet(),
 		cdc:      amino.NewCodec(),
 	}
 	return p3c
@@ -64,29 +65,26 @@ func (p3c *P3Context) RegisterPackage(pkg *amino.Package) {
 }
 
 func (p3c *P3Context) registerPackage(pkg *amino.Package) {
-	if found, ok := p3c.packages[pkg.GoPkgPath]; ok {
-		if found != pkg {
-			panic(fmt.Errorf("found conflicting package mappkgng, %v -> %v but trying to overwrite with -> %v", pkg.GoPkgPath, found, pkg))
-		}
-	}
-	p3c.packages[pkg.GoPkgPath] = pkg
+	p3c.packages.Add(pkg)
 	p3c.cdc.RegisterPackage(pkg)
 }
 
 func (p3c *P3Context) GetPackage(gopkg string) *amino.Package {
-	pkg, ok := p3c.packages[gopkg]
-	if !ok {
-		panic(fmt.Sprintf("package info unrecognized for %v (not registered directly nor indirectly as dependency", gopkg))
-	}
-	return pkg
+	return p3c.packages.Get(gopkg)
 }
 
 // Crawls the packages and flattens all dependencies.
+// Includes
 func (p3c *P3Context) GetAllPackages() (res []*amino.Package) {
 	seen := map[*amino.Package]struct{}{}
 	for _, pkg := range p3c.packages {
 		pkgs := pkg.CrawlPackages(seen)
 		res = append(res, pkgs...)
+	}
+	for _, pkg := range p3c.cdc.GetPackages() {
+		if _, exists := seen[pkg]; !exists {
+			res = append(res, pkg)
+		}
 	}
 	return
 }
@@ -100,7 +98,7 @@ func (p3c *P3Context) ValidateBasic() {
 // dependencies of that package.  But a method implemented on P3Context
 // should function like this and print an intelligent error.
 func (p3c *P3Context) GetP3ImportPath(p3type P3Type) string {
-	p3pkg := p3type.GetPackage()
+	p3pkg := p3type.GetPackageName()
 	pkgs := p3c.GetAllPackages()
 	for _, pkg := range pkgs {
 		if pkg.P3PkgName == p3pkg {
@@ -116,7 +114,7 @@ func (p3c *P3Context) GetP3ImportPath(p3type P3Type) string {
 // (partial) schema.  Imports are added to p3doc.
 func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type) (p3msg P3Message, err error) {
 
-	if p3doc.Package == "" {
+	if p3doc.PackageName == "" {
 		err = errors.New("cannot generate message partials in the root package \"\".")
 		return
 	}
@@ -129,6 +127,17 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 		return
 	}
 
+	// The p3 schema is determined by the structure of ReprType.  But the name,
+	// package, and where the binding artifacts get written, are all of the
+	// original package.  Thus, .ReprType.Type.Name() and
+	// .ReprType.Type.Package etc should not be used, and sometimes we must
+	// preserve the original info's package as arguments along with .ReprType.
+	rinfo := info.ReprType
+	if rinfo.ReprType != rinfo {
+		// info.ReprType should point to itself, chaining is not allowed.
+		panic("should not happen")
+	}
+
 	// When fields include other declared structs,
 	// we need to know whether it's an external reference
 	// (with corresponding imports in the proto3 schema)
@@ -139,20 +148,22 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 		return
 	}
 
-	p3msg.Name = info.Type.Name()
+	p3msg.Name = info.Type.Name() // not rinfo.
 
-	for _, field := range info.StructInfo.Fields {
+	for _, field := range rinfo.StructInfo.Fields { // rinfo.
 		p3FieldType, p3FieldRepeated :=
-			p3c.reflectTypeToP3Type(field.TypeInfo.ReprType.Type)
+			p3c.typeToP3Type(field.TypeInfo)
 		// If the p3 field package is the same, omit the prefix.
-		if p3FieldType.GetPackage() == p3doc.Package {
+		if p3FieldType.GetPackageName() == p3doc.PackageName {
 			p3FieldMessageType := p3FieldType.(P3MessageType)
 			p3FieldMessageType.SetOmitPackage()
 			p3FieldType = p3FieldMessageType
 		}
 		// If the field package different, add the import to p3doc.
-		if field.TypeInfo.ReprType.Package.GoPkgPath != pkgPath {
-			if p3FieldType.GetPackage() != "" {
+		// NOTE: frpkg will be nil for unregistered interfaces.
+		frpkg := field.TypeInfo.Package
+		if frpkg == nil || frpkg.GoPkgPath != pkgPath {
+			if p3FieldType.GetPackageName() != "" {
 				importPath := p3c.GetP3ImportPath(p3FieldType)
 				p3doc.AddImport(importPath)
 			}
@@ -180,7 +191,7 @@ func (p3c *P3Context) GenerateProto3SchemaForTypes(pkg *amino.Package, rtz ...re
 	}
 
 	// Set the package.
-	p3doc.Package = pkg.P3PkgName
+	p3doc.PackageName = pkg.P3PkgName
 	p3doc.GoPackage = pkg.P3GoPkgPath
 
 	// Set Message schemas.
@@ -208,15 +219,9 @@ func (p3c *P3Context) WriteProto3SchemaForTypes(filename string, pkg *amino.Pack
 
 // If rt is a struct, the returned proto3 type is a P3MessageType.
 // `rt` should be the representation type in case IsAminoMarshaler.
-func (p3c *P3Context) reflectTypeToP3Type(rt reflect.Type) (p3type P3Type, repeated bool) {
+func (p3c *P3Context) typeToP3Type(info *amino.TypeInfo) (p3type P3Type, repeated bool) {
 	// dereference type, in case pointer.
-	if rt.Kind() == reflect.Ptr {
-		rt = rt.Elem()
-		if rt.Kind() == reflect.Ptr {
-			panic("nested pointers not supported")
-		}
-	}
-
+	rt := info.ReprType.Type
 	switch rt.Kind() {
 	case reflect.Interface:
 		return P3AnyType, false
@@ -253,7 +258,7 @@ func (p3c *P3Context) reflectTypeToP3Type(rt reflect.Type) (p3type P3Type, repea
 		case reflect.Uint8:
 			return P3ScalarTypeBytes, false
 		default:
-			elemP3Type, elemRepeated := p3c.reflectTypeToP3Type(rt.Elem())
+			elemP3Type, elemRepeated := p3c.typeToP3Type(info.Elem)
 			if elemRepeated {
 				panic("multi-dimensional arrays not yet supported")
 			}
@@ -265,9 +270,10 @@ func (p3c *P3Context) reflectTypeToP3Type(rt reflect.Type) (p3type P3Type, repea
 	case reflect.String:
 		return P3ScalarTypeString, false
 	case reflect.Struct:
-		// Look up the p3pkg type from the go path, using P3Context.
-		pkg := p3c.GetPackage(rt.PkgPath())
-		return NewP3MessageType(pkg.P3PkgName, rt.Name()), false
+		// NOTE: we don't use rt, because the p3 package and name should still
+		// match the declaration, rather than inherit or refer to the repr type
+		// (if it is registered at all).
+		return NewP3MessageType(info.Package.P3PkgName, info.Type.Name()), false
 	default:
 		panic("unexpected rt kind")
 	}

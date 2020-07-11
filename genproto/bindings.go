@@ -19,10 +19,6 @@ import (
 // Given genproto generated schema files for Go objects, generate
 // mappers to and from pb messages.  The purpose of this is to let Amino
 // use already-optimized probuf logic for serialization.
-//
-// pbpkg is the import path to the pb compiled message structs.
-// Regardless of the import path, the local pkg identifier is
-// always "pbpkg"
 func GenerateProtoBindingsForTypes(pkg *amino.Package, rtz ...reflect.Type) (file *ast.File, err error) {
 
 	// for TypeInfos.
@@ -37,9 +33,9 @@ func GenerateProtoBindingsForTypes(pkg *amino.Package, rtz ...reflect.Type) (fil
 
 	// Generate Imports
 	var imports = _imports(
-		"pbpkg", pkg.P3GoPkgPath,
 		"proto", "google.golang.org/protobuf/proto",
 		"amino", "github.com/tendermint/go-amino")
+	addImportAuto(imports, pkg.Name+"pb", pkg.P3GoPkgPath)
 	file.Decls = append(file.Decls, imports)
 
 	// Generate Decls
@@ -113,22 +109,26 @@ func generateTranslationMethodsForType(imports *ast.GenDecl, pkg *amino.Package,
 		panic("not yet supported")
 	}
 
+	p3pkgName, ok := importNameForPath(pkg.P3GoPkgPath, imports)
+	if !ok {
+		panic("should not happen")
+	}
+
 	//////////////////
 	// ToPBMessage()
 	{
 		// Set toProto function.
 		bindings.toProto = _func("ToPBMessage",
-			"o", info.Type.Name(),
+			"goo", info.Type.Name(),
 			_fields("cdc", "*amino.Codec"),
 			_fields("msg", "proto.Message", "err", "error"),
 			_block(
-				// Body: constructor for pb message.
-				_a("pb", ":=", _x("new~(~pbpkg.%v~)", info.Type.Name())),
-				_a("err", ":=", "error~(~nil~)"),
+				// Body: declaration for pb message.
+				_var("pbo", _x("*%v.%v", p3pkgName, info.Type.Name()), nil),
 				// Body: copying over fields.
-				_block(go2pbStmts(pkg, true, imports, _i("pb"), _i("o"), true, info)...),
+				_block(go2pbStmts(true, imports, _i("pbo"), _i("goo"), false, info)...),
 				// Body: return value.
-				_a("msg", "=", "pb"),
+				_a("msg", "=", "pbo"),
 				_return(),
 			),
 		)
@@ -138,19 +138,17 @@ func generateTranslationMethodsForType(imports *ast.GenDecl, pkg *amino.Package,
 	// FromPBMessage()
 	{
 		bindings.fromProto = _func("FromPBMessage",
-			"o", "*"+info.Type.Name(),
+			"goo", "*"+info.Type.Name(),
 			_fields("cdc", "*amino.Codec", "msg", "proto.Message"),
 			_fields("err", "error"),
 			_block(
-				// Body: constructor for pb message.
-				_a("err", ":=", "pb"),
-				_a("pb", ":=", _x("*pbpkg.%v~(~nil~)", info.Type.Name())),
-				// Body: type assert to pb.
-				_a("pb", "=", _x("msg.~(~*pbpkg.%v~)", info.Type.Name())),
+				// Body: declaration for pb message.
+				_var("pbo", _x("*%v.%v", p3pkgName, info.Type.Name()),
+					_x("msg.~(~*%v.%v~)", p3pkgName, info.Type.Name())),
 				// Body: copying over fields.
-				_block(pb2goStmts(pkg, true, imports, _i("o"), true, info, _i("pb"))...),
+				_block(pb2goStmts(pkg, true, imports, _i("goo"), true, info, _i("pbo"))...),
 				// Body: return value.
-				_a("msg", "=", "pb"),
+				_a("msg", "=", "pbo"),
 				_return(),
 			),
 		)
@@ -158,7 +156,6 @@ func generateTranslationMethodsForType(imports *ast.GenDecl, pkg *amino.Package,
 	return
 }
 
-// rootPkg: the TypeInfo for the concrete type for which we are generating go2pbStmts.
 // isRoot: true if goo is the rootPkg, false if nested fields, even if gooType is rootPkg.
 // imports: global imports -- may be modified.
 // pbo: protobuf variable or field.
@@ -170,27 +167,30 @@ func generateTranslationMethodsForType(imports *ast.GenDecl, pkg *amino.Package,
 //  * The struct case is like `_a(_sel(pbo, field.Name), "=", goo)`
 // CONTRACT: for arrays and lists, memory must be allocated beforehand, but new
 // instances are created within this function.
-func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, pbo ast.Expr, goo ast.Expr, gooIsPtr bool, gooType *amino.TypeInfo) (b []ast.Stmt) {
+func go2pbStmts(isRoot bool, imports *ast.GenDecl, pbo ast.Expr, goo ast.Expr, gooIsPtr bool, gooType *amino.TypeInfo) (b []ast.Stmt) {
 
 	// Special case if nil-pointer.
 	if gooIsPtr || gooType.Type.Kind() == reflect.Interface {
-		defer func() {
+		defer func(goo ast.Expr) {
 			// Wrap penultimate b with if statement.
 			b = []ast.Stmt{_if(_b(goo, "!=", _i("nil")),
 				b...,
 			)}
-		}()
+		}(goo)
 	}
 	// Below, we can assume that goo isn't nil.
 
 	// If gooType is registered, just call ToPBMessage.
 	// TODO If not registered?
-	if !isRoot && gooType.Registered {
+	if !isRoot && gooType.Registered && gooType.Package.GoPkgPath != "" {
+		gooTyp := p3goTypeExprString(imports, gooType)
 		b = append(b,
-			_a(pbo, _i("err"), "=", _call(_sel(goo, "ToPBMessage"))),
+			_a("pbom", ":=", _x("proto.Message~(~nil~)")),
+			_a("pbom", _i("err"), "=", _call(_sel(goo, "ToPBMessage"), _i("cdc"))),
 			_if(_x("err__!=__nil"),
 				_return(),
 			),
+			_a(pbo, "=", _x("pbom.~(~%v~)", gooTyp)),
 		)
 		return
 	}
@@ -222,14 +222,16 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, pbo a
 	switch gooType.Type.Kind() {
 
 	case reflect.Interface:
+		danyTyp := p3goTypeExprString(imports, gooType)[1:]
 		b = append(b,
 			// see generateCommonMethodForType().
-			_a("typeUrl", ":=", _call(_sel(goo, "GetTypeUrl"))),
-			_a("bz", "err", ":=", _call(_sel(_i("cdc"), "MarshalBinaryBare"), goo)),
+			_a("typeUrl", ":=", _call(_sel(_ta(goo, _x("amino.Object")), "GetTypeURL"))),
+			_a("bz", ":=", "[]byte~(~nil~)"),
+			_a("bz", "err", "=", _call(_sel(_i("cdc"), "MarshalBinaryBare"), goo)),
 			_if(_x("err__!=__nil"),
 				_return(),
 			),
-			_a(pbo, "=", "&anypb.Any~{~TypeUrl:typeUrl,Value:bz~}"),
+			_a(pbo, "=", _x("&%v~{~TypeUrl:typeUrl,Value:bz~}", danyTyp)),
 		)
 
 	case reflect.Int:
@@ -258,7 +260,7 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, pbo a
 			// this is a workaround due to Proto deficiencies.
 			pboeTyp = p3goListTypeExprString(gooeType)
 		case reflect.Struct:
-			pboeTyp = p3goTypeExprString(rootPkg, imports, gooeType)
+			pboeTyp = p3goTypeExprString(imports, gooeType)
 		default:
 			pboeTyp = gooeType.Type.String()
 			if pboeTyp == "" {
@@ -277,14 +279,14 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, pbo a
 				_block(
 					// Translate in place.
 					_a("gooe", ":=", _ix(goo, _i("i"))),
-					_block(go2pbStmts(rootPkg, false, imports, _x("pbos~[~i~]"), _i("gooe"), gooeIsPtr, gooeType)...),
+					_block(go2pbStmts(false, imports, _x("pbos~[~i~]"), _i("gooe"), gooeIsPtr, gooeType)...),
 				),
 			),
 			_a(pbo, "=", "pbos"),
 		)
 
 	case reflect.Struct:
-		pboTyp := p3goTypeExprString(rootPkg, imports, gooType)
+		pboTyp := p3goTypeExprString(imports, gooType)
 		if pboTyp[0] != '*' {
 			panic("expected pointer kind for p3goTypeExprString of struct type")
 		}
@@ -301,7 +303,7 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, pbo a
 
 			// Translate in place.
 			b = append(b,
-				_block(go2pbStmts(rootPkg, false, imports, pbof, goof, goofIsPtr, goofType)...),
+				_block(go2pbStmts(false, imports, pbof, goof, goofIsPtr, goofType)...),
 			)
 		}
 
@@ -344,12 +346,12 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, goo a
 		pboZero = defaultExpr(gooType.ReprType.Type.Kind())
 	}
 	if pboZero != nil {
-		defer func() {
+		defer func(pbo ast.Expr) {
 			// Wrap penultimate b with if statement.
 			b = []ast.Stmt{_if(_b(pbo, "!=", pboZero),
 				b...,
 			)}
-		}()
+		}(pbo)
 	}
 	// Below, we can assume that pbo isn't nil or zero.
 
@@ -369,9 +371,9 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, goo a
 
 	// If gooType is registered, just call FromPBMessage.
 	// TODO If not registered?
-	if !isRoot && gooType.Registered {
+	if !isRoot && gooType.Registered && gooType.Package.GoPkgPath != "" {
 		b = append(b,
-			_a(_i("err"), "=", _call(_sel(goo, "FromPBMessage"), pbo)),
+			_a(_i("err"), "=", _call(_sel(goo, "FromPBMessage"), _i("cdc"), pbo)),
 			_if(_x("err__!=__nil"),
 				_return(),
 			),
@@ -411,7 +413,7 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, goo a
 			_a("typeUrl", ":=", _sel(pbo, "TypeUrl")),
 			_a("bz", ":=", _sel(pbo, "Value")),
 			_a("goop", ":=", _ref(goo)), // goo is addressable. NOTE &*a == a if a != nil.
-			_a("err", ":=", "cdc.UnmarshalBinaryAny~(~typeUrl,bz,goop~)"),
+			_a("err", "=", "cdc.UnmarshalBinaryAny~(~typeUrl,bz,goop~)"),
 			_if(_x("err__!=__nil"),
 				_return(),
 			),
@@ -652,9 +654,6 @@ func _fields(args ...string) *ast.FieldList {
 // to do here, given this language, that this is easier to understand and
 // maintain than using advanced tooling.
 func _x(expr string, args ...interface{}) ast.Expr {
-	fmt.Printf("_x:!!")
-	fmt.Printf(expr, args...)
-	fmt.Println("!!")
 	if expr == "" {
 		panic("_x requires argument")
 	}
@@ -677,7 +676,7 @@ func _x(expr string, args ...interface{}) ast.Expr {
 		}
 	case '+', '-', '!', '^', '&':
 		return &ast.UnaryExpr{
-			Op: token.Lookup(expr[:1]),
+			Op: _op(expr[:1]),
 			X:  _x(expr[1:]),
 		}
 	case '<':
@@ -686,7 +685,7 @@ func _x(expr string, args ...interface{}) ast.Expr {
 			panic("unparseable expression " + expr)
 		}
 		return &ast.UnaryExpr{
-			Op: token.Lookup("<-"),
+			Op: _op("<-"),
 			X:  _x(expr[2:]),
 		}
 	}
@@ -771,7 +770,6 @@ func _x(expr string, args ...interface{}) ast.Expr {
 			}
 		case ']':
 			left, _, right := chopRight(expr)
-			fmt.Println("!!", left, right, expr)
 			return &ast.IndexExpr{
 				X:     _x(left),
 				Index: _x(right),
@@ -923,7 +921,6 @@ func _a(args ...interface{}) *ast.AssignStmt {
 				setTok(token.DEFINE)
 				continue
 			default:
-				fmt.Println("!!!", s)
 				arg = _x(s)
 			}
 		}
@@ -957,7 +954,7 @@ func _b(x interface{}, op string, y interface{}) ast.Expr {
 	}
 	return &ast.BinaryExpr{
 		X:  xx,
-		Op: token.Lookup(op),
+		Op: _op(op),
 		Y:  yx,
 	}
 }
@@ -966,6 +963,13 @@ func _call(fn ast.Expr, args ...ast.Expr) *ast.CallExpr {
 	return &ast.CallExpr{
 		Fun:  fn,
 		Args: args,
+	}
+}
+
+func _ta(x ast.Expr, t ast.Expr) *ast.TypeAssertExpr {
+	return &ast.TypeAssertExpr{
+		X:    x,
+		Type: t,
 	}
 }
 
@@ -1151,6 +1155,60 @@ func defaultExpr(k reflect.Kind) ast.Expr {
 	}
 }
 
+// binary and unary operators, excluding assignment operators.
+func _op(op string) token.Token {
+	switch op {
+	case "+":
+		return token.ADD
+	case "-":
+		return token.SUB
+	case "*":
+		return token.MUL
+	case "/":
+		return token.QUO
+	case "%":
+		return token.REM
+	case "&":
+		return token.AND
+	case "|":
+		return token.OR
+	case "^":
+		return token.XOR
+	case "<<":
+		return token.SHL
+	case ">>":
+		return token.SHR
+	case "&^":
+		return token.AND_NOT
+	case "&&":
+		return token.LAND
+	case "||":
+		return token.LOR
+	case "<-":
+		return token.ARROW
+	case "++":
+		return token.INC
+	case "--":
+		return token.DEC
+	case "==":
+		return token.EQL
+	case "<":
+		return token.LSS
+	case ">":
+		return token.GTR
+	case "!":
+		return token.NOT
+	case "!=":
+		return token.NEQ
+	case "<=":
+		return token.LEQ
+	case ">=":
+		return token.GEQ
+	default:
+		panic("unrecognized binary/unary operator " + op)
+	}
+}
+
 //----------------------------------------
 // AST Compile-Time
 
@@ -1185,7 +1243,25 @@ func importPathForName(name string, imports *ast.GenDecl) (path string, exists b
 	return "", false
 }
 
-func addImport(name, path string, imports *ast.GenDecl) {
+func importNameForPath(path string, imports *ast.GenDecl) (name string, exists bool) {
+	if imports.Tok != token.IMPORT {
+		panic("unexpected ast.GenDecl token " + imports.Tok.String())
+	}
+	for _, spec := range imports.Specs {
+		if ispec, ok := spec.(*ast.ImportSpec); ok {
+			specPath, err := strconv.Unquote(ispec.Path.Value)
+			if err != nil {
+				panic("malformed path " + ispec.Path.Value)
+			}
+			if specPath == path {
+				return ispec.Name.Name, true
+			}
+		}
+	}
+	return "", false
+}
+
+func addImport(imports *ast.GenDecl, name, path string) {
 	epath, exists := importPathForName(name, imports)
 	if path == epath {
 		return
@@ -1199,17 +1275,20 @@ func addImport(name, path string, imports *ast.GenDecl) {
 	}
 }
 
-func addImportAuto(name, path string, imports *ast.GenDecl) string {
-	if _, exists := importPathForName(name, imports); exists {
+func addImportAuto(imports *ast.GenDecl, name, path string) string {
+	if path0, exists := importPathForName(name, imports); exists {
+		if path0 == path {
+			return name
+		}
 		for i := 1; ; i++ {
 			n := fmt.Sprintf("%v%v", name, i)
 			if _, exists := importPathForName(n, imports); !exists {
-				addImport(n, path, imports)
+				addImport(imports, n, path)
 				return n
 			}
 		}
 	} else {
-		addImport(name, path, imports)
+		addImport(imports, name, path)
 		return name
 	}
 }
@@ -1230,24 +1309,25 @@ func goTypeExprString(rootPkg *amino.Package, imports *ast.GenDecl, isPtr bool, 
 	if pkg == rootPkg || pkg.GoPkgPath == "" {
 		return fmt.Sprintf("%v", info.Type.Name())
 	} else {
-		pkgName := addImportAuto(pkg.Name, pkg.GoPkgPath, imports)
+		pkgName := addImportAuto(imports, pkg.Name, pkg.GoPkgPath)
 		return fmt.Sprintf("%v.%v", pkgName, info.Type.Name())
 	}
 }
 
-func p3goTypeExprString(rootPkg *amino.Package, imports *ast.GenDecl, info *amino.TypeInfo) string {
+func p3goTypeExprString(imports *ast.GenDecl, info *amino.TypeInfo) string {
 	k := info.Type.Kind()
-	if k == reflect.Array || k == reflect.Slice {
-		panic("shouldn't call p3goTypeExprString for arrays/slices -- see p3goListTypeExprString")
-	}
-	pkg := info.Package
-	if pkg == nil {
-		panic(fmt.Sprintf("package not registered for type %v", info))
-	}
-	if pkg == rootPkg {
-		return fmt.Sprintf("*%v", info.Type.Name())
-	} else {
-		pkgName := addImportAuto(pkg.Name, pkg.P3GoPkgPath, imports)
+	switch k {
+	case reflect.Array, reflect.Slice:
+		return p3goListTypeExprString(info.Elem)
+	case reflect.Interface:
+		anypb := addImportAuto(imports, "anypb", "google.golang.org/protobuf/types/known/anypb")
+		return fmt.Sprintf("*%v.Any", anypb)
+	default:
+		pkg := info.Package
+		if pkg == nil {
+			panic(fmt.Sprintf("package not registered for type %v", info))
+		}
+		pkgName := addImportAuto(imports, pkg.Name+"pb", pkg.P3GoPkgPath)
 		return fmt.Sprintf("*%v.%v", pkgName, info.Type.Name())
 	}
 }

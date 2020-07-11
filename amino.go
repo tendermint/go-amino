@@ -700,6 +700,7 @@ func (cdc *Codec) MarshalJSONIndent(o interface{}, prefix, indent string) ([]byt
 }
 
 //----------------------------------------
+// Other
 
 // NOTE: do not modify the result.
 func RegisterPackage(pi *pkg.Package) *Package {
@@ -723,4 +724,13 @@ func GetCallersDirname() string {
 		panic("could not derive caller's package directory")
 	}
 	return dirname
+}
+
+//----------------------------------------
+// Object
+
+// All concrete types must implement the Object interface for genproto
+// bindings.  They are generated automatically by genproto/bindings.go
+type Object interface {
+	GetTypeURL() string
 }
