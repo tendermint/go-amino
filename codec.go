@@ -99,6 +99,14 @@ func (info *TypeInfo) IsStructOrUnpacked(fopt FieldOptions) bool {
 	return false
 }
 
+// If this is a slice or array, get .Elem until no longer slice or array.
+func (info *TypeInfo) GetUltimateElem() *TypeInfo {
+	if info.Elem != nil {
+		return info.Elem.GetUltimateElem()
+	}
+	return info
+}
+
 func (info *TypeInfo) String() string {
 	if info.Type == nil {
 		// since we set it on the codec map
@@ -574,6 +582,22 @@ func (cdc *Codec) newTypeInfoUnregisteredWLocked(rt reflect.Type) *TypeInfo {
 			panic("Must match MarshalAmino and UnmarshalAmino repr types")
 		}
 	}
+	/*
+		NOTE: this could used by genproto typeToP3Type,
+		but it isn't quite right... we don't want them to
+		preserve the "Time" name, we want "Timestamp".
+
+		// Special cases for well known types.
+		// TODO: refactor out and merge into wellknown.go somehow.
+		// NOTE: isAminoMarshaler remains false.
+		switch rt {
+		case timeType:
+			reprType = gTimestampType
+		case durationType:
+			reprType = gDurationType
+		}
+		// END Special cases for well known types.
+	*/
 	if isAminoMarshaler {
 		info.ConcreteInfo.IsAminoMarshaler = true
 		rinfo, err := cdc.getTypeInfoWLocked(reprType)

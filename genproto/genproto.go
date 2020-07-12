@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"time"
 
 	"github.com/tendermint/go-amino"
 	"github.com/tendermint/go-amino/pkg"
@@ -112,19 +113,18 @@ func (p3c *P3Context) GetP3ImportPath(p3type P3Type) string {
 
 // Given a codec and some reflection type, generate the Proto3 message
 // (partial) schema.  Imports are added to p3doc.
-func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type) (p3msg P3Message, err error) {
-
+func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type) (p3msg P3Message) {
 	if p3doc.PackageName == "" {
-		err = errors.New("cannot generate message partials in the root package \"\".")
+		panic(fmt.Sprintf("cannot generate message partials in the root package \"\"."))
 		return
+	}
+	if rt.Kind() == reflect.Ptr {
+		panic("pointers not yet supported. if you meant pointer-prefered (for decoding), pass in rt.Elem()")
 	}
 
 	info, err := p3c.cdc.GetTypeInfo(rt)
 	if err != nil {
-		return
-	} else if info.Type.Kind() != reflect.Struct {
-		err = errors.New("only structs can generate proto3 message schemas")
-		return
+		panic(err)
 	}
 
 	// The p3 schema is determined by the structure of ReprType.  But the name,
@@ -138,19 +138,37 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 		panic("should not happen")
 	}
 
+	rsfields := []amino.FieldInfo(nil)
+	if info.Type.Kind() == reflect.Interface {
+		panic("should not happen")
+	} else if info.Type.Kind() == reflect.Struct {
+		rsfields = rinfo.StructInfo.Fields
+	} else {
+		// implicit struct.
+		// TODO: shouldn't this name end with "Wrapper" suffix?
+		rsfields = []amino.FieldInfo{{
+			Type:     rinfo.Type,
+			TypeInfo: rinfo,
+			Name:     "Value",
+			FieldOptions: amino.FieldOptions{
+				// TODO can we override JSON to unwrap here?
+				BinFieldNum: 1,
+			},
+		}}
+	}
+
 	// When fields include other declared structs,
 	// we need to know whether it's an external reference
 	// (with corresponding imports in the proto3 schema)
 	// or an internal reference (with no imports necessary).
 	var pkgPath = rt.PkgPath()
 	if pkgPath == "" {
-		err = errors.New("can only generate proto3 message schemas from user-defined package-level declared structs")
-		return
+		panic(fmt.Errorf("can only generate proto3 message schemas from user-defined package-level declared structs, got rt %v", rt))
 	}
 
 	p3msg.Name = info.Type.Name() // not rinfo.
 
-	for _, field := range rinfo.StructInfo.Fields { // rinfo.
+	for _, field := range rsfields { // rinfo.
 		p3FieldType, p3FieldRepeated :=
 			p3c.typeToP3Type(field.TypeInfo)
 		// If the p3 field package is the same, omit the prefix.
@@ -161,7 +179,7 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 		}
 		// If the field package different, add the import to p3doc.
 		// NOTE: frpkg will be nil for unregistered interfaces.
-		frpkg := field.TypeInfo.Package
+		frpkg := field.TypeInfo.GetUltimateElem().Package
 		if frpkg == nil || frpkg.GoPkgPath != pkgPath {
 			if p3FieldType.GetPackageName() != "" {
 				importPath := p3c.GetP3ImportPath(p3FieldType)
@@ -183,11 +201,10 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 
 // Given the arguments, create a new P3Doc.
 // pkg is optional.
-func (p3c *P3Context) GenerateProto3SchemaForTypes(pkg *amino.Package, rtz ...reflect.Type) (p3doc P3Doc, err error) {
+func (p3c *P3Context) GenerateProto3SchemaForTypes(pkg *amino.Package, rtz ...reflect.Type) (p3doc P3Doc) {
 
 	if pkg.P3PkgName == "" {
-		err = errors.New("cannot generate schema in the root package \"\".")
-		return
+		panic(errors.New("cannot generate schema in the root package \"\"."))
 	}
 
 	// Set the package.
@@ -196,31 +213,44 @@ func (p3c *P3Context) GenerateProto3SchemaForTypes(pkg *amino.Package, rtz ...re
 
 	// Set Message schemas.
 	for _, rt := range rtz {
-		p3msg, err := p3c.GenerateProto3MessagePartial(&p3doc, rt)
-		if err != nil {
-			return P3Doc{}, err
+		if rt.Kind() == reflect.Ptr {
+			rt = rt.Elem()
 		}
+		p3msg := p3c.GenerateProto3MessagePartial(&p3doc, rt)
 		p3doc.Messages = append(p3doc.Messages, p3msg)
 	}
 
-	return p3doc, nil
+	return p3doc
 }
 
 // Convenience.
-func (p3c *P3Context) WriteProto3SchemaForTypes(filename string, pkg *amino.Package, rtz ...reflect.Type) (err error) {
+func (p3c *P3Context) WriteProto3SchemaForTypes(filename string, pkg *amino.Package, rtz ...reflect.Type) {
 	fmt.Printf("writing proto3 schema to %v for package %v\n", filename, pkg)
-	p3doc, err := p3c.GenerateProto3SchemaForTypes(pkg, rtz...)
+	p3doc := p3c.GenerateProto3SchemaForTypes(pkg, rtz...)
+	err := ioutil.WriteFile(filename, []byte(p3doc.Print()), 0644)
 	if err != nil {
-		return err
+		panic(err)
 	}
-	err = ioutil.WriteFile(filename, []byte(p3doc.Print()), 0644)
-	return err
 }
+
+var (
+	timeType     = reflect.TypeOf(time.Now())
+	durationType = reflect.TypeOf(time.Duration(0))
+)
 
 // If rt is a struct, the returned proto3 type is a P3MessageType.
 // `rt` should be the representation type in case IsAminoMarshaler.
 func (p3c *P3Context) typeToP3Type(info *amino.TypeInfo) (p3type P3Type, repeated bool) {
-	// dereference type, in case pointer.
+
+	// Special case overrides.
+	switch info.Type {
+	case timeType:
+		return NewP3MessageType("google.protobuf", "Timestamp"), false
+	case durationType:
+		return NewP3MessageType("google.protobuf", "Duration"), false
+	}
+
+	// Dereference type, in case pointer.
 	rt := info.ReprType.Type
 	switch rt.Kind() {
 	case reflect.Interface:
@@ -286,10 +316,7 @@ func WriteProto3Schema(pkg *amino.Package) {
 	p3c.RegisterPackage(pkg)
 	p3c.ValidateBasic()
 	filename := path.Join(pkg.DirName, "types.proto")
-	err := p3c.WriteProto3SchemaForTypes(filename, pkg, pkg.Types...)
-	if err != nil {
-		panic(err)
-	}
+	p3c.WriteProto3SchemaForTypes(filename, pkg, pkg.Types...)
 }
 
 // Symlinks .proto files from pkg info to dirname, keeping the go path
@@ -383,6 +410,7 @@ func RunProtoc(pkg *amino.Package, protosDir string) {
 	cmd.Stderr = &out
 	err = cmd.Run()
 	if err != nil {
+		fmt.Println("ERROR: ", out.String())
 		panic(err)
 	}
 

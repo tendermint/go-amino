@@ -76,6 +76,7 @@ var (
 		"",
 	).
 		WithP3SchemaFile("").
+		WithP3GoPkgPath(""). // since conflicting p3 pkg paths.
 		WithTypes(
 			time.Now(),
 			time.Duration(0),

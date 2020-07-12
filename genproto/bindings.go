@@ -126,7 +126,7 @@ func generateTranslationMethodsForType(imports *ast.GenDecl, pkg *amino.Package,
 				// Body: declaration for pb message.
 				_var("pbo", _x("*%v.%v", p3pkgName, info.Type.Name()), nil),
 				// Body: copying over fields.
-				_block(go2pbStmts(true, imports, _i("pbo"), _i("goo"), false, info)...),
+				_block(go2pbStmts(true, imports, _i("pbo"), _i("goo"), false, info, 0)...),
 				// Body: return value.
 				_a("msg", "=", "pbo"),
 				_return(),
@@ -156,6 +156,21 @@ func generateTranslationMethodsForType(imports *ast.GenDecl, pkg *amino.Package,
 	return
 }
 
+// These don't have ToPBMessage functions.
+// TODO make this a property of the package?
+var noBindings = struct{}{}
+var noBindingsPkgs = map[string]struct{}{
+	"":     noBindings,
+	"time": noBindings,
+}
+
+func hasPBBindings(pkg string) bool {
+	_, ok := noBindingsPkgs[pkg]
+	return !ok
+}
+
+// END
+
 // isRoot: true if goo is the rootPkg, false if nested fields, even if gooType is rootPkg.
 // imports: global imports -- may be modified.
 // pbo: protobuf variable or field.
@@ -167,7 +182,11 @@ func generateTranslationMethodsForType(imports *ast.GenDecl, pkg *amino.Package,
 //  * The struct case is like `_a(_sel(pbo, field.Name), "=", goo)`
 // CONTRACT: for arrays and lists, memory must be allocated beforehand, but new
 // instances are created within this function.
-func go2pbStmts(isRoot bool, imports *ast.GenDecl, pbo ast.Expr, goo ast.Expr, gooIsPtr bool, gooType *amino.TypeInfo) (b []ast.Stmt) {
+func go2pbStmts(isRoot bool, imports *ast.GenDecl, pbo ast.Expr, goo ast.Expr, gooIsPtr bool, gooType *amino.TypeInfo, options uint64) (b []ast.Stmt) {
+
+	const (
+		option_bytes = 0x01 // if uint8 is an element of bytes.
+	)
 
 	// Special case if nil-pointer.
 	if gooIsPtr || gooType.Type.Kind() == reflect.Interface {
@@ -180,17 +199,34 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, pbo ast.Expr, goo ast.Expr, g
 	}
 	// Below, we can assume that goo isn't nil.
 
+	// Declare dgoo before it's used if needed.
+	// dgoo() returns goo or _deref(goo) depending.
+	dgooDeclared := false
+	dgoo := func() ast.Expr {
+		if gooIsPtr {
+			if !dgooDeclared {
+				b = append(b,
+					_a("dgoo", ":=", _deref(goo)))
+				dgooDeclared = true
+			}
+			return _i("dgoo")
+		} else {
+			return goo
+		}
+	}
+
+	// External case.
 	// If gooType is registered, just call ToPBMessage.
 	// TODO If not registered?
-	if !isRoot && gooType.Registered && gooType.Package.GoPkgPath != "" {
-		gooTyp := p3goTypeExprString(imports, gooType)
+	if !isRoot && gooType.Registered && hasPBBindings(gooType.Package.GoPkgPath) {
+		pboTyp := p3goTypeExprString(imports, gooType)
 		b = append(b,
 			_a("pbom", ":=", _x("proto.Message~(~nil~)")),
 			_a("pbom", _i("err"), "=", _call(_sel(goo, "ToPBMessage"), _i("cdc"))),
 			_if(_x("err__!=__nil"),
 				_return(),
 			),
-			_a(pbo, "=", _x("pbom.~(~%v~)", gooTyp)),
+			_a(pbo, "=", _x("pbom.~(~%v~)", pboTyp)),
 		)
 		return
 	}
@@ -206,17 +242,24 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, pbo ast.Expr, goo ast.Expr, g
 		)
 		goo = _i("goor") // switcharoo
 		gooType = gooType.ReprType
-	} else {
-		// Special case if goo is pointer.
-		// NOTE: IsAminoMarshaler never returns pointers.
-		if gooIsPtr {
-			b = append(b,
-				_a("dgoo", ":=", _deref(goo)))
-			goo = _i("dgoo") // switcharoo
-		}
 	}
-	// Below, we can assume that goo isn't a pointer.
 	// Below, we can assume that gooType isn't amino.Marshaler
+
+	// Special case for time/duration.
+	switch gooType.ReprType.Type {
+	case timeType:
+		pkgName := addImportAuto(
+			imports, "timestamppb", "google.golang.org/protobuf/types/known/timestamppb")
+		b = append(b,
+			_a(pbo, "=", _call(_sel(_x(pkgName), "New"), dgoo())))
+		return
+	case durationType:
+		pkgName := addImportAuto(
+			imports, "durationpb", "google.golang.org/protobuf/types/known/durationpb")
+		b = append(b,
+			_a(pbo, "=", _call(_sel(_x(pkgName), "New"), dgoo())))
+		return
+	}
 
 	// General case
 	switch gooType.Type.Kind() {
@@ -236,20 +279,29 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, pbo ast.Expr, goo ast.Expr, g
 
 	case reflect.Int:
 		b = append(b,
-			_a(pbo, "=", _call(_i("int64"), goo)))
+			_a(pbo, "=", _call(_i("int64"), dgoo())))
 	case reflect.Int16, reflect.Int8:
 		b = append(b,
-			_a(pbo, "=", _call(_i("int32"), goo)))
+			_a(pbo, "=", _call(_i("int32"), dgoo())))
 	case reflect.Uint:
 		b = append(b,
-			_a(pbo, "=", _call(_i("uint64"), goo)))
-	case reflect.Uint16, reflect.Uint8:
+			_a(pbo, "=", _call(_i("uint64"), dgoo())))
+	case reflect.Uint16:
 		b = append(b,
-			_a(pbo, "=", _call(_i("uint32"), goo)))
+			_a(pbo, "=", _call(_i("uint32"), dgoo())))
+	case reflect.Uint8:
+		if options&option_bytes == 0 {
+			b = append(b,
+				_a(pbo, "=", _call(_i("uint32"), dgoo())))
+		} else {
+			b = append(b,
+				_a(pbo, "=", _call(_i("byte"), dgoo())))
+		}
 
 	case reflect.Array, reflect.Slice:
+		var options uint64
 		var gooeIsPtr = gooType.ElemIsPtr
-		var gooeType = gooType.Elem
+		var gooeType = gooType.Elem // XXX: ReprType?
 		var pboeTyp string
 		switch gooeType.Type.Kind() {
 		case reflect.Interface:
@@ -261,6 +313,19 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, pbo ast.Expr, goo ast.Expr, g
 			pboeTyp = p3goListTypeExprString(gooeType)
 		case reflect.Struct:
 			pboeTyp = p3goTypeExprString(imports, gooeType)
+		case reflect.Int:
+			pboeTyp = "int64"
+		case reflect.Uint:
+			pboeTyp = "uint64"
+		case reflect.Int8:
+			pboeTyp = "int32"
+		case reflect.Uint8:
+			pboeTyp = "uint8" // bytes
+			options |= option_bytes
+		case reflect.Int16:
+			pboeTyp = "int32"
+		case reflect.Uint16:
+			pboeTyp = "uint32"
 		default:
 			pboeTyp = gooeType.Type.String()
 			if pboeTyp == "" {
@@ -270,7 +335,7 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, pbo ast.Expr, goo ast.Expr, g
 
 		// Construct, translate, assign.
 		b = append(b,
-			_a("gool", ":=", _len(goo)),
+			_a("gool", ":=", _len(dgoo())),
 			_var("pbos", nil, _x("make~(~[]%v,gool~)", pboeTyp)),
 			_for(
 				_a("i", ":=", "0"),
@@ -278,8 +343,8 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, pbo ast.Expr, goo ast.Expr, g
 				_a("i", "+=", "1"),
 				_block(
 					// Translate in place.
-					_a("gooe", ":=", _ix(goo, _i("i"))),
-					_block(go2pbStmts(false, imports, _x("pbos~[~i~]"), _i("gooe"), gooeIsPtr, gooeType)...),
+					_a("gooe", ":=", _ix(dgoo(), _i("i"))),
+					_block(go2pbStmts(false, imports, _x("pbos~[~i~]"), _i("gooe"), gooeIsPtr, gooeType, options)...),
 				),
 			),
 			_a(pbo, "=", "pbos"),
@@ -298,18 +363,18 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, pbo ast.Expr, goo ast.Expr, g
 		for _, field := range gooType.Fields {
 			var goofIsPtr = field.IsPtr()
 			var goofType = field.TypeInfo.ReprType
-			var goof = _sel(goo, field.Name) // next goo
-			var pbof = _sel(pbo, field.Name) // next pbo
+			var goof = _sel(dgoo(), field.Name) // next goo
+			var pbof = _sel(pbo, field.Name)    // next pbo
 
 			// Translate in place.
 			b = append(b,
-				_block(go2pbStmts(false, imports, pbof, goof, goofIsPtr, goofType)...),
+				_block(go2pbStmts(false, imports, pbof, goof, goofIsPtr, goofType, 0)...),
 			)
 		}
 
 	default:
 		// General translation.
-		b = append(b, _a(pbo, "=", goo))
+		b = append(b, _a(pbo, "=", dgoo()))
 
 	}
 	return b
@@ -369,9 +434,10 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, goo a
 	}
 	// Below, we can assume that goo is a valid non-pointer.
 
+	// External case.
 	// If gooType is registered, just call FromPBMessage.
 	// TODO If not registered?
-	if !isRoot && gooType.Registered && gooType.Package.GoPkgPath != "" {
+	if !isRoot && gooType.Registered && hasPBBindings(gooType.Package.GoPkgPath) {
 		b = append(b,
 			_a(_i("err"), "=", _call(_sel(goo, "FromPBMessage"), _i("cdc"), pbo)),
 			_if(_x("err__!=__nil"),
@@ -403,6 +469,18 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, goo a
 		return
 	}
 	// Below, we can assume that gooType isn't amino.Marshaler.
+
+	// Special case for time/duration.
+	switch gooType.Type {
+	case timeType:
+		b = append(b,
+			_a(goo, "=", _call(_sel(pbo, "AsTime"))))
+		return
+	case durationType:
+		b = append(b,
+			_a(goo, "=", _call(_sel(pbo, "AsDuration"))))
+		return
+	}
 
 	// General case
 	switch gooType.Type.Kind() {
@@ -438,7 +516,29 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, goo a
 		b = append(b,
 			_a(goo, "=", _call(_i("uint8"), pbo)))
 
-	case reflect.Array, reflect.Slice:
+	case reflect.Array:
+		var gooLen = gooType.Type.Len()
+		var gooeType = gooType.Elem
+		var gooeIsPtr = gooType.ElemIsPtr
+		var gooeTyp = goTypeExprString(rootPkg, imports, gooeIsPtr, gooeType)
+
+		// Construct, translate, assign.
+		b = append(b,
+			_var("goos", nil, _x("[%v]%v~{~~}", gooLen, gooeTyp)),
+			_for(
+				_a("i", ":=", "0"),
+				_x("i__<__%v", gooLen),
+				_a("i", "+=", "1"),
+				_block(
+					// Translate in place.
+					_a("pboe", ":=", _ix(pbo, _i("i"))),
+					_block(pb2goStmts(rootPkg, false, imports, _x("goos~[~i~]"), gooeIsPtr, gooeType, _i("pboe"))...),
+				),
+			),
+			_a(goo, "=", "goos"),
+		)
+
+	case reflect.Slice:
 		var gooeType = gooType.Elem
 		var gooeIsPtr = gooType.ElemIsPtr
 		var gooeTyp = goTypeExprString(rootPkg, imports, gooeIsPtr, gooeType)
@@ -757,11 +857,13 @@ func _x(expr string, args ...interface{}) ast.Expr {
 			}
 		case '}':
 			left, _, right := chopRight(expr)
-			parts := strings.Split(right, ",")
 			var ty = _x(left)
 			var elts = []ast.Expr{}
+			parts := strings.Split(right, ",")
 			for _, part := range parts {
-				elts = append(elts, _kv(part))
+				if strings.TrimSpace(part) != "" {
+					elts = append(elts, _kv(part))
+				}
 			}
 			return &ast.CompositeLit{
 				Type:       ty,
@@ -914,11 +1016,9 @@ func _a(args ...interface{}) *ast.AssignStmt {
 	for _, arg := range args {
 		if s, ok := arg.(string); ok {
 			switch s {
-			case "=":
-				setTok(token.ASSIGN)
-				continue
-			case ":=":
-				setTok(token.DEFINE)
+			case "=", ":=", "+=", "-=", "*=", "/=", "%=",
+				"&=", "|=", "^=", "<<=", ">>=", "&^=":
+				setTok(_aop(s))
 				continue
 			default:
 				arg = _x(s)
@@ -1209,6 +1309,40 @@ func _op(op string) token.Token {
 	}
 }
 
+// assignment operators.
+func _aop(op string) token.Token {
+	switch op {
+	case "=":
+		return token.ASSIGN
+	case ":=":
+		return token.DEFINE
+	case "+=":
+		return token.ADD_ASSIGN
+	case "-=":
+		return token.SUB_ASSIGN
+	case "*=":
+		return token.MUL_ASSIGN
+	case "/=":
+		return token.QUO_ASSIGN
+	case "%=":
+		return token.REM_ASSIGN
+	case "&=":
+		return token.AND_ASSIGN
+	case "|=":
+		return token.OR_ASSIGN
+	case "^=":
+		return token.XOR_ASSIGN
+	case "<<=":
+		return token.SHL_ASSIGN
+	case ">>=":
+		return token.SHR_ASSIGN
+	case "&^=":
+		return token.AND_NOT_ASSIGN
+	default:
+		panic("unrecognized assignment operator " + op)
+	}
+}
+
 //----------------------------------------
 // AST Compile-Time
 
@@ -1323,6 +1457,18 @@ func p3goTypeExprString(imports *ast.GenDecl, info *amino.TypeInfo) string {
 		anypb := addImportAuto(imports, "anypb", "google.golang.org/protobuf/types/known/anypb")
 		return fmt.Sprintf("*%v.Any", anypb)
 	default:
+		// Special cases.
+		// TODO: somehow refactor into wellknown.go
+		switch info.Type {
+		case timeType:
+			pkgName := addImportAuto(
+				imports, "timestamppb", "google.golang.org/protobuf/types/known/timestamppb")
+			return fmt.Sprintf("*%v.%v", pkgName, "Timestamp")
+		case durationType:
+			pkgName := addImportAuto(
+				imports, "durationpb", "google.golang.org/protobuf/types/known/durationpb")
+			return fmt.Sprintf("*%v.%v", pkgName, "Duration")
+		}
 		pkg := info.Package
 		if pkg == nil {
 			panic(fmt.Sprintf("package not registered for type %v", info))

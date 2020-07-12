@@ -22,7 +22,7 @@ type PrimitivesStruct struct {
 	Uint64  uint64
 	Uvarint uint64 `binary:"varint"`
 	Uint    uint
-	String  string
+	Str     string
 	Bytes   []byte
 	Time    time.Time
 	Empty   EmptyStruct
@@ -46,7 +46,7 @@ type ArraysStruct struct {
 	Uint64Ar  [4]uint64
 	UvarintAr [4]uint64 `binary:"varint"`
 	UintAr    [4]uint
-	StringAr  [4]string
+	StrAr     [4]string
 	BytesAr   [4][]byte
 	TimeAr    [4]time.Time
 	EmptyAr   [4]EmptyStruct
@@ -66,7 +66,7 @@ type SlicesStruct struct {
 	Uint64Sl  []uint64
 	UvarintSl []uint64 `binary:"varint"`
 	UintSl    []uint
-	StringSl  []string
+	StrSl     []string
 	BytesSl   [][]byte
 	TimeSl    []time.Time
 	EmptySl   []EmptyStruct
@@ -86,7 +86,7 @@ type PointersStruct struct {
 	Uint64Pt  *uint64
 	UvarintPt *uint64 `binary:"varint"`
 	UintPt    *uint
-	StringPt  *string
+	StrPt     *string
 	BytesPt   *[]byte
 	TimePt    *time.Time
 	EmptyPt   *EmptyStruct
@@ -106,7 +106,7 @@ type PointerSlicesStruct struct {
 	Uint64PtSl  []*uint64
 	UvarintPtSl []*uint64 `binary:"varint"`
 	UintPtSl    []*uint
-	StringPtSl  []*string
+	StrPtSl     []*string
 	BytesPtSl   []*[]byte
 	TimePtSl    []*time.Time
 	EmptyPtSl   []*EmptyStruct
