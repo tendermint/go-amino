@@ -121,6 +121,9 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 	if rt.Kind() == reflect.Ptr {
 		panic("pointers not yet supported. if you meant pointer-prefered (for decoding), pass in rt.Elem()")
 	}
+	if rt.Kind() == reflect.Interface {
+		panic("nothing to generate for interfaces")
+	}
 
 	info, err := p3c.cdc.GetTypeInfo(rt)
 	if err != nil {
@@ -139,9 +142,7 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 	}
 
 	rsfields := []amino.FieldInfo(nil)
-	if info.Type.Kind() == reflect.Interface {
-		panic("should not happen")
-	} else if info.Type.Kind() == reflect.Struct {
+	if info.Type.Kind() == reflect.Struct {
 		rsfields = rinfo.StructInfo.Fields
 	} else {
 		// implicit struct.
@@ -213,11 +214,30 @@ func (p3c *P3Context) GenerateProto3SchemaForTypes(pkg *amino.Package, rtz ...re
 
 	// Set Message schemas.
 	for _, rt := range rtz {
-		if rt.Kind() == reflect.Ptr {
+		if rt.Kind() == reflect.Interface {
+			continue
+		} else if rt.Kind() == reflect.Ptr {
 			rt = rt.Elem()
 		}
 		p3msg := p3c.GenerateProto3MessagePartial(&p3doc, rt)
 		p3doc.Messages = append(p3doc.Messages, p3msg)
+	}
+
+	// Collect list types and uniq,
+	// then create list message schemas.
+	var nestedListTypes = make(map[reflect.Type]struct{})
+	for _, rt := range rtz {
+		if rt.Kind() == reflect.Interface {
+			continue
+		}
+		info, err := p3c.cdc.GetTypeInfo(rt)
+		if err != nil {
+			panic(err)
+		}
+		findNestedLists(info, &nestedListTypes)
+	}
+	for _, rt := range sortFound(nestedListTypes) {
+		fmt.Println("!!!!", rt)
 	}
 
 	return p3doc
@@ -284,7 +304,7 @@ func (p3c *P3Context) typeToP3Type(info *amino.TypeInfo) (p3type P3Type, repeate
 	case reflect.Complex64, reflect.Complex128:
 		panic("complex types not yet supported")
 	case reflect.Array, reflect.Slice:
-		switch rt.Elem().Kind() {
+		switch info.Elem.Type.Kind() {
 		case reflect.Uint8:
 			return P3ScalarTypeBytes, false
 		default:
