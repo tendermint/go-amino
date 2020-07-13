@@ -1,14 +1,15 @@
-package amino
+package amino_test
 
 import (
 	"testing"
 
 	"github.com/jaekwon/testify/assert"
+	"github.com/tendermint/go-amino"
 	"github.com/tendermint/go-amino/tests"
 )
 
 func TestAnyWellKnownNative(t *testing.T) {
-	cdc := NewCodec()
+	cdc := amino.NewCodec()
 
 	var s1 = tests.InterfaceFieldsStruct{
 		F3: string("dontcare"),

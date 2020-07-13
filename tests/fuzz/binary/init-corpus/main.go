@@ -37,7 +37,7 @@ func main() {
 		Uint64:  0x8000000000000000,
 		Uvarint: 0x8000000000000000,
 		Uint:    0x80000000,
-		String:  "Tendermint!",
+		Str:     "Tendermint!",
 		Bytes:   []byte("DEEZMINTS"),
 		Time:    time.Date(2018, 3, 2, 21, 10, 12, 1e5, time.UTC),
 	}
@@ -57,7 +57,7 @@ func main() {
 		Uint64Ar:  [4]uint64{0x80808080FFFFFF77, 0x110202FFFFFFFF77, 0xAE21FF0051F23F77, 0x1045880011AABBCC},
 		UvarintAr: [4]uint64{0x99808080FFFFFF77, 0xFF0202FFFFFFFF77, 0xAE21FF0051F23F77, 0x1045880011AABBCC},
 		UintAr:    [4]uint{0x80808080, 0x110202FF, 0xAE21FF00, 0x10458800},
-		StringAr:  [4]string{"Tendermint", "Fuzzing", "Blue", "410DDC670CF9BFD7"},
+		StrAr:     [4]string{"Tendermint", "Fuzzing", "Blue", "410DDC670CF9BFD7"},
 		TimeAr:    [4]time.Time{{}, time.Time{}.Add(1000 * hour * 24), time.Time{}.Add(20 * time.Minute)},
 	}
 
@@ -75,7 +75,7 @@ func main() {
 		Uint64Sl:  []uint64{0x110202FFFFFFFF77, 0xAE21FF0051F23F77, 0x80808080FFFFFF77, 0x1045880011AABBCC},
 		UvarintSl: []uint64{0x1045880011AABBCC, 0x99808080FFFFFF77, 0xFF0202FFFFFFFF77, 0xAE21FF0051F23F77},
 		UintSl:    []uint{0x80808080, 0x110202FF, 0xAE21FF00, 0x10458800},
-		StringSl:  []string{"Tendermint", "Fuzzing", "Blue", "410DDC670CF9BFD7"},
+		StrSl:     []string{"Tendermint", "Fuzzing", "Blue", "410DDC670CF9BFD7"},
 		TimeSl: []time.Time{
 			(time.Time{}).Add(60 * 24 * time.Minute), (time.Time{}).Add(1000 * hour * 24), time.Time{}.Add(20 * time.Minute),
 		},
@@ -97,7 +97,7 @@ func main() {
 		Uint64Pt:  &ss.Uint64Sl[0],
 		UvarintPt: new(uint64),
 		UintPt:    &ss.UintSl[2],
-		StringPt:  &as.StringAr[1],
+		StrPt:     &as.StrAr[1],
 		BytesPt:   &bslice,
 		TimePt:    &ss.TimeSl[2],
 	}

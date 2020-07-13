@@ -1,7 +1,7 @@
-package amino
+package amino_test
 
 import (
-	"bytes"
+	"fmt"
 	"math/rand"
 	"reflect"
 	"runtime/debug"
@@ -13,6 +13,7 @@ import (
 	"github.com/jaekwon/testify/assert"
 	"github.com/jaekwon/testify/require"
 
+	"github.com/tendermint/go-amino"
 	"github.com/tendermint/go-amino/tests"
 )
 
@@ -57,7 +58,7 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 
 	err := error(nil)
 	bz := []byte{}
-	cdc := NewCodec()
+	cdc := amino.NewCodec()
 	f := fuzz.New()
 	rv := reflect.New(rt)
 	rv2 := reflect.New(rt)
@@ -133,7 +134,7 @@ func _testDeepCopy(t *testing.T, rt reflect.Type) {
 	for i := 0; i < 1e4; i++ {
 		f.Fuzz(ptr)
 
-		ptr2 := DeepCopy(ptr)
+		ptr2 := amino.DeepCopy(ptr)
 
 		require.Equal(t, ptr2, ptr,
 			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
@@ -145,7 +146,7 @@ func _testDeepCopy(t *testing.T, rt reflect.Type) {
 // Register/interface tests
 
 func TestCodecMarhsalBinaryBareFailsOnUnregisteredConcrete(t *testing.T) {
-	cdc := NewCodec()
+	cdc := amino.NewCodec()
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
 	assert.Error(t, err, "concrete type not registered")
@@ -153,7 +154,7 @@ func TestCodecMarhsalBinaryBareFailsOnUnregisteredConcrete(t *testing.T) {
 }
 
 func TestCodecMarshalBinaryBarePassesOnRegistered(t *testing.T) {
-	cdc := NewCodec()
+	cdc := amino.NewCodec()
 	cdc.RegisterTypeFrom(reflect.TypeOf(tests.Concrete1{}), tests.Package)
 
 	bz, err := cdc.MarshalBinaryBare(struct{ tests.Interface1 }{tests.Concrete1{}})
@@ -169,7 +170,7 @@ func TestCodecMarshalBinaryBarePassesOnRegistered(t *testing.T) {
 }
 
 func TestCodecRegisterAndMarshalMultipleConcrete(t *testing.T) {
-	cdc := NewCodec()
+	cdc := amino.NewCodec()
 	cdc.RegisterTypeFrom(reflect.TypeOf(tests.Concrete1{}), tests.Package)
 	cdc.RegisterTypeFrom(reflect.TypeOf(tests.Concrete2{}), tests.Package)
 
@@ -202,7 +203,7 @@ func TestCodecRegisterAndMarshalMultipleConcrete(t *testing.T) {
 
 // Serialize and deserialize a registered typedef.
 func TestCodecRoundtripNonNilRegisteredTypeDef(t *testing.T) {
-	cdc := NewCodec()
+	cdc := amino.NewCodec()
 	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteTypeDef{}), tests.Package)
 
 	c3 := tests.ConcreteTypeDef{}
@@ -269,7 +270,7 @@ func TestCodecRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 // Exactly like TestCodecRoundtripNonNilRegisteredTypeDef but with struct
 // around the value instead of a type def.
 func TestCodecRoundtripNonNilRegisteredWrappedValue(t *testing.T) {
-	cdc := NewCodec()
+	cdc := amino.NewCodec()
 	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteWrappedBytes{}), tests.Package)
 
 	c3 := tests.ConcreteWrappedBytes{Value: []byte("0123")}
@@ -296,7 +297,7 @@ func TestCodecRoundtripNonNilRegisteredWrappedValue(t *testing.T) {
 
 // Like TestCodecRoundtripNonNilRegisteredTypeDef, but JSON.
 func TestCodecJSONRoundtripNonNilRegisteredTypeDef(t *testing.T) {
-	cdc := NewCodec()
+	cdc := amino.NewCodec()
 	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteTypeDef{}), tests.Package)
 
 	var c3 tests.ConcreteTypeDef
@@ -316,7 +317,7 @@ func TestCodecJSONRoundtripNonNilRegisteredTypeDef(t *testing.T) {
 
 // Like TestCodecRoundtripNonNilRegisteredTypeDef, but serialize the concrete value directly.
 func TestCodecRoundtripMarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) {
-	cdc := NewCodec()
+	cdc := amino.NewCodec()
 	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteTypeDef{}), tests.Package)
 
 	var c3 tests.ConcreteTypeDef
@@ -344,7 +345,7 @@ func TestCodecRoundtripMarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) {
 
 // Like TestCodecRoundtripNonNilRegisteredTypeDef but read into concrete var.
 func TestCodecRoundtripUnmarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) {
-	cdc := NewCodec()
+	cdc := amino.NewCodec()
 	cdc.RegisterTypeFrom(reflect.TypeOf(tests.ConcreteTypeDef{}), tests.Package)
 
 	var c3a tests.ConcreteTypeDef
@@ -363,7 +364,7 @@ func TestCodecRoundtripUnmarshalOnConcreteNonNilRegisteredTypeDef(t *testing.T) 
 }
 
 func TestCodecBinaryStructFieldNilInterface(t *testing.T) {
-	cdc := NewCodec()
+	cdc := amino.NewCodec()
 	cdc.RegisterTypeFrom(reflect.TypeOf(&tests.InterfaceFieldsStruct{}), tests.Package)
 
 	i1 := &tests.InterfaceFieldsStruct{F1: new(tests.InterfaceFieldsStruct), F2: nil}
@@ -513,6 +514,14 @@ var fuzzFuncs = []interface{}{
 	},
 }
 
+func getTypeFromPointer(ptr interface{}) reflect.Type {
+	rt := reflect.TypeOf(ptr)
+	if rt.Kind() != reflect.Ptr {
+		panic(fmt.Sprintf("expected pointer, got %v", rt))
+	}
+	return rt.Elem()
+}
+
 //----------------------------------------
 // From https://github.com/google/gofuzz/blob/master/fuzz.go
 // (Apache2.0 License)
@@ -543,31 +552,4 @@ func randString(r fuzz.Continue) string {
 		runes[i] = unicodeRanges[r.Intn(len(unicodeRanges))].choose(r)
 	}
 	return string(runes)
-}
-
-// A simple independent implementation for testing purposes.
-func anyBytes(typeURL string, bz []byte) []byte {
-	if len(typeURL) == 0 {
-		panic("typeURL cannot be empty")
-	}
-	buf := new(bytes.Buffer)
-	err := encodeFieldNumberAndTyp3(buf, 1, Typ3ByteLength)
-	if err != nil {
-		panic(err)
-	}
-	err = EncodeString(buf, typeURL)
-	if err != nil {
-		panic(err)
-	}
-	if len(bz) > 0 {
-		err = encodeFieldNumberAndTyp3(buf, 2, Typ3ByteLength)
-		if err != nil {
-			panic(err)
-		}
-		err = EncodeByteSlice(buf, bz)
-		if err != nil {
-			panic(err)
-		}
-	}
-	return buf.Bytes()
 }

@@ -22,14 +22,6 @@ var (
 //----------------------------------------
 // Misc.
 
-func getTypeFromPointer(ptr interface{}) reflect.Type {
-	rt := reflect.TypeOf(ptr)
-	if rt.Kind() != reflect.Ptr {
-		panic(fmt.Sprintf("expected pointer, got %v", rt))
-	}
-	return rt.Elem()
-}
-
 func checkUnsafe(field FieldInfo) {
 	if field.Unsafe {
 		return

@@ -11,10 +11,9 @@ import (
 func TestBasic(t *testing.T) {
 	p3c := NewP3Context()
 	p3c.RegisterPackage(sm1.Package)
-	p3doc := P3Doc{Package: "test"}
+	p3doc := P3Doc{PackageName: "test"}
 	obj := sm1.StructSM{}
-	p3message, err := p3c.GenerateProto3MessagePartial(&p3doc, reflect.TypeOf(obj))
-	assert.Nil(t, err)
+	p3message := p3c.GenerateProto3MessagePartial(&p3doc, reflect.TypeOf(obj))
 	assert.Equal(t, p3message.Print(), `message StructSM {
 	int64 FieldA = 1;
 	string FieldB = 2;
@@ -28,8 +27,7 @@ package test;
 // imports
 import "github.com/tendermint/go-amino/genproto/example/submodule2/types.proto";`)
 
-	p3doc, err = p3c.GenerateProto3SchemaForTypes(sm1.Package, reflect.TypeOf(obj))
-	assert.Nil(t, err)
+	p3doc = p3c.GenerateProto3SchemaForTypes(sm1.Package, reflect.TypeOf(obj))
 	assert.Equal(t, p3doc.Print(), `syntax = "proto3";
 package submodule;
 
