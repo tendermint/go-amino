@@ -25,8 +25,8 @@ var (
 	// Global methods for global auto-sealing codec.
 	gcdc *Codec
 
-	// we use this time to init. a zero value (opposed to reflect.Zero which gives time.Time{} / 01-01-01 00:00:00)
-	zeroTime time.Time
+	// we use this time to init. an empty value (opposed to reflect.Zero which gives time.Time{} / 01-01-01 00:00:00)
+	emptyTime time.Time
 
 	// ErrNoPointer is thrown when you call a method that expects a pointer, e.g. Unmarshal
 	ErrNoPointer = errors.New("expected a pointer")
@@ -40,9 +40,9 @@ const (
 func init() {
 	gcdc = NewCodec().Autoseal()
 	var err error
-	zeroTime, err = time.Parse(epochFmt, unixEpochStr)
+	emptyTime, err = time.Parse(epochFmt, unixEpochStr)
 	if err != nil {
-		panic("couldn't parse Zero value for time")
+		panic("couldn't parse empty value for time")
 	}
 }
 
@@ -324,6 +324,11 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 			return nil, err
 		}
 		bz = buf.Bytes()
+	}
+
+	// proto.Marshal doesn't return nil.
+	if len(bz) == 0 {
+		bz = []byte{}
 	}
 
 	return bz, nil

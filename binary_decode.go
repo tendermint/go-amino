@@ -2,7 +2,6 @@ package amino
 
 import (
 	"fmt"
-	"math"
 	"reflect"
 
 	"github.com/pkg/errors"
@@ -138,12 +137,12 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 			}
 			rv.SetInt(num)
 		} else {
-			var u64 uint64
-			u64, _n, err = DecodeUvarint(bz)
+			var u64 int64
+			u64, _n, err = DecodeVarint(bz)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
-			rv.SetInt(int64(u64))
+			rv.SetInt(u64)
 		}
 		return
 
@@ -156,16 +155,12 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 			}
 			rv.SetInt(int64(num))
 		} else {
-			var num uint64
-			num, _n, err = DecodeUvarint(bz)
+			var num int64
+			num, _n, err = DecodeVarint(bz)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
-			if int64(num) > math.MaxInt32 || int64(num) < math.MinInt32 {
-				err = ErrOverflowInt
-				return
-			}
-			rv.SetInt(int64(num))
+			rv.SetInt(num)
 		}
 		return
 
@@ -188,16 +183,12 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 		return
 
 	case reflect.Int:
-		var num uint64
-		num, _n, err = DecodeUvarint(bz)
+		var num int64
+		num, _n, err = DecodeVarint(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
-		if int64(num) > int64(maxInt) || int64(num) < int64(minInt) {
-			err = ErrOverflowInt
-			return
-		}
-		rv.SetInt(int64(num))
+		rv.SetInt(num)
 		return
 
 	//----------------------------------------
@@ -676,6 +667,7 @@ func (cdc *Codec) decodeReflectBinaryByteSlice(bz []byte, info *TypeInfo, rv ref
 	}
 	// If len(bz) == 0 the code below will err
 	if len(bz) == 0 {
+		fmt.Println("!!!!!!!!!!!!")
 		rv.Set(info.ZeroValue)
 		return 0, nil
 	}

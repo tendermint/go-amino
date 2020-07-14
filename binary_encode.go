@@ -115,14 +115,14 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		if fopts.BinFixed64 {
 			err = EncodeInt64(w, rv.Int())
 		} else {
-			err = EncodeUvarint(w, uint64(rv.Int()))
+			err = EncodeVarint(w, rv.Int())
 		}
 
 	case reflect.Int32:
 		if fopts.BinFixed32 {
 			err = EncodeInt32(w, int32(rv.Int()))
 		} else {
-			err = EncodeUvarint(w, uint64(rv.Int()))
+			err = EncodeVarint(w, rv.Int())
 		}
 
 	case reflect.Int16:
@@ -132,7 +132,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		err = EncodeInt8(w, int8(rv.Int()))
 
 	case reflect.Int:
-		err = EncodeUvarint(w, uint64(rv.Int()))
+		err = EncodeVarint(w, rv.Int())
 
 	//----------------------------------------
 	// Unsigned

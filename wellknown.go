@@ -455,7 +455,7 @@ func EncodeJSONPBDuration(w io.Writer, d durationpb.Duration) (err error) {
 }
 
 func DecodeJSONTime(bz []byte, fopts FieldOptions) (t time.Time, err error) {
-	t = zeroTime // defensive
+	t = emptyTime // defensive
 	v, err := unquoteString(string(bz))
 	if err != nil {
 		return

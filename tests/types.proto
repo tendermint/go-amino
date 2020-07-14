@@ -1,0 +1,210 @@
+syntax = "proto3";
+package tests;
+
+option go_package = "github.com/tendermint/go-amino/tests/pb";
+
+// imports
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/any.proto";
+
+// messages
+message EmptyStruct {
+}
+message PrimitivesStruct {
+	sint32 Int8 = 1;
+	sint32 Int16 = 2;
+	sint32 Int32 = 3;
+	sint64 Int64 = 4;
+	sint64 Varint = 5;
+	sint64 Int = 6;
+	uint32 Byte = 7;
+	uint32 Uint8 = 8;
+	uint32 Uint16 = 9;
+	uint32 Uint32 = 10;
+	uint64 Uint64 = 11;
+	uint64 Uvarint = 12;
+	uint64 Uint = 13;
+	string Str = 14;
+	bytes Bytes = 15;
+	google.protobuf.Timestamp Time = 16;
+	EmptyStruct Empty = 17;
+}
+message ShortArraysStruct {
+	repeated google.protobuf.Timestamp TimeAr = 1;
+}
+message ArraysStruct {
+	repeated sint32 Int8Ar = 1;
+	repeated sint32 Int16Ar = 2;
+	repeated sint32 Int32Ar = 3;
+	repeated sint64 Int64Ar = 4;
+	repeated sint64 VarintAr = 5;
+	repeated sint64 IntAr = 6;
+	bytes ByteAr = 7;
+	bytes Uint8Ar = 8;
+	repeated uint32 Uint16Ar = 9;
+	repeated uint32 Uint32Ar = 10;
+	repeated uint64 Uint64Ar = 11;
+	repeated uint64 UvarintAr = 12;
+	repeated uint64 UintAr = 13;
+	repeated string StrAr = 14;
+	repeated bytes BytesAr = 15;
+	repeated google.protobuf.Timestamp TimeAr = 16;
+	repeated EmptyStruct EmptyAr = 17;
+}
+message SlicesStruct {
+	repeated sint32 Int8Sl = 1;
+	repeated sint32 Int16Sl = 2;
+	repeated sint32 Int32Sl = 3;
+	repeated sint64 Int64Sl = 4;
+	repeated sint64 VarintSl = 5;
+	repeated sint64 IntSl = 6;
+	bytes ByteSl = 7;
+	bytes Uint8Sl = 8;
+	repeated uint32 Uint16Sl = 9;
+	repeated uint32 Uint32Sl = 10;
+	repeated uint64 Uint64Sl = 11;
+	repeated uint64 UvarintSl = 12;
+	repeated uint64 UintSl = 13;
+	repeated string StrSl = 14;
+	repeated bytes BytesSl = 15;
+	repeated google.protobuf.Timestamp TimeSl = 16;
+	repeated EmptyStruct EmptySl = 17;
+}
+message PointersStruct {
+	sint32 Int8Pt = 1;
+	sint32 Int16Pt = 2;
+	sint32 Int32Pt = 3;
+	sint64 Int64Pt = 4;
+	sint64 VarintPt = 5;
+	sint64 IntPt = 6;
+	uint32 BytePt = 7;
+	uint32 Uint8Pt = 8;
+	uint32 Uint16Pt = 9;
+	uint32 Uint32Pt = 10;
+	uint64 Uint64Pt = 11;
+	uint64 UvarintPt = 12;
+	uint64 UintPt = 13;
+	string StrPt = 14;
+	bytes BytesPt = 15;
+	google.protobuf.Timestamp TimePt = 16;
+	EmptyStruct EmptyPt = 17;
+}
+message PointerSlicesStruct {
+	repeated sint32 Int8PtSl = 1;
+	repeated sint32 Int16PtSl = 2;
+	repeated sint32 Int32PtSl = 3;
+	repeated sint64 Int64PtSl = 4;
+	repeated sint64 VarintPtSl = 5;
+	repeated sint64 IntPtSl = 6;
+	bytes BytePtSl = 7;
+	bytes Uint8PtSl = 8;
+	repeated uint32 Uint16PtSl = 9;
+	repeated uint32 Uint32PtSl = 10;
+	repeated uint64 Uint64PtSl = 11;
+	repeated uint64 UvarintPtSl = 12;
+	repeated uint64 UintPtSl = 13;
+	repeated string StrPtSl = 14;
+	repeated bytes BytesPtSl = 15;
+	repeated google.protobuf.Timestamp TimePtSl = 16;
+	repeated EmptyStruct EmptyPtSl = 17;
+}
+message ComplexSt {
+	PrimitivesStruct PrField = 1;
+	ArraysStruct ArField = 2;
+	SlicesStruct SlField = 3;
+	PointersStruct PtField = 4;
+}
+message EmbeddedSt1 {
+	PrimitivesStruct PrimitivesStruct = 1;
+}
+message EmbeddedSt2 {
+	PrimitivesStruct PrimitivesStruct = 1;
+	ArraysStruct ArraysStruct = 2;
+	SlicesStruct SlicesStruct = 3;
+	PointersStruct PointersStruct = 4;
+}
+message EmbeddedSt3 {
+	PrimitivesStruct PrimitivesStruct = 1;
+	ArraysStruct ArraysStruct = 2;
+	SlicesStruct SlicesStruct = 3;
+	PointersStruct PointersStruct = 4;
+	EmptyStruct EmptyStruct = 5;
+}
+message EmbeddedSt4 {
+	sint64 Foo1 = 1;
+	PrimitivesStruct PrimitivesStruct = 2;
+	string Foo2 = 3;
+	ArraysStruct ArraysStructField = 4;
+	bytes Foo3 = 5;
+	SlicesStruct SlicesStruct = 6;
+	bool Foo4 = 7;
+	PointersStruct PointersStructField = 8;
+	uint64 Foo5 = 9;
+}
+message EmbeddedSt5 {
+	sint64 Foo1 = 1;
+	PrimitivesStruct PrimitivesStruct = 2;
+	string Foo2 = 3;
+	ArraysStruct ArraysStructField = 4;
+	bytes Foo3 = 5;
+	SlicesStruct SlicesStruct = 6;
+	bool Foo4 = 7;
+	PointersStruct PointersStructField = 8;
+	uint64 Foo5 = 9;
+}
+message IntDef {
+	sint64 Value = 1;
+}
+message IntAr {
+	repeated sint64 Value = 1;
+}
+message IntSl {
+	repeated sint64 Value = 1;
+}
+message ByteAr {
+	bytes Value = 1;
+}
+message ByteSl {
+	bytes Value = 1;
+}
+message PrimitivesStructDef {
+	sint32 Int8 = 1;
+	sint32 Int16 = 2;
+	sint32 Int32 = 3;
+	sint64 Int64 = 4;
+	sint64 Varint = 5;
+	sint64 Int = 6;
+	uint32 Byte = 7;
+	uint32 Uint8 = 8;
+	uint32 Uint16 = 9;
+	uint32 Uint32 = 10;
+	uint64 Uint64 = 11;
+	uint64 Uvarint = 12;
+	uint64 Uint = 13;
+	string Str = 14;
+	bytes Bytes = 15;
+	google.protobuf.Timestamp Time = 16;
+	EmptyStruct Empty = 17;
+}
+message PrimitivesStructSl {
+	repeated PrimitivesStruct Value = 1;
+}
+message PrimitivesStructAr {
+	repeated PrimitivesStruct Value = 1;
+}
+message Concrete1 {
+}
+message Concrete2 {
+}
+message ConcreteTypeDef {
+	bytes Value = 1;
+}
+message ConcreteWrappedBytes {
+	bytes Value = 1;
+}
+message InterfaceFieldsStruct {
+	google.protobuf.Any F1 = 1;
+	google.protobuf.Any F2 = 2;
+	google.protobuf.Any F3 = 3;
+	google.protobuf.Any F4 = 4;
+}

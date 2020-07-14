@@ -278,15 +278,15 @@ func (p3c *P3Context) typeToP3Type(info *amino.TypeInfo) (p3type P3Type, repeate
 	case reflect.Bool:
 		return P3ScalarTypeBool, false
 	case reflect.Int:
-		return P3ScalarTypeInt64, false
+		return P3ScalarTypeSint64, false
 	case reflect.Int8:
-		return P3ScalarTypeInt32, false
+		return P3ScalarTypeSint32, false
 	case reflect.Int16:
-		return P3ScalarTypeInt32, false
+		return P3ScalarTypeSint32, false
 	case reflect.Int32:
-		return P3ScalarTypeInt32, false
+		return P3ScalarTypeSint32, false
 	case reflect.Int64:
-		return P3ScalarTypeInt64, false
+		return P3ScalarTypeSint64, false
 	case reflect.Uint:
 		return P3ScalarTypeUint64, false
 	case reflect.Uint8:

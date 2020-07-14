@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"strings"
 	"sync"
-	"unicode"
 
 	"github.com/tendermint/go-amino/pkg"
 )
@@ -23,7 +22,6 @@ type TypeInfo struct {
 	Package   *Package     // package associated with Type.
 	PtrToType reflect.Type
 	ZeroValue reflect.Value
-	ZeroProto interface{}
 	InterfaceInfo
 	ConcreteInfo
 	StructInfo
@@ -563,7 +561,6 @@ func (cdc *Codec) newTypeInfoUnregisteredWLocked(rt reflect.Type) *TypeInfo {
 	info.Type = rt
 	info.PtrToType = reflect.PtrTo(rt)
 	info.ZeroValue = reflect.Zero(rt)
-	info.ZeroProto = reflect.Zero(rt).Interface()
 	if rt.Kind() == reflect.Struct {
 		info.StructInfo = cdc.parseStructInfoWLocked(rt)
 	}
@@ -735,62 +732,6 @@ func parseFieldOptions(field reflect.StructField) (skip bool, fopts FieldOptions
 
 //----------------------------------------
 // Misc.
-
-func isExported(field reflect.StructField) bool {
-	// Test 1:
-	if field.PkgPath != "" {
-		return false
-	}
-	// Test 2:
-	var first rune
-	for _, c := range field.Name {
-		first = c
-		break
-	}
-	// TODO: JAE: I'm not sure that the unicode spec
-	// is the correct spec to use, so this might be wrong.
-
-	return unicode.IsUpper(first)
-}
-
-func marshalAminoReprType(rm reflect.Method) (rrt reflect.Type) {
-	// Verify form of this method.
-	if rm.Type.NumIn() != 1 {
-		panic(fmt.Sprintf("MarshalAmino should have 1 input parameters (including receiver); got %v", rm.Type))
-	}
-	if rm.Type.NumOut() != 2 {
-		panic(fmt.Sprintf("MarshalAmino should have 2 output parameters; got %v", rm.Type))
-	}
-	if out := rm.Type.Out(1); out != errorType {
-		panic(fmt.Sprintf("MarshalAmino should have second output parameter of error type, got %v", out))
-	}
-	rrt = rm.Type.Out(0)
-	if rrt.Kind() == reflect.Ptr {
-		panic(fmt.Sprintf("Representative objects cannot be pointers; got %v", rrt))
-	}
-	return
-}
-
-func unmarshalAminoReprType(rm reflect.Method) (rrt reflect.Type) {
-	// Verify form of this method.
-	if rm.Type.NumIn() != 2 {
-		panic(fmt.Sprintf("UnmarshalAmino should have 2 input parameters (including receiver); got %v", rm.Type))
-	}
-	if in1 := rm.Type.In(0); in1.Kind() != reflect.Ptr {
-		panic(fmt.Sprintf("UnmarshalAmino first input parameter should be pointer type but got %v", in1))
-	}
-	if rm.Type.NumOut() != 1 {
-		panic(fmt.Sprintf("UnmarshalAmino should have 1 output parameters; got %v", rm.Type))
-	}
-	if out := rm.Type.Out(0); out != errorType {
-		panic(fmt.Sprintf("UnmarshalAmino should have first output parameter of error type, got %v", out))
-	}
-	rrt = rm.Type.In(1)
-	if rrt.Kind() == reflect.Ptr {
-		panic(fmt.Sprintf("Representative objects cannot be pointers; got %v", rrt))
-	}
-	return
-}
 
 func typeURLtoName(typeURL string) (name string) {
 	parts := strings.Split(typeURL, "/")

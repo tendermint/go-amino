@@ -215,8 +215,8 @@ func DecodeTimeValue(bz []byte) (s int64, ns int32, n int, err error) {
 }
 
 func DecodeTime(bz []byte) (t time.Time, n int, err error) {
-	// Defensively set default to to zeroTime (1970, not 0001)
-	t = zeroTime
+	// Defensively set default to to emptyTime (1970, not 0001)
+	t = emptyTime
 	s, ns, n, err := DecodeTimeValue(bz)
 	if err != nil {
 		return

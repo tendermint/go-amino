@@ -12,6 +12,7 @@ import (
 	fuzz "github.com/google/gofuzz"
 	"github.com/jaekwon/testify/assert"
 	"github.com/jaekwon/testify/require"
+	proto "google.golang.org/protobuf/proto"
 
 	"github.com/tendermint/go-amino"
 	"github.com/tendermint/go-amino/tests"
@@ -22,6 +23,7 @@ import (
 
 func TestCodecStruct(t *testing.T) {
 	for _, ptr := range tests.StructTypes {
+		t.Logf("case %v", reflect.TypeOf(ptr))
 		rt := getTypeFromPointer(ptr)
 		name := rt.Name()
 		t.Run(name+":binary", func(t *testing.T) { _testCodec(t, rt, "binary") })
@@ -31,6 +33,7 @@ func TestCodecStruct(t *testing.T) {
 
 func TestCodecDef(t *testing.T) {
 	for _, ptr := range tests.DefTypes {
+		t.Logf("case %v", reflect.TypeOf(ptr))
 		rt := getTypeFromPointer(ptr)
 		name := rt.Name()
 		t.Run(name+":binary", func(t *testing.T) { _testCodec(t, rt, "binary") })
@@ -40,6 +43,7 @@ func TestCodecDef(t *testing.T) {
 
 func TestDeepCopyStruct(t *testing.T) {
 	for _, ptr := range tests.StructTypes {
+		t.Logf("case %v", reflect.TypeOf(ptr))
 		rt := getTypeFromPointer(ptr)
 		name := rt.Name()
 		t.Run(name+":deepcopy", func(t *testing.T) { _testDeepCopy(t, rt) })
@@ -48,6 +52,7 @@ func TestDeepCopyStruct(t *testing.T) {
 
 func TestDeepCopyDef(t *testing.T) {
 	for _, ptr := range tests.DefTypes {
+		t.Logf("case %v", reflect.TypeOf(ptr))
 		rt := getTypeFromPointer(ptr)
 		name := rt.Name()
 		t.Run(name+":deepcopy", func(t *testing.T) { _testDeepCopy(t, rt) })
@@ -83,6 +88,7 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 		rv2 = reflect.New(rt)
 		ptr2 = rv2.Interface()
 
+		// Encode to bz.
 		switch codecType {
 		case "binary":
 			bz, err = cdc.MarshalBinaryBare(ptr)
@@ -95,6 +101,7 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 			"failed to marshal %v to bytes: %v\n",
 			spw(ptr), err)
 
+		// Decode from bz.
 		switch codecType {
 		case "binary":
 			err = cdc.UnmarshalBinaryBare(bz, ptr2)
@@ -107,9 +114,43 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 			"failed to unmarshal bytes %X (%s): %v\nptr: %v\n",
 			bz, bz, err, spw(ptr))
 
-		require.Equal(t, ptr2, ptr,
-			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
-			spw(ptr), spw(ptr2), bz, bz)
+		if codecType == "binary" {
+			require.Equal(t, ptr2, ptr,
+				"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
+				spw(ptr), spw(ptr2), bz, bz)
+
+			// Get pbo from rv.
+			type pbMessager interface {
+				ToPBMessage(*amino.Codec) (proto.Message, error)
+				FromPBMessage(*amino.Codec, proto.Message) error
+			}
+			pbm, ok := rv.Interface().(pbMessager)
+			if !ok {
+				// typedefs that are not structs, for example,
+				// are not pbMessanger.
+				continue
+			}
+			pbo, err := pbm.ToPBMessage(cdc)
+			require.NoError(t, err)
+			_, err = proto.Marshal(pbo)
+			require.NoError(t, err)
+
+			// Get back to go from pbo, and ensure equality.
+			rv3 := reflect.New(rt)
+			ptr3 := rv3.Interface()
+			err = ptr3.(pbMessager).FromPBMessage(cdc, pbo)
+			require.NoError(t, err)
+			require.Equal(t, ptr3, ptr,
+				"end to end through pbo failed.\nstart(goo): %v\nend(goo): %v\nmid(pbo): %v\n",
+				spw(ptr), spw(ptr3), spw(pbo))
+
+			/*
+				// Check for equality of bz and b3.
+				require.Equal(t, bz3, bz,
+					"pbo serialization check failed.\nbz(go): %X\nbz(pb-go): %X\nstart(goo): %v\nend(pbo): %v\n",
+					bz, bz3, spw(ptr), spw(pbo))
+			*/
+		}
 	}
 }
 
