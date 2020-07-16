@@ -9,11 +9,11 @@ import "google/protobuf/any.proto";
 
 // messages
 message StructA {
-	int64 FieldC = 1;
+	sint64 FieldC = 1;
 	uint32 FieldD = 2;
 }
 message StructB {
-	int64 FieldC = 1;
+	sint64 FieldC = 1;
 	uint32 FieldD = 2;
 	submodule.StructSM FieldE = 3;
 	StructA FieldF = 4;
