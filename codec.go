@@ -75,7 +75,7 @@ type FieldOptions struct {
 // TypeInfo convenience
 
 func (info *TypeInfo) GetTyp3(fopts FieldOptions) Typ3 {
-	return typeToTyp3(info.Type, fopts)
+	return typeToTyp3(info.ReprType.Type, fopts)
 }
 
 // Used to determine whether to create an implicit struct or not.  Notice that
@@ -84,15 +84,16 @@ func (info *TypeInfo) GetTyp3(fopts FieldOptions) Typ3 {
 // NOTE: we expect info.Elem to be prepopulated, constructed within the scope
 // of a Codec.
 func (info *TypeInfo) IsStructOrUnpacked(fopt FieldOptions) bool {
-	if info.Type.Kind() == reflect.Struct {
+	rinfo := info.ReprType
+	if rinfo.Type.Kind() == reflect.Struct {
 		return true
 	}
 	// We can't just look at the kind and info.Type.Elem(),
 	// as for example, a []time.Duration should not be packed,
 	// but should be represented as a slice of structs.
 	// For these cases, we should expect info.Elem to be prepopulated.
-	if info.Type.Kind() == reflect.Array || info.Type.Kind() == reflect.Slice {
-		return info.Elem.GetTyp3(fopt) == Typ3ByteLength
+	if rinfo.Type.Kind() == reflect.Array || rinfo.Type.Kind() == reflect.Slice {
+		return rinfo.Elem.GetTyp3(fopt) == Typ3ByteLength
 	}
 	return false
 }

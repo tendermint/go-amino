@@ -9,6 +9,8 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
+const bd_option_byte = 0x01
+
 //----------------------------------------
 // cdc.decodeReflectBinary
 
@@ -36,7 +38,7 @@ const (
 //
 // CONTRACT: rv.CanAddr() is true.
 func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
-	rv reflect.Value, fopts FieldOptions, bare bool) (n int, err error) {
+	rv reflect.Value, fopts FieldOptions, bare bool, options uint64) (n int, err error) {
 
 	if !rv.CanAddr() {
 		panic("rv not addressable")
@@ -74,7 +76,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 		if err != nil {
 			return
 		}
-		_n, err = cdc.decodeReflectBinary(bz, rinfo, rrv, fopts, bare)
+		_n, err = cdc.decodeReflectBinary(bz, rinfo, rrv, fopts, bare, options)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
@@ -240,7 +242,11 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 
 	case reflect.Uint8:
 		var num uint8
-		num, _n, err = DecodeUint8(bz)
+		if options&bd_option_byte != 0 {
+			num, _n, err = DecodeByte(bz)
+		} else {
+			num, _n, err = DecodeUint8(bz)
+		}
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
@@ -475,7 +481,7 @@ func (cdc *Codec) decodeReflectBinaryAny(typeURL string, value []byte, rv reflec
 	// Decode into the concrete type.
 	// Here is where we consume the value bytes, which are necessarily length
 	// prefixed, due to the type of field 2, so bareValue is false.
-	_n, err := cdc.decodeReflectBinary(value, cinfo, crv, fopts, bareValue)
+	_n, err := cdc.decodeReflectBinary(value, cinfo, crv, fopts, bareValue, 0)
 	if slide(&value, &n, _n) && err != nil {
 		rv.Set(irvSet) // Helps with debugging
 		return
@@ -568,10 +574,14 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 	typ3 := einfo.GetTyp3(fopts)
 	if typ3 != Typ3ByteLength {
 		// Read elements in packed form.
+		options := uint64(0)
+		if ert.Kind() == reflect.Ptr && ert.Elem().Kind() == reflect.Uint8 {
+			options |= bd_option_byte
+		}
 		for i := 0; i < length; i++ {
-			erv := rv.Index(i)
+			var erv = rv.Index(i)
 			var _n int
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, fopts, false)
+			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, fopts, false, options)
 			if slide(&bz, &n, _n) && err != nil {
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return
@@ -625,7 +635,7 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 			// In case of any inner lists in unpacked form.
 			efopts := fopts
 			efopts.BinFieldNum = 1
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, efopts, false)
+			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, efopts, false, 0)
 			if slide(&bz, &n, _n) && err != nil {
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return
@@ -667,7 +677,6 @@ func (cdc *Codec) decodeReflectBinaryByteSlice(bz []byte, info *TypeInfo, rv ref
 	}
 	// If len(bz) == 0 the code below will err
 	if len(bz) == 0 {
-		fmt.Println("!!!!!!!!!!!!")
 		rv.Set(info.ZeroValue)
 		return 0, nil
 	}
@@ -730,12 +739,16 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	typ3 := einfo.GetTyp3(fopts)
 	if typ3 != Typ3ByteLength {
 		// Read elems in packed form.
+		options := uint64(0)
+		if ert.Kind() == reflect.Ptr && ert.Elem().Kind() == reflect.Uint8 {
+			options |= be_option_byte
+		}
 		for {
 			if len(bz) == 0 {
 				break
 			}
 			erv, _n := reflect.New(ert).Elem(), int(0)
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, fopts, false)
+			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, fopts, false, options)
 			if slide(&bz, &n, _n) && err != nil {
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return
@@ -792,7 +805,7 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 			// In case of any inner lists in unpacked form.
 			efopts := fopts
 			efopts.BinFieldNum = 1
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, efopts, false)
+			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, efopts, false, 0)
 			if slide(&bz, &n, _n) && err != nil {
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return
@@ -844,7 +857,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 		if field.UnpackedList {
 			// This is a list that was encoded unpacked, e.g.
 			// with repeated field entries for each list item.
-			_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions, true)
+			_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions, true, 0)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}
@@ -887,7 +900,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 				return
 			}
 			// Decode field into frv.
-			_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions, false)
+			_n, err = cdc.decodeReflectBinary(bz, finfo, frv, field.FieldOptions, false, 0)
 			if slide(&bz, &n, _n) && err != nil {
 				return
 			}

@@ -188,7 +188,11 @@ var noBindingsPkgs = map[string]struct{}{
 	"time": noBindings,
 }
 
-func hasPBBindings(pkg string) bool {
+func hasPBBindings(info *amino.TypeInfo) bool {
+	if info.Type.Kind() == reflect.Ptr {
+		return false
+	}
+	pkg := info.Package.GoPkgPath
 	_, ok := noBindingsPkgs[pkg]
 	return !ok
 }
@@ -220,17 +224,6 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Exp
 				b...,
 			)}
 		}(goo)
-	} else {
-		if !isRoot && gooType.Registered && hasPBBindings(gooType.Package.GoPkgPath) {
-			// If not pointer, and not interface, we don't want to construct a pbo
-			// instance if an empty struct.
-			defer func(goo ast.Expr) {
-				// Wrap penultimate b with if statement.
-				b = []ast.Stmt{_if(_not(_call(_sel(goo, "IsEmpty"))),
-					b...,
-				)}
-			}(goo)
-		}
 	}
 	// Below, we can assume that goo isn't nil.
 
@@ -253,7 +246,8 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Exp
 	// External case.
 	// If gooType is registered, just call ToPBMessage.
 	// TODO If not registered?
-	if !isRoot && gooType.Registered && hasPBBindings(gooType.Package.GoPkgPath) {
+	if !isRoot && gooType.Registered && hasPBBindings(gooType) {
+		// Call ToPBMessage().
 		pbote_ := p3goTypeExprString(imports, scope, gooType)
 		pbom_ := addVarUniq(scope, "pbom")
 		b = append(b,
@@ -264,6 +258,15 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Exp
 			),
 			_a(pbo, "=", _x("%v.~(~%v~)", pbom_, pbote_)),
 		)
+		if gooIsPtr {
+			if pbote_[0] != '*' {
+				panic("expected pointer kind for p3goTypeExprString (of registered type)")
+			}
+			dpbote_ := pbote_[1:]
+			b = append(b,
+				_if(_b(pbo, "==", "nil"),
+					_a(pbo, "=", _x("new~(~%v~)", dpbote_))))
+		}
 		return
 	}
 
@@ -282,21 +285,54 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Exp
 	}
 	// Below, we can assume that gooType isn't amino.Marshaler
 
-	// Special case for time/duration.
-	// TODO move down into main switch statement.
+	// Special case, time & duration.
 	switch gooType.Type {
 	case timeType:
 		pkgName := addImportAuto(
 			imports, scope, "timestamppb", "google.golang.org/protobuf/types/known/timestamppb")
-		b = append(b,
-			_a(pbo, "=", _call(_sel(_x(pkgName), "New"), dgoo())))
+		if gooIsPtr { // (non-nil)
+			b = append(b,
+				_a(pbo, "=", _call(_sel(_x(pkgName), "New"), dgoo())))
+		} else {
+			b = append(b,
+				_if(_not(_call(_x("amino.IsEmptyTime"), dgoo())),
+					_a(pbo, "=", _call(_sel(_x(pkgName), "New"), dgoo()))))
+		}
 		return
 	case durationType:
 		pkgName := addImportAuto(
 			imports, scope, "durationpb", "google.golang.org/protobuf/types/known/durationpb")
-		b = append(b,
-			_a(pbo, "=", _call(_sel(_x(pkgName), "New"), dgoo())))
+		if gooIsPtr { // (non-nil)
+			b = append(b,
+				_a(pbo, "=", _call(_sel(_x(pkgName), "New"), dgoo())))
+		} else {
+			b = append(b,
+				_if(_b(_call(_sel(goo, "Nanoseconds")), "!=", "0"),
+					_a(pbo, "=", _call(_sel(_x(pkgName), "New"), dgoo()))))
+		}
 		return
+	}
+
+	// Special case, external empty types.
+	if gooType.Registered && hasPBBindings(gooType) {
+		if isRoot {
+			pbote_ := p3goTypeExprString(imports, scope, gooType)
+			pbov_ := addVarUniq(scope, "pbov")
+			b = append(b,
+				_if(_call(_sel(goo, "IsEmpty")),
+					_var(pbov_, _x(pbote_), nil),
+					_a("msg", "=", pbov_),
+					_return()))
+		} else if !gooIsPtr {
+			oldb := b
+			b = []ast.Stmt(nil) // switcharoo
+			defer func(goo ast.Expr) {
+				newb := b
+				b = append(oldb,
+					_if(_not(_call(_sel(goo, "IsEmpty"))),
+						newb...))
+			}(goo)
+		}
 	}
 
 	// General case
@@ -442,20 +478,22 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Exp
 // instances are created within this function.
 func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope *ast.Scope, goo ast.Expr, gooIsPtr bool, gooType *amino.TypeInfo, pbo ast.Expr) (b []ast.Stmt) {
 
-	// Special case if pbo is a nil struct pointer.
+	// Special case if pbo is a nil struct pointer (that isn't timestamp)
 	//
 	// We especially want this behavior (and optimization) for for
 	// amino.Marshalers, because of the construction cost.
 	switch gooType.ReprType.Type.Kind() {
 	case reflect.Struct:
-		defer func(pbo ast.Expr) {
-			// Wrap penultimate b with if statement.
-			b = []ast.Stmt{_if(_b(pbo, "!=", "nil"),
-				b...,
-			)}
-		}(pbo)
+		if gooType.ReprType.Type != timeType {
+			defer func(pbo ast.Expr) {
+				// Wrap penultimate b with if statement.
+				b = []ast.Stmt{_if(_b(pbo, "!=", "nil"),
+					b...,
+				)}
+			}(pbo)
+		}
 	}
-	// Below, we can assume that pbo isn't a nil struct.
+	// Below, we can assume that pbo isn't a nil struct (that isn't timestamp).
 
 	// First we need to construct the goo.
 	// NOTE Unlike go2pb, due to the asymmetry of FromPBMessage/ToPBMessage,
@@ -474,7 +512,7 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 	// External case.
 	// If gooType is registered, just call FromPBMessage.
 	// TODO If not registered?
-	if !isRoot && gooType.Registered && hasPBBindings(gooType.Package.GoPkgPath) {
+	if !isRoot && gooType.Registered && hasPBBindings(gooType) {
 		b = append(b,
 			_a(_i("err"), "=", _call(_sel(goo, "FromPBMessage"), _i("cdc"), pbo)),
 			_if(_x("err__!=__nil"),
@@ -669,7 +707,7 @@ func isEmptyStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, goo ast.E
 	// External case.
 	// If gooType is registered, just call ToPBMessage.
 	// TODO If not registered?
-	if !isRoot && gooType.Registered && hasPBBindings(gooType.Package.GoPkgPath) {
+	if !isRoot && gooType.Registered && hasPBBindings(gooType) {
 		e_ := addVarUniq(scope, "e")
 		b = append(b,
 			_a(e_, ":=", _call(_sel(dgoo(), "IsEmpty"))),
@@ -712,9 +750,7 @@ func isEmptyStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, goo ast.E
 		switch gooType.Type {
 		case timeType:
 			b = append(b,
-				_if(_b(_call(_sel(goo, "Unix")), "!=", "0"),
-					_return(_x("false"))),
-				_if(_b(_call(_sel(goo, "Nanosecond")), "!=", "0"),
+				_if(_not(_call(_x("amino.IsEmptyTime"), dgoo())),
 					_return(_x("false"))))
 			return
 		default:

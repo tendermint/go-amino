@@ -511,3 +511,8 @@ func DecodeJSONPBDuration(bz []byte, fopts FieldOptions) (d durationpb.Duration,
 	}
 	return newPBDuration(d_), nil
 }
+
+func IsEmptyTime(t time.Time) bool {
+	t = t.Round(0).UTC()
+	return t.Unix() == 0 && t.Nanosecond() == 0
+}

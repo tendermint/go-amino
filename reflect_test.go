@@ -113,11 +113,11 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 		require.NoError(t, err,
 			"failed to unmarshal bytes %X (%s): %v\nptr: %v\n",
 			bz, bz, err, spw(ptr))
+		require.Equal(t, ptr2, ptr,
+			"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
+			spw(ptr), spw(ptr2), bz, bz)
 
 		if codecType == "binary" {
-			require.Equal(t, ptr2, ptr,
-				"end to end failed.\nstart: %v\nend: %v\nbytes: %X\nstring(bytes): %s\n",
-				spw(ptr), spw(ptr2), bz, bz)
 
 			// Get pbo from rv.
 			type pbMessager interface {
@@ -132,8 +132,6 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 			}
 			pbo, err := pbm.ToPBMessage(cdc)
 			require.NoError(t, err)
-			_, err = proto.Marshal(pbo)
-			require.NoError(t, err)
 
 			// Get back to go from pbo, and ensure equality.
 			rv3 := reflect.New(rt)
@@ -144,12 +142,12 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 				"end to end through pbo failed.\nstart(goo): %v\nend(goo): %v\nmid(pbo): %v\n",
 				spw(ptr), spw(ptr3), spw(pbo))
 
-			/*
-				// Check for equality of bz and b3.
-				require.Equal(t, bz3, bz,
-					"pbo serialization check failed.\nbz(go): %X\nbz(pb-go): %X\nstart(goo): %v\nend(pbo): %v\n",
-					bz, bz3, spw(ptr), spw(pbo))
-			*/
+			// Check for equality of bz and b3.
+			bz3, err := proto.Marshal(pbo)
+			require.NoError(t, err)
+			require.Equal(t, bz3, bz,
+				"pbo serialization check failed.\nbz(go): %X\nbz(pb-go): %X\nstart(goo): %v\nend(pbo): %v\n",
+				bz, bz3, spw(ptr), spw(pbo))
 		}
 	}
 }
@@ -509,11 +507,7 @@ var fuzzFuncs = []interface{}{
 		// (go-amino decoder will always prefer nil).
 		var by []byte
 		c.Fuzz(&by)
-		if len(by) == 0 {
-			*bz = nil
-		} else {
-			*bz = &by
-		}
+		*bz = &by
 	},
 	func(tyme *time.Time, c fuzz.Continue) {
 		// Set time.Unix(_,_) to wipe .wal

@@ -35,7 +35,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	// Special case for null for either interface, pointer, slice
 	// NOTE: This doesn't match the binary implementation completely.
 	if nullBytes(bz) {
-		rv.Set(reflect.Zero(rv.Type()))
+		rv.Set(defaultValue(rv.Type()))
 		return
 	}
 
@@ -387,7 +387,7 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 			// Set to the zero value only if not omitempty
 			if !field.JSONOmitEmpty {
 				// Set nil/zero on frv.
-				frv.Set(reflect.Zero(frv.Type()))
+				frv.Set(defaultValue(frv.Type()))
 			}
 
 			continue

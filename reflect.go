@@ -90,7 +90,12 @@ func maybeDerefAndConstruct(rv reflect.Value) reflect.Value {
 func isNonstructDefaultValue(rv reflect.Value) (isDefault bool) {
 	switch rv.Kind() {
 	case reflect.Ptr:
-		return rv.IsNil()
+		if rv.IsNil() {
+			return true
+		} else {
+			erv := rv.Elem()
+			return isNonstructDefaultValue(erv)
+		}
 	case reflect.Bool:
 		return rv.Bool() == false
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
@@ -113,26 +118,32 @@ func isNonstructDefaultValue(rv reflect.Value) (isDefault bool) {
 // Returns the default value of a type.  For a time type or a
 // pointer(s) to time, the default value is not zero (or nil), but the
 // time value of 1970.
+//
+// The default value of a struct pointer is nil, while the default value of
+// other pointers is not nil.  This is due to a proto3 wart, e.g. while there
+// is a way to distinguish between a nil struct/message vs an empty one (via
+// its presence or absence in an outer struct), there is no such way to
+// distinguish between nil bytes/lists and empty bytes/lists, are they are all
+// absent in binary encoding.
 func defaultValue(rt reflect.Type) (rv reflect.Value) {
 	switch rt.Kind() {
 	case reflect.Ptr:
 		// Dereference all the way and see if it's a time type.
-		refType := rt.Elem()
-		for refType.Kind() == reflect.Ptr {
-			refType = refType.Elem()
+		ert := rt.Elem()
+		if ert.Kind() == reflect.Ptr {
+			panic("nested pointers not allowed")
 		}
-		if refType == timeType {
+		if ert == timeType {
 			// Start from the top and construct pointers as needed.
-			rv = reflect.New(rt).Elem()
-			refType, refValue := rt, rv
-			for refType.Kind() == reflect.Ptr {
-				newPtr := reflect.New(refType.Elem())
-				refValue.Set(newPtr)
-				refType = refType.Elem()
-				refValue = refValue.Elem()
-			}
+			rv = reflect.New(rt.Elem())
 			// Set to 1970, the whole point of this function.
-			refValue.Set(reflect.ValueOf(emptyTime))
+			rv.Elem().Set(reflect.ValueOf(emptyTime))
+			return rv
+		} else if ert.Kind() == reflect.Struct {
+			rv = reflect.Zero(rt)
+			return rv
+		} else {
+			rv = reflect.New(rt.Elem())
 			return rv
 		}
 	case reflect.Struct:
@@ -141,6 +152,8 @@ func defaultValue(rt reflect.Type) (rv reflect.Value) {
 			rv = reflect.New(rt).Elem()
 			rv.Set(reflect.ValueOf(emptyTime))
 			return rv
+		} else {
+			return reflect.Zero(rt)
 		}
 	}
 

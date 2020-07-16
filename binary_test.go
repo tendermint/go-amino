@@ -119,7 +119,7 @@ func TestWriteEmpty(t *testing.T) {
 	cdc := amino.NewCodec()
 	b, err := cdc.MarshalBinaryBare(Inner{})
 	assert.NoError(t, err)
-	assert.Equal(t, b, []byte{}, "empty struct should be encoded as empty bytes")
+	assert.Equal(t, b, []byte(nil), "empty struct should be encoded as empty bytes")
 	var inner Inner
 	err = cdc.UnmarshalBinaryBare(b, &inner)
 	require.NoError(t, err)
@@ -127,7 +127,7 @@ func TestWriteEmpty(t *testing.T) {
 
 	b, err = cdc.MarshalBinaryBare(SomeStruct{})
 	assert.NoError(t, err)
-	assert.Equal(t, b, []byte{}, "empty structs should be encoded as empty bytes")
+	assert.Equal(t, b, []byte(nil), "empty structs should be encoded as empty bytes")
 	var outer SomeStruct
 	err = cdc.UnmarshalBinaryBare(b, &outer)
 	require.NoError(t, err)
@@ -159,8 +159,8 @@ func TestForceWriteEmpty(t *testing.T) {
 
 func TestStructSlice(t *testing.T) {
 	type Foo struct {
-		A int
-		B int
+		A uint
+		B uint
 	}
 
 	type Foos struct {

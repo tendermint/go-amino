@@ -11,6 +11,8 @@ import (
 	"github.com/davecgh/go-spew/spew"
 )
 
+const be_option_byte = 0x01
+
 //----------------------------------------
 // cdc.encodeReflectBinary
 
@@ -43,7 +45,7 @@ CONTRACT: rv is not a pointer
 CONTRACT: rv is valid.
 */
 func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Value,
-	fopts FieldOptions, bare bool) (err error) {
+	fopts FieldOptions, bare bool, options uint64) (err error) {
 	if rv.Kind() == reflect.Ptr {
 		// Whether to encode nil pointers as 0x00 or not at all depend on the
 		// context, so pointers should be handled first by the caller.
@@ -79,7 +81,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 			return
 		}
 		// Then, encode the repr instance.
-		err = cdc.encodeReflectBinary(w, rinfo, rrv, fopts, bare)
+		err = cdc.encodeReflectBinary(w, rinfo, rrv, fopts, bare, options)
 		return
 	}
 
@@ -155,7 +157,11 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		err = EncodeUint16(w, uint16(rv.Uint()))
 
 	case reflect.Uint8:
-		err = EncodeUint8(w, uint8(rv.Uint()))
+		if options&be_option_byte != 0 {
+			err = EncodeByte(w, uint8(rv.Uint()))
+		} else {
+			err = EncodeUint8(w, uint8(rv.Uint()))
+		}
 
 	case reflect.Uint:
 		err = EncodeUvarint(w, rv.Uint())
@@ -269,7 +275,7 @@ func (cdc *Codec) encodeReflectBinaryInterface(w io.Writer, iinfo *TypeInfo, rv 
 			// be encoded unpacked (elements are Typ3ByteLength).  In that case,
 			// encodeReflectBinary will repeat the field number as set here, as if
 			// encoded with an implicit struct.
-			err = cdc.encodeReflectBinary(buf2, cinfo, dcrv, FieldOptions{BinFieldNum: 1}, true)
+			err = cdc.encodeReflectBinary(buf2, cinfo, dcrv, FieldOptions{BinFieldNum: 1}, true, 0)
 			if err != nil {
 				return
 			}
@@ -345,6 +351,10 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 	typ3 := einfo.GetTyp3(fopts)
 	if typ3 != Typ3ByteLength {
 		// Write elems in packed form.
+		options := uint64(0)
+		if ert.Kind() == reflect.Ptr && ert.Elem().Kind() == reflect.Uint8 {
+			options |= be_option_byte
+		}
 		for i := 0; i < rv.Len(); i++ {
 			var erv = rv.Index(i)
 			// If pointer, get dereferenced element value (or zero).
@@ -356,7 +366,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 				}
 			}
 			// Write the element value.
-			err = cdc.encodeReflectBinary(buf, einfo, erv, fopts, false)
+			err = cdc.encodeReflectBinary(buf, einfo, erv, fopts, false, options)
 			if err != nil {
 				return
 			}
@@ -409,7 +419,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 				if ertIsPointer {
 					derv = erv.Elem()
 				}
-				err = cdc.encodeReflectBinary(buf, einfo, derv, efopts, false)
+				err = cdc.encodeReflectBinary(buf, einfo, derv, efopts, false, 0)
 				if err != nil {
 					return
 				}
@@ -465,6 +475,7 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 			// (except when `amino:"write_empty"` is set).
 			continue
 		}
+		// Below, if frv is pointer, it isn't a nil pointer.
 		if field.UnpackedList {
 			// Write repeated field entries for each list item.
 			err = cdc.encodeReflectBinaryList(buf, finfo, dfrv, field.FieldOptions, true)
@@ -472,8 +483,8 @@ func (cdc *Codec) encodeReflectBinaryStruct(w io.Writer, info *TypeInfo, rv refl
 				return
 			}
 		} else {
-			// write empty if explicitly set or if this is a pointer:
-			writeEmpty := field.WriteEmpty || frvIsPtr
+			// write empty if explicitly set or if this is a non-nil pointer:
+			writeEmpty := field.WriteEmpty || frvIsPtr // (non-nil)
 			err = cdc.writeFieldIfNotEmpty(buf, field.BinFieldNum, finfo, fopts, field.FieldOptions, dfrv, writeEmpty)
 			if err != nil {
 				return
@@ -524,7 +535,7 @@ func (cdc *Codec) writeFieldIfNotEmpty(
 	lBeforeValue := buf.Len()
 
 	// Write field value from rv.
-	err = cdc.encodeReflectBinary(buf, finfo, derefedVal, fieldOpts, false)
+	err = cdc.encodeReflectBinary(buf, finfo, derefedVal, fieldOpts, false, 0)
 	if err != nil {
 		return err
 	}

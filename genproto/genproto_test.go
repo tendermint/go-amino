@@ -15,7 +15,7 @@ func TestBasic(t *testing.T) {
 	obj := sm1.StructSM{}
 	p3message := p3c.GenerateProto3MessagePartial(&p3doc, reflect.TypeOf(obj))
 	assert.Equal(t, p3message.Print(), `message StructSM {
-	int64 FieldA = 1;
+	sint64 FieldA = 1;
 	string FieldB = 2;
 	submodule2.StructSM2 FieldC = 3;
 }
@@ -38,7 +38,7 @@ import "github.com/tendermint/go-amino/genproto/example/submodule2/types.proto";
 
 // messages
 message StructSM {
-	int64 FieldA = 1;
+	sint64 FieldA = 1;
 	string FieldB = 2;
 	submodule2.StructSM2 FieldC = 3;
 }`)

@@ -12,6 +12,11 @@ import (
 func (goo EmptyStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.EmptyStruct
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.EmptyStruct
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.EmptyStruct)
 	}
 	msg = pbo
@@ -37,6 +42,11 @@ func (goo EmptyStruct) IsEmpty() (empty bool) {
 func (goo PrimitivesStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.PrimitivesStruct
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.PrimitivesStruct
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.PrimitivesStruct)
 		{
 			pbo.Int8 = int32(goo.Int8)
@@ -98,17 +108,17 @@ func (goo PrimitivesStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, er
 			}
 		}
 		{
-			pbo.Time = timestamppb.New(goo.Time)
+			if !amino.IsEmptyTime(goo.Time) {
+				pbo.Time = timestamppb.New(goo.Time)
+			}
 		}
 		{
-			if !goo.Empty.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.Empty.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.Empty = pbom.(*testspb.EmptyStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.Empty.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.Empty = pbom.(*testspb.EmptyStruct)
 		}
 	}
 	msg = pbo
@@ -178,9 +188,7 @@ func (goo *PrimitivesStruct) FromPBMessage(cdc *amino.Codec, msg proto.Message) 
 				}
 			}
 			{
-				if pbo.Time != nil {
-					goo.Time = pbo.Time.AsTime()
-				}
+				goo.Time = pbo.Time.AsTime()
 			}
 			{
 				if pbo.Empty != nil {
@@ -276,10 +284,7 @@ func (goo PrimitivesStruct) IsEmpty() (empty bool) {
 			}
 		}
 		{
-			if goo.Time.Unix() != 0 {
-				return false
-			}
-			if goo.Time.Nanosecond() != 0 {
+			if !amino.IsEmptyTime(goo.Time) {
 				return false
 			}
 		}
@@ -295,6 +300,11 @@ func (goo PrimitivesStruct) IsEmpty() (empty bool) {
 func (goo ShortArraysStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.ShortArraysStruct
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.ShortArraysStruct
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.ShortArraysStruct)
 		{
 			gool := len(goo.TimeAr)
@@ -306,7 +316,9 @@ func (goo ShortArraysStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, e
 					{
 						gooe := goo.TimeAr[i]
 						{
-							pbos[i] = timestamppb.New(gooe)
+							if !amino.IsEmptyTime(gooe) {
+								pbos[i] = timestamppb.New(gooe)
+							}
 						}
 					}
 				}
@@ -327,9 +339,7 @@ func (goo *ShortArraysStruct) FromPBMessage(cdc *amino.Codec, msg proto.Message)
 					{
 						pboe := pbo.TimeAr[i]
 						{
-							if pboe != nil {
-								goos[i] = pboe.AsTime()
-							}
+							goos[i] = pboe.AsTime()
 						}
 					}
 				}
@@ -356,6 +366,11 @@ func (goo ShortArraysStruct) IsEmpty() (empty bool) {
 func (goo ArraysStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.ArraysStruct
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.ArraysStruct
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.ArraysStruct)
 		{
 			gool := len(goo.Int8Ar)
@@ -636,7 +651,9 @@ func (goo ArraysStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err er
 					{
 						gooe := goo.TimeAr[i]
 						{
-							pbos[i] = timestamppb.New(gooe)
+							if !amino.IsEmptyTime(gooe) {
+								pbos[i] = timestamppb.New(gooe)
+							}
 						}
 					}
 				}
@@ -653,14 +670,12 @@ func (goo ArraysStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err er
 					{
 						gooe := goo.EmptyAr[i]
 						{
-							if !gooe.IsEmpty() {
-								pbom := proto.Message(nil)
-								pbom, err = gooe.ToPBMessage(cdc)
-								if err != nil {
-									return
-								}
-								pbos[i] = pbom.(*testspb.EmptyStruct)
+							pbom := proto.Message(nil)
+							pbom, err = gooe.ToPBMessage(cdc)
+							if err != nil {
+								return
 							}
+							pbos[i] = pbom.(*testspb.EmptyStruct)
 						}
 					}
 				}
@@ -875,9 +890,7 @@ func (goo *ArraysStruct) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err
 					{
 						pboe := pbo.TimeAr[i]
 						{
-							if pboe != nil {
-								goos[i] = pboe.AsTime()
-							}
+							goos[i] = pboe.AsTime()
 						}
 					}
 				}
@@ -1001,6 +1014,11 @@ func (goo ArraysStruct) IsEmpty() (empty bool) {
 func (goo SlicesStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.SlicesStruct
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.SlicesStruct
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.SlicesStruct)
 		{
 			gool := len(goo.Int8Sl)
@@ -1281,7 +1299,9 @@ func (goo SlicesStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err er
 					{
 						gooe := goo.TimeSl[i]
 						{
-							pbos[i] = timestamppb.New(gooe)
+							if !amino.IsEmptyTime(gooe) {
+								pbos[i] = timestamppb.New(gooe)
+							}
 						}
 					}
 				}
@@ -1298,14 +1318,12 @@ func (goo SlicesStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err er
 					{
 						gooe := goo.EmptySl[i]
 						{
-							if !gooe.IsEmpty() {
-								pbom := proto.Message(nil)
-								pbom, err = gooe.ToPBMessage(cdc)
-								if err != nil {
-									return
-								}
-								pbos[i] = pbom.(*testspb.EmptyStruct)
+							pbom := proto.Message(nil)
+							pbom, err = gooe.ToPBMessage(cdc)
+							if err != nil {
+								return
 							}
+							pbos[i] = pbom.(*testspb.EmptyStruct)
 						}
 					}
 				}
@@ -1599,9 +1617,7 @@ func (goo *SlicesStruct) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err
 						{
 							pboe := pbo.TimeSl[i]
 							{
-								if pboe != nil {
-									goos[i] = pboe.AsTime()
-								}
+								goos[i] = pboe.AsTime()
 							}
 						}
 					}
@@ -1731,6 +1747,11 @@ func (goo SlicesStruct) IsEmpty() (empty bool) {
 func (goo PointersStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.PointersStruct
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.PointersStruct
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.PointersStruct)
 		{
 			if goo.Int8Pt != nil {
@@ -1850,6 +1871,9 @@ func (goo PointersStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err 
 					return
 				}
 				pbo.EmptyPt = pbom.(*testspb.EmptyStruct)
+				if pbo.EmptyPt == nil {
+					pbo.EmptyPt = new(testspb.EmptyStruct)
+				}
 			}
 		}
 	}
@@ -1935,10 +1959,8 @@ func (goo *PointersStruct) FromPBMessage(cdc *amino.Codec, msg proto.Message) (e
 				}
 			}
 			{
-				if pbo.TimePt != nil {
-					goo.TimePt = new(time.Time)
-					*goo.TimePt = pbo.TimePt.AsTime()
-				}
+				goo.TimePt = new(time.Time)
+				*goo.TimePt = pbo.TimePt.AsTime()
 			}
 			{
 				if pbo.EmptyPt != nil {
@@ -2081,10 +2103,8 @@ func (goo PointersStruct) IsEmpty() (empty bool) {
 		}
 		{
 			if goo.TimePt != nil {
-				if goo.TimePt.Unix() != 0 {
-					return false
-				}
-				if goo.TimePt.Nanosecond() != 0 {
+				dgoo := *goo.TimePt
+				if !amino.IsEmptyTime(dgoo) {
 					return false
 				}
 			}
@@ -2104,6 +2124,11 @@ func (goo PointersStruct) IsEmpty() (empty bool) {
 func (goo PointerSlicesStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.PointerSlicesStruct
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.PointerSlicesStruct
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.PointerSlicesStruct)
 		{
 			gool := len(goo.Int8PtSl)
@@ -2456,6 +2481,9 @@ func (goo PointerSlicesStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message,
 									return
 								}
 								pbos[i] = pbom.(*testspb.EmptyStruct)
+								if pbos[i] == nil {
+									pbos[i] = new(testspb.EmptyStruct)
+								}
 							}
 						}
 					}
@@ -2765,10 +2793,8 @@ func (goo *PointerSlicesStruct) FromPBMessage(cdc *amino.Codec, msg proto.Messag
 						{
 							pboe := pbo.TimePtSl[i]
 							{
-								if pboe != nil {
-									goos[i] = new(time.Time)
-									*goos[i] = pboe.AsTime()
-								}
+								goos[i] = new(time.Time)
+								*goos[i] = pboe.AsTime()
 							}
 						}
 					}
@@ -2899,46 +2925,43 @@ func (goo PointerSlicesStruct) IsEmpty() (empty bool) {
 func (goo ComplexSt) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.ComplexSt
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.ComplexSt
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.ComplexSt)
 		{
-			if !goo.PrField.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.PrField.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.PrField = pbom.(*testspb.PrimitivesStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.PrField.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.PrField = pbom.(*testspb.PrimitivesStruct)
 		}
 		{
-			if !goo.ArField.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.ArField.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.ArField = pbom.(*testspb.ArraysStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.ArField.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.ArField = pbom.(*testspb.ArraysStruct)
 		}
 		{
-			if !goo.SlField.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.SlField.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.SlField = pbom.(*testspb.SlicesStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.SlField.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.SlField = pbom.(*testspb.SlicesStruct)
 		}
 		{
-			if !goo.PtField.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.PtField.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.PtField = pbom.(*testspb.PointersStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.PtField.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.PtField = pbom.(*testspb.PointersStruct)
 		}
 	}
 	msg = pbo
@@ -3020,16 +3043,19 @@ func (goo ComplexSt) IsEmpty() (empty bool) {
 func (goo EmbeddedSt1) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.EmbeddedSt1
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.EmbeddedSt1
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.EmbeddedSt1)
 		{
-			if !goo.PrimitivesStruct.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.PrimitivesStruct.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.PrimitivesStruct = pbom.(*testspb.PrimitivesStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.PrimitivesStruct.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.PrimitivesStruct = pbom.(*testspb.PrimitivesStruct)
 		}
 	}
 	msg = pbo
@@ -3069,46 +3095,43 @@ func (goo EmbeddedSt1) IsEmpty() (empty bool) {
 func (goo EmbeddedSt2) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.EmbeddedSt2
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.EmbeddedSt2
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.EmbeddedSt2)
 		{
-			if !goo.PrimitivesStruct.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.PrimitivesStruct.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.PrimitivesStruct = pbom.(*testspb.PrimitivesStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.PrimitivesStruct.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.PrimitivesStruct = pbom.(*testspb.PrimitivesStruct)
 		}
 		{
-			if !goo.ArraysStruct.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.ArraysStruct.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.ArraysStruct = pbom.(*testspb.ArraysStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.ArraysStruct.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.ArraysStruct = pbom.(*testspb.ArraysStruct)
 		}
 		{
-			if !goo.SlicesStruct.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.SlicesStruct.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.SlicesStruct = pbom.(*testspb.SlicesStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.SlicesStruct.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.SlicesStruct = pbom.(*testspb.SlicesStruct)
 		}
 		{
-			if !goo.PointersStruct.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.PointersStruct.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.PointersStruct = pbom.(*testspb.PointersStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.PointersStruct.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.PointersStruct = pbom.(*testspb.PointersStruct)
 		}
 	}
 	msg = pbo
@@ -3190,6 +3213,11 @@ func (goo EmbeddedSt2) IsEmpty() (empty bool) {
 func (goo EmbeddedSt3) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.EmbeddedSt3
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.EmbeddedSt3
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.EmbeddedSt3)
 		{
 			if goo.PrimitivesStruct != nil {
@@ -3199,6 +3227,9 @@ func (goo EmbeddedSt3) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 					return
 				}
 				pbo.PrimitivesStruct = pbom.(*testspb.PrimitivesStruct)
+				if pbo.PrimitivesStruct == nil {
+					pbo.PrimitivesStruct = new(testspb.PrimitivesStruct)
+				}
 			}
 		}
 		{
@@ -3209,6 +3240,9 @@ func (goo EmbeddedSt3) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 					return
 				}
 				pbo.ArraysStruct = pbom.(*testspb.ArraysStruct)
+				if pbo.ArraysStruct == nil {
+					pbo.ArraysStruct = new(testspb.ArraysStruct)
+				}
 			}
 		}
 		{
@@ -3219,6 +3253,9 @@ func (goo EmbeddedSt3) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 					return
 				}
 				pbo.SlicesStruct = pbom.(*testspb.SlicesStruct)
+				if pbo.SlicesStruct == nil {
+					pbo.SlicesStruct = new(testspb.SlicesStruct)
+				}
 			}
 		}
 		{
@@ -3229,6 +3266,9 @@ func (goo EmbeddedSt3) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 					return
 				}
 				pbo.PointersStruct = pbom.(*testspb.PointersStruct)
+				if pbo.PointersStruct == nil {
+					pbo.PointersStruct = new(testspb.PointersStruct)
+				}
 			}
 		}
 		{
@@ -3239,6 +3279,9 @@ func (goo EmbeddedSt3) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 					return
 				}
 				pbo.EmptyStruct = pbom.(*testspb.EmptyStruct)
+				if pbo.EmptyStruct == nil {
+					pbo.EmptyStruct = new(testspb.EmptyStruct)
+				}
 			}
 		}
 	}
@@ -3355,32 +3398,33 @@ func (goo EmbeddedSt3) IsEmpty() (empty bool) {
 func (goo EmbeddedSt4) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.EmbeddedSt4
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.EmbeddedSt4
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.EmbeddedSt4)
 		{
 			pbo.Foo1 = int64(goo.Foo1)
 		}
 		{
-			if !goo.PrimitivesStruct.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.PrimitivesStruct.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.PrimitivesStruct = pbom.(*testspb.PrimitivesStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.PrimitivesStruct.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.PrimitivesStruct = pbom.(*testspb.PrimitivesStruct)
 		}
 		{
 			pbo.Foo2 = goo.Foo2
 		}
 		{
-			if !goo.ArraysStructField.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.ArraysStructField.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.ArraysStructField = pbom.(*testspb.ArraysStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.ArraysStructField.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.ArraysStructField = pbom.(*testspb.ArraysStruct)
 		}
 		{
 			gool := len(goo.Foo3)
@@ -3400,27 +3444,23 @@ func (goo EmbeddedSt4) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 			}
 		}
 		{
-			if !goo.SlicesStruct.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.SlicesStruct.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.SlicesStruct = pbom.(*testspb.SlicesStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.SlicesStruct.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.SlicesStruct = pbom.(*testspb.SlicesStruct)
 		}
 		{
 			pbo.Foo4 = goo.Foo4
 		}
 		{
-			if !goo.PointersStructField.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.PointersStructField.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.PointersStructField = pbom.(*testspb.PointersStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.PointersStructField.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.PointersStructField = pbom.(*testspb.PointersStruct)
 		}
 		{
 			pbo.Foo5 = uint64(goo.Foo5)
@@ -3559,6 +3599,11 @@ func (goo EmbeddedSt4) IsEmpty() (empty bool) {
 func (goo EmbeddedSt5) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.EmbeddedSt5
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.EmbeddedSt5
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.EmbeddedSt5)
 		{
 			pbo.Foo1 = int64(goo.Foo1)
@@ -3571,6 +3616,9 @@ func (goo EmbeddedSt5) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 					return
 				}
 				pbo.PrimitivesStruct = pbom.(*testspb.PrimitivesStruct)
+				if pbo.PrimitivesStruct == nil {
+					pbo.PrimitivesStruct = new(testspb.PrimitivesStruct)
+				}
 			}
 		}
 		{
@@ -3584,6 +3632,9 @@ func (goo EmbeddedSt5) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 					return
 				}
 				pbo.ArraysStructField = pbom.(*testspb.ArraysStruct)
+				if pbo.ArraysStructField == nil {
+					pbo.ArraysStructField = new(testspb.ArraysStruct)
+				}
 			}
 		}
 		{
@@ -3611,6 +3662,9 @@ func (goo EmbeddedSt5) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 					return
 				}
 				pbo.SlicesStruct = pbom.(*testspb.SlicesStruct)
+				if pbo.SlicesStruct == nil {
+					pbo.SlicesStruct = new(testspb.SlicesStruct)
+				}
 			}
 		}
 		{
@@ -3624,6 +3678,9 @@ func (goo EmbeddedSt5) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 					return
 				}
 				pbo.PointersStructField = pbom.(*testspb.PointersStruct)
+				if pbo.PointersStructField == nil {
+					pbo.PointersStructField = new(testspb.PointersStruct)
+				}
 			}
 		}
 		{
@@ -3779,6 +3836,11 @@ func (goo EmbeddedSt5) IsEmpty() (empty bool) {
 func (goo PrimitivesStructDef) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.PrimitivesStructDef
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.PrimitivesStructDef
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.PrimitivesStructDef)
 		{
 			pbo.Int8 = int32(goo.Int8)
@@ -3840,17 +3902,17 @@ func (goo PrimitivesStructDef) ToPBMessage(cdc *amino.Codec) (msg proto.Message,
 			}
 		}
 		{
-			pbo.Time = timestamppb.New(goo.Time)
+			if !amino.IsEmptyTime(goo.Time) {
+				pbo.Time = timestamppb.New(goo.Time)
+			}
 		}
 		{
-			if !goo.Empty.IsEmpty() {
-				pbom := proto.Message(nil)
-				pbom, err = goo.Empty.ToPBMessage(cdc)
-				if err != nil {
-					return
-				}
-				pbo.Empty = pbom.(*testspb.EmptyStruct)
+			pbom := proto.Message(nil)
+			pbom, err = goo.Empty.ToPBMessage(cdc)
+			if err != nil {
+				return
 			}
+			pbo.Empty = pbom.(*testspb.EmptyStruct)
 		}
 	}
 	msg = pbo
@@ -3920,9 +3982,7 @@ func (goo *PrimitivesStructDef) FromPBMessage(cdc *amino.Codec, msg proto.Messag
 				}
 			}
 			{
-				if pbo.Time != nil {
-					goo.Time = pbo.Time.AsTime()
-				}
+				goo.Time = pbo.Time.AsTime()
 			}
 			{
 				if pbo.Empty != nil {
@@ -4018,10 +4078,7 @@ func (goo PrimitivesStructDef) IsEmpty() (empty bool) {
 			}
 		}
 		{
-			if goo.Time.Unix() != 0 {
-				return false
-			}
-			if goo.Time.Nanosecond() != 0 {
+			if !amino.IsEmptyTime(goo.Time) {
 				return false
 			}
 		}
@@ -4037,6 +4094,11 @@ func (goo PrimitivesStructDef) IsEmpty() (empty bool) {
 func (goo Concrete1) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.Concrete1
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.Concrete1
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.Concrete1)
 	}
 	msg = pbo
@@ -4062,6 +4124,11 @@ func (goo Concrete1) IsEmpty() (empty bool) {
 func (goo Concrete2) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.Concrete2
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.Concrete2
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.Concrete2)
 	}
 	msg = pbo
@@ -4087,6 +4154,11 @@ func (goo Concrete2) IsEmpty() (empty bool) {
 func (goo ConcreteWrappedBytes) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.ConcreteWrappedBytes
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.ConcreteWrappedBytes
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.ConcreteWrappedBytes)
 		{
 			gool := len(goo.Value)
@@ -4151,6 +4223,11 @@ func (goo ConcreteWrappedBytes) IsEmpty() (empty bool) {
 func (goo InterfaceFieldsStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.InterfaceFieldsStruct
 	{
+		if goo.IsEmpty() {
+			var pbov *testspb.InterfaceFieldsStruct
+			msg = pbov
+			return
+		}
 		pbo = new(testspb.InterfaceFieldsStruct)
 		{
 			if goo.F1 != nil {

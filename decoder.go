@@ -79,7 +79,13 @@ func DecodeVarint(bz []byte) (i int64, n int, err error) {
 // Unsigned
 
 func DecodeByte(bz []byte) (b byte, n int, err error) {
-	return DecodeUint8(bz)
+	if len(bz) == 0 {
+		err = errors.New("EOF decoding byte")
+		return
+	}
+	b = bz[0]
+	n = 1
+	return
 }
 
 func DecodeUint8(bz []byte) (u uint8, n int, err error) {

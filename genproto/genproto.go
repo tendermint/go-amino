@@ -304,7 +304,7 @@ func (p3c *P3Context) typeToP3Type(info *amino.TypeInfo) (p3type P3Type, repeate
 	case reflect.Complex64, reflect.Complex128:
 		panic("complex types not yet supported")
 	case reflect.Array, reflect.Slice:
-		switch info.Elem.Type.Kind() {
+		switch info.Elem.ReprType.Type.Kind() {
 		case reflect.Uint8:
 			return P3ScalarTypeBytes, false
 		default:

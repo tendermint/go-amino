@@ -319,16 +319,11 @@ func (cdc *Codec) MarshalBinaryBare(o interface{}) ([]byte, error) {
 		// be encoded unpacked (elements are Typ3_ByteLength).  In that case,
 		// encodeReflectBinary will repeat the field number as set here, as if
 		// encoded with an implicit struct.
-		err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{BinFieldNum: 1}, true)
+		err = cdc.encodeReflectBinary(buf, info, rv, FieldOptions{BinFieldNum: 1}, true, 0)
 		if err != nil {
 			return nil, err
 		}
 		bz = buf.Bytes()
-	}
-
-	// proto.Marshal doesn't return nil.
-	if len(bz) == 0 {
-		bz = []byte{}
 	}
 
 	return bz, nil
@@ -545,7 +540,7 @@ func (cdc *Codec) UnmarshalBinaryBare(bz []byte, ptr interface{}) error {
 	}
 
 	// Decode contents into rv.
-	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{BinFieldNum: 1}, bare)
+	n, err := cdc.decodeReflectBinary(bz, info, rv, FieldOptions{BinFieldNum: 1}, bare, 0)
 	if err != nil {
 		return fmt.Errorf(
 			"unmarshal to %v failed after %d bytes (%v): %X",

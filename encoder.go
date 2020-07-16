@@ -48,8 +48,10 @@ func VarintSize(i int64) int {
 //----------------------------------------
 // Unsigned
 
+// Unlike EncodeUint8, writes a single byte.
 func EncodeByte(w io.Writer, b byte) (err error) {
-	return EncodeUvarint(w, uint64(b))
+	_, err = w.Write([]byte{b})
+	return
 }
 
 func EncodeUint8(w io.Writer, u uint8) (err error) {
