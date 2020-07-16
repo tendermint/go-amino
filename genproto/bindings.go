@@ -675,6 +675,15 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 
 func isEmptyStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, goo ast.Expr, gooIsPtr bool, gooType *amino.TypeInfo) (b []ast.Stmt) {
 
+	// Special case if non-nil struct-pointer.
+	// TODO: this could be precompiled and optimized (when !isRoot).
+	if gooIsPtr && gooType.ReprType.Type.Kind() == reflect.Struct {
+		b = []ast.Stmt{_if(_b(goo, "!=", _i("nil")),
+			_return(_i("false")),
+		)}
+		return
+	}
+
 	// Special case if nil-pointer.
 	if gooIsPtr || gooType.Type.Kind() == reflect.Interface {
 		defer func(goo ast.Expr) {
@@ -683,6 +692,7 @@ func isEmptyStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, goo ast.E
 				b...,
 			)}
 		}(goo)
+
 	}
 	// Below, we can assume that goo isn't nil.
 	// NOTE: just because it's not nil doesn't mean it's empty, specifically

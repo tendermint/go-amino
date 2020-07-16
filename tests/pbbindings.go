@@ -2103,19 +2103,12 @@ func (goo PointersStruct) IsEmpty() (empty bool) {
 		}
 		{
 			if goo.TimePt != nil {
-				dgoo := *goo.TimePt
-				if !amino.IsEmptyTime(dgoo) {
-					return false
-				}
+				return false
 			}
 		}
 		{
 			if goo.EmptyPt != nil {
-				dgoo := *goo.EmptyPt
-				e := dgoo.IsEmpty()
-				if e == false {
-					return false
-				}
+				return false
 			}
 		}
 	}
@@ -3349,47 +3342,27 @@ func (goo EmbeddedSt3) IsEmpty() (empty bool) {
 		empty = true
 		{
 			if goo.PrimitivesStruct != nil {
-				dgoo := *goo.PrimitivesStruct
-				e := dgoo.IsEmpty()
-				if e == false {
-					return false
-				}
+				return false
 			}
 		}
 		{
 			if goo.ArraysStruct != nil {
-				dgoo := *goo.ArraysStruct
-				e := dgoo.IsEmpty()
-				if e == false {
-					return false
-				}
+				return false
 			}
 		}
 		{
 			if goo.SlicesStruct != nil {
-				dgoo := *goo.SlicesStruct
-				e := dgoo.IsEmpty()
-				if e == false {
-					return false
-				}
+				return false
 			}
 		}
 		{
 			if goo.PointersStruct != nil {
-				dgoo := *goo.PointersStruct
-				e := dgoo.IsEmpty()
-				if e == false {
-					return false
-				}
+				return false
 			}
 		}
 		{
 			if goo.EmptyStruct != nil {
-				dgoo := *goo.EmptyStruct
-				e := dgoo.IsEmpty()
-				if e == false {
-					return false
-				}
+				return false
 			}
 		}
 	}
@@ -3776,11 +3749,7 @@ func (goo EmbeddedSt5) IsEmpty() (empty bool) {
 		}
 		{
 			if goo.PrimitivesStruct != nil {
-				dgoo := *goo.PrimitivesStruct
-				e := dgoo.IsEmpty()
-				if e == false {
-					return false
-				}
+				return false
 			}
 		}
 		{
@@ -3790,11 +3759,7 @@ func (goo EmbeddedSt5) IsEmpty() (empty bool) {
 		}
 		{
 			if goo.ArraysStructField != nil {
-				dgoo := *goo.ArraysStructField
-				e := dgoo.IsEmpty()
-				if e == false {
-					return false
-				}
+				return false
 			}
 		}
 		{
@@ -3804,11 +3769,7 @@ func (goo EmbeddedSt5) IsEmpty() (empty bool) {
 		}
 		{
 			if goo.SlicesStruct != nil {
-				dgoo := *goo.SlicesStruct
-				e := dgoo.IsEmpty()
-				if e == false {
-					return false
-				}
+				return false
 			}
 		}
 		{
@@ -3818,11 +3779,7 @@ func (goo EmbeddedSt5) IsEmpty() (empty bool) {
 		}
 		{
 			if goo.PointersStructField != nil {
-				dgoo := *goo.PointersStructField
-				e := dgoo.IsEmpty()
-				if e == false {
-					return false
-				}
+				return false
 			}
 		}
 		{
