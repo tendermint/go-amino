@@ -12,14 +12,6 @@ import (
 //----------------------------------------
 // Signed
 
-func EncodeInt8(w io.Writer, i int8) (err error) {
-	return EncodeVarint(w, int64(i))
-}
-
-func EncodeInt16(w io.Writer, i int16) (err error) {
-	return EncodeVarint(w, int64(i))
-}
-
 func EncodeInt32(w io.Writer, i int32) (err error) {
 	var buf [4]byte
 	binary.LittleEndian.PutUint32(buf[:], uint32(i))
@@ -54,14 +46,6 @@ func EncodeByte(w io.Writer, b byte) (err error) {
 	return
 }
 
-func EncodeUint8(w io.Writer, u uint8) (err error) {
-	return EncodeUvarint(w, uint64(u))
-}
-
-func EncodeUint16(w io.Writer, u uint16) (err error) {
-	return EncodeUvarint(w, uint64(u))
-}
-
 func EncodeUint32(w io.Writer, u uint32) (err error) {
 	var buf [4]byte
 	binary.LittleEndian.PutUint32(buf[:], u)
@@ -76,9 +60,6 @@ func EncodeUint64(w io.Writer, u uint64) (err error) {
 	return
 }
 
-// EncodeUvarint is used to encode golang's int, int32, int64 by default. unless specified differently by the
-// `binary:"fixed32"`, `binary:"fixed64"`, or `binary:"zigzag32"` `binary:"zigzag64"` tags.
-// It matches protobufs varint encoding.
 func EncodeUvarint(w io.Writer, u uint64) (err error) {
 	var buf [10]byte
 	n := binary.PutUvarint(buf[:], u)
@@ -98,9 +79,9 @@ func UvarintSize(u uint64) int {
 
 func EncodeBool(w io.Writer, b bool) (err error) {
 	if b {
-		err = EncodeUint8(w, 1) // same as EncodeUvarint(w, 1).
+		err = EncodeByte(w, 0x01)
 	} else {
-		err = EncodeUint8(w, 0) // same as EncodeUvarint(w, 0).
+		err = EncodeByte(w, 0x00)
 	}
 	return
 }

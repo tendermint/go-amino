@@ -9,23 +9,25 @@ type EmptyStruct struct {
 }
 
 type PrimitivesStruct struct {
-	Int8    int8
-	Int16   int16
-	Int32   int32
-	Int64   int64
-	Varint  int64 `binary:"varint"`
-	Int     int
-	Byte    byte
-	Uint8   uint8
-	Uint16  uint16
-	Uint32  uint32
-	Uint64  uint64
-	Uvarint uint64 `binary:"varint"`
-	Uint    uint
-	Str     string
-	Bytes   []byte
-	Time    time.Time
-	Empty   EmptyStruct
+	Int8        int8
+	Int16       int16
+	Int32       int32
+	Int32Fixed  int32 `binary:"fixed32"`
+	Int64       int64
+	Int64Fixed  int64 `binary:"fixed64"`
+	Int         int
+	Byte        byte
+	Uint8       uint8
+	Uint16      uint16
+	Uint32      uint32
+	Uint32Fixed uint32 `binary:"fixed32"`
+	Uint64      uint64
+	Uint64Fixed uint64 `binary:"fixed64"`
+	Uint        uint
+	Str         string
+	Bytes       []byte
+	Time        time.Time
+	Empty       EmptyStruct
 }
 
 type ShortArraysStruct struct {
@@ -33,83 +35,113 @@ type ShortArraysStruct struct {
 }
 
 type ArraysStruct struct {
-	Int8Ar    [4]int8
-	Int16Ar   [4]int16
-	Int32Ar   [4]int32
-	Int64Ar   [4]int64
-	VarintAr  [4]int64 `binary:"varint"`
-	IntAr     [4]int
-	ByteAr    [4]byte
-	Uint8Ar   [4]uint8
-	Uint16Ar  [4]uint16
-	Uint32Ar  [4]uint32
-	Uint64Ar  [4]uint64
-	UvarintAr [4]uint64 `binary:"varint"`
-	UintAr    [4]uint
-	StrAr     [4]string
-	BytesAr   [4][]byte
-	TimeAr    [4]time.Time
-	EmptyAr   [4]EmptyStruct
+	Int8Ar        [4]int8
+	Int16Ar       [4]int16
+	Int32Ar       [4]int32
+	Int32FixedAr  [4]int32 `binary:"fixed32"`
+	Int64Ar       [4]int64
+	Int64FixedAr  [4]int64 `binary:"fixed64"`
+	IntAr         [4]int
+	ByteAr        [4]byte
+	Uint8Ar       [4]uint8
+	Uint16Ar      [4]uint16
+	Uint32Ar      [4]uint32
+	Uint32FixedAr [4]uint32 `binary:"fixed32"`
+	Uint64Ar      [4]uint64
+	Uint64FixedAr [4]uint64 `binary:"fixed64"`
+	UintAr        [4]uint
+	StrAr         [4]string
+	BytesAr       [4][]byte
+	TimeAr        [4]time.Time
+	EmptyAr       [4]EmptyStruct
+}
+
+type ArraysArraysStruct struct {
+	Int8Ar        [2][2]int8
+	Int16Ar       [2][2]int16
+	Int32Ar       [2][2]int32
+	Int32FixedAr  [2][2]int32 `binary:"fixed32"`
+	Int64Ar       [2][2]int64
+	Int64FixedAr  [2][2]int64 `binary:"fixed64"`
+	IntAr         [2][2]int
+	ByteAr        [2][2]byte
+	Uint8Ar       [2][2]uint8
+	Uint16Ar      [2][2]uint16
+	Uint32Ar      [2][2]uint32
+	Uint32FixedAr [2][2]uint32 `binary:"fixed32"`
+	Uint64Ar      [2][2]uint64
+	Uint64FixedAr [2][2]uint64 `binary:"fixed32"`
+	UintAr        [2][2]uint
+	StrAr         [2][2]string
+	BytesAr       [2][2][]byte
+	TimeAr        [2][2]time.Time
+	EmptyAr       [2][2]EmptyStruct
 }
 
 type SlicesStruct struct {
-	Int8Sl    []int8
-	Int16Sl   []int16
-	Int32Sl   []int32
-	Int64Sl   []int64
-	VarintSl  []int64 `binary:"varint"`
-	IntSl     []int
-	ByteSl    []byte
-	Uint8Sl   []uint8
-	Uint16Sl  []uint16
-	Uint32Sl  []uint32
-	Uint64Sl  []uint64
-	UvarintSl []uint64 `binary:"varint"`
-	UintSl    []uint
-	StrSl     []string
-	BytesSl   [][]byte
-	TimeSl    []time.Time
-	EmptySl   []EmptyStruct
+	Int8Sl        []int8
+	Int16Sl       []int16
+	Int32Sl       []int32
+	Int32FixedSl  []int32 `binary:"fixed32"`
+	Int64Sl       []int64
+	Int64FixedSl  []int64 `binary:"fixed64"`
+	IntSl         []int
+	ByteSl        []byte
+	Uint8Sl       []uint8
+	Uint16Sl      []uint16
+	Uint32Sl      []uint32
+	Uint32FixedSl []uint32 `binary:"fixed32"`
+	Uint64Sl      []uint64
+	Uint64FixedSl []uint64 `binary:"fixed64"`
+	UintSl        []uint
+	StrSl         []string
+	BytesSl       [][]byte
+	TimeSl        []time.Time
+	EmptySl       []EmptyStruct
 }
 
 type PointersStruct struct {
-	Int8Pt    *int8
-	Int16Pt   *int16
-	Int32Pt   *int32
-	Int64Pt   *int64
-	VarintPt  *int64 `binary:"varint"`
-	IntPt     *int
-	BytePt    *byte
-	Uint8Pt   *uint8
-	Uint16Pt  *uint16
-	Uint32Pt  *uint32
-	Uint64Pt  *uint64
-	UvarintPt *uint64 `binary:"varint"`
-	UintPt    *uint
-	StrPt     *string
-	BytesPt   *[]byte
-	TimePt    *time.Time
-	EmptyPt   *EmptyStruct
+	Int8Pt        *int8
+	Int16Pt       *int16
+	Int32Pt       *int32
+	Int32FixedPt  *int32 `binary:"fixed32"`
+	Int64Pt       *int64
+	Int64FixedPt  *int64 `binary:"fixed64"`
+	IntPt         *int
+	BytePt        *byte
+	Uint8Pt       *uint8
+	Uint16Pt      *uint16
+	Uint32Pt      *uint32
+	Uint32FixedPt *uint32 `binary:"fixed32"`
+	Uint64Pt      *uint64
+	Uint64FixedPt *uint64 `binary:"fixed64"`
+	UintPt        *uint
+	StrPt         *string
+	BytesPt       *[]byte
+	TimePt        *time.Time
+	EmptyPt       *EmptyStruct
 }
 
 type PointerSlicesStruct struct {
-	Int8PtSl    []*int8
-	Int16PtSl   []*int16
-	Int32PtSl   []*int32
-	Int64PtSl   []*int64
-	VarintPtSl  []*int64 `binary:"varint"`
-	IntPtSl     []*int
-	BytePtSl    []*byte
-	Uint8PtSl   []*uint8
-	Uint16PtSl  []*uint16
-	Uint32PtSl  []*uint32
-	Uint64PtSl  []*uint64
-	UvarintPtSl []*uint64 `binary:"varint"`
-	UintPtSl    []*uint
-	StrPtSl     []*string
-	BytesPtSl   []*[]byte
-	TimePtSl    []*time.Time
-	EmptyPtSl   []*EmptyStruct
+	Int8PtSl        []*int8
+	Int16PtSl       []*int16
+	Int32PtSl       []*int32
+	Int32FixedPtSl  []*int32 `binary:"fixed32"`
+	Int64PtSl       []*int64
+	Int64FixedPtSl  []*int64 `binary:"fixed64"`
+	IntPtSl         []*int
+	BytePtSl        []*byte
+	Uint8PtSl       []*uint8
+	Uint16PtSl      []*uint16
+	Uint32PtSl      []*uint32
+	Uint32FixedPtSl []*uint32 `binary:"fixed32"`
+	Uint64PtSl      []*uint64
+	Uint64FixedPtSl []*uint64 `binary:"fixed64"`
+	UintPtSl        []*uint
+	StrPtSl         []*string
+	BytesPtSl       []*[]byte
+	TimePtSl        []*time.Time
+	EmptyPtSl       []*EmptyStruct
 }
 
 /* amino 1.2 removed nested pointer support.
@@ -176,6 +208,7 @@ var StructTypes = []interface{}{
 	(*PrimitivesStruct)(nil),
 	(*ShortArraysStruct)(nil),
 	(*ArraysStruct)(nil),
+	//(*ArraysArraysStruct)(nil),
 	(*SlicesStruct)(nil),
 	(*PointersStruct)(nil),
 	(*PointerSlicesStruct)(nil),

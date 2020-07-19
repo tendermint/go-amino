@@ -168,7 +168,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 
 	case reflect.Int16:
 		var num int16
-		num, _n, err = DecodeInt16(bz)
+		num, _n, err = DecodeVarint16(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
@@ -177,7 +177,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 
 	case reflect.Int8:
 		var num int8
-		num, _n, err = DecodeInt8(bz)
+		num, _n, err = DecodeVarint8(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
@@ -233,7 +233,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 
 	case reflect.Uint16:
 		var num uint16
-		num, _n, err = DecodeUint16(bz)
+		num, _n, err = DecodeUvarint16(bz)
 		if slide(&bz, &n, _n) && err != nil {
 			return
 		}
@@ -245,7 +245,7 @@ func (cdc *Codec) decodeReflectBinary(bz []byte, info *TypeInfo,
 		if options&bd_option_byte != 0 {
 			num, _n, err = DecodeByte(bz)
 		} else {
-			num, _n, err = DecodeUint8(bz)
+			num, _n, err = DecodeUvarint8(bz)
 		}
 		if slide(&bz, &n, _n) && err != nil {
 			return

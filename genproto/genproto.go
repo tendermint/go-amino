@@ -171,7 +171,7 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 
 	for _, field := range rsfields { // rinfo.
 		p3FieldType, p3FieldRepeated :=
-			p3c.typeToP3Type(field.TypeInfo)
+			p3c.typeToP3Type(field.TypeInfo, field.FieldOptions)
 		// If the p3 field package is the same, omit the prefix.
 		if p3FieldType.GetPackageName() == p3doc.PackageName {
 			p3FieldMessageType := p3FieldType.(P3MessageType)
@@ -260,7 +260,7 @@ var (
 
 // If rt is a struct, the returned proto3 type is a P3MessageType.
 // `rt` should be the representation type in case IsAminoMarshaler.
-func (p3c *P3Context) typeToP3Type(info *amino.TypeInfo) (p3type P3Type, repeated bool) {
+func (p3c *P3Context) typeToP3Type(info *amino.TypeInfo, fopts amino.FieldOptions) (p3type P3Type, repeated bool) {
 
 	// Special case overrides.
 	switch info.Type {
@@ -284,9 +284,17 @@ func (p3c *P3Context) typeToP3Type(info *amino.TypeInfo) (p3type P3Type, repeate
 	case reflect.Int16:
 		return P3ScalarTypeSint32, false
 	case reflect.Int32:
-		return P3ScalarTypeSint32, false
+		if fopts.BinFixed32 {
+			return P3ScalarTypeSfixed32, false
+		} else {
+			return P3ScalarTypeSint32, false
+		}
 	case reflect.Int64:
-		return P3ScalarTypeSint64, false
+		if fopts.BinFixed64 {
+			return P3ScalarTypeSfixed64, false
+		} else {
+			return P3ScalarTypeSint64, false
+		}
 	case reflect.Uint:
 		return P3ScalarTypeUint64, false
 	case reflect.Uint8:
@@ -294,9 +302,17 @@ func (p3c *P3Context) typeToP3Type(info *amino.TypeInfo) (p3type P3Type, repeate
 	case reflect.Uint16:
 		return P3ScalarTypeUint32, false
 	case reflect.Uint32:
-		return P3ScalarTypeUint32, false
+		if fopts.BinFixed32 {
+			return P3ScalarTypeFixed32, false
+		} else {
+			return P3ScalarTypeUint32, false
+		}
 	case reflect.Uint64:
-		return P3ScalarTypeUint64, false
+		if fopts.BinFixed64 {
+			return P3ScalarTypeFixed64, false
+		} else {
+			return P3ScalarTypeUint64, false
+		}
 	case reflect.Float32:
 		return P3ScalarTypeFloat, false
 	case reflect.Float64:
@@ -308,7 +324,7 @@ func (p3c *P3Context) typeToP3Type(info *amino.TypeInfo) (p3type P3Type, repeate
 		case reflect.Uint8:
 			return P3ScalarTypeBytes, false
 		default:
-			elemP3Type, elemRepeated := p3c.typeToP3Type(info.Elem)
+			elemP3Type, elemRepeated := p3c.typeToP3Type(info.Elem, fopts)
 			if elemRepeated {
 				panic("multi-dimensional arrays not yet supported")
 			}

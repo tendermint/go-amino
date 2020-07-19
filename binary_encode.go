@@ -128,10 +128,10 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		}
 
 	case reflect.Int16:
-		err = EncodeInt16(w, int16(rv.Int()))
+		err = EncodeVarint(w, rv.Int())
 
 	case reflect.Int8:
-		err = EncodeInt8(w, int8(rv.Int()))
+		err = EncodeVarint(w, rv.Int())
 
 	case reflect.Int:
 		err = EncodeVarint(w, rv.Int())
@@ -154,13 +154,13 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		}
 
 	case reflect.Uint16:
-		err = EncodeUint16(w, uint16(rv.Uint()))
+		err = EncodeUvarint(w, rv.Uint())
 
 	case reflect.Uint8:
 		if options&be_option_byte != 0 {
 			err = EncodeByte(w, uint8(rv.Uint()))
 		} else {
-			err = EncodeUint8(w, uint8(rv.Uint()))
+			err = EncodeUvarint(w, rv.Uint())
 		}
 
 	case reflect.Uint:

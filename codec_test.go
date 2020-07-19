@@ -80,8 +80,8 @@ func TestMarshalUnmarshalBinaryPointer3(t *testing.T) {
 	assert.Equal(t, s, *s2)
 }
 
-func TestDecodeInt8(t *testing.T) {
-	// DecodeInt8 uses binary.Varint so we need to make
+func TestDecodeVarint8(t *testing.T) {
+	// DecodeVarint8 uses binary.Varint so we need to make
 	// sure that all the values out of the range of [-128, 127]
 	// return an error.
 	tests := []struct {
@@ -103,7 +103,7 @@ func TestDecodeInt8(t *testing.T) {
 	buf := make([]byte, 10)
 	for i, tt := range tests {
 		n := binary.PutVarint(buf, tt.in)
-		gotI8, gotN, err := amino.DecodeInt8(buf[:n])
+		gotI8, gotN, err := amino.DecodeVarint8(buf[:n])
 		if tt.wantErr != "" {
 			if err == nil {
 				t.Errorf("#%d expected error=%q", i, tt.wantErr)
@@ -127,8 +127,8 @@ func TestDecodeInt8(t *testing.T) {
 	}
 }
 
-func TestDecodeInt16(t *testing.T) {
-	// DecodeInt16 uses binary.Varint so we need to make
+func TestDecodeVarint16(t *testing.T) {
+	// DecodeVarint16 uses binary.Varint so we need to make
 	// sure that all the values out of the range of [-32768, 32767]
 	// return an error.
 	tests := []struct {
@@ -151,7 +151,7 @@ func TestDecodeInt16(t *testing.T) {
 	buf := make([]byte, 10)
 	for i, tt := range tests {
 		n := binary.PutVarint(buf, tt.in)
-		gotI16, gotN, err := amino.DecodeInt16(buf[:n])
+		gotI16, gotN, err := amino.DecodeVarint16(buf[:n])
 		if tt.wantErr != "" {
 			if err == nil {
 				t.Errorf("#%d in=(%X) expected error=%q", i, tt.in, tt.wantErr)
