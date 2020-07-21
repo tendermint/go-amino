@@ -10,7 +10,6 @@ import (
 	"path"
 	"reflect"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -37,7 +36,7 @@ func GenerateProtoBindingsForTypes(pkg *amino.Package, rtz ...reflect.Type) (fil
 	var imports = _imports(
 		"proto", "google.golang.org/protobuf/proto",
 		"amino", "github.com/tendermint/go-amino")
-	addImportAuto(imports, scope, pkg.Name+"pb", pkg.P3GoPkgPath)
+	addImportAuto(imports, scope, pkg.GoPkgName+"pb", pkg.P3GoPkgPath)
 	file.Decls = append(file.Decls, imports)
 
 	// Generate Decls
@@ -115,7 +114,7 @@ func generateMethodsForType(imports *ast.GenDecl, scope *ast.Scope, pkg *amino.P
 				// Body: declaration for pb message.
 				_var("pbo", _x("*%v.%v", p3pkgName, info.Type.Name()), nil),
 				// Body: copying over fields.
-				_block(go2pbStmts(true, imports, scope2, _i("pbo"), _i("goo"), false, info, 0)...),
+				_block(go2pbStmts(pkg, true, imports, scope2, _i("pbo"), _i("goo"), false, info, amino.FieldOptions{}, 0)...),
 				// Body: return value.
 				_a("msg", "=", "pbo"),
 				_return(),
@@ -137,7 +136,7 @@ func generateMethodsForType(imports *ast.GenDecl, scope *ast.Scope, pkg *amino.P
 				_var("pbo", _x("*%v.%v", p3pkgName, info.Type.Name()),
 					_x("%v.~(~*%v.%v~)", "msg", p3pkgName, info.Type.Name())),
 				// Body: copying over fields.
-				_block(pb2goStmts(pkg, true, imports, scope2, _i("goo"), true, info, _i("pbo"))...),
+				_block(pb2goStmts(pkg, true, imports, scope2, _i("goo"), true, info, _i("pbo"), amino.FieldOptions{}, 0)...),
 				// Body: return.
 				_return(),
 			),
@@ -199,7 +198,7 @@ func hasPBBindings(info *amino.TypeInfo) bool {
 
 // END
 
-// isRoot: true if goo is the rootPkg, false if nested fields, even if gooType is rootPkg.
+// isRoot: false for fields and list elements.
 // imports: global imports -- may be modified.
 // pbo: protobuf variable or field.
 // goo: native go variable or field.
@@ -210,10 +209,11 @@ func hasPBBindings(info *amino.TypeInfo) bool {
 //  * The struct case is like `_a(_sel(pbo, field.Name), "=", goo)`
 // CONTRACT: for arrays and lists, memory must be allocated beforehand, but new
 // instances are created within this function.
-func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Expr, goo ast.Expr, gooIsPtr bool, gooType *amino.TypeInfo, options uint64) (b []ast.Stmt) {
+func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Expr, goo ast.Expr, gooIsPtr bool, gooType *amino.TypeInfo, fopts amino.FieldOptions, options uint64) (b []ast.Stmt) {
 
 	const (
-		option_bytes = 0x01 // if uint8 is an element of bytes.
+		option_bytes         = 0x01 // if goo's repr is uint8 as an element of bytes.
+		option_implicit_list = 0x02 // if goo is a repeated list & also an element.
 	)
 
 	// Special case if nil-pointer.
@@ -248,7 +248,7 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Exp
 	// TODO If not registered?
 	if !isRoot && gooType.Registered && hasPBBindings(gooType) {
 		// Call ToPBMessage().
-		pbote_ := p3goTypeExprString(imports, scope, gooType)
+		pbote_, _ := p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
 		pbom_ := addVarUniq(scope, "pbom")
 		b = append(b,
 			_a(pbom_, ":=", _x("proto.Message~(~nil~)")),
@@ -316,7 +316,7 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Exp
 	// Special case, external empty types.
 	if gooType.Registered && hasPBBindings(gooType) {
 		if isRoot {
-			pbote_ := p3goTypeExprString(imports, scope, gooType)
+			pbote_, _ := p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
 			pbov_ := addVarUniq(scope, "pbov")
 			b = append(b,
 				_if(_call(_sel(goo, "IsEmpty")),
@@ -341,7 +341,11 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Exp
 	case reflect.Interface:
 		typeUrl_ := addVarUniq(scope, "typeUrl")
 		bz_ := addVarUniq(scope, "bz")
-		danyte_ := p3goTypeExprString(imports, scope, gooType)[1:]
+		anyte_, _ := p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
+		if anyte_[0] != '*' {
+			panic("expected pointer kind for p3goTypeExprString (of interface type)")
+		}
+		danyte_ := anyte_[1:]
 		b = append(b,
 			_a(typeUrl_, ":=", _call(_sel(_ta(goo, _x("amino.Object")), "GetTypeURL"))),
 			_a(bz_, ":=", "[]byte~(~nil~)"),
@@ -374,45 +378,38 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Exp
 		}
 
 	case reflect.Array, reflect.Slice:
-		var options uint64
+		var newoptions uint64
 		var gooeIsPtr = gooType.ElemIsPtr
 		var gooeType = gooType.Elem
-		var pboete_ string
-		switch gooeType.ReprType.Type.Kind() {
-		case reflect.Interface:
-			pboete_ = "*anypb.Any"
-		case reflect.Array, reflect.Slice:
-			// nested list
-			// nested lists should be declared at the rootPkg package.
-			// this is a workaround due to Proto deficiencies.
-			pboete_ = p3goListTypeExprString(gooeType)
-		case reflect.Struct:
-			pboete_ = p3goTypeExprString(imports, scope, gooeType)
-		case reflect.Int:
-			pboete_ = "int64"
-		case reflect.Uint:
-			pboete_ = "uint64"
-		case reflect.Int8:
-			pboete_ = "int32"
-		case reflect.Uint8:
-			pboete_ = "uint8" // bytes
-			options |= option_bytes
-		case reflect.Int16:
-			pboete_ = "int32"
-		case reflect.Uint16:
-			pboete_ = "uint32"
-		default:
-			pboete_ = gooeType.Type.String()
-			if pboete_ == "" {
-				panic("unexpected empty type expr string")
+		var dpbote_ string
+		var pbote_, pboIsImplicit = p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
+		var pboete_, pboeIsImplicit = p3goTypeExprString(rootPkg, imports, scope, gooeType, fopts)
+
+		// Set option of bytes.
+		if pboete_ == "uint8" {
+			newoptions |= option_bytes
+		}
+
+		// Iff also option & option_implicit_list, wrap with implicit list struct.
+		if pboIsImplicit {
+			if pbote_[0] != '*' {
+				panic("expected pointer kind for p3goTypeExprString (of implicit list-struct type)")
 			}
+			dpbote_ = pbote_[1:]
+		} else {
+			dpbote_ = "XXX" // needed for _x() parsing regardless of _ctif condition.
+		}
+
+		// Set option for element to be wrapped with implicit list struct.
+		if pboeIsImplicit {
+			newoptions |= option_implicit_list
 		}
 
 		// Construct, translate, assign.
 		gool_ := addVarUniq(scope, "gool")
 		pbos_ := addVarUniq(scope, "pbos")
 		scope2 := ast.NewScope(scope)
-		addVars(scope2, "i", "gooe")
+		addVars(scope2, "i", "gooe", "pbose")
 		b = append(b,
 			_a(gool_, ":=", _len(dgoo())),
 			_ife(_x("%v__==__0", gool_),
@@ -428,15 +425,21 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Exp
 						_a("i", "+=", "1"),
 						_block(
 							// Translate in place.
-							_a("gooe", ":=", _ix(dgoo(), _i("i"))),
-							_block(go2pbStmts(false, imports, scope2, _x("%v~[~i~]", pbos_), _i("gooe"), gooeIsPtr, gooeType, options)...),
+							_a("gooe", ":=", _idx(dgoo(), _i("i"))),
+							_block(go2pbStmts(rootPkg, false, imports, scope2, _x("%v~[~i~]", pbos_), _i("gooe"), gooeIsPtr, gooeType, fopts, newoptions)...),
 						),
 					),
-					_a(pbo, "=", pbos_),
+					// compile time if
+					_ctif((pboIsImplicit && options&option_implicit_list != 0),
+						// then
+						_a(pbo, "=", _x("&%v~{~Value:%v~}", dpbote_, pbos_)),
+						// else
+						_a(pbo, "=", pbos_),
+					),
 				)))
 
 	case reflect.Struct:
-		pbote_ := p3goTypeExprString(imports, scope, gooType)
+		pbote_, _ := p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
 		if pbote_[0] != '*' {
 			panic("expected pointer kind for p3goTypeExprString of struct type")
 		}
@@ -454,7 +457,7 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Exp
 			// Translate in place.
 			scope2 := ast.NewScope(scope)
 			b = append(b,
-				_block(go2pbStmts(false, imports, scope2, pbof, goof, goofIsPtr, goofType, 0)...),
+				_block(go2pbStmts(rootPkg, false, imports, scope2, pbof, goof, goofIsPtr, goofType, field.FieldOptions, 0)...),
 			)
 		}
 
@@ -467,7 +470,7 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Exp
 }
 
 // package: the package for the concrete type for which we are generating go2pbStmts.
-// isRoot: true if goo is the root, false for fields and elems which are not inlined.
+// isRoot: false for fields and list elements.
 // imports: global imports -- used to look up package names.
 // goo: native go variable or field.
 // gooIsPtr: is goo a pointer?
@@ -476,7 +479,12 @@ func go2pbStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, pbo ast.Exp
 // CONTRACT: goo is addressable.
 // CONTRACT: for arrays and lists, memory must be allocated beforehand, but new
 // instances are created within this function.
-func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope *ast.Scope, goo ast.Expr, gooIsPtr bool, gooType *amino.TypeInfo, pbo ast.Expr) (b []ast.Stmt) {
+func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope *ast.Scope, goo ast.Expr, gooIsPtr bool, gooType *amino.TypeInfo, pbo ast.Expr, fopts amino.FieldOptions, options uint64) (b []ast.Stmt) {
+
+	const (
+		// option_bytes         = 0x01 // if goo's repr is uint8 as an element of bytes.
+		option_implicit_list = 0x02 // if goo is a repeated list & also an element.
+	)
 
 	// Special case if pbo is a nil struct pointer (that isn't timestamp)
 	//
@@ -533,7 +541,7 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 			_var(goor_, _x(goorte_), nil))
 		// Then, transcribe to repr var.
 		b = append(b, _block(
-			pb2goStmts(rootPkg, isRoot, imports, scope2, _i(goor_), false, gooType.ReprType, pbo)...))
+			pb2goStmts(rootPkg, isRoot, imports, scope2, _i(goor_), false, gooType.ReprType, pbo, fopts, options)...))
 		// Finally, unmarshal to goo.
 		b = append(b,
 			_a("err", "=", _call(_sel(goo, "UnmarshalAmino"), _i(goor_))),
@@ -595,15 +603,22 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 			_a(goo, "=", _call(_i("uint8"), pbo)))
 
 	case reflect.Array:
+		var newoptions uint64
 		var gooLen = gooType.Type.Len()
 		var gooeType = gooType.Elem
 		var gooeIsPtr = gooType.ElemIsPtr
 		var gooete_ = goTypeExprString(rootPkg, imports, scope, gooeIsPtr, gooeType)
+		var _, pboeIsImplicit = p3goTypeExprString(rootPkg, imports, scope, gooeType, fopts)
+
+		// Set option for element to be wrapped with implicit list struct.
+		if pboeIsImplicit {
+			newoptions |= option_implicit_list
+		}
+
+		// Construct, translate, assign.
 		goos_ := addVarUniq(scope, "goos")
 		scope2 := ast.NewScope(scope)
 		addVars(scope2, "i", "pboe")
-
-		// Construct, translate, assign.
 		b = append(b,
 			_var(goos_, nil, _x("[%v]%v~{~~}", gooLen, gooete_)),
 			_for(
@@ -612,23 +627,30 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 				_a("i", "+=", "1"),
 				_block(
 					// Translate in place.
-					_a("pboe", ":=", _ix(pbo, _i("i"))),
-					_block(pb2goStmts(rootPkg, false, imports, scope2, _x("%v~[~i~]", goos_), gooeIsPtr, gooeType, _i("pboe"))...),
+					// compile time if
+					_ctif((options&option_implicit_list != 0),
+						// then
+						_a("pboe", ":=", _idx(_sel(pbo, "Value"), _i("i"))),
+						// else
+						_a("pboe", ":=", _idx(pbo, _i("i"))),
+					),
+					_block(pb2goStmts(rootPkg, false, imports, scope2, _x("%v~[~i~]", goos_), gooeIsPtr, gooeType, _i("pboe"), fopts, newoptions)...),
 				),
 			),
 			_a(goo, "=", goos_),
 		)
 
 	case reflect.Slice:
+		var newoptions uint64
 		var gooeType = gooType.Elem
 		var gooeIsPtr = gooType.ElemIsPtr
 		var gooete_ = goTypeExprString(rootPkg, imports, scope, gooeIsPtr, gooeType)
+
+		// Construct, translate, assign.
 		pbol_ := addVarUniq(scope, "pbol")
 		goos_ := addVarUniq(scope, "goos")
 		scope2 := ast.NewScope(scope)
 		addVars(scope2, "i", "pboe")
-
-		// Construct, translate, assign.
 		b = append(b,
 			_a(pbol_, ":=", _len(pbo)),
 			_ife(_x("%v__==__0", pbol_),
@@ -644,8 +666,8 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 						_a("i", "+=", "1"),
 						_block(
 							// Translate in place.
-							_a("pboe", ":=", _ix(pbo, _i("i"))),
-							_block(pb2goStmts(rootPkg, false, imports, scope2, _x("%v~[~i~]", goos_), gooeIsPtr, gooeType, _i("pboe"))...),
+							_a("pboe", ":=", _idx(pbo, _i("i"))),
+							_block(pb2goStmts(rootPkg, false, imports, scope2, _x("%v~[~i~]", goos_), gooeIsPtr, gooeType, _i("pboe"), fopts, newoptions)...),
 						),
 					),
 					_a(goo, "=", goos_),
@@ -662,7 +684,7 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 			// Translate in place.
 			scope2 := ast.NewScope(scope)
 			b = append(b,
-				_block(pb2goStmts(rootPkg, false, imports, scope2, goof, goofIsPtr, goofType, pbof)...),
+				_block(pb2goStmts(rootPkg, false, imports, scope2, goof, goofIsPtr, goofType, pbof, field.FieldOptions, 0)...),
 			)
 		}
 
@@ -1280,7 +1302,7 @@ func _sel(x ast.Expr, sel string) *ast.SelectorExpr {
 	}
 }
 
-func _ix(x ast.Expr, idx ast.Expr) *ast.IndexExpr {
+func _idx(x ast.Expr, idx ast.Expr) *ast.IndexExpr {
 	return &ast.IndexExpr{
 		X:     x,
 		Index: idx,
@@ -1685,8 +1707,10 @@ func goTypeExprString(rootPkg *amino.Package, imports *ast.GenDecl, scope *ast.S
 		return "*" + goTypeExprString(rootPkg, imports, scope, false, info)
 	}
 	// Below, assume isPtr is false.
-	k := info.Type.Kind()
-	if k == reflect.Array || k == reflect.Slice {
+	switch info.Type.Kind() {
+	case reflect.Array:
+		return fmt.Sprintf("[%v]%v", info.Type.Len(), goTypeExprString(rootPkg, imports, scope, info.ElemIsPtr, info.Elem))
+	case reflect.Slice:
 		return fmt.Sprintf("[]%v", goTypeExprString(rootPkg, imports, scope, info.ElemIsPtr, info.Elem))
 	}
 	pkg := info.Package
@@ -1696,124 +1720,62 @@ func goTypeExprString(rootPkg *amino.Package, imports *ast.GenDecl, scope *ast.S
 	if pkg == rootPkg || pkg.GoPkgPath == "" {
 		return fmt.Sprintf("%v", info.Type.Name())
 	} else {
-		pkgName := addImportAuto(imports, scope, pkg.Name, pkg.GoPkgPath)
+		pkgName := addImportAuto(imports, scope, pkg.GoPkgName, pkg.GoPkgPath)
 		return fmt.Sprintf("%v.%v", pkgName, info.Type.Name())
 	}
 }
 
-func p3goTypeExprString(imports *ast.GenDecl, scope *ast.Scope, info *amino.TypeInfo) string {
+// implicit: True if when info is an element of an array, element (info)
+// would require an implicit list-struct wrapper.
+func p3goTypeExprString(rootPkg *amino.Package, imports *ast.GenDecl, scope *ast.Scope, info *amino.TypeInfo, fopts amino.FieldOptions) (typeExpr string, implicit bool) {
 	k := info.ReprType.Type.Kind()
 	switch k {
 	case reflect.Array, reflect.Slice:
-		return p3goListTypeExprString(info.Elem)
+		if info.ReprType.Elem.ReprType.Type.Kind() == reflect.Uint8 {
+			return "[]byte", false
+		} else {
+			nl := newNList(rootPkg, info, fopts)
+			return nl.P3GoExprString(imports, scope), nl.Dimensions >= 1
+		}
 	case reflect.Interface:
 		anypb := addImportAuto(imports, scope, "anypb", "google.golang.org/protobuf/types/known/anypb")
-		return fmt.Sprintf("*%v.Any", anypb)
-	default:
+		return fmt.Sprintf("*%v.Any", anypb), false
+	case reflect.Struct:
 		// Special cases.
 		// TODO: somehow refactor into wellknown.go
 		switch info.ReprType.Type {
 		case timeType:
 			pkgName := addImportAuto(
 				imports, scope, "timestamppb", "google.golang.org/protobuf/types/known/timestamppb")
-			return fmt.Sprintf("*%v.%v", pkgName, "Timestamp")
+			return fmt.Sprintf("*%v.%v", pkgName, "Timestamp"), false
 		case durationType:
 			pkgName := addImportAuto(
 				imports, scope, "durationpb", "google.golang.org/protobuf/types/known/durationpb")
-			return fmt.Sprintf("*%v.%v", pkgName, "Duration")
+			return fmt.Sprintf("*%v.%v", pkgName, "Duration"), false
 		}
 		pkg := info.Package
 		if pkg == nil {
 			panic(fmt.Sprintf("package not registered for type %v", info))
 		}
-		pkgName := addImportAuto(imports, scope, pkg.Name+"pb", pkg.P3GoPkgPath)
-		return fmt.Sprintf("*%v.%v", pkgName, info.ReprType.Type.Name())
-	}
-}
-
-// NOTE: assumes same pacakge, so the returned expr isn't a selector.
-func p3goListTypeExprString(info *amino.TypeInfo) string {
-	einfo := info
-	counter := 0
-	for einfo.ReprType.Type.Kind() == reflect.Array || einfo.ReprType.Type.Kind() == reflect.Slice {
-		counter++
-		einfo = einfo.Elem.ReprType
-	}
-	ename := einfo.Type.Name()
-	if ename == "uint8" {
-		counter--
-		if counter == 0 {
-			return "[]byte"
-		} else {
-			listSfx := strings.Repeat("List", counter)
-			return fmt.Sprintf("*Bytes%v", listSfx)
-		}
-	} else {
-		listSfx := strings.Repeat("List", counter)
-		return fmt.Sprintf("*%v%v", capitalize(einfo.Type.Name()), listSfx)
-	}
-}
-
-func capitalize(s string) string {
-	return strings.ToUpper(s[0:1]) + s[1:]
-}
-
-// Find struct fields that are nested list types.
-// If not a struct, assume an implicit struct with single field.
-// If type is amino.Marshaler, find values/fields from the repr.
-// Pointers are ignored, even for the terminal type.
-// e.g. if TypeInfo.ReprType.Type is
-//  * struct{ [][]int, [][]string } -> return [][]int, [][]string
-//  * [][]int -> return [][]int
-//  * [][][]int -> return [][][]int, [][]int
-//  * [][][]byte -> return [][][]byte (but not [][]byte, which is just repeated bytes).
-//  * [][][][]int -> return [][][][]int, [][][]int, [][]int.
-// The results are uniq'd and sorted somehow.
-func findNestedLists(info *amino.TypeInfo, found *map[reflect.Type]struct{}) {
-	if found == nil {
-		*found = map[reflect.Type]struct{}{}
-	}
-	switch info.ReprType.Type.Kind() {
-	case reflect.Struct:
-		for _, field := range info.ReprType.Fields {
-			findNestedLists(field.TypeInfo, found)
-		}
-		return
-	case reflect.Array, reflect.Slice:
-		ert := info.ReprType.Elem.ReprType.Type
-		if ert.Kind() == reflect.Array ||
-			ert.Kind() == reflect.Slice {
-
-			eert := info.ReprType.Elem.ReprType.Elem.ReprType.Type
-			if eert.Kind() == reflect.Uint8 {
-				return
-			} else {
-				llrt := reprTypeToType(info)
-				(*found)[llrt] = struct{}{}
-				return
-			}
-		}
-	}
-}
-
-func sortFound(found map[reflect.Type]struct{}) (res []reflect.Type) {
-	for rt, _ := range found {
-		res = append(res, rt)
-	}
-	sort.Slice(res, func(i, j int) bool { return res[i].String() < res[j].String() })
-	return res
-}
-
-func reprTypeToType(info *amino.TypeInfo) reflect.Type {
-	info = info.ReprType
-	switch info.Type.Kind() {
-	case reflect.Ptr:
-		panic("should not happen")
-	case reflect.Array:
-		return reflect.ArrayOf(info.Type.Len(), reprTypeToType(info.Elem))
-	case reflect.Slice:
-		return reflect.SliceOf(reprTypeToType(info.Elem))
+		pkgName := addImportAuto(imports, scope, pkg.GoPkgName+"pb", pkg.P3GoPkgPath)
+		return fmt.Sprintf("*%v.%v", pkgName, info.ReprType.Type.Name()), false
+	case reflect.Int:
+		return "int64", false
+	case reflect.Uint:
+		return "uint64", false
+	case reflect.Int8:
+		return "int32", false
+	case reflect.Uint8:
+		return "uint8", false // bytes
+	case reflect.Int16:
+		return "int32", false
+	case reflect.Uint16:
+		return "uint32", false
 	default:
-		return info.ReprType.Type
+		te := info.ReprType.Type.String()
+		if te == "" {
+			panic("unexpected empty type expr string")
+		}
+		return te, false
 	}
 }

@@ -134,7 +134,13 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		err = EncodeVarint(w, rv.Int())
 
 	case reflect.Int:
-		err = EncodeVarint(w, rv.Int())
+		if fopts.BinFixed64 {
+			err = EncodeInt64(w, rv.Int())
+		} else if fopts.BinFixed32 {
+			err = EncodeInt32(w, int32(rv.Int()))
+		} else {
+			err = EncodeVarint(w, rv.Int())
+		}
 
 	//----------------------------------------
 	// Unsigned
@@ -164,7 +170,13 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		}
 
 	case reflect.Uint:
-		err = EncodeUvarint(w, rv.Uint())
+		if fopts.BinFixed64 {
+			err = EncodeUint64(w, rv.Uint())
+		} else if fopts.BinFixed32 {
+			err = EncodeUint32(w, uint32(rv.Uint()))
+		} else {
+			err = EncodeUvarint(w, rv.Uint())
+		}
 
 	//----------------------------------------
 	// Misc
@@ -347,7 +359,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 
 	// If elem is not already a ByteLength type, write in packed form.
 	// This is a Proto wart due to Proto backwards compatibility issues.
-	// Amino2 will probably migrate to use the List typ3.  Please?  :)
+	// Amino2 will probably migrate to use the List typ3.
 	typ3 := einfo.GetTyp3(fopts)
 	if typ3 != Typ3ByteLength {
 		// Write elems in packed form.
@@ -375,6 +387,9 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 		// NOTE: ert is for the element value, while einfo.Type is dereferenced.
 		ertIsPointer := ert.Kind() == reflect.Ptr
 		ertIsStruct := einfo.Type.Kind() == reflect.Struct
+		writeImplicit := isListType(einfo.Type) &&
+			einfo.Elem.ReprType.Type.Kind() != reflect.Uint8 &&
+			einfo.Elem.ReprType.GetTyp3(fopts) != Typ3ByteLength
 
 		// Write elems in unpacked form.
 		for i := 0; i < rv.Len(); i++ {
@@ -404,26 +419,42 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 				}
 			} else {
 				// Write the element value as a ByteLength prefixed.
-
-				// NOTE: In case of any (nested) inner lists in unpacked form,
-				// we again pass in BinFieldNum=1, but each inner list of field
-				// num = 1 items will still be byte-length prefixed, so
-				// multidimensional lists are represented as lists of implicit
-				// structs.
-				//
-				// In proto3 this would be resented with an auto-generated
-				// message which holds a list at field number 1.
-				efopts := fopts
-				efopts.BinFieldNum = 1
 				derv := erv
 				if ertIsPointer {
 					derv = erv.Elem()
 				}
-				err = cdc.encodeReflectBinary(buf, einfo, derv, efopts, false, 0)
-				if err != nil {
-					return
-				}
 
+				// Special case: nested lists.
+				// Multidimensional lists (nested inner lists also in unpacked
+				// form) are represented as lists of implicit structs.
+				if writeImplicit {
+					// Write field key for Value field of implicit struct.
+					buf2 := new(bytes.Buffer)
+					err = encodeFieldNumberAndTyp3(buf2, 1, Typ3ByteLength)
+					if err != nil {
+						return
+					}
+					// Write field value of implicit struct to buf2.
+					efopts := fopts
+					efopts.BinFieldNum = 0 // dontcare
+					err = cdc.encodeReflectBinary(buf2, einfo, derv, efopts, false, 0)
+					if err != nil {
+						return
+					}
+					// Write implicit struct to buf.
+					err = EncodeByteSlice(buf, buf2.Bytes())
+					if err != nil {
+						return
+					}
+				} else {
+					// General case
+					efopts := fopts
+					efopts.BinFieldNum = 1
+					err = cdc.encodeReflectBinary(buf, einfo, derv, efopts, false, 0)
+					if err != nil {
+						return
+					}
+				}
 			}
 		}
 	}

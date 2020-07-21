@@ -55,6 +55,27 @@ message ArraysStruct {
 	repeated google.protobuf.Timestamp TimeAr = 18;
 	repeated EmptyStruct EmptyAr = 19;
 }
+message ArraysArraysStruct {
+	repeated Int8List Int8ArAr = 1;
+	repeated Int16List Int16ArAr = 2;
+	repeated Int32List Int32ArAr = 3;
+	repeated Fixed32Int32List Int32FixedArAr = 4;
+	repeated Int64List Int64ArAr = 5;
+	repeated Fixed64Int64List Int64FixedArAr = 6;
+	repeated IntList IntArAr = 7;
+	repeated bytes ByteArAr = 8;
+	repeated bytes Uint8ArAr = 9;
+	repeated Uint16List Uint16ArAr = 10;
+	repeated Uint32List Uint32ArAr = 11;
+	repeated Fixed32Uint32List Uint32FixedArAr = 12;
+	repeated Uint64List Uint64ArAr = 13;
+	repeated Fixed64Uint64List Uint64FixedArAr = 14;
+	repeated UintList UintArAr = 15;
+	repeated StringList StrArAr = 16;
+	repeated BytesList BytesArAr = 17;
+	repeated TimeList TimeArAr = 18;
+	repeated EmptyStructList EmptyArAr = 19;
+}
 message SlicesStruct {
 	repeated sint32 Int8Sl = 1;
 	repeated sint32 Int16Sl = 2;
@@ -219,4 +240,58 @@ message InterfaceFieldsStruct {
 	google.protobuf.Any F2 = 2;
 	google.protobuf.Any F3 = 3;
 	google.protobuf.Any F4 = 4;
+}
+message BytesList {
+	repeated bytes Value = 1;
+}
+message BytesListList {
+	repeated BytesList Value = 1;
+}
+message IntList {
+	repeated sint64 Value = 1;
+}
+message Int16List {
+	repeated sint32 Value = 1;
+}
+message Fixed32Int32List {
+	repeated sfixed32 Value = 1;
+}
+message Int32List {
+	repeated sint32 Value = 1;
+}
+message Int64List {
+	repeated sint64 Value = 1;
+}
+message Fixed64Int64List {
+	repeated sfixed64 Value = 1;
+}
+message Int8List {
+	repeated sint32 Value = 1;
+}
+message StringList {
+	repeated string Value = 1;
+}
+message EmptyStructList {
+	repeated EmptyStruct Value = 1;
+}
+message TimeList {
+	repeated google.protobuf.Timestamp Value = 1;
+}
+message UintList {
+	repeated uint64 Value = 1;
+}
+message Uint16List {
+	repeated uint32 Value = 1;
+}
+message Uint32List {
+	repeated uint32 Value = 1;
+}
+message Fixed32Uint32List {
+	repeated fixed32 Value = 1;
+}
+message Uint64List {
+	repeated uint64 Value = 1;
+}
+message Fixed64Uint64List {
+	repeated fixed64 Value = 1;
 }

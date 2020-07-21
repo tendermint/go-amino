@@ -143,14 +143,14 @@ func TestForceWriteEmpty(t *testing.T) {
 
 	type OuterWriteEmpty struct {
 		In  InnerWriteEmpty `amino:"write_empty"`
-		Val int             `amino:"write_empty" binary:"fixed32"`
+		Val int32           `amino:"write_empty" binary:"fixed32"`
 	}
 
 	cdc := amino.NewCodec()
 
 	b, err := cdc.MarshalBinaryBare(OuterWriteEmpty{})
 	assert.NoError(t, err)
-	assert.Equal(t, []byte{10, 5, 13, 0, 0, 0, 0, 16, 0}, b)
+	assert.Equal(t, []byte{0xa, 0x5, 0xd, 0x0, 0x0, 0x0, 0x0, 0x15, 0x0, 0x0, 0x0, 0x0}, b)
 
 	b, err = cdc.MarshalBinaryBare(InnerWriteEmpty{})
 	assert.NoError(t, err)

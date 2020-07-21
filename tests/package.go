@@ -16,7 +16,7 @@ var Package = pkg.NewPackage(
 	PrimitivesStruct{},
 	ShortArraysStruct{},
 	ArraysStruct{},
-	//ArraysArraysStruct{},
+	ArraysArraysStruct{},
 	SlicesStruct{},
 	PointersStruct{},
 	PointerSlicesStruct{},

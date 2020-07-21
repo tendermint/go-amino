@@ -98,12 +98,16 @@ func (p3c *P3Context) ValidateBasic() {
 // TODO: This could live as a method of the package, and only crawl the
 // dependencies of that package.  But a method implemented on P3Context
 // should function like this and print an intelligent error.
-func (p3c *P3Context) GetP3ImportPath(p3type P3Type) string {
+// Set implicit to false to assert-that name matches in package.
+// Set implicit to true for implicit structures like nested lists.
+func (p3c *P3Context) GetP3ImportPath(p3type P3Type, implicit bool) string {
 	p3pkg := p3type.GetPackageName()
 	pkgs := p3c.GetAllPackages()
 	for _, pkg := range pkgs {
 		if pkg.P3PkgName == p3pkg {
-			if pkg.HasName(p3type.GetName()) {
+			if implicit {
+				return pkg.P3ImportPath
+			} else if pkg.HasName(p3type.GetName()) {
 				return pkg.P3ImportPath
 			}
 		}
@@ -142,8 +146,26 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 	}
 
 	rsfields := []amino.FieldInfo(nil)
-	if info.Type.Kind() == reflect.Struct {
-		rsfields = rinfo.StructInfo.Fields
+	if rinfo.Type.Kind() == reflect.Struct {
+		switch rinfo.Type {
+		case timeType:
+			// special case: time
+			rinfo, err := p3c.cdc.GetTypeInfo(gTimestampType)
+			if err != nil {
+				panic(err)
+			}
+			rsfields = rinfo.StructInfo.Fields
+		case durationType:
+			// special case: duration
+			rinfo, err := p3c.cdc.GetTypeInfo(gDurationType)
+			if err != nil {
+				panic(err)
+			}
+			rsfields = rinfo.StructInfo.Fields
+		default:
+			// general case
+			rsfields = rinfo.StructInfo.Fields
+		}
 	} else {
 		// implicit struct.
 		// TODO: shouldn't this name end with "Wrapper" suffix?
@@ -170,33 +192,51 @@ func (p3c *P3Context) GenerateProto3MessagePartial(p3doc *P3Doc, rt reflect.Type
 	p3msg.Name = info.Type.Name() // not rinfo.
 
 	for _, field := range rsfields { // rinfo.
-		p3FieldType, p3FieldRepeated :=
-			p3c.typeToP3Type(field.TypeInfo, field.FieldOptions)
+		fp3, fp3IsRepeated, implicit :=
+			typeToP3Type(info.Package, field.TypeInfo, field.FieldOptions)
 		// If the p3 field package is the same, omit the prefix.
-		if p3FieldType.GetPackageName() == p3doc.PackageName {
-			p3FieldMessageType := p3FieldType.(P3MessageType)
-			p3FieldMessageType.SetOmitPackage()
-			p3FieldType = p3FieldMessageType
-		}
-		// If the field package different, add the import to p3doc.
-		// NOTE: frpkg will be nil for unregistered interfaces.
-		frpkg := field.TypeInfo.GetUltimateElem().Package
-		if frpkg == nil || frpkg.GoPkgPath != pkgPath {
-			if p3FieldType.GetPackageName() != "" {
-				importPath := p3c.GetP3ImportPath(p3FieldType)
-				p3doc.AddImport(importPath)
-			}
+		if fp3.GetPackageName() == p3doc.PackageName {
+			fp3m := fp3.(P3MessageType)
+			fp3m.SetOmitPackage()
+			fp3 = fp3m
+		} else if fp3.GetPackageName() != "" {
+			importPath := p3c.GetP3ImportPath(fp3, implicit)
+			p3doc.AddImport(importPath)
 		}
 		p3Field := P3Field{
-			Repeated: p3FieldRepeated,
-			Type:     p3FieldType,
+			Repeated: fp3IsRepeated,
+			Type:     fp3,
 			Name:     field.Name,
 			Number:   field.FieldOptions.BinFieldNum,
 		}
-		p3Field.Repeated = p3FieldRepeated
 		p3msg.Fields = append(p3msg.Fields, p3Field)
 	}
 
+	return
+}
+
+// Generate the Proto3 message (partial) schema for an implist list.  Imports
+// are added to p3doc.
+func (p3c *P3Context) GenerateProto3ListPartial(p3doc *P3Doc, nl NList) (p3msg P3Message) {
+	if p3doc.PackageName == "" {
+		panic(fmt.Sprintf("cannot generate message partials in the root package \"\"."))
+		return
+	}
+
+	ep3 := nl.ElemP3Type()
+	if ep3.GetPackageName() == p3doc.PackageName {
+		ep3m := ep3.(P3MessageType)
+		ep3m.SetOmitPackage()
+		ep3 = ep3m
+	}
+	p3Field := P3Field{
+		Repeated: true,
+		Type:     ep3,
+		Name:     "Value",
+		Number:   1,
+	}
+	p3msg.Name = nl.Name()
+	p3msg.Fields = append(p3msg.Fields, p3Field)
 	return
 }
 
@@ -225,7 +265,8 @@ func (p3c *P3Context) GenerateProto3SchemaForTypes(pkg *amino.Package, rtz ...re
 
 	// Collect list types and uniq,
 	// then create list message schemas.
-	var nestedListTypes = make(map[reflect.Type]struct{})
+	// These are representational
+	var nestedListTypes = make(map[string]NList)
 	for _, rt := range rtz {
 		if rt.Kind() == reflect.Interface {
 			continue
@@ -234,10 +275,11 @@ func (p3c *P3Context) GenerateProto3SchemaForTypes(pkg *amino.Package, rtz ...re
 		if err != nil {
 			panic(err)
 		}
-		findNestedLists(info, &nestedListTypes)
+		findNLists(pkg, info, &nestedListTypes)
 	}
-	for _, rt := range sortFound(nestedListTypes) {
-		fmt.Println("!!!!", rt)
+	for _, nl := range sortFound(nestedListTypes) {
+		p3msg := p3c.GenerateProto3ListPartial(&p3doc, nl)
+		p3doc.Messages = append(p3doc.Messages, p3msg)
 	}
 
 	return p3doc
@@ -258,88 +300,101 @@ var (
 	durationType = reflect.TypeOf(time.Duration(0))
 )
 
-// If rt is a struct, the returned proto3 type is a P3MessageType.
-// `rt` should be the representation type in case IsAminoMarshaler.
-func (p3c *P3Context) typeToP3Type(info *amino.TypeInfo, fopts amino.FieldOptions) (p3type P3Type, repeated bool) {
+// If info.ReprType is a struct, the returned proto3 type is a P3MessageType.
+func typeToP3Type(root *amino.Package, info *amino.TypeInfo, fopts amino.FieldOptions) (p3type P3Type, repeated bool, implicit bool) {
 
 	// Special case overrides.
+	// We don't handle the case when info.ReprType.Type is time here.
 	switch info.Type {
 	case timeType:
-		return NewP3MessageType("google.protobuf", "Timestamp"), false
+		return NewP3MessageType("google.protobuf", "Timestamp"), false, false
 	case durationType:
-		return NewP3MessageType("google.protobuf", "Duration"), false
+		return NewP3MessageType("google.protobuf", "Duration"), false, false
 	}
 
 	// Dereference type, in case pointer.
 	rt := info.ReprType.Type
 	switch rt.Kind() {
 	case reflect.Interface:
-		return P3AnyType, false
+		return P3AnyType, false, false
 	case reflect.Bool:
-		return P3ScalarTypeBool, false
+		return P3ScalarTypeBool, false, false
 	case reflect.Int:
-		return P3ScalarTypeSint64, false
+		if fopts.BinFixed64 {
+			return P3ScalarTypeSfixed64, false, false
+		} else if fopts.BinFixed32 {
+			return P3ScalarTypeSfixed32, false, false
+		} else {
+			return P3ScalarTypeSint64, false, false
+		}
 	case reflect.Int8:
-		return P3ScalarTypeSint32, false
+		return P3ScalarTypeSint32, false, false
 	case reflect.Int16:
-		return P3ScalarTypeSint32, false
+		return P3ScalarTypeSint32, false, false
 	case reflect.Int32:
 		if fopts.BinFixed32 {
-			return P3ScalarTypeSfixed32, false
+			return P3ScalarTypeSfixed32, false, false
 		} else {
-			return P3ScalarTypeSint32, false
+			return P3ScalarTypeSint32, false, false
 		}
 	case reflect.Int64:
 		if fopts.BinFixed64 {
-			return P3ScalarTypeSfixed64, false
+			return P3ScalarTypeSfixed64, false, false
 		} else {
-			return P3ScalarTypeSint64, false
+			return P3ScalarTypeSint64, false, false
 		}
 	case reflect.Uint:
-		return P3ScalarTypeUint64, false
+		if fopts.BinFixed64 {
+			return P3ScalarTypeFixed64, false, false
+		} else if fopts.BinFixed32 {
+			return P3ScalarTypeFixed32, false, false
+		} else {
+			return P3ScalarTypeUint64, false, false
+		}
 	case reflect.Uint8:
-		return P3ScalarTypeUint32, false
+		return P3ScalarTypeUint32, false, false
 	case reflect.Uint16:
-		return P3ScalarTypeUint32, false
+		return P3ScalarTypeUint32, false, false
 	case reflect.Uint32:
 		if fopts.BinFixed32 {
-			return P3ScalarTypeFixed32, false
+			return P3ScalarTypeFixed32, false, false
 		} else {
-			return P3ScalarTypeUint32, false
+			return P3ScalarTypeUint32, false, false
 		}
 	case reflect.Uint64:
 		if fopts.BinFixed64 {
-			return P3ScalarTypeFixed64, false
+			return P3ScalarTypeFixed64, false, false
 		} else {
-			return P3ScalarTypeUint64, false
+			return P3ScalarTypeUint64, false, false
 		}
 	case reflect.Float32:
-		return P3ScalarTypeFloat, false
+		return P3ScalarTypeFloat, false, false
 	case reflect.Float64:
-		return P3ScalarTypeDouble, false
+		return P3ScalarTypeDouble, false, false
 	case reflect.Complex64, reflect.Complex128:
 		panic("complex types not yet supported")
 	case reflect.Array, reflect.Slice:
 		switch info.Elem.ReprType.Type.Kind() {
 		case reflect.Uint8:
-			return P3ScalarTypeBytes, false
+			return P3ScalarTypeBytes, false, false
 		default:
-			elemP3Type, elemRepeated := p3c.typeToP3Type(info.Elem, fopts)
+			elemP3Type, elemRepeated, _ := typeToP3Type(root, info.Elem, fopts)
 			if elemRepeated {
-				panic("multi-dimensional arrays not yet supported")
+				elemP3Type = newNList(root, info, fopts).ElemP3Type()
+				return elemP3Type, true, true
 			}
-			return elemP3Type, true
+			return elemP3Type, true, false
 		}
 	case reflect.Chan, reflect.Func, reflect.Map, reflect.Ptr,
 		reflect.UnsafePointer:
 		panic("chan, func, map, and pointers are not supported")
 	case reflect.String:
-		return P3ScalarTypeString, false
+		return P3ScalarTypeString, false, false
 	case reflect.Struct:
 		// NOTE: we don't use rt, because the p3 package and name should still
 		// match the declaration, rather than inherit or refer to the repr type
 		// (if it is registered at all).
-		return NewP3MessageType(info.Package.P3PkgName, info.Type.Name()), false
+		return NewP3MessageType(info.Package.P3PkgName, info.Type.Name()), false, false
 	default:
 		panic("unexpected rt kind")
 	}

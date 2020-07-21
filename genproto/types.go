@@ -2,9 +2,13 @@ package genproto
 
 import (
 	"fmt"
+	"go/ast"
+	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 
+	"github.com/tendermint/go-amino"
 	"github.com/tendermint/go-amino/libs/press"
 )
 
@@ -239,4 +243,262 @@ func printComments(p *press.Press, comment string) {
 	for _, line := range commentLines {
 		p.Pl("// %v", line)
 	}
+}
+
+//----------------------------------------
+// Synthetic type for nested lists
+
+// This exists as a workaround due to Proto deficiencies,
+// namely how fields can only be repeated, not nestedly-repeated.
+type NList struct {
+	// Define dimension as followes:
+	// []struct{} has dimension 1, as well as [][]byte.
+	// [][]struct{} has dimension 2, as well as [][][]byte.
+	// When dimension is 2 or greater, we need implicit structs.
+	// The NestedType is meant to represent these types,
+	// so Dimensions is usually 2 or greater.
+	Dimensions int
+
+	// UltiElem.ReprType might not be UltiElem.
+	// Could be []byte.
+	UltiElem *amino.TypeInfo
+
+	// Optional Package, where this nested list was used.
+	// NOTE: two packages can't (yet?) share nested lists.
+	Package *amino.Package
+
+	// If embedded in a struct.
+	// Should be sanitized to uniq properly.
+	FieldOptions amino.FieldOptions
+}
+
+// filter to field options that matter for NLists.
+func nListFieldOptions(fopts amino.FieldOptions) amino.FieldOptions {
+	return amino.FieldOptions{
+		BinFixed64:     fopts.BinFixed64,
+		BinFixed32:     fopts.BinFixed32,
+		UseGoogleTypes: fopts.UseGoogleTypes,
+	}
+}
+
+// info: a list's TypeInfo.
+func newNList(pkg *amino.Package, info *amino.TypeInfo, fopts amino.FieldOptions) NList {
+	if !isListType(info.ReprType.Type) {
+		panic("should not happen")
+	}
+	if !isListType(info.ReprType.Type) {
+		panic("should not happen")
+	}
+	if info.ReprType.Elem.ReprType.Type.Kind() == reflect.Uint8 {
+		panic("should not happen")
+	}
+	fopts = nListFieldOptions(fopts)
+	einfo := info
+	leinfo := (*amino.TypeInfo)(nil)
+	counter := 0
+	for isListType(einfo.ReprType.Type) {
+		leinfo = einfo
+		einfo = einfo.ReprType.Elem
+		counter++
+	}
+	if einfo.ReprType.Type.Name() == "uint8" {
+		einfo = leinfo
+		counter--
+	}
+	return NList{
+		Package:      pkg,
+		Dimensions:   counter,
+		UltiElem:     einfo,
+		FieldOptions: fopts,
+	}
+}
+
+func (nl NList) Name() string {
+	if nl.Dimensions <= 0 {
+		panic("should not happen")
+	}
+	var prefix string
+	var ename string
+	var listSfx = strings.Repeat("List", nl.Dimensions)
+
+	ert := nl.UltiElem.ReprType.Type
+	if isListType(ert) {
+		if nl.UltiElem.ReprType.Elem.ReprType.Type.Kind() != reflect.Uint8 {
+			panic("should not happen")
+		}
+		ename = "Bytes"
+	} else {
+		// Get name from .Type, not ReprType.Type.
+		ename = capitalize(nl.UltiElem.Type.Name())
+	}
+
+	if nl.FieldOptions.BinFixed64 {
+		prefix = "Fixed64"
+	} else if nl.FieldOptions.BinFixed32 {
+		prefix = "Fixed32"
+	}
+	if nl.FieldOptions.UseGoogleTypes {
+		prefix = "G" + prefix
+	}
+
+	return fmt.Sprintf("%v%v%v", prefix, ename, listSfx)
+}
+
+func (nl NList) P3GoExprString(imports *ast.GenDecl, scope *ast.Scope) string {
+	pkgName := addImportAuto(imports, scope, nl.Package.GoPkgName+"pb", nl.Package.P3GoPkgPath)
+	return fmt.Sprintf("*%v.%v", pkgName, nl.Name())
+}
+
+// NOTE: requires nl.Package.
+func (nl NList) P3Type() P3Type {
+	return NewP3MessageType(
+		nl.Package.P3PkgName,
+		nl.Name(),
+	)
+}
+
+func (nl NList) Elem() NList {
+	if nl.Dimensions == 1 {
+		panic("should not happen")
+	}
+	return NList{
+		Package:      nl.Package,
+		Dimensions:   nl.Dimensions - 1,
+		UltiElem:     nl.UltiElem,
+		FieldOptions: nl.FieldOptions,
+	}
+}
+
+func (nl NList) ElemP3Type() P3Type {
+	if nl.Dimensions == 1 {
+		p3type, repeated, implicit := typeToP3Type(
+			nl.Package,
+			nl.UltiElem,
+			nl.FieldOptions,
+		)
+		if repeated || implicit {
+			panic("should not happen")
+		}
+		return p3type
+	} else {
+		return nl.Elem().P3Type()
+	}
+}
+
+// For uniq'ing.
+func (nl NList) Key() string {
+	return fmt.Sprintf("%v.%v", nl.Package.GoPkgName, nl.Name())
+}
+
+//----------------------------------------
+// Other
+
+func capitalize(s string) string {
+	return strings.ToUpper(s[0:1]) + s[1:]
+}
+
+// Find root struct fields that are nested list types.
+// If not a struct, assume an implicit struct with single field.
+// If type is amino.Marshaler, find values/fields from the repr.
+// Pointers are ignored, even for the terminal type.
+// e.g. if TypeInfo.ReprType.Type is
+//  * struct{ [][]int, [][]string } -> return [][]int, [][]string
+//  * [][]int -> return [][]int
+//  * [][][]int -> return [][][]int, [][]int
+//  * [][][]byte -> return [][][]byte (but not [][]byte, which is just repeated bytes).
+//  * [][][][]int -> return [][][][]int, [][][]int, [][]int.
+// The results are uniq'd and sorted somehow.
+func findNLists(root *amino.Package, info *amino.TypeInfo, found *map[string]NList) {
+	if found == nil {
+		*found = map[string]NList{}
+	}
+	switch info.ReprType.Type.Kind() {
+	case reflect.Struct:
+		for _, field := range info.ReprType.Fields {
+			fert := field.TypeInfo.ReprType.Type
+			fopts := field.FieldOptions
+			if isListType(fert) {
+				lists := findNLists2(root, field.TypeInfo, fopts)
+				for _, list := range lists {
+					if list.Dimensions >= 1 {
+						(*found)[list.Key()] = list
+					}
+				}
+			}
+		}
+		return
+	case reflect.Array, reflect.Slice:
+		lists := findNLists2(root, info, amino.FieldOptions{})
+		for _, list := range lists {
+			if list.Dimensions >= 2 {
+				(*found)[list.Key()] = list
+			}
+		}
+	}
+}
+
+// The last item of res is the deepest.
+// As a special recursive case, may return Dimensions:1 for bytes.
+func findNLists2(root *amino.Package, list *amino.TypeInfo, fopts amino.FieldOptions) []NList {
+	fopts = nListFieldOptions(fopts)
+	switch list.ReprType.Type.Kind() {
+	case reflect.Ptr:
+		panic("should not happen")
+	case reflect.Array, reflect.Slice:
+		elem := list.ReprType.Elem
+		if isListType(elem.ReprType.Type) {
+			if elem.ReprType.Elem.ReprType.Type.Kind() == reflect.Uint8 {
+				// elem is []byte or bytes, and list is []bytes.
+				// no need to look for sublists.
+				return []NList{
+					NList{
+						Package:      root,
+						Dimensions:   1,
+						UltiElem:     elem,
+						FieldOptions: fopts,
+					},
+				}
+			} else {
+				sublists := findNLists2(root, elem, fopts)
+				if len(sublists) == 0 {
+					return []NList{{
+						Package:      root,
+						Dimensions:   1,
+						UltiElem:     elem.ReprType.Elem,
+						FieldOptions: fopts,
+					}}
+				} else {
+					deepest := sublists[len(sublists)-1]
+					this := NList{
+						Package:      root,
+						Dimensions:   deepest.Dimensions + 1,
+						UltiElem:     deepest.UltiElem,
+						FieldOptions: fopts,
+					}
+					lists := append(sublists, this)
+					return lists
+				}
+			}
+		} else {
+			return nil // nothing.
+		}
+	default:
+		panic("should not happen")
+	}
+}
+
+func sortFound(found map[string]NList) (res []NList) {
+	for _, nl := range found {
+		res = append(res, nl)
+	}
+	sort.Slice(res, func(i, j int) bool {
+		if res[i].UltiElem.Type.String() < res[j].UltiElem.Type.String() {
+			return true
+		} else if res[i].UltiElem.Type.String() == res[j].UltiElem.Type.String() {
+			return res[i].Dimensions < res[j].Dimensions
+		} else {
+			return false
+		}
+	})
+	return res
 }

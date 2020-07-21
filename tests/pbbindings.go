@@ -1101,6 +1101,1159 @@ func (goo ArraysStruct) IsEmpty() (empty bool) {
 	}
 	return
 }
+func (goo ArraysArraysStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
+	var pbo *testspb.ArraysArraysStruct
+	{
+		if goo.IsEmpty() {
+			var pbov *testspb.ArraysArraysStruct
+			msg = pbov
+			return
+		}
+		pbo = new(testspb.ArraysArraysStruct)
+		{
+			gool := len(goo.Int8ArAr)
+			if gool == 0 {
+				pbo.Int8ArAr = nil
+			} else {
+				var pbos = make([]*testspb.Int8List, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.Int8ArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]int32, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = int32(gooe)
+										}
+									}
+								}
+								pbos[i] = &testspb.Int8List{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.Int8ArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.Int16ArAr)
+			if gool == 0 {
+				pbo.Int16ArAr = nil
+			} else {
+				var pbos = make([]*testspb.Int16List, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.Int16ArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]int32, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = int32(gooe)
+										}
+									}
+								}
+								pbos[i] = &testspb.Int16List{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.Int16ArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.Int32ArAr)
+			if gool == 0 {
+				pbo.Int32ArAr = nil
+			} else {
+				var pbos = make([]*testspb.Int32List, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.Int32ArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]int32, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = gooe
+										}
+									}
+								}
+								pbos[i] = &testspb.Int32List{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.Int32ArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.Int32FixedArAr)
+			if gool == 0 {
+				pbo.Int32FixedArAr = nil
+			} else {
+				var pbos = make([]*testspb.Fixed32Int32List, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.Int32FixedArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]int32, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = gooe
+										}
+									}
+								}
+								pbos[i] = &testspb.Fixed32Int32List{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.Int32FixedArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.Int64ArAr)
+			if gool == 0 {
+				pbo.Int64ArAr = nil
+			} else {
+				var pbos = make([]*testspb.Int64List, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.Int64ArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]int64, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = gooe
+										}
+									}
+								}
+								pbos[i] = &testspb.Int64List{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.Int64ArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.Int64FixedArAr)
+			if gool == 0 {
+				pbo.Int64FixedArAr = nil
+			} else {
+				var pbos = make([]*testspb.Fixed64Int64List, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.Int64FixedArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]int64, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = gooe
+										}
+									}
+								}
+								pbos[i] = &testspb.Fixed64Int64List{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.Int64FixedArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.IntArAr)
+			if gool == 0 {
+				pbo.IntArAr = nil
+			} else {
+				var pbos = make([]*testspb.IntList, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.IntArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]int64, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = int64(gooe)
+										}
+									}
+								}
+								pbos[i] = &testspb.IntList{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.IntArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.ByteArAr)
+			if gool == 0 {
+				pbo.ByteArAr = nil
+			} else {
+				var pbos = make([][]byte, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.ByteArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]uint8, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = byte(gooe)
+										}
+									}
+								}
+								pbos[i] = pbos1
+							}
+						}
+					}
+				}
+				pbo.ByteArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.Uint8ArAr)
+			if gool == 0 {
+				pbo.Uint8ArAr = nil
+			} else {
+				var pbos = make([][]byte, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.Uint8ArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]uint8, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = byte(gooe)
+										}
+									}
+								}
+								pbos[i] = pbos1
+							}
+						}
+					}
+				}
+				pbo.Uint8ArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.Uint16ArAr)
+			if gool == 0 {
+				pbo.Uint16ArAr = nil
+			} else {
+				var pbos = make([]*testspb.Uint16List, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.Uint16ArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]uint32, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = uint32(gooe)
+										}
+									}
+								}
+								pbos[i] = &testspb.Uint16List{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.Uint16ArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.Uint32ArAr)
+			if gool == 0 {
+				pbo.Uint32ArAr = nil
+			} else {
+				var pbos = make([]*testspb.Uint32List, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.Uint32ArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]uint32, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = gooe
+										}
+									}
+								}
+								pbos[i] = &testspb.Uint32List{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.Uint32ArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.Uint32FixedArAr)
+			if gool == 0 {
+				pbo.Uint32FixedArAr = nil
+			} else {
+				var pbos = make([]*testspb.Fixed32Uint32List, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.Uint32FixedArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]uint32, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = gooe
+										}
+									}
+								}
+								pbos[i] = &testspb.Fixed32Uint32List{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.Uint32FixedArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.Uint64ArAr)
+			if gool == 0 {
+				pbo.Uint64ArAr = nil
+			} else {
+				var pbos = make([]*testspb.Uint64List, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.Uint64ArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]uint64, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = gooe
+										}
+									}
+								}
+								pbos[i] = &testspb.Uint64List{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.Uint64ArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.Uint64FixedArAr)
+			if gool == 0 {
+				pbo.Uint64FixedArAr = nil
+			} else {
+				var pbos = make([]*testspb.Fixed64Uint64List, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.Uint64FixedArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]uint64, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = gooe
+										}
+									}
+								}
+								pbos[i] = &testspb.Fixed64Uint64List{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.Uint64FixedArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.UintArAr)
+			if gool == 0 {
+				pbo.UintArAr = nil
+			} else {
+				var pbos = make([]*testspb.UintList, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.UintArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]uint64, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = uint64(gooe)
+										}
+									}
+								}
+								pbos[i] = &testspb.UintList{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.UintArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.StrArAr)
+			if gool == 0 {
+				pbo.StrArAr = nil
+			} else {
+				var pbos = make([]*testspb.StringList, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.StrArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]string, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbos1[i] = gooe
+										}
+									}
+								}
+								pbos[i] = &testspb.StringList{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.StrArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.BytesArAr)
+			if gool == 0 {
+				pbo.BytesArAr = nil
+			} else {
+				var pbos = make([]*testspb.BytesList, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.BytesArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([][]byte, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											gool2 := len(gooe)
+											if gool2 == 0 {
+												pbos1[i] = nil
+											} else {
+												var pbos2 = make([]uint8, gool2)
+												for i := 0; i < gool2; i += 1 {
+													{
+														gooe := gooe[i]
+														{
+															pbos2[i] = byte(gooe)
+														}
+													}
+												}
+												pbos1[i] = pbos2
+											}
+										}
+									}
+								}
+								pbos[i] = &testspb.BytesList{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.BytesArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.TimeArAr)
+			if gool == 0 {
+				pbo.TimeArAr = nil
+			} else {
+				var pbos = make([]*testspb.TimeList, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.TimeArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]*timestamppb.Timestamp, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											if !amino.IsEmptyTime(gooe) {
+												pbos1[i] = timestamppb.New(gooe)
+											}
+										}
+									}
+								}
+								pbos[i] = &testspb.TimeList{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.TimeArAr = pbos
+			}
+		}
+		{
+			gool := len(goo.EmptyArAr)
+			if gool == 0 {
+				pbo.EmptyArAr = nil
+			} else {
+				var pbos = make([]*testspb.EmptyStructList, gool)
+				for i := 0; i < gool; i += 1 {
+					{
+						gooe := goo.EmptyArAr[i]
+						{
+							gool1 := len(gooe)
+							if gool1 == 0 {
+								pbos[i] = nil
+							} else {
+								var pbos1 = make([]*testspb.EmptyStruct, gool1)
+								for i := 0; i < gool1; i += 1 {
+									{
+										gooe := gooe[i]
+										{
+											pbom := proto.Message(nil)
+											pbom, err = gooe.ToPBMessage(cdc)
+											if err != nil {
+												return
+											}
+											pbos1[i] = pbom.(*testspb.EmptyStruct)
+										}
+									}
+								}
+								pbos[i] = &testspb.EmptyStructList{Value: pbos1}
+							}
+						}
+					}
+				}
+				pbo.EmptyArAr = pbos
+			}
+		}
+	}
+	msg = pbo
+	return
+}
+func (goo *ArraysArraysStruct) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
+	var pbo *testspb.ArraysArraysStruct = msg.(*testspb.ArraysArraysStruct)
+	{
+		if pbo != nil {
+			{
+				var goos = [2][2]int8{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.Int8ArAr[i]
+						{
+							var goos1 = [2]int8{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = int8(pboe)
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.Int8ArAr = goos
+			}
+			{
+				var goos = [2][2]int16{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.Int16ArAr[i]
+						{
+							var goos1 = [2]int16{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = int16(pboe)
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.Int16ArAr = goos
+			}
+			{
+				var goos = [2][2]int32{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.Int32ArAr[i]
+						{
+							var goos1 = [2]int32{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = pboe
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.Int32ArAr = goos
+			}
+			{
+				var goos = [2][2]int32{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.Int32FixedArAr[i]
+						{
+							var goos1 = [2]int32{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = pboe
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.Int32FixedArAr = goos
+			}
+			{
+				var goos = [2][2]int64{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.Int64ArAr[i]
+						{
+							var goos1 = [2]int64{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = pboe
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.Int64ArAr = goos
+			}
+			{
+				var goos = [2][2]int64{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.Int64FixedArAr[i]
+						{
+							var goos1 = [2]int64{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = pboe
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.Int64FixedArAr = goos
+			}
+			{
+				var goos = [2][2]int{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.IntArAr[i]
+						{
+							var goos1 = [2]int{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = int(pboe)
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.IntArAr = goos
+			}
+			{
+				var goos = [2][2]uint8{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.ByteArAr[i]
+						{
+							var goos1 = [2]uint8{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe[i]
+									{
+										goos1[i] = uint8(pboe)
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.ByteArAr = goos
+			}
+			{
+				var goos = [2][2]uint8{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.Uint8ArAr[i]
+						{
+							var goos1 = [2]uint8{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe[i]
+									{
+										goos1[i] = uint8(pboe)
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.Uint8ArAr = goos
+			}
+			{
+				var goos = [2][2]uint16{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.Uint16ArAr[i]
+						{
+							var goos1 = [2]uint16{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = uint16(pboe)
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.Uint16ArAr = goos
+			}
+			{
+				var goos = [2][2]uint32{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.Uint32ArAr[i]
+						{
+							var goos1 = [2]uint32{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = pboe
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.Uint32ArAr = goos
+			}
+			{
+				var goos = [2][2]uint32{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.Uint32FixedArAr[i]
+						{
+							var goos1 = [2]uint32{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = pboe
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.Uint32FixedArAr = goos
+			}
+			{
+				var goos = [2][2]uint64{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.Uint64ArAr[i]
+						{
+							var goos1 = [2]uint64{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = pboe
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.Uint64ArAr = goos
+			}
+			{
+				var goos = [2][2]uint64{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.Uint64FixedArAr[i]
+						{
+							var goos1 = [2]uint64{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = pboe
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.Uint64FixedArAr = goos
+			}
+			{
+				var goos = [2][2]uint{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.UintArAr[i]
+						{
+							var goos1 = [2]uint{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = uint(pboe)
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.UintArAr = goos
+			}
+			{
+				var goos = [2][2]string{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.StrArAr[i]
+						{
+							var goos1 = [2]string{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = pboe
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.StrArAr = goos
+			}
+			{
+				var goos = [2][2][]uint8{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.BytesArAr[i]
+						{
+							var goos1 = [2][]uint8{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										pbol := len(pboe)
+										if pbol == 0 {
+											goos1[i] = nil
+										} else {
+											var goos2 = make([]uint8, pbol)
+											for i := 0; i < pbol; i += 1 {
+												{
+													pboe := pboe[i]
+													{
+														goos2[i] = uint8(pboe)
+													}
+												}
+											}
+											goos1[i] = goos2
+										}
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.BytesArAr = goos
+			}
+			{
+				var goos = [2][2]time.Time{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.TimeArAr[i]
+						{
+							var goos1 = [2]time.Time{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										goos1[i] = pboe.AsTime()
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.TimeArAr = goos
+			}
+			{
+				var goos = [2][2]EmptyStruct{}
+				for i := 0; i < 2; i += 1 {
+					{
+						pboe := pbo.EmptyArAr[i]
+						{
+							var goos1 = [2]EmptyStruct{}
+							for i := 0; i < 2; i += 1 {
+								{
+									pboe := pboe.Value[i]
+									{
+										if pboe != nil {
+											err = goos1[i].FromPBMessage(cdc, pboe)
+											if err != nil {
+												return
+											}
+										}
+									}
+								}
+							}
+							goos[i] = goos1
+						}
+					}
+				}
+				goo.EmptyArAr = goos
+			}
+		}
+	}
+	return
+}
+func (_ ArraysArraysStruct) GetTypeURL() (typeURL string) {
+	return "/tests.ArraysArraysStruct"
+}
+func (goo ArraysArraysStruct) IsEmpty() (empty bool) {
+	{
+		empty = true
+		{
+			if len(goo.Int8ArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.Int16ArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.Int32ArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.Int32FixedArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.Int64ArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.Int64FixedArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.IntArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.ByteArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.Uint8ArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.Uint16ArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.Uint32ArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.Uint32FixedArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.Uint64ArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.Uint64FixedArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.UintArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.StrArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.BytesArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.TimeArAr) != 0 {
+				return false
+			}
+		}
+		{
+			if len(goo.EmptyArAr) != 0 {
+				return false
+			}
+		}
+	}
+	return
+}
 func (goo SlicesStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	var pbo *testspb.SlicesStruct
 	{

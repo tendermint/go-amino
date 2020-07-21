@@ -98,10 +98,11 @@ func (info *TypeInfo) IsStructOrUnpacked(fopt FieldOptions) bool {
 	return false
 }
 
-// If this is a slice or array, get .Elem until no longer slice or array.
+// If this is a slice or array, get .Elem.ReprType until no longer slice or
+// array.
 func (info *TypeInfo) GetUltimateElem() *TypeInfo {
 	if info.Elem != nil {
-		return info.Elem.GetUltimateElem()
+		return info.Elem.ReprType.GetUltimateElem()
 	}
 	return info
 }
@@ -139,6 +140,38 @@ func (info *TypeInfo) String() string {
 
 func (finfo *FieldInfo) IsPtr() bool {
 	return finfo.Type.Kind() == reflect.Ptr
+}
+
+func (finfo *FieldInfo) ValidateBasic() {
+	if finfo.BinFixed32 {
+		switch finfo.TypeInfo.GetUltimateElem().Type.Kind() {
+		case reflect.Int32, reflect.Uint32:
+			// ok
+		case reflect.Int, reflect.Uint:
+			// TODO error upon overflow/underflow during conversion.
+			panic("\"fixed32\" not yet supported for int/uint")
+		default:
+			panic("unexpected tag \"fixed32\" for non-32bit type")
+		}
+	}
+	if finfo.BinFixed64 {
+		switch finfo.TypeInfo.GetUltimateElem().Type.Kind() {
+		case reflect.Int64, reflect.Uint64, reflect.Int, reflect.Uint:
+			// ok
+		default:
+			panic("unexpected tag \"fixed64\" for non-64bit type")
+		}
+	}
+	if !finfo.Unsafe {
+		switch finfo.TypeInfo.Type.Kind() {
+		case reflect.Float32, reflect.Float64:
+			panic("floating point types are unsafe for go-amino")
+		}
+		switch finfo.TypeInfo.GetUltimateElem().Type.Kind() {
+		case reflect.Float32, reflect.Float64:
+			panic("floating point types are unsafe for go-amino, even for repr types")
+		}
+	}
 }
 
 //----------------------------------------
@@ -562,9 +595,6 @@ func (cdc *Codec) newTypeInfoUnregisteredWLocked(rt reflect.Type) *TypeInfo {
 	info.Type = rt
 	info.PtrToType = reflect.PtrTo(rt)
 	info.ZeroValue = reflect.Zero(rt)
-	if rt.Kind() == reflect.Struct {
-		info.StructInfo = cdc.parseStructInfoWLocked(rt)
-	}
 	var isAminoMarshaler bool
 	var reprType reflect.Type
 	if rm, ok := rt.MethodByName("MarshalAmino"); ok {
@@ -617,6 +647,9 @@ func (cdc *Codec) newTypeInfoUnregisteredWLocked(rt reflect.Type) *TypeInfo {
 		}
 		info.ConcreteInfo.Elem = einfo
 		info.ConcreteInfo.ElemIsPtr = rt.Elem().Kind() == reflect.Ptr
+	}
+	if rt.Kind() == reflect.Struct {
+		info.StructInfo = cdc.parseStructInfoWLocked(rt)
 	}
 	return info
 }
@@ -673,7 +706,7 @@ func (cdc *Codec) parseStructInfoWLocked(rt reflect.Type) (sinfo StructInfo) {
 			UnpackedList: unpackedList,
 			FieldOptions: fopts,
 		}
-		checkUnsafe(fieldInfo)
+		fieldInfo.ValidateBasic()
 		infos = append(infos, fieldInfo)
 	}
 	sinfo = StructInfo{infos}
@@ -708,7 +741,8 @@ func parseFieldOptions(field reflect.StructField) (skip bool, fopts FieldOptions
 	}
 
 	// Parse binary tags.
-	if binTag == "fixed64" { // TODO: extend
+	// NOTE: these get validated later, we don't have TypeInfo yet.
+	if binTag == "fixed64" {
 		fopts.BinFixed64 = true
 	} else if binTag == "fixed32" {
 		fopts.BinFixed32 = true

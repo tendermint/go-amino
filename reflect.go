@@ -23,20 +23,6 @@ var (
 //----------------------------------------
 // Misc.
 
-func checkUnsafe(field FieldInfo) {
-	if field.Unsafe {
-		return
-	}
-	switch field.TypeInfo.Type.Kind() {
-	case reflect.Float32, reflect.Float64:
-		panic("floating point types are unsafe for go-amino")
-	}
-	switch field.TypeInfo.ReprType.Type.Kind() {
-	case reflect.Float32, reflect.Float64:
-		panic("floating point types are unsafe for go-amino, even for repr types")
-	}
-}
-
 // CONTRACT: by the time this is called, len(bz) >= _n
 // Returns true so you can write one-liners.
 func slide(bz *[]byte, n *int, _n int) bool {
@@ -280,4 +266,11 @@ func toPBMessage(cdc *Codec, rv reflect.Value) (pbrv reflect.Value) {
 	rm := rv.MethodByName("ToPBMessage")
 	pbrv = rm.Call([]reflect.Value{reflect.ValueOf(cdc)})[0]
 	return
+}
+
+// NOTE: do not change this definition.
+// It is also defined for genproto.
+func isListType(rt reflect.Type) bool {
+	return rt.Kind() == reflect.Slice ||
+		rt.Kind() == reflect.Array
 }

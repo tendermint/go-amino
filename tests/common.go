@@ -57,25 +57,25 @@ type ArraysStruct struct {
 }
 
 type ArraysArraysStruct struct {
-	Int8Ar        [2][2]int8
-	Int16Ar       [2][2]int16
-	Int32Ar       [2][2]int32
-	Int32FixedAr  [2][2]int32 `binary:"fixed32"`
-	Int64Ar       [2][2]int64
-	Int64FixedAr  [2][2]int64 `binary:"fixed64"`
-	IntAr         [2][2]int
-	ByteAr        [2][2]byte
-	Uint8Ar       [2][2]uint8
-	Uint16Ar      [2][2]uint16
-	Uint32Ar      [2][2]uint32
-	Uint32FixedAr [2][2]uint32 `binary:"fixed32"`
-	Uint64Ar      [2][2]uint64
-	Uint64FixedAr [2][2]uint64 `binary:"fixed32"`
-	UintAr        [2][2]uint
-	StrAr         [2][2]string
-	BytesAr       [2][2][]byte
-	TimeAr        [2][2]time.Time
-	EmptyAr       [2][2]EmptyStruct
+	Int8ArAr        [2][2]int8
+	Int16ArAr       [2][2]int16
+	Int32ArAr       [2][2]int32
+	Int32FixedArAr  [2][2]int32 `binary:"fixed32"`
+	Int64ArAr       [2][2]int64
+	Int64FixedArAr  [2][2]int64 `binary:"fixed64"`
+	IntArAr         [2][2]int
+	ByteArAr        [2][2]byte
+	Uint8ArAr       [2][2]uint8
+	Uint16ArAr      [2][2]uint16
+	Uint32ArAr      [2][2]uint32
+	Uint32FixedArAr [2][2]uint32 `binary:"fixed32"`
+	Uint64ArAr      [2][2]uint64
+	Uint64FixedArAr [2][2]uint64 `binary:"fixed64"`
+	UintArAr        [2][2]uint
+	StrArAr         [2][2]string
+	BytesArAr       [2][2][]byte
+	TimeArAr        [2][2]time.Time
+	EmptyArAr       [2][2]EmptyStruct
 }
 
 type SlicesStruct struct {
@@ -208,7 +208,7 @@ var StructTypes = []interface{}{
 	(*PrimitivesStruct)(nil),
 	(*ShortArraysStruct)(nil),
 	(*ArraysStruct)(nil),
-	//(*ArraysArraysStruct)(nil),
+	(*ArraysArraysStruct)(nil),
 	(*SlicesStruct)(nil),
 	(*PointersStruct)(nil),
 	(*PointerSlicesStruct)(nil),

@@ -595,6 +595,9 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 	} else {
 		// NOTE: ert is for the element value, while einfo.Type is dereferenced.
 		isErtStructPointer := ert.Kind() == reflect.Ptr && einfo.Type.Kind() == reflect.Struct
+		writeImplicit := isListType(einfo.Type) &&
+			einfo.Elem.ReprType.Type.Kind() != reflect.Uint8 &&
+			einfo.Elem.ReprType.GetTyp3(fopts) != Typ3ByteLength
 
 		// Read elements in unpacked form.
 		for i := 0; i < length; i++ {
@@ -631,14 +634,50 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 				erv.Set(defaultValue(erv.Type()))
 				continue
 			}
-			// Normal case, read next non-nil element from bz.
-			// In case of any inner lists in unpacked form.
-			efopts := fopts
-			efopts.BinFieldNum = 1
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, efopts, false, 0)
-			if slide(&bz, &n, _n) && err != nil {
-				err = fmt.Errorf("error reading array contents: %v", err)
-				return
+			// Special case: nested lists.
+			// Multidimensional lists (nested inner lists also in unpacked
+			// form) are represented as lists of implicit structs.
+			if writeImplicit {
+				// Read bytes for implicit struct.
+				var ibz []byte
+				ibz, _n, err = DecodeByteSlice(bz)
+				if slide(&bz, nil, _n) && err != nil {
+					return
+				}
+				// This is a trick for debuggability -- we slide on &n more later.
+				n += UvarintSize(uint64(len(ibz)))
+				// Read field key of implicit struct.
+				var fnum uint32
+				fnum, _, _n, err = decodeFieldNumberAndTyp3(ibz)
+				if slide(&ibz, &n, _n) && err != nil {
+					return
+				}
+				if fnum != 1 {
+					err = fmt.Errorf("unexpected field number %v of implicit list struct", fnum)
+					return
+				}
+				// Read field value of implicit struct.
+				efopts := fopts
+				efopts.BinFieldNum = 0 // dontcare
+				_n, err = cdc.decodeReflectBinary(ibz, einfo, erv, efopts, false, 0)
+				if slide(&ibz, &n, _n) && err != nil {
+					err = fmt.Errorf("error reading array contents: %v", err)
+					return
+				}
+				// Ensure that there are no more bytes left.
+				if len(ibz) > 0 {
+					err = fmt.Errorf("unexpected trailing bytes after implicit list struct's Value field: %X", ibz)
+					return
+				}
+			} else {
+				// General case
+				efopts := fopts
+				efopts.BinFieldNum = 1
+				_n, err = cdc.decodeReflectBinary(bz, einfo, erv, efopts, false, 0)
+				if slide(&bz, &n, _n) && err != nil {
+					err = fmt.Errorf("error reading array contents: %v", err)
+					return
+				}
 			}
 		}
 		// Ensure that there are no more elements left,
@@ -758,6 +797,9 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	} else {
 		// NOTE: ert is for the element value, while einfo.Type is dereferenced.
 		isErtStructPointer := ert.Kind() == reflect.Ptr && einfo.Type.Kind() == reflect.Struct
+		writeImplicit := isListType(einfo.Type) &&
+			einfo.Elem.ReprType.Type.Kind() != reflect.Uint8 &&
+			einfo.Elem.ReprType.GetTyp3(fopts) != Typ3ByteLength
 
 		// Read elements in unpacked form.
 		for {
@@ -801,14 +843,50 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 				srv = reflect.Append(srv, erv)
 				continue
 			}
-			// Normal case, read next non-nil element from bz.
-			// In case of any inner lists in unpacked form.
-			efopts := fopts
-			efopts.BinFieldNum = 1
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, efopts, false, 0)
-			if slide(&bz, &n, _n) && err != nil {
-				err = fmt.Errorf("error reading array contents: %v", err)
-				return
+			// Special case: nested lists.
+			// Multidimensional lists (nested inner lists also in unpacked
+			// form) are represented as lists of implicit structs.
+			if writeImplicit {
+				// Read bytes for implicit struct.
+				var ibz []byte
+				ibz, _n, err = DecodeByteSlice(bz)
+				if slide(&bz, nil, _n) && err != nil {
+					return
+				}
+				// This is a trick for debuggability -- we slide on &n more later.
+				n += UvarintSize(uint64(len(ibz)))
+				// Read field key of implicit struct.
+				var fnum uint32
+				fnum, _, _n, err = decodeFieldNumberAndTyp3(ibz)
+				if slide(&ibz, &n, _n) && err != nil {
+					return
+				}
+				if fnum != 1 {
+					err = fmt.Errorf("unexpected field number %v of implicit list struct", fnum)
+					return
+				}
+				// Read field value of implicit struct.
+				efopts := fopts
+				efopts.BinFieldNum = 0 // dontcare
+				_n, err = cdc.decodeReflectBinary(ibz, einfo, erv, efopts, false, 0)
+				if slide(&ibz, &n, _n) && err != nil {
+					err = fmt.Errorf("error reading slice contents: %v", err)
+					return
+				}
+				// Ensure that there are no more bytes left.
+				if len(ibz) > 0 {
+					err = fmt.Errorf("unexpected trailing bytes after implicit list struct's Value field: %X", ibz)
+					return
+				}
+			} else {
+				// General case
+				efopts := fopts
+				efopts.BinFieldNum = 1
+				_n, err = cdc.decodeReflectBinary(bz, einfo, erv, efopts, false, 0)
+				if slide(&bz, &n, _n) && err != nil {
+					err = fmt.Errorf("error reading slice contents: %v", err)
+					return
+				}
 			}
 			srv = reflect.Append(srv, erv)
 		}
@@ -848,7 +926,7 @@ func (cdc *Codec) decodeReflectBinaryStruct(bz []byte, info *TypeInfo, rv reflec
 		var frv = rv.Field(field.Index)
 		var finfo = field.TypeInfo
 
-		// We're done if we've consumed all the bytes.
+		// We're done if we've consumed all of bz.
 		if len(bz) == 0 {
 			frv.Set(defaultValue(frv.Type()))
 			continue

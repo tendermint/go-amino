@@ -11,7 +11,6 @@ import (
 
 type Package struct {
 	// General info
-	Name         string // short name, like "main"
 	GoPkgPath    string
 	GoPkgName    string
 	DirName      string
@@ -63,7 +62,6 @@ func NewPackage(gopkgPath string, p3pkgName string, dirName string) *Package {
 	assertValidDirName(dirName)
 	if gopkgPath != "" {
 		pkg := &Package{
-			Name:         defaultName(gopkgPath),
 			GoPkgPath:    gopkgPath,
 			GoPkgName:    defaultPkgName(gopkgPath),
 			DirName:      dirName,
@@ -86,11 +84,6 @@ func NewPackage(gopkgPath string, p3pkgName string, dirName string) *Package {
 
 func (pkg *Package) String() string {
 	return fmt.Sprintf("pkg.Pkg(%v@%v)", pkg.GoPkgPath, pkg.DirName)
-}
-
-func (pkg *Package) WithName(name string) *Package {
-	pkg.Name = name
-	return pkg
 }
 
 func (pkg *Package) WithP3GoPkgPath(p3gopkg string) *Package {
@@ -308,13 +301,5 @@ func defaultPkgName(gopkgPath string) (name string) {
 	parts = strings.Split(last, "-")
 	name = parts[len(parts)-1]
 	name = strings.ToLower(name)
-	return name
-}
-
-func defaultName(gopkgPath string) (name string) {
-	parts := strings.Split(gopkgPath, "/")
-	parts = strings.Split(parts[len(parts)-1], "-")
-	last := parts[len(parts)-1]
-	name = strings.ToLower(last)
 	return name
 }
