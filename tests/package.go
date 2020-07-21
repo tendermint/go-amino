@@ -18,6 +18,7 @@ var Package = pkg.NewPackage(
 	ArraysStruct{},
 	ArraysArraysStruct{},
 	SlicesStruct{},
+	SlicesSlicesStruct{},
 	PointersStruct{},
 	PointerSlicesStruct{},
 	//NestedPointersStruct{},

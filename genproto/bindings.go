@@ -429,12 +429,9 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 							_block(go2pbStmts(rootPkg, false, imports, scope2, _x("%v~[~i~]", pbos_), _i("gooe"), gooeIsPtr, gooeType, fopts, newoptions)...),
 						),
 					),
-					// compile time if
-					_ctif((pboIsImplicit && options&option_implicit_list != 0),
-						// then
-						_a(pbo, "=", _x("&%v~{~Value:%v~}", dpbote_, pbos_)),
-						// else
-						_a(pbo, "=", pbos_),
+					_ctif((pboIsImplicit && options&option_implicit_list != 0), // compile time if
+						_a(pbo, "=", _x("&%v~{~Value:%v~}", dpbote_, pbos_)), // then
+						_a(pbo, "=", pbos_), // else
 					),
 				)))
 
@@ -627,12 +624,9 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 				_a("i", "+=", "1"),
 				_block(
 					// Translate in place.
-					// compile time if
-					_ctif((options&option_implicit_list != 0),
-						// then
-						_a("pboe", ":=", _idx(_sel(pbo, "Value"), _i("i"))),
-						// else
-						_a("pboe", ":=", _idx(pbo, _i("i"))),
+					_ctif((options&option_implicit_list != 0), // compile time if
+						_a("pboe", ":=", _idx(_sel(pbo, "Value"), _i("i"))), // then
+						_a("pboe", ":=", _idx(pbo, _i("i"))),                // else
 					),
 					_block(pb2goStmts(rootPkg, false, imports, scope2, _x("%v~[~i~]", goos_), gooeIsPtr, gooeType, _i("pboe"), fopts, newoptions)...),
 				),
@@ -645,6 +639,12 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 		var gooeType = gooType.Elem
 		var gooeIsPtr = gooType.ElemIsPtr
 		var gooete_ = goTypeExprString(rootPkg, imports, scope, gooeIsPtr, gooeType)
+		var _, pboeIsImplicit = p3goTypeExprString(rootPkg, imports, scope, gooeType, fopts)
+
+		// Set option for element to be wrapped with implicit list struct.
+		if pboeIsImplicit {
+			newoptions |= option_implicit_list
+		}
 
 		// Construct, translate, assign.
 		pbol_ := addVarUniq(scope, "pbol")
@@ -652,7 +652,13 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 		scope2 := ast.NewScope(scope)
 		addVars(scope2, "i", "pboe")
 		b = append(b,
-			_a(pbol_, ":=", _len(pbo)),
+			_var(pbol_, _i("int"), _x("0")),
+			_if(_b(pbo, "!=", "nil"),
+				_ctif((options&option_implicit_list != 0), // compile time if
+					_a(pbol_, "=", _len(_sel(pbo, "Value"))), // then
+					_a(pbol_, "=", _len(pbo)),                // else
+				),
+			),
 			_ife(_x("%v__==__0", pbol_),
 				_block( // then
 					// Prefer nil for empty slices for less gc overhead.
@@ -666,7 +672,10 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 						_a("i", "+=", "1"),
 						_block(
 							// Translate in place.
-							_a("pboe", ":=", _idx(pbo, _i("i"))),
+							_ctif((options&option_implicit_list != 0), // compile time if
+								_a("pboe", ":=", _idx(_sel(pbo, "Value"), _i("i"))), // then
+								_a("pboe", ":=", _idx(pbo, _i("i"))),                // else
+							),
 							_block(pb2goStmts(rootPkg, false, imports, scope2, _x("%v~[~i~]", goos_), gooeIsPtr, gooeType, _i("pboe"), fopts, newoptions)...),
 						),
 					),

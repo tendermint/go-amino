@@ -97,6 +97,27 @@ message SlicesStruct {
 	repeated google.protobuf.Timestamp TimeSl = 18;
 	repeated EmptyStruct EmptySl = 19;
 }
+message SlicesSlicesStruct {
+	repeated Int8List Int8SlSl = 1;
+	repeated Int16List Int16SlSl = 2;
+	repeated Int32List Int32SlSl = 3;
+	repeated Fixed32Int32List Int32FixedSlSl = 4;
+	repeated Int64List Int64SlSl = 5;
+	repeated Fixed64Int64List Int64FixedSlSl = 6;
+	repeated IntList IntSlSl = 7;
+	repeated bytes ByteSlSl = 8;
+	repeated bytes Uint8SlSl = 9;
+	repeated Uint16List Uint16SlSl = 10;
+	repeated Uint32List Uint32SlSl = 11;
+	repeated Fixed32Uint32List Uint32FixedSlSl = 12;
+	repeated Uint64List Uint64SlSl = 13;
+	repeated Fixed64Uint64List Uint64FixedSlSl = 14;
+	repeated UintList UintSlSl = 15;
+	repeated StringList StrSlSl = 16;
+	repeated BytesList BytesSlSl = 17;
+	repeated TimeList TimeSlSl = 18;
+	repeated EmptyStructList EmptySlSl = 19;
+}
 message PointersStruct {
 	sint32 Int8Pt = 1;
 	sint32 Int16Pt = 2;
@@ -253,17 +274,17 @@ message IntList {
 message Int16List {
 	repeated sint32 Value = 1;
 }
-message Fixed32Int32List {
-	repeated sfixed32 Value = 1;
-}
 message Int32List {
 	repeated sint32 Value = 1;
 }
-message Int64List {
-	repeated sint64 Value = 1;
+message Fixed32Int32List {
+	repeated sfixed32 Value = 1;
 }
 message Fixed64Int64List {
 	repeated sfixed64 Value = 1;
+}
+message Int64List {
+	repeated sint64 Value = 1;
 }
 message Int8List {
 	repeated sint32 Value = 1;
@@ -289,9 +310,9 @@ message Uint32List {
 message Fixed32Uint32List {
 	repeated fixed32 Value = 1;
 }
-message Uint64List {
-	repeated uint64 Value = 1;
-}
 message Fixed64Uint64List {
 	repeated fixed64 Value = 1;
+}
+message Uint64List {
+	repeated uint64 Value = 1;
 }

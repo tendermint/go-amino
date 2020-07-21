@@ -100,6 +100,28 @@ type SlicesStruct struct {
 	EmptySl       []EmptyStruct
 }
 
+type SlicesSlicesStruct struct {
+	Int8SlSl        [][]int8
+	Int16SlSl       [][]int16
+	Int32SlSl       [][]int32
+	Int32FixedSlSl  [][]int32 `binary:"fixed32"`
+	Int64SlSl       [][]int64
+	Int64FixedSlSl  [][]int64 `binary:"fixed64"`
+	IntSlSl         [][]int
+	ByteSlSl        [][]byte
+	Uint8SlSl       [][]uint8
+	Uint16SlSl      [][]uint16
+	Uint32SlSl      [][]uint32
+	Uint32FixedSlSl [][]uint32 `binary:"fixed32"`
+	Uint64SlSl      [][]uint64
+	Uint64FixedSlSl [][]uint64 `binary:"fixed64"`
+	UintSlSl        [][]uint
+	StrSlSl         [][]string
+	BytesSlSl       [][][]byte
+	TimeSlSl        [][]time.Time
+	EmptySlSl       [][]EmptyStruct
+}
+
 type PointersStruct struct {
 	Int8Pt        *int8
 	Int16Pt       *int16
@@ -210,6 +232,7 @@ var StructTypes = []interface{}{
 	(*ArraysStruct)(nil),
 	(*ArraysArraysStruct)(nil),
 	(*SlicesStruct)(nil),
+	(*SlicesSlicesStruct)(nil),
 	(*PointersStruct)(nil),
 	(*PointerSlicesStruct)(nil),
 	// (*NestedPointersStruct)(nil),
