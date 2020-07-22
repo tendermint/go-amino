@@ -268,8 +268,20 @@ message BytesList {
 message BytesListList {
 	repeated BytesList Value = 1;
 }
-message IntList {
-	repeated sint64 Value = 1;
+message EmptyStructList {
+	repeated EmptyStruct Value = 1;
+}
+message Fixed32Int32List {
+	repeated sfixed32 Value = 1;
+}
+message Fixed32Uint32List {
+	repeated fixed32 Value = 1;
+}
+message Fixed64Int64List {
+	repeated sfixed64 Value = 1;
+}
+message Fixed64Uint64List {
+	repeated fixed64 Value = 1;
 }
 message Int16List {
 	repeated sint32 Value = 1;
@@ -277,29 +289,20 @@ message Int16List {
 message Int32List {
 	repeated sint32 Value = 1;
 }
-message Fixed32Int32List {
-	repeated sfixed32 Value = 1;
-}
-message Fixed64Int64List {
-	repeated sfixed64 Value = 1;
-}
 message Int64List {
 	repeated sint64 Value = 1;
 }
 message Int8List {
 	repeated sint32 Value = 1;
 }
+message IntList {
+	repeated sint64 Value = 1;
+}
 message StringList {
 	repeated string Value = 1;
 }
-message EmptyStructList {
-	repeated EmptyStruct Value = 1;
-}
 message TimeList {
 	repeated google.protobuf.Timestamp Value = 1;
-}
-message UintList {
-	repeated uint64 Value = 1;
 }
 message Uint16List {
 	repeated uint32 Value = 1;
@@ -307,12 +310,9 @@ message Uint16List {
 message Uint32List {
 	repeated uint32 Value = 1;
 }
-message Fixed32Uint32List {
-	repeated fixed32 Value = 1;
-}
-message Fixed64Uint64List {
-	repeated fixed64 Value = 1;
-}
 message Uint64List {
+	repeated uint64 Value = 1;
+}
+message UintList {
 	repeated uint64 Value = 1;
 }

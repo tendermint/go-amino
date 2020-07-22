@@ -492,9 +492,9 @@ func sortFound(found map[string]NList) (res []NList) {
 		res = append(res, nl)
 	}
 	sort.Slice(res, func(i, j int) bool {
-		if res[i].UltiElem.Type.String() < res[j].UltiElem.Type.String() {
+		if res[i].Name() < res[j].Name() {
 			return true
-		} else if res[i].UltiElem.Type.String() == res[j].UltiElem.Type.String() {
+		} else if res[i].Name() == res[j].Name() {
 			return res[i].Dimensions < res[j].Dimensions
 		} else {
 			return false

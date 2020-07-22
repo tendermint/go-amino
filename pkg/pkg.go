@@ -63,7 +63,7 @@ func NewPackage(gopkgPath string, p3pkgName string, dirName string) *Package {
 	if gopkgPath != "" {
 		pkg := &Package{
 			GoPkgPath:    gopkgPath,
-			GoPkgName:    defaultPkgName(gopkgPath),
+			GoPkgName:    DefaultPkgName(gopkgPath),
 			DirName:      dirName,
 			Dependencies: nil,
 			Types:        nil,
@@ -295,7 +295,7 @@ func assertValidDirName(dirName string) {
 	}
 }
 
-func defaultPkgName(gopkgPath string) (name string) {
+func DefaultPkgName(gopkgPath string) (name string) {
 	parts := strings.Split(gopkgPath, "/")
 	last := parts[len(parts)-1]
 	parts = strings.Split(last, "-")
