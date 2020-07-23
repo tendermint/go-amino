@@ -204,6 +204,13 @@ message EmbeddedSt5 {
 	PointersStruct PointersStructField = 8;
 	uint64 Foo5 = 9;
 }
+message AminoMarshalerStruct {
+	repeated Pair Value = 1;
+}
+message Pair {
+	string Key = 1;
+	google.protobuf.Any Value = 2;
+}
 message IntDef {
 	sint64 Value = 1;
 }

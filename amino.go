@@ -15,6 +15,9 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/tendermint/go-amino/pkg"
+
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // Package "pkg" exists So dependencies can create Packages.
@@ -733,4 +736,57 @@ func GetCallersDirname() string {
 // bindings.  They are generated automatically by genproto/bindings.go
 type Object interface {
 	GetTypeURL() string
+}
+
+// TODO: this does need the cdc receiver,
+// as it should also work for non-pbbindings-optimized types.
+// Returns the default type url for the given concrete type.
+// XXX Unstable API.
+func (cdc *Codec) GetTypeURL(o interface{}) string {
+	if obj, ok := o.(Object); ok {
+		return obj.GetTypeURL()
+	}
+	switch o.(type) {
+	case time.Time, *time.Time, *timestamppb.Timestamp:
+		return "/google.protobuf.Timestamp"
+	case time.Duration, *time.Duration, *durationpb.Duration:
+		return "/google.protobuf.Duration"
+	}
+	rv := reflect.ValueOf(o)
+	switch rv.Kind() {
+	case reflect.String:
+		return "/google.protobuf.StringValue"
+	case reflect.Int64, reflect.Int:
+		return "/google.protobuf.Int64Value"
+	case reflect.Int32:
+		return "/google.protobuf.Int32Value"
+	case reflect.Int16:
+		return "/google.protobuf.Int32Value"
+	case reflect.Int8:
+		return "/google.protobuf.Int32Value"
+	case reflect.Uint64, reflect.Uint:
+		return "/google.protobuf.UInt64Value"
+	case reflect.Uint32:
+		return "/google.protobuf.UInt32Value"
+	case reflect.Uint16:
+		return "/google.protobuf.UInt32Value"
+	case reflect.Uint8:
+		return "/google.protobuf.UInt32Value"
+	case reflect.Bool:
+		return "/google.protobuf.BoolValue"
+	case reflect.Array:
+		if rv.Elem().Kind() == reflect.Uint8 {
+			return "/google.protobuf.BytesValue"
+		} else {
+			panic("not yet supported")
+		}
+	case reflect.Slice:
+		if rv.Elem().Kind() == reflect.Uint8 {
+			return "/google.protobuf.BytesValue"
+		} else {
+			panic("not yet supported")
+		}
+	default:
+		panic("not yet implemented")
+	}
 }

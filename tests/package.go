@@ -28,6 +28,8 @@ var Package = pkg.NewPackage(
 	EmbeddedSt3{},
 	EmbeddedSt4{},
 	EmbeddedSt5{},
+	AminoMarshalerStruct{},
+	Pair{},
 	IntDef(0),
 	IntAr{},
 	IntSl(nil),

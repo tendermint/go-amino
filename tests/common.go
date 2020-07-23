@@ -1,6 +1,9 @@
 package tests
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 //----------------------------------------
 // Struct types
@@ -175,6 +178,36 @@ type NestedPointersStruct struct {
 }
 */
 
+type AminoMarshalerStruct struct {
+	a string
+	B int32 // exposed
+}
+
+type Pair struct {
+	Key   string
+	Value interface{}
+}
+
+func (pr Pair) get(key string) (value interface{}) {
+	if pr.Key != key {
+		panic(fmt.Sprintf("wanted %v but is %v", key, pr.Key))
+	}
+	return pr.Value
+}
+
+func (f AminoMarshalerStruct) MarshalAmino() ([]Pair, error) {
+	return []Pair{
+		{"a", f.a},
+		{"B", f.B},
+	}, nil
+}
+
+func (f *AminoMarshalerStruct) UnmarshalAmino(repr []Pair) error {
+	f.a = repr[0].get("a").(string)
+	f.B = repr[1].get("B").(int32)
+	return nil
+}
+
 type ComplexSt struct {
 	PrField PrimitivesStruct
 	ArField ArraysStruct
@@ -242,6 +275,7 @@ var StructTypes = []interface{}{
 	(*EmbeddedSt3)(nil),
 	(*EmbeddedSt4)(nil),
 	(*EmbeddedSt5)(nil),
+	(*AminoMarshalerStruct)(nil),
 }
 
 //----------------------------------------

@@ -237,7 +237,7 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 	// TODO If not registered?
 	if !isRoot && gooType.Registered && hasPBBindings(gooType) {
 		// Call ToPBMessage().
-		pbote_, _ := p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
+		pbote_ := p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
 		pbom_ := addVarUniq(scope, "pbom")
 		b = append(b,
 			_a(pbom_, ":=", _x("proto.Message~(~nil~)")),
@@ -263,6 +263,27 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 	var goor ast.Expr
 	var goorType *amino.TypeInfo
 
+	// Maybe wrap pbo.
+	// NOTE: Instead of writing code to determine the .Value type,
+	// just lazily construct before assigning to pbo.
+	var wrapImplicitStruct bool
+	var maybeWrap = func(goor ast.Expr) ast.Expr {
+		if wrapImplicitStruct {
+			pbote_ := p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
+			if pbote_[0] != '*' {
+				panic("expected pointer kind for p3goTypeExprString (of type to be wrapped)")
+			}
+			dpbote_ := pbote_[1:]
+			return _ref(&ast.CompositeLit{
+				Type:       _x(dpbote_),
+				Elts:       []ast.Expr{_kv("Value", goor)},
+				Incomplete: false,
+			})
+		} else {
+			return goor
+		}
+	}
+
 	// Special case if IsAminoMarshaler.
 	if gooType.IsAminoMarshaler {
 		// First, derive repr instance.
@@ -277,7 +298,10 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 		// If gooType is struct but the repr type isn't, an implicit struct is needed.
 		if gooType.Type.Kind() == reflect.Struct &&
 			gooType.ReprType.Type.Kind() != reflect.Struct {
-			options |= option_implicit_repr
+			if gooType.ReprType.Type.Kind() == reflect.Interface {
+				panic("not yet tested")
+			}
+			wrapImplicitStruct = true
 		}
 		// Assign *goor*.
 		goor = _i(goor_)
@@ -289,7 +313,8 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 		if gooIsPtr {
 			dgoor_ := addVarUniq(scope, "dgoor")
 			b = append(b,
-				_a(dgoor_, ":=", _deref(goor)))
+				_a(dgoor_, ":=", _deref(goor)),
+				_a(dgoor_, "=", dgoor_)) // XXX
 			goor = _i(dgoor_)
 		}
 	}
@@ -326,7 +351,7 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 	// Special case, external empty types.
 	if gooType.Registered && hasPBBindings(gooType) {
 		if isRoot {
-			pbote_, _ := p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
+			pbote_ := p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
 			pbov_ := addVarUniq(scope, "pbov")
 			b = append(b,
 				_if(_call(_x("is%vEmptyRepr", gooType.Type.Name()), goor),
@@ -334,14 +359,18 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 					_a("msg", "=", pbov_),
 					_return()))
 		} else if !gooIsPtr {
+			// b switcharoo pattern
+			// statements after this pattern appended to b
+			// will come after the injected if-condition.
 			oldb := b
-			b = []ast.Stmt(nil) // switcharoo
+			b = []ast.Stmt(nil)
 			defer func() {
-				newb := b
+				newb := b // named for clarity
 				b = append(oldb,
 					_if(_not(_call(_x("is%vEmptyRepr", gooType.Type.Name()), goor)),
 						newb...))
 			}()
+			// end b switcharoo pattern
 		}
 	}
 
@@ -351,15 +380,15 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 	case reflect.Interface:
 		typeUrl_ := addVarUniq(scope, "typeUrl")
 		bz_ := addVarUniq(scope, "bz")
-		anyte_, _ := p3goTypeExprString(rootPkg, imports, scope, goorType, fopts)
+		anyte_ := p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
 		if anyte_[0] != '*' {
 			panic("expected pointer kind for p3goTypeExprString (of interface type)")
 		}
 		danyte_ := anyte_[1:]
 		b = append(b,
-			_a(typeUrl_, ":=", _call(_sel(_ta(goo, _x("amino.Object")), "GetTypeURL"))),
+			_a(typeUrl_, ":=", _call(_x("cdc.GetTypeURL"), goo)),
 			_a(bz_, ":=", "[]byte~(~nil~)"),
-			_a(bz_, "err", "=", _call(_sel(_i("cdc"), "MarshalBinaryBare"), goor)),
+			_a(bz_, "err", "=", _call(_x("cdc.MarshalBinaryBare"), goor)),
 			_if(_x("err__!=__nil"),
 				_return(),
 			),
@@ -368,20 +397,20 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 
 	case reflect.Int:
 		b = append(b,
-			_a(pbo, "=", _call(_i("int64"), goor)))
+			_a(pbo, "=", maybeWrap(_call(_i("int64"), goor))))
 	case reflect.Int16, reflect.Int8:
 		b = append(b,
-			_a(pbo, "=", _call(_i("int32"), goor)))
+			_a(pbo, "=", maybeWrap(_call(_i("int32"), goor))))
 	case reflect.Uint:
 		b = append(b,
-			_a(pbo, "=", _call(_i("uint64"), goor)))
+			_a(pbo, "=", maybeWrap(_call(_i("uint64"), goor))))
 	case reflect.Uint16:
 		b = append(b,
-			_a(pbo, "=", _call(_i("uint32"), goor)))
+			_a(pbo, "=", maybeWrap(_call(_i("uint32"), goor))))
 	case reflect.Uint8:
 		if options&option_bytes == 0 {
 			b = append(b,
-				_a(pbo, "=", _call(_i("uint32"), goor)))
+				_a(pbo, "=", maybeWrap(_call(_i("uint32"), goor))))
 		} else {
 			b = append(b,
 				_a(pbo, "=", _call(_i("byte"), goor)))
@@ -392,8 +421,10 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 		var gooreIsPtr = goorType.ElemIsPtr
 		var gooreType = goorType.Elem
 		var dpbote_ string
-		var pbote_, pboIsImplicit = p3goTypeExprString(rootPkg, imports, scope, goorType, fopts)
-		var pboete_, pboeIsImplicit = p3goTypeExprString(rootPkg, imports, scope, gooreType, fopts)
+		var pbote_ = p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
+		var pboIsImplicit = isImplicitList(goorType, fopts)
+		var pboete_ = p3goTypeExprString(rootPkg, imports, scope, gooreType, fopts)
+		var pboeIsImplicit = isImplicitList(gooreType, fopts)
 
 		// Set option of bytes.
 		if pboete_ == "uint8" {
@@ -414,9 +445,6 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 		if pboeIsImplicit {
 			newoptions |= option_implicit_list
 		}
-
-		// XXX The problem is that options is 0.
-		// fmt.Println("WWWWW", pboIsImplicit, goorType, options)
 
 		// Construct, translate, assign.
 		goorl_ := addVarUniq(scope, "goorl")
@@ -444,12 +472,12 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 					),
 					_ctif((pboIsImplicit && options&option_implicit_list != 0), // compile time if
 						_a(pbo, "=", _x("&%v~{~Value:%v~}", dpbote_, pbos_)), // then
-						_a(pbo, "=", pbos_), // else
+						_a(pbo, "=", maybeWrap(_i(pbos_))),                   // else
 					),
 				)))
 
 	case reflect.Struct:
-		pbote_, _ := p3goTypeExprString(rootPkg, imports, scope, goorType, fopts)
+		pbote_ := p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
 		if pbote_[0] != '*' {
 			panic("expected pointer kind for p3goTypeExprString of struct type")
 		}
@@ -473,7 +501,7 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 
 	default:
 		// General translation.
-		b = append(b, _a(pbo, "=", goor))
+		b = append(b, _a(pbo, "=", maybeWrap(goor)))
 
 	}
 	return b
@@ -513,31 +541,45 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 	}
 	// Below, we can assume that pbo isn't a nil struct (that isn't timestamp).
 
-	// First we need to construct the goo.
-	// NOTE Unlike go2pb, due to the asymmetry of FromPBMessage/ToPBMessage,
-	// and MarshalAmino/UnmarshalAmino, both pairs which require that goo not
-	// be nil (so we must instantiate new() here).  On the other hand, go2pb's
-	// instantiation of corresponding pb objects depends on the kind, so it
-	// cannot be done before the switch cases like here.
-	if gooIsPtr && !isRoot {
-		dgoote_ := goTypeExprString(rootPkg, imports, scope, false, gooType)
-		b = append(b,
-			_a(goo, "=", _x("new~(~%v~)", dgoote_)))
-		goo = _deref(goo)
-	}
-	// Below, we can assume that goo is a valid non-pointer.
+	if !isRoot {
+		// First we need to construct the goo.
+		// NOTE Unlike go2pb, due to the asymmetry of FromPBMessage/ToPBMessage,
+		// and MarshalAmino/UnmarshalAmino, both pairs which require that goo not
+		// be nil (so we must instantiate new() here).  On the other hand, go2pb's
+		// instantiation of corresponding pb objects depends on the kind, so it
+		// cannot be done before the switch cases like here.
+		if gooIsPtr {
+			dgoote_ := goTypeExprString(rootPkg, imports, scope, false, gooType)
+			b = append(b,
+				_a(goo, "=", _x("new~(~%v~)", dgoote_)))
+		}
 
-	// External case.
-	// If gooType is registered, just call FromPBMessage.
-	// TODO If not registered?
-	if !isRoot && gooType.Registered && hasPBBindings(gooType) {
-		b = append(b,
-			_a(_i("err"), "=", _call(_sel(goo, "FromPBMessage"), _i("cdc"), pbo)),
-			_if(_x("err__!=__nil"),
-				_return(),
-			),
-		)
-		return
+		// External case.
+		// If gooType is registered, just call FromPBMessage.
+		// TODO If not registered?
+		if gooType.Registered && hasPBBindings(gooType) {
+			b = append(b,
+				_a(_i("err"), "=", _call(_sel(goo, "FromPBMessage"), _i("cdc"), pbo)),
+				_if(_x("err__!=__nil"),
+					_return(),
+				),
+			)
+			return
+		}
+	}
+
+	// Use *goor* for goo's repr.
+	var goor ast.Expr
+	var goorType *amino.TypeInfo
+
+	// Maybe unwrap pbo.
+	var unwrapImplicitStruct bool
+	var maybeUnwrap = func(pbo ast.Expr) ast.Expr {
+		if unwrapImplicitStruct {
+			return _sel(pbo, "Value")
+		} else {
+			return pbo
+		}
 	}
 
 	// Special case if IsAminoMarshaler.
@@ -546,48 +588,64 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 		// First, construct new repr instance.
 		goorte_ := goTypeExprString(rootPkg, imports, scope, false, gooType.ReprType)
 		goor_ := addVarUniq(scope, "goor")
-		scope2 := ast.NewScope(scope)
 		b = append(b,
 			_var(goor_, _x(goorte_), nil))
-		// Then, transcribe to repr var.
-		b = append(b, _block(
-			pb2goStmts(rootPkg, isRoot, imports, scope2, _i(goor_), false, gooType.ReprType, pbo, fopts, options)...))
-		// Finally, unmarshal to goo.
-		b = append(b,
-			_a("err", "=", _call(_sel(goo, "UnmarshalAmino"), _i(goor_))),
-			_if(_x("err__!=__nil"),
-				_return(),
-			),
-		)
-		return
+		// After doing what we'd normally do w/ repr,
+		// unmarshal amino onto goo.
+		defer func() {
+			// Finally, unmarshal to goo.
+			b = append(b,
+				_a("err", "=", _call(_sel(goo, "UnmarshalAmino"), _i(goor_))),
+				_if(_x("err__!=__nil"),
+					_return(),
+				),
+			)
+		}()
+		// If gooType is struct but the repr type isn't, an implicit struct is needed.
+		if gooType.Type.Kind() == reflect.Struct &&
+			gooType.ReprType.Type.Kind() != reflect.Struct {
+			if gooType.ReprType.Type.Kind() == reflect.Interface {
+				panic("not yet tested")
+			}
+			unwrapImplicitStruct = true
+		}
+		// Assign *goor*
+		goor = _i(goor_)
+		goorType = gooType.ReprType
+	} else {
+		// Assign *goor*
+		goor = goo
+		goorType = gooType
+		if gooIsPtr {
+			goor = _deref(goo)
+		}
 	}
-	// Below, we can assume that gooType isn't amino.Marshaler.
 
 	// Special case for time/duration.
-	switch gooType.Type {
+	switch goorType.Type {
 	case timeType:
 		b = append(b,
-			_a(goo, "=", _call(_sel(pbo, "AsTime"))))
+			_a(goor, "=", _call(_sel(pbo, "AsTime"))))
 		return
 	case durationType:
 		b = append(b,
-			_a(goo, "=", _call(_sel(pbo, "AsDuration"))))
+			_a(goor, "=", _call(_sel(pbo, "AsDuration"))))
 		return
 	}
 
 	// General case
-	switch gooType.Type.Kind() {
+	switch goorType.Type.Kind() {
 
 	case reflect.Interface:
 		typeUrl_ := addVarUniq(scope, "typeUrl")
 		bz_ := addVarUniq(scope, "bz")
-		goop_ := addVarUniq(scope, "goop")
+		goorp_ := addVarUniq(scope, "goorp")
 		b = append(b,
 			_a(typeUrl_, ":=", _sel(pbo, "TypeUrl")),
 			_a(bz_, ":=", _sel(pbo, "Value")),
-			_a(goop_, ":=", _ref(goo)), // goo is addressable. NOTE &*a == a if a != nil.
+			_a(goorp_, ":=", _ref(goor)), // goor is addressable. NOTE &*a == a if a != nil.
 			_a("err", "=", _x("cdc.UnmarshalBinaryAny~(~%v,%v,%v~)",
-				typeUrl_, bz_, goop_)),
+				typeUrl_, bz_, goorp_)),
 			_if(_x("err__!=__nil"),
 				_return(),
 			),
@@ -595,124 +653,125 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 
 	case reflect.Int:
 		b = append(b,
-			_a(goo, "=", _call(_i("int"), pbo)))
+			_a(goor, "=", _call(_i("int"), maybeUnwrap(pbo))))
 	case reflect.Int16:
 		b = append(b,
-			_a(goo, "=", _call(_i("int16"), pbo)))
+			_a(goor, "=", _call(_i("int16"), maybeUnwrap(pbo))))
 	case reflect.Int8:
 		b = append(b,
-			_a(goo, "=", _call(_i("int8"), pbo)))
+			_a(goor, "=", _call(_i("int8"), maybeUnwrap(pbo))))
 	case reflect.Uint:
 		b = append(b,
-			_a(goo, "=", _call(_i("uint"), pbo)))
+			_a(goor, "=", _call(_i("uint"), maybeUnwrap(pbo))))
 	case reflect.Uint16:
 		b = append(b,
-			_a(goo, "=", _call(_i("uint16"), pbo)))
+			_a(goor, "=", _call(_i("uint16"), maybeUnwrap(pbo))))
 	case reflect.Uint8:
 		b = append(b,
-			_a(goo, "=", _call(_i("uint8"), pbo)))
+			_a(goor, "=", _call(_i("uint8"), maybeUnwrap(pbo))))
 
 	case reflect.Array:
 		var newoptions uint64
-		var gooLen = gooType.Type.Len()
-		var gooeType = gooType.Elem
-		var gooeIsPtr = gooType.ElemIsPtr
-		var gooete_ = goTypeExprString(rootPkg, imports, scope, gooeIsPtr, gooeType)
-		var _, pboeIsImplicit = p3goTypeExprString(rootPkg, imports, scope, gooeType, fopts)
-
-		// Set option for element to be wrapped with implicit list struct.
-		if pboeIsImplicit {
-			newoptions |= option_implicit_list
-		}
+		var goorLen = goorType.Type.Len()
+		var gooreType = goorType.Elem
+		var gooreIsPtr = goorType.ElemIsPtr
+		var goorete_ = goTypeExprString(rootPkg, imports, scope, gooreIsPtr, gooreType)
+		var pboeIsImplicit = isImplicitList(gooreType, fopts)
 
 		// Construct, translate, assign.
-		goos_ := addVarUniq(scope, "goos")
+		goors_ := addVarUniq(scope, "goors")
 		scope2 := ast.NewScope(scope)
-		addVars(scope2, "i", "pboe")
+		addVars(scope2, "i", "pboe", "pboev")
+		subStmts := pb2goStmts(rootPkg, false, imports, scope2, _x("%v~[~i~]", goors_), gooreIsPtr, gooreType, _i("pboev"), fopts, newoptions)
 		b = append(b,
-			_var(goos_, nil, _x("[%v]%v~{~~}", gooLen, gooete_)),
+			_var(goors_, nil, _x("[%v]%v~{~~}", goorLen, goorete_)),
 			_for(
 				_a("i", ":=", "0"),
-				_x("i__<__%v", gooLen),
+				_x("i__<__%v", goorLen),
 				_a("i", "+=", "1"),
 				_block(
 					// Translate in place.
-					_ctif((options&option_implicit_list != 0), // compile time if
-						_a("pboe", ":=", _idx(_sel(pbo, "Value"), _i("i"))), // then
-						_a("pboe", ":=", _idx(pbo, _i("i"))),                // else
+					_a("pboe", ":=", _idx(maybeUnwrap(pbo), _i("i"))),
+					_ctif(pboeIsImplicit,
+						_if(_x("pboe__!=__nil"),
+							_block(append([]ast.Stmt{
+								_a("pboev", ":=", "pboe.Value")},
+								subStmts...)...),
+						),
+						_block(append([]ast.Stmt{
+							_a("pboev", ":=", "pboe")},
+							subStmts...)...),
 					),
-					_block(pb2goStmts(rootPkg, false, imports, scope2, _x("%v~[~i~]", goos_), gooeIsPtr, gooeType, _i("pboe"), fopts, newoptions)...),
 				),
 			),
-			_a(goo, "=", goos_),
+			_a(goor, "=", goors_),
 		)
 
 	case reflect.Slice:
 		var newoptions uint64
-		var gooeType = gooType.Elem
-		var gooeIsPtr = gooType.ElemIsPtr
-		var gooete_ = goTypeExprString(rootPkg, imports, scope, gooeIsPtr, gooeType)
-		var _, pboeIsImplicit = p3goTypeExprString(rootPkg, imports, scope, gooeType, fopts)
-
-		// Set option for element to be wrapped with implicit list struct.
-		if pboeIsImplicit {
-			newoptions |= option_implicit_list
-		}
+		var gooreType = goorType.Elem
+		var gooreIsPtr = goorType.ElemIsPtr
+		var goorete_ = goTypeExprString(rootPkg, imports, scope, gooreIsPtr, gooreType)
+		var pboeIsImplicit = isImplicitList(gooreType, fopts)
 
 		// Construct, translate, assign.
 		pbol_ := addVarUniq(scope, "pbol")
-		goos_ := addVarUniq(scope, "goos")
+		goors_ := addVarUniq(scope, "goors")
 		scope2 := ast.NewScope(scope)
-		addVars(scope2, "i", "pboe")
+		addVars(scope2, "i", "pboe", "pboev")
+		subStmts := pb2goStmts(rootPkg, false, imports, scope2, _x("%v~[~i~]", goors_), gooreIsPtr, gooreType, _i("pboev"), fopts, newoptions)
 		b = append(b,
 			_var(pbol_, _i("int"), _x("0")),
 			_if(_b(pbo, "!=", "nil"),
-				_ctif((options&option_implicit_list != 0), // compile time if
-					_a(pbol_, "=", _len(_sel(pbo, "Value"))), // then
-					_a(pbol_, "=", _len(pbo)),                // else
-				),
+				_a(pbol_, "=", _len(maybeUnwrap(pbo))),
 			),
 			_ife(_x("%v__==__0", pbol_),
 				_block( // then
 					// Prefer nil for empty slices for less gc overhead.
-					_a(goo, "=", _i("nil")),
+					_a(goor, "=", _i("nil")),
 				),
 				_block( // else
-					_var(goos_, nil, _x("make~(~[]%v,%v~)", gooete_, pbol_)),
+					_var(goors_, nil, _x("make~(~[]%v,%v~)", goorete_, pbol_)),
 					_for(
 						_a("i", ":=", "0"),
 						_x("i__<__%v", pbol_),
 						_a("i", "+=", "1"),
 						_block(
 							// Translate in place.
-							_ctif((options&option_implicit_list != 0), // compile time if
-								_a("pboe", ":=", _idx(_sel(pbo, "Value"), _i("i"))), // then
-								_a("pboe", ":=", _idx(pbo, _i("i"))),                // else
+							_a("pboe", ":=", _idx(maybeUnwrap(pbo), _i("i"))),
+							_ctif(pboeIsImplicit,
+								_if(_x("pboe__!=__nil"),
+									_block(append([]ast.Stmt{
+										_a("pboev", ":=", "pboe.Value")},
+										subStmts...)...)),
+								_block(append([]ast.Stmt{
+									_a("pboev", ":=", "pboe")},
+									subStmts...)...),
 							),
-							_block(pb2goStmts(rootPkg, false, imports, scope2, _x("%v~[~i~]", goos_), gooeIsPtr, gooeType, _i("pboe"), fopts, newoptions)...),
 						),
 					),
-					_a(goo, "=", goos_),
-				)),
+					_a(goor, "=", goors_),
+				),
+			),
 		)
 
 	case reflect.Struct:
-		for _, field := range gooType.Fields {
+		for _, field := range goorType.Fields {
 			var pbof = _sel(pbo, field.Name) // next pbo.
-			var goofIsPtr = field.IsPtr()
-			var goofType = field.TypeInfo
-			var goof = _sel(goo, field.Name) // next goo.
+			var goorfIsPtr = field.IsPtr()
+			var goorfType = field.TypeInfo
+			var goorf = _sel(goor, field.Name) // next goor.
 
 			// Translate in place.
 			scope2 := ast.NewScope(scope)
 			b = append(b,
-				_block(pb2goStmts(rootPkg, false, imports, scope2, goof, goofIsPtr, goofType, pbof, field.FieldOptions, 0)...),
+				_block(pb2goStmts(rootPkg, false, imports, scope2, goorf, goorfIsPtr, goorfType, pbof, field.FieldOptions, 0)...),
 			)
 		}
 
 	default:
 		// General translation.
-		b = append(b, _a(goo, "=", pbo))
+		b = append(b, _a(goor, "=", maybeUnwrap(pbo)))
 	}
 	return b
 }
@@ -743,7 +802,8 @@ func isEmptyReprStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, goo a
 	// for time. Amino marshallers are empty iff nil.
 
 	// Use *goor* for goo's repr.
-	var goor = goo
+	var goor ast.Expr
+	var goorType *amino.TypeInfo
 
 	// Special case if IsAminoMarshaler.
 	// NOTE: That this calls MarshalAminop due to the possible nested repr
@@ -753,24 +813,33 @@ func isEmptyReprStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, goo a
 	// or not only depending on the nil-ness of a pointer to a struct.  Amino2
 	// doesn't need this restriction, if we are detaching from proto3.
 	if gooType.IsAminoMarshaler {
-		// First, derive repr instance.
-		goor_ := addVarUniq(scope, "goor")
-		err_ := addVarUniq(scope, "err") // do not shadow original err
-		b = append(b,
-			_a(goor_, err_, ":=", _call(_sel(goo, "MarshalAmino"))),
-			_if(_x("%v__!=__nil", err_),
-				_return(_x("nil"), _i(err_)),
-			),
-		)
-		// Assign *goor*.
-		goor = _i(goor_)
+		if isRoot {
+			// If isRoot, goo is already the repr type.
+			goor = goo
+			goorType = gooType.ReprType
+		} else {
+			// First, derive repr instance.
+			goor_ := addVarUniq(scope, "goor")
+			err_ := addVarUniq(scope, "err") // do not shadow original err
+			b = append(b,
+				_a(goor_, err_, ":=", _call(_sel(goo, "MarshalAmino"))),
+				_if(_x("%v__!=__nil", err_),
+					_return(_x("nil"), _i(err_)),
+				),
+			)
+			// Assign *goor*.
+			goor = _i(goor_)
+			goorType = gooType.ReprType
+		}
 	} else {
 		// Assign *goor*.
 		goor = goo
+		goorType = gooType
 		if gooIsPtr {
 			dgoor_ := addVarUniq(scope, "dgoor")
 			b = append(b,
-				_a(dgoor_, ":=", _deref(goor)))
+				_a(dgoor_, ":=", _deref(goor)),
+				_a(dgoor_, "=", dgoor_)) // XXX
 			goor = _i(dgoor_)
 		}
 	}
@@ -791,7 +860,7 @@ func isEmptyReprStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, goo a
 	}
 
 	// General case
-	switch gooType.Type.Kind() {
+	switch goorType.Type.Kind() {
 
 	case reflect.Interface:
 		b = append(b,
@@ -804,22 +873,22 @@ func isEmptyReprStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, goo a
 
 	case reflect.Struct:
 		// Special case for time.  The default behavior is fine for time.Duration.
-		switch gooType.Type {
+		switch goorType.Type {
 		case timeType:
 			b = append(b,
 				_if(_not(_call(_x("amino.IsEmptyTime"), goor)),
 					_return(_x("false"))))
 			return
 		default:
-			for _, field := range gooType.Fields {
-				var goof = _sel(goor, field.Name) // next goo
-				var goofIsPtr = field.IsPtr()
-				var goofType = field.TypeInfo.ReprType
+			for _, field := range goorType.Fields {
+				var goorf = _sel(goor, field.Name) // next goo
+				var goorfIsPtr = field.IsPtr()
+				var goorfType = field.TypeInfo.ReprType
 
 				// Translate in place.
 				scope2 := ast.NewScope(scope)
 				b = append(b,
-					_block(isEmptyReprStmts(false, imports, scope2, goof, goofIsPtr, goofType)...),
+					_block(isEmptyReprStmts(false, imports, scope2, goorf, goorfIsPtr, goorfType)...),
 				)
 			}
 		}
@@ -827,7 +896,7 @@ func isEmptyReprStmts(isRoot bool, imports *ast.GenDecl, scope *ast.Scope, goo a
 	default:
 		// General translation.
 		b = append(b,
-			_if(_b(goor, "!=", defaultExpr(gooType.Type.Kind())),
+			_if(_b(goor, "!=", defaultExpr(goorType.Type.Kind())),
 				_return(_i("false"))))
 	}
 	return b
@@ -1110,7 +1179,11 @@ func _x(expr string, args ...interface{}) ast.Expr {
 			parts := strings.Split(right, ",")
 			for _, part := range parts {
 				if strings.TrimSpace(part) != "" {
-					elts = append(elts, _kv(part))
+					parts := strings.Split(part, ":")
+					if len(parts) != 2 {
+						panic("key:value requires 1 colon")
+					}
+					elts = append(elts, _kv(parts[0], parts[1]))
 				}
 			}
 			return &ast.CompositeLit{
@@ -1225,14 +1298,21 @@ func lowestMatch(op string) int {
 	return -1
 }
 
-func _kv(kv string) *ast.KeyValueExpr {
-	parts := strings.Split(kv, ":")
-	if len(parts) != 2 {
-		panic("_kv requires 1 colon")
+func _kv(k, v interface{}) *ast.KeyValueExpr {
+	var kx, vx ast.Expr
+	if ks, ok := k.(string); ok {
+		kx = _x(ks)
+	} else {
+		kx = k.(ast.Expr)
+	}
+	if vs, ok := v.(string); ok {
+		vx = _x(vs)
+	} else {
+		vx = v.(ast.Expr)
 	}
 	return &ast.KeyValueExpr{
-		Key:   _x(parts[0]),
-		Value: _x(parts[1]),
+		Key:   kx,
+		Value: vx,
 	}
 }
 
@@ -1772,58 +1852,84 @@ func goTypeExprString(rootPkg *amino.Package, imports *ast.GenDecl, scope *ast.S
 	}
 }
 
-// implicit: True if when info is an element of an array, element (info)
-// would require an implicit list-struct wrapper.
-func p3goTypeExprString(rootPkg *amino.Package, imports *ast.GenDecl, scope *ast.Scope, info *amino.TypeInfo, fopts amino.FieldOptions) (typeExpr string, implicit bool) {
-	k := info.ReprType.Type.Kind()
+// The relevant pre-repr p3-protoc generated go-type's type-expr.
+// This is used for construction.
+func p3goTypeExprString(rootPkg *amino.Package, imports *ast.GenDecl, scope *ast.Scope, info *amino.TypeInfo, fopts amino.FieldOptions) (typeExpr string) {
+	k := info.Type.Kind()
 	switch k {
 	case reflect.Array, reflect.Slice:
-		if info.ReprType.Elem.ReprType.Type.Kind() == reflect.Uint8 {
-			return "[]byte", false
+		// As a special case, if the repr-type's type is bytes,
+		// we prefer bytes/[]byte instead of []struct{Value byte}.
+		if info.Elem.ReprType.Type.Kind() == reflect.Uint8 {
+			return "[]byte"
 		} else {
 			nl := newNList(rootPkg, info, fopts)
-			return nl.P3GoExprString(imports, scope), nl.Dimensions >= 1
+			return nl.P3GoExprString(imports, scope)
 		}
 	case reflect.Interface:
 		anypb := addImportAuto(imports, scope, "anypb", "google.golang.org/protobuf/types/known/anypb")
-		return fmt.Sprintf("*%v.Any", anypb), false
+		return fmt.Sprintf("*%v.Any", anypb)
 	case reflect.Struct:
 		// Special cases.
 		// TODO: somehow refactor into wellknown.go
-		switch info.ReprType.Type {
+		switch info.Type {
 		case timeType:
 			pkgName := addImportAuto(
 				imports, scope, "timestamppb", "google.golang.org/protobuf/types/known/timestamppb")
-			return fmt.Sprintf("*%v.%v", pkgName, "Timestamp"), false
+			return fmt.Sprintf("*%v.%v", pkgName, "Timestamp")
 		case durationType:
 			pkgName := addImportAuto(
 				imports, scope, "durationpb", "google.golang.org/protobuf/types/known/durationpb")
-			return fmt.Sprintf("*%v.%v", pkgName, "Duration"), false
+			return fmt.Sprintf("*%v.%v", pkgName, "Duration")
 		}
 		pkg := info.Package
 		if pkg == nil {
 			panic(fmt.Sprintf("package not registered for type %v", info))
 		}
 		pkgName := addImportAuto(imports, scope, pkg.GoPkgName+"pb", pkg.P3GoPkgPath)
-		return fmt.Sprintf("*%v.%v", pkgName, info.ReprType.Type.Name()), false
+		return fmt.Sprintf("*%v.%v", pkgName, info.Type.Name())
 	case reflect.Int:
-		return "int64", false
+		return "int64"
 	case reflect.Uint:
-		return "uint64", false
+		return "uint64"
 	case reflect.Int8:
-		return "int32", false
+		return "int32"
 	case reflect.Uint8:
-		return "uint8", false // bytes
+		return "uint8" // bytes
 	case reflect.Int16:
-		return "int32", false
+		return "int32"
 	case reflect.Uint16:
-		return "uint32", false
+		return "uint32"
 	default:
-		te := info.ReprType.Type.String()
+		te := info.Type.String()
 		if te == "" {
 			panic("unexpected empty type expr string")
 		}
-		return te, false
+		return te
+	}
+}
+
+// Returns true if when info's repr is an unpacked list, thus requiring an
+// implicit struct for an array of info when info is further an element of an
+// array or slice.
+//
+// In other words, returns true when an implicit struct{Value []SomethingList}
+// is required in a parent list, required for the following transform:
+//
+//  go:   struct{NestedList: [][]SomethingList} -->
+//  p3go: struct{NestedList: []struct{Value []SomethingListRepr}}
+func isImplicitList(info *amino.TypeInfo, fopts amino.FieldOptions) (implicit bool) {
+	k := info.ReprType.Type.Kind()
+	switch k {
+	case reflect.Array, reflect.Slice:
+		if info.ReprType.Elem.ReprType.Type.Kind() == reflect.Uint8 {
+			return false
+		} else {
+			nl := newNList(nil, info, fopts)
+			return nl.Dimensions >= 1
+		}
+	default:
+		return false
 	}
 }
 
