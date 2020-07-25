@@ -22,6 +22,11 @@ func (goo EmptyStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 	msg = pbo
 	return
 }
+func (goo EmptyStruct) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.EmptyStruct)
+	msg = pbo
+	return
+}
 func (goo *EmptyStruct) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
 	var pbo *testspb.EmptyStruct = msg.(*testspb.EmptyStruct)
 	{
@@ -127,6 +132,11 @@ func (goo PrimitivesStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, er
 			pbo.Empty = pbom.(*testspb.EmptyStruct)
 		}
 	}
+	msg = pbo
+	return
+}
+func (goo PrimitivesStruct) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.PrimitivesStruct)
 	msg = pbo
 	return
 }
@@ -352,6 +362,11 @@ func (goo ShortArraysStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, e
 			}
 		}
 	}
+	msg = pbo
+	return
+}
+func (goo ShortArraysStruct) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.ShortArraysStruct)
 	msg = pbo
 	return
 }
@@ -744,6 +759,11 @@ func (goo ArraysStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err er
 			}
 		}
 	}
+	msg = pbo
+	return
+}
+func (goo ArraysStruct) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.ArraysStruct)
 	msg = pbo
 	return
 }
@@ -1752,6 +1772,11 @@ func (goo ArraysArraysStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, 
 	msg = pbo
 	return
 }
+func (goo ArraysArraysStruct) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.ArraysArraysStruct)
+	msg = pbo
+	return
+}
 func (goo *ArraysArraysStruct) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
 	var pbo *testspb.ArraysArraysStruct = msg.(*testspb.ArraysArraysStruct)
 	{
@@ -2712,6 +2737,11 @@ func (goo SlicesStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err er
 			}
 		}
 	}
+	msg = pbo
+	return
+}
+func (goo SlicesStruct) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.SlicesStruct)
 	msg = pbo
 	return
 }
@@ -3872,6 +3902,11 @@ func (goo SlicesSlicesStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, 
 	msg = pbo
 	return
 }
+func (goo SlicesSlicesStruct) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.SlicesSlicesStruct)
+	msg = pbo
+	return
+}
 func (goo *SlicesSlicesStruct) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
 	var pbo *testspb.SlicesSlicesStruct = msg.(*testspb.SlicesSlicesStruct)
 	{
@@ -4948,6 +4983,11 @@ func (goo PointersStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err 
 	msg = pbo
 	return
 }
+func (goo PointersStruct) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.PointersStruct)
+	msg = pbo
+	return
+}
 func (goo *PointersStruct) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
 	var pbo *testspb.PointersStruct = msg.(*testspb.PointersStruct)
 	{
@@ -5659,6 +5699,11 @@ func (goo PointerSlicesStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message,
 	msg = pbo
 	return
 }
+func (goo PointerSlicesStruct) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.PointerSlicesStruct)
+	msg = pbo
+	return
+}
 func (goo *PointerSlicesStruct) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
 	var pbo *testspb.PointerSlicesStruct = msg.(*testspb.PointerSlicesStruct)
 	{
@@ -6257,6 +6302,11 @@ func (goo ComplexSt) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error
 	msg = pbo
 	return
 }
+func (goo ComplexSt) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.ComplexSt)
+	msg = pbo
+	return
+}
 func (goo *ComplexSt) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
 	var pbo *testspb.ComplexSt = msg.(*testspb.ComplexSt)
 	{
@@ -6351,6 +6401,11 @@ func (goo EmbeddedSt1) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 	msg = pbo
 	return
 }
+func (goo EmbeddedSt1) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.EmbeddedSt1)
+	msg = pbo
+	return
+}
 func (goo *EmbeddedSt1) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
 	var pbo *testspb.EmbeddedSt1 = msg.(*testspb.EmbeddedSt1)
 	{
@@ -6424,6 +6479,11 @@ func (goo EmbeddedSt2) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 			pbo.PointersStruct = pbom.(*testspb.PointersStruct)
 		}
 	}
+	msg = pbo
+	return
+}
+func (goo EmbeddedSt2) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.EmbeddedSt2)
 	msg = pbo
 	return
 }
@@ -6575,6 +6635,11 @@ func (goo EmbeddedSt3) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 			}
 		}
 	}
+	msg = pbo
+	return
+}
+func (goo EmbeddedSt3) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.EmbeddedSt3)
 	msg = pbo
 	return
 }
@@ -6736,6 +6801,11 @@ func (goo EmbeddedSt4) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 			pbo.Foo5 = uint64(goo.Foo5)
 		}
 	}
+	msg = pbo
+	return
+}
+func (goo EmbeddedSt4) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.EmbeddedSt4)
 	msg = pbo
 	return
 }
@@ -6964,6 +7034,11 @@ func (goo EmbeddedSt5) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err err
 	msg = pbo
 	return
 }
+func (goo EmbeddedSt5) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.EmbeddedSt5)
+	msg = pbo
+	return
+}
 func (goo *EmbeddedSt5) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
 	var pbo *testspb.EmbeddedSt5 = msg.(*testspb.EmbeddedSt5)
 	{
@@ -7131,6 +7206,11 @@ func (goo AminoMarshalerStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message
 	msg = pbo
 	return
 }
+func (goo AminoMarshalerStruct) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.AminoMarshalerStruct)
+	msg = pbo
+	return
+}
 func (goo *AminoMarshalerStruct) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
 	var pbo *testspb.AminoMarshalerStruct = msg.(*testspb.AminoMarshalerStruct)
 	{
@@ -7202,6 +7282,11 @@ func (goo Pair) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 			}
 		}
 	}
+	msg = pbo
+	return
+}
+func (goo Pair) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.Pair)
 	msg = pbo
 	return
 }
@@ -7332,6 +7417,11 @@ func (goo PrimitivesStructDef) ToPBMessage(cdc *amino.Codec) (msg proto.Message,
 			pbo.Empty = pbom.(*testspb.EmptyStruct)
 		}
 	}
+	msg = pbo
+	return
+}
+func (goo PrimitivesStructDef) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.PrimitivesStructDef)
 	msg = pbo
 	return
 }
@@ -7541,6 +7631,11 @@ func (goo Concrete1) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error
 	msg = pbo
 	return
 }
+func (goo Concrete1) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.Concrete1)
+	msg = pbo
+	return
+}
 func (goo *Concrete1) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
 	var pbo *testspb.Concrete1 = msg.(*testspb.Concrete1)
 	{
@@ -7568,6 +7663,11 @@ func (goo Concrete2) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error
 		}
 		pbo = new(testspb.Concrete2)
 	}
+	msg = pbo
+	return
+}
+func (goo Concrete2) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.Concrete2)
 	msg = pbo
 	return
 }
@@ -7615,6 +7715,11 @@ func (goo ConcreteWrappedBytes) ToPBMessage(cdc *amino.Codec) (msg proto.Message
 			}
 		}
 	}
+	msg = pbo
+	return
+}
+func (goo ConcreteWrappedBytes) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.ConcreteWrappedBytes)
 	msg = pbo
 	return
 }
@@ -7715,6 +7820,11 @@ func (goo InterfaceFieldsStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Messag
 			}
 		}
 	}
+	msg = pbo
+	return
+}
+func (goo InterfaceFieldsStruct) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.InterfaceFieldsStruct)
 	msg = pbo
 	return
 }

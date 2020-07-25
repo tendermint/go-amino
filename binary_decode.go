@@ -625,10 +625,9 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 			// Special case if:
 			//  * next ByteLength bytes are 0x00, and
 			//  * - erv is not a struct pointer, or
-			//    - field option doesn't have EmptyElements set
-			// (the condition below uses demorgan's law)
+			//    - field option has NilElements set
 			if (len(bz) > 0 && bz[0] == 0x00) &&
-				!(isErtStructPointer && fopts.EmptyElements) {
+				(!isErtStructPointer || fopts.NilElements) {
 
 				slide(&bz, &n, 1)
 				erv.Set(defaultValue(erv.Type()))
@@ -833,10 +832,9 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 			// Special case if:
 			//  * next ByteLength bytes are 0x00, and
 			//  * - erv is not a struct pointer, or
-			//    - field option doesn't have EmptyElements set
-			// (the condition below uses demorgan's law)
+			//    - field option has NilElements set
 			if (len(bz) > 0 && bz[0] == 0x00) &&
-				!(isErtStructPointer && fopts.EmptyElements) {
+				(!isErtStructPointer || fopts.NilElements) {
 
 				slide(&bz, &n, 1)
 				erv.Set(defaultValue(erv.Type()))

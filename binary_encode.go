@@ -403,14 +403,14 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 			if isNonstructDefaultValue(erv) {
 				// Special case if:
 				//  - erv is a struct pointer and
-				//  - field option has EmptyElements set
-				if ertIsStruct && ertIsPointer && fopts.EmptyElements {
+				//  - field option doesn't have NilElements set
+				if ertIsStruct && ertIsPointer && !fopts.NilElements {
 					// NOTE: Not sure what to do here, but for future-proofing,
 					// we explicitly fail on nil pointers, just like
 					// Proto3's Golang client does.
 					// This also makes it easier to upgrade to Amino2
 					// which would enable the encoding of nil structs.
-					return errors.New("nil struct pointers not supported when empty_elements field tag is set")
+					return errors.New("nil struct pointers not supported unless nil_elements field tag is also set")
 				}
 				// Nothing to encode, so the length is 0.
 				err = EncodeByte(buf, byte(0x00))

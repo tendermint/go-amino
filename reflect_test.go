@@ -119,12 +119,8 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 
 		if codecType == "binary" {
 
-			// Get pbo from rv.
-			type pbMessager interface {
-				ToPBMessage(*amino.Codec) (proto.Message, error)
-				FromPBMessage(*amino.Codec, proto.Message) error
-			}
-			pbm, ok := rv.Interface().(pbMessager)
+			// Get pbo from rv. (go -> p3go)
+			pbm, ok := rv.Interface().(amino.PBMessager)
 			if !ok {
 				// typedefs that are not structs, for example,
 				// are not pbMessanger.
@@ -133,21 +129,33 @@ func _testCodec(t *testing.T, rt reflect.Type, codecType string) {
 			pbo, err := pbm.ToPBMessage(cdc)
 			require.NoError(t, err)
 
-			// Get back to go from pbo, and ensure equality.
+			// Get back to go from pbo, and ensure equality. (go -> p3go -> go vs go)
 			rv3 := reflect.New(rt)
 			ptr3 := rv3.Interface()
-			err = ptr3.(pbMessager).FromPBMessage(cdc, pbo)
+			err = ptr3.(amino.PBMessager).FromPBMessage(cdc, pbo)
 			require.NoError(t, err)
 			require.Equal(t, ptr3, ptr,
 				"end to end through pbo failed.\nstart(goo): %v\nend(goo): %v\nmid(pbo): %v\n",
 				spw(ptr), spw(ptr3), spw(pbo))
 
-			// Check for equality of bz and b3.
+			// Marshal pbo and check for equality of bz and b3. (go -> p3go -> bz vs go -> bz)
 			bz3, err := proto.Marshal(pbo)
 			require.NoError(t, err)
 			require.Equal(t, bz3, bz,
 				"pbo serialization check failed.\nbz(go): %X\nbz(pb-go): %X\nstart(goo): %v\nend(pbo): %v\n",
 				bz, bz3, spw(ptr), spw(pbo))
+
+			// Decode from bz and check for equality (go -> bz -> p3go -> go vs go)
+			pbo2 := pbm.EmptyPBMessage(cdc)
+			err = proto.Unmarshal(bz, pbo2)
+			require.NoError(t, err)
+			rv4 := reflect.New(rt)
+			ptr4 := rv4.Interface()
+			err = ptr4.(amino.PBMessager).FromPBMessage(cdc, pbo2)
+			require.NoError(t, err)
+			require.Equal(t, ptr4, ptr,
+				"end to end through bytes and pbo failed.\nbz(go): %X\nstart(goo): %v\nend(goo): %v\nmid(pbo): %v\n",
+				bz, spw(ptr), spw(ptr3), spw(pbo))
 		}
 	}
 }
@@ -539,11 +547,11 @@ var fuzzFuncs = []interface{}{
 			// Prefer nil over empty slice.
 			*esz = nil
 		default:
-			// Slice of empty struct pointers should be nil,
-			// since we don't set amino:"empty_elements".
+			// Empty slice elements should be non-nil,
+			// since we don't set amino:"nil_elements".
 			*esz = make([]*tests.EmptyStruct, n)
 			for i := 0; i < n; i++ {
-				(*esz)[i] = nil
+				(*esz)[i] = &tests.EmptyStruct{}
 			}
 		}
 	},

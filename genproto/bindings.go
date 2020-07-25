@@ -124,6 +124,27 @@ func generateMethodsForType(imports *ast.GenDecl, scope *ast.Scope, pkg *amino.P
 	}
 
 	//////////////////
+	// EmptyPBMessage()
+	// Use to create the pbm to proto.Unmarshal to before FromPBMessage.
+	{
+		scope2 := ast.NewScope(scope)
+		addVars(scope2, "cdc", "goo", "pbo", "msg", "err")
+		// Set toProto function.
+		methods = append(methods, _func("EmptyPBMessage",
+			"goo", info.Type.Name(),
+			_fields("cdc", "*amino.Codec"),
+			_fields("msg", "proto.Message"),
+			_block(
+				// Body: declaration for pb message.
+				_a("pbo", ":=", _x("new~(~%v.%v~)", p3pkgName, info.Type.Name())),
+				// Body: return value.
+				_a("msg", "=", "pbo"),
+				_return(),
+			),
+		))
+	}
+
+	//////////////////
 	// FromPBMessage()
 	{
 		scope2 := ast.NewScope(scope)

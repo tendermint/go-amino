@@ -60,7 +60,7 @@ func TestMarshalAminoBinary(t *testing.T) {
 	var f = Foo{
 		a: "K",
 		b: 2,
-		c: []*Foo{nil, nil, nil},
+		c: []*Foo{&Foo{}, &Foo{}, &Foo{}},
 		D: "J",
 	}
 	bz, err := cdc.MarshalBinaryLengthPrefixed(f)

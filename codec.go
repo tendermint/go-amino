@@ -67,7 +67,7 @@ type FieldOptions struct {
 
 	Unsafe         bool // e.g. if this field is a float.
 	WriteEmpty     bool // write empty structs and lists (default false except for pointers)
-	EmptyElements  bool // Slice and Array elements are never nil, decode 0x00 as empty struct.
+	NilElements    bool // Empty list elements are decoded as nil iff set, otherwise are never nil.
 	UseGoogleTypes bool // If true, decodes Any timestamp and duration to google types.
 }
 
@@ -187,6 +187,7 @@ type Codec struct {
 	// only registered types have names.
 	nameToTypeInfo map[string]*TypeInfo
 	packages       pkg.PackageSet
+	usePBBindings  bool
 }
 
 func NewCodec() *Codec {
@@ -196,9 +197,24 @@ func NewCodec() *Codec {
 		typeInfos:      make(map[reflect.Type]*TypeInfo),
 		nameToTypeInfo: make(map[string]*TypeInfo),
 		packages:       pkg.NewPackageSet(),
+		usePBBindings:  false,
 	}
 	cdc.registerWellKnownTypes()
 	return cdc
+}
+
+// Returns a new codec that is optimized w/ pbbindings.
+// The returned codec is sealed, but may be affected by
+// modifications to the underlying codec.
+func (cdc *Codec) WithPBBindings() *Codec {
+	return &Codec{
+		sealed:         true,
+		autoseal:       false,
+		typeInfos:      cdc.typeInfos,
+		nameToTypeInfo: cdc.nameToTypeInfo,
+		packages:       cdc.packages,
+		usePBBindings:  true,
+	}
 }
 
 // The package isn't (yet) necessary besides to get the full name of concrete
@@ -757,8 +773,8 @@ func parseFieldOptions(field reflect.StructField) (skip bool, fopts FieldOptions
 		if aminoTag == "write_empty" {
 			fopts.WriteEmpty = true
 		}
-		if aminoTag == "empty_elements" {
-			fopts.EmptyElements = true
+		if aminoTag == "nil_elements" {
+			fopts.NilElements = true
 		}
 	}
 

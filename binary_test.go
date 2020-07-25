@@ -187,7 +187,7 @@ func TestStructPointerSlice1(t *testing.T) {
 	type Foo struct {
 		A string
 		B int
-		C []*Foo
+		C []*Foo `amino:"nil_elements"`
 		D string // exposed
 	}
 
@@ -215,17 +215,17 @@ func TestStructPointerSlice1(t *testing.T) {
 	}
 	bz2, err := cdc.MarshalBinaryLengthPrefixed(f3)
 	assert.NoError(t, err)
-	assert.Equal(t, bz, bz2, "empty slices should be decoded to nil unless empty_elements")
+	assert.Equal(t, bz, bz2, "empty slice elements should be encoded the same as nil")
 }
 
-// Like TestStructPointerSlice2, but with EmptyElements.
+// Like TestStructPointerSlice2, but without nil_elements field tag.
 func TestStructPointerSlice2(t *testing.T) {
 	cdc := amino.NewCodec()
 
 	type Foo struct {
 		A string
 		B int
-		C []*Foo `amino:"empty_elements"`
+		C []*Foo
 		D string // exposed
 	}
 
@@ -236,7 +236,7 @@ func TestStructPointerSlice2(t *testing.T) {
 		D: "j",
 	}
 	_, err := cdc.MarshalBinaryLengthPrefixed(f)
-	assert.Error(t, err, "nil elements of a slice/array not supported when empty_elements field tag set.")
+	assert.Error(t, err, "nil elements of a slice/array not supported unless nil_elements field tag set.")
 
 	f.C = []*Foo{{}, {}, {}}
 	bz, err := cdc.MarshalBinaryLengthPrefixed(f)
