@@ -571,17 +571,18 @@ func (cdc *Codec) decodeReflectBinaryArray(bz []byte, info *TypeInfo, rv reflect
 	// If elem is not already a ByteLength type, read in packed form.
 	// This is a Proto wart due to Proto backwards compatibility issues.
 	// Amino2 will probably migrate to use the List typ3.
+	var newoptions = uint64(0)
+	// Special case for list of (repr) bytes: decode from "bytes".
+	if ert.Kind() == reflect.Ptr && ert.Elem().Kind() == reflect.Uint8 {
+		newoptions |= bd_option_byte
+	}
 	typ3 := einfo.GetTyp3(fopts)
-	if typ3 != Typ3ByteLength {
+	if typ3 != Typ3ByteLength || (newoptions&be_option_byte > 0) {
 		// Read elements in packed form.
-		options := uint64(0)
-		if ert.Kind() == reflect.Ptr && ert.Elem().Kind() == reflect.Uint8 {
-			options |= bd_option_byte
-		}
 		for i := 0; i < length; i++ {
 			var erv = rv.Index(i)
 			var _n int
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, fopts, false, options)
+			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, fopts, false, newoptions)
 			if slide(&bz, &n, _n) && err != nil {
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return
@@ -774,19 +775,20 @@ func (cdc *Codec) decodeReflectBinarySlice(bz []byte, info *TypeInfo, rv reflect
 	// If elem is not already a ByteLength type, read in packed form.
 	// This is a Proto wart due to Proto backwards compatibility issues.
 	// Amino2 will probably migrate to use the List typ3.
+	var newoptions = uint64(0)
+	// Special case for list of (repr) bytes: encode as "bytes".
+	if einfo.ReprType.Type.Kind() == reflect.Uint8 {
+		newoptions |= be_option_byte
+	}
 	typ3 := einfo.GetTyp3(fopts)
-	if typ3 != Typ3ByteLength {
+	if typ3 != Typ3ByteLength || (newoptions&be_option_byte > 0) {
 		// Read elems in packed form.
-		options := uint64(0)
-		if ert.Kind() == reflect.Ptr && ert.Elem().Kind() == reflect.Uint8 {
-			options |= be_option_byte
-		}
 		for {
 			if len(bz) == 0 {
 				break
 			}
 			erv, _n := reflect.New(ert).Elem(), int(0)
-			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, fopts, false, options)
+			_n, err = cdc.decodeReflectBinary(bz, einfo, erv, fopts, false, newoptions)
 			if slide(&bz, &n, _n) && err != nil {
 				err = fmt.Errorf("error reading array contents: %v", err)
 				return

@@ -256,7 +256,7 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 	// External case.
 	// If gooType is registered, just call ToPBMessage.
 	// TODO If not registered?
-	if !isRoot && gooType.Registered && hasPBBindings(gooType) {
+	if !isRoot && gooType.Registered && hasPBBindings(gooType) && (options&option_bytes == 0) {
 		// Call ToPBMessage().
 		pbote_ := p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
 		pbom_ := addVarUniq(scope, "pbom")
@@ -442,14 +442,18 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 		var gooreIsPtr = goorType.ElemIsPtr
 		var gooreType = goorType.Elem
 		var dpbote_ string
-		var pbote_ = p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
 		var pboIsImplicit = isImplicitList(goorType, fopts)
-		var pboete_ = p3goTypeExprString(rootPkg, imports, scope, gooreType, fopts)
 		var pboeIsImplicit = isImplicitList(gooreType, fopts)
+		var pbote_ = p3goTypeExprString(rootPkg, imports, scope, gooType, fopts)
+		var pboete_ = p3goTypeExprString(rootPkg, imports, scope, gooreType, fopts)
 
-		// Set option of bytes.
-		if pboete_ == "uint8" {
+		if gooreType.ReprType.Type.Kind() == reflect.Uint8 {
+			// Special bytes optimization for recursive case.
+			pboete_ = "uint8"
 			newoptions |= option_bytes
+		} else if pboeIsImplicit {
+			// Special implicit list struct for recursive call.
+			newoptions |= option_implicit_list
 		}
 
 		// Iff also option & option_implicit_list, wrap with implicit list struct.
@@ -460,11 +464,6 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 			dpbote_ = pbote_[1:]
 		} else {
 			dpbote_ = "XXX" // needed for _x() parsing regardless of _ctif condition.
-		}
-
-		// Set option for element to be wrapped with implicit list struct.
-		if pboeIsImplicit {
-			newoptions |= option_implicit_list
 		}
 
 		// Construct, translate, assign.
@@ -541,8 +540,8 @@ func go2pbStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope *ast.Scope, goo ast.Expr, gooIsPtr bool, gooType *amino.TypeInfo, pbo ast.Expr, fopts amino.FieldOptions, options uint64) (b []ast.Stmt) {
 
 	const (
-		// option_bytes         = 0x01 // if goo's repr is uint8 as an element of bytes.
-		option_implicit_list = 0x02 // if goo is a repeated list & also an element.
+		option_bytes = 0x01 // if goo's repr is uint8 as an element of bytes.
+		// option_implicit_list = 0x02 // if goo is a repeated list & also an element.
 	)
 
 	// Special case if pbo is a nil struct pointer (that isn't timestamp)
@@ -578,7 +577,7 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 		// External case.
 		// If gooType is registered, just call FromPBMessage.
 		// TODO If not registered?
-		if gooType.Registered && hasPBBindings(gooType) {
+		if gooType.Registered && hasPBBindings(gooType) && (options&option_bytes == 0) {
 			b = append(b,
 				_a(_i("err"), "=", _call(_sel(goo, "FromPBMessage"), _i("cdc"), pbo)),
 				_if(_x("err__!=__nil"),
@@ -624,7 +623,9 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 		}()
 		// If gooType is struct but the repr type isn't, an implicit struct is needed.
 		if gooType.Type.Kind() == reflect.Struct &&
-			gooType.ReprType.Type.Kind() != reflect.Struct {
+			gooType.ReprType.Type.Kind() != reflect.Struct &&
+			options&option_bytes == 0 {
+
 			if gooType.ReprType.Type.Kind() == reflect.Interface {
 				panic("not yet tested")
 			}
@@ -699,6 +700,11 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 		var goorete_ = goTypeExprString(rootPkg, imports, scope, gooreIsPtr, gooreType)
 		var pboeIsImplicit = isImplicitList(gooreType, fopts)
 
+		// Special bytes optimization for recursive case.
+		if gooreType.ReprType.Type.Kind() == reflect.Uint8 {
+			newoptions |= option_bytes
+		}
+
 		// Construct, translate, assign.
 		goors_ := addVarUniq(scope, "goors")
 		scope2 := ast.NewScope(scope)
@@ -734,6 +740,11 @@ func pb2goStmts(rootPkg *amino.Package, isRoot bool, imports *ast.GenDecl, scope
 		var gooreIsPtr = goorType.ElemIsPtr
 		var goorete_ = goTypeExprString(rootPkg, imports, scope, gooreIsPtr, gooreType)
 		var pboeIsImplicit = isImplicitList(gooreType, fopts)
+
+		// Special bytes optimization for recursive case.
+		if gooreType.ReprType.Type.Kind() == reflect.Uint8 {
+			newoptions |= option_bytes
+		}
 
 		// Construct, translate, assign.
 		pbol_ := addVarUniq(scope, "pbol")

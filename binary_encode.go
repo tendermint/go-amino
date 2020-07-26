@@ -355,18 +355,19 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 
 	// Proto3 byte-length prefixing incurs alloc cost on the encoder.
 	// Here we incur it for unpacked form for ease of dev.
-	buf := bytes.NewBuffer(nil)
+	var buf = bytes.NewBuffer(nil)
 
 	// If elem is not already a ByteLength type, write in packed form.
 	// This is a Proto wart due to Proto backwards compatibility issues.
 	// Amino2 will probably migrate to use the List typ3.
+	var newoptions = uint64(0)
+	// Special case for list of (repr) bytes: encode as "bytes".
+	if einfo.ReprType.Type.Kind() == reflect.Uint8 {
+		newoptions |= be_option_byte
+	}
 	typ3 := einfo.GetTyp3(fopts)
-	if typ3 != Typ3ByteLength {
+	if typ3 != Typ3ByteLength || (newoptions&be_option_byte > 0) {
 		// Write elems in packed form.
-		options := uint64(0)
-		if ert.Kind() == reflect.Ptr && ert.Elem().Kind() == reflect.Uint8 {
-			options |= be_option_byte
-		}
 		for i := 0; i < rv.Len(); i++ {
 			var erv = rv.Index(i)
 			// If pointer, get dereferenced element value (or zero).
@@ -378,7 +379,7 @@ func (cdc *Codec) encodeReflectBinaryList(w io.Writer, info *TypeInfo, rv reflec
 				}
 			}
 			// Write the element value.
-			err = cdc.encodeReflectBinary(buf, einfo, erv, fopts, false, options)
+			err = cdc.encodeReflectBinary(buf, einfo, erv, fopts, false, newoptions)
 			if err != nil {
 				return
 			}

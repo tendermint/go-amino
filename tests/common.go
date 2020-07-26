@@ -2,6 +2,7 @@ package tests
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -178,35 +179,173 @@ type NestedPointersStruct struct {
 }
 */
 
-type AminoMarshalerStruct struct {
-	a string
-	B int32 // exposed
+//----------------------------------------
+// AminoMarshalerStruct1
+// struct -> repr struct
+
+type AminoMarshalerStruct1 struct {
+	A int32
+	B int32
 }
 
-type Pair struct {
+type ReprStruct1 struct {
+	C int64
+	D int64
+}
+
+func (ams AminoMarshalerStruct1) MarshalAmino() (ReprStruct1, error) {
+	return ReprStruct1{
+		C: int64(ams.A),
+		D: int64(ams.B),
+	}, nil
+}
+
+func (ams *AminoMarshalerStruct1) UnmarshalAmino(rs ReprStruct1) error {
+	ams.A = int32(rs.C)
+	ams.B = int32(rs.D)
+	return nil
+}
+
+//----------------------------------------
+// AminoMarshalerStruct2
+// struct -> []struct
+
+type AminoMarshalerStruct2 struct {
+	a string // unexposed (dontcare)
+	B int32  // exposed (dontcare)
+}
+
+type ReprElem2 struct {
 	Key   string
 	Value interface{}
 }
 
-func (pr Pair) get(key string) (value interface{}) {
-	if pr.Key != key {
-		panic(fmt.Sprintf("wanted %v but is %v", key, pr.Key))
+func (re ReprElem2) get(key string) (value interface{}) {
+	if re.Key != key {
+		panic(fmt.Sprintf("wanted %v but is %v", key, re.Key))
 	}
-	return pr.Value
+	return re.Value
 }
 
-func (f AminoMarshalerStruct) MarshalAmino() ([]Pair, error) {
-	return []Pair{
-		{"a", f.a},
-		{"B", f.B},
+func (ams AminoMarshalerStruct2) MarshalAmino() ([]ReprElem2, error) {
+	return []ReprElem2{
+		{"a", ams.a},
+		{"B", ams.B},
 	}, nil
 }
 
-func (f *AminoMarshalerStruct) UnmarshalAmino(repr []Pair) error {
-	f.a = repr[0].get("a").(string)
-	f.B = repr[1].get("B").(int32)
+func (ams *AminoMarshalerStruct2) UnmarshalAmino(repr []ReprElem2) error {
+	ams.a = repr[0].get("a").(string)
+	ams.B = repr[1].get("B").(int32)
 	return nil
 }
+
+//----------------------------------------
+// AminoMarshalerStruct3
+// struct -> int
+
+type AminoMarshalerStruct3 struct {
+	A int32
+}
+
+func (ams AminoMarshalerStruct3) MarshalAmino() (int32, error) {
+	return ams.A, nil
+}
+
+func (ams *AminoMarshalerStruct3) UnmarshalAmino(i int32) error {
+	ams.A = i
+	return nil
+}
+
+//----------------------------------------
+// AminoMarshalerInt4
+// int -> struct
+
+type AminoMarshalerInt4 int32
+
+type ReprStruct4 struct {
+	A int32
+}
+
+func (ams AminoMarshalerInt4) MarshalAmino() (ReprStruct4, error) {
+	return ReprStruct4{A: int32(ams)}, nil
+}
+
+func (ams *AminoMarshalerInt4) UnmarshalAmino(rs ReprStruct4) error {
+	*ams = AminoMarshalerInt4(rs.A)
+	return nil
+}
+
+//----------------------------------------
+// AminoMarshalerInt5
+// int -> string
+
+type AminoMarshalerInt5 int32
+
+func (ams AminoMarshalerInt5) MarshalAmino() (string, error) {
+	return fmt.Sprintf("%v", ams), nil
+}
+
+func (ams *AminoMarshalerInt5) UnmarshalAmino(repr string) error {
+	i, err := strconv.Atoi(repr)
+	if err != nil {
+		return err
+	}
+	*ams = AminoMarshalerInt5(i)
+	return nil
+}
+
+//----------------------------------------
+// AminoMarshalerStruct6
+// struct -> []struct, where elems are struct -> struct
+
+type AminoMarshalerStruct6 struct {
+	A int32
+	B int32
+}
+
+func (ams AminoMarshalerStruct6) MarshalAmino() ([]AminoMarshalerStruct1, error) {
+	return []AminoMarshalerStruct1{{A: ams.A, B: ams.B}}, nil
+}
+
+func (ams *AminoMarshalerStruct6) UnmarshalAmino(repr []AminoMarshalerStruct1) error {
+	ams.A = repr[0].A
+	ams.B = repr[0].B
+	return nil
+}
+
+//----------------------------------------
+// AminoMarshalerStruct7
+// struct -> []struct, where elems are struct -> byte
+// NOTE: this should optimize to p3 bytes.
+
+type AminoMarshalerStruct7 struct {
+	A int8
+}
+
+func (ams AminoMarshalerStruct7) MarshalAmino() ([]ReprElem7, error) {
+	return []ReprElem7{{A: ams.A}}, nil
+}
+
+func (ams *AminoMarshalerStruct7) UnmarshalAmino(repr []ReprElem7) error {
+	ams.A = repr[0].A
+	return nil
+}
+
+type ReprElem7 struct {
+	A int8
+}
+
+func (re ReprElem7) MarshalAmino() (uint8, error) {
+	return uint8(re.A), nil
+}
+
+func (re *ReprElem7) UnmarshalAmino(u uint8) error {
+	re.A = int8(u)
+	return nil
+}
+
+//----------------------------------------
 
 type ComplexSt struct {
 	PrField PrimitivesStruct
@@ -275,7 +414,13 @@ var StructTypes = []interface{}{
 	(*EmbeddedSt3)(nil),
 	(*EmbeddedSt4)(nil),
 	(*EmbeddedSt5)(nil),
-	(*AminoMarshalerStruct)(nil),
+	(*AminoMarshalerStruct1)(nil),
+	(*AminoMarshalerStruct2)(nil),
+	(*AminoMarshalerStruct3)(nil),
+	(*AminoMarshalerInt4)(nil),
+	(*AminoMarshalerInt5)(nil),
+	(*AminoMarshalerStruct6)(nil),
+	(*AminoMarshalerStruct7)(nil),
 }
 
 //----------------------------------------

@@ -391,6 +391,9 @@ func typeToP3Type(root *amino.Package, info *amino.TypeInfo, fopts amino.FieldOp
 	case reflect.String:
 		return P3ScalarTypeString, false, false
 	case reflect.Struct:
+		if info.Package == nil {
+			panic(fmt.Sprintf("type %v not registered with codec", info.Type.Name()))
+		}
 		// NOTE: we don't use rt, because the p3 package and name should still
 		// match the declaration, rather than inherit or refer to the repr type
 		// (if it is registered at all).

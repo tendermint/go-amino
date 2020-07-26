@@ -7170,15 +7170,138 @@ func isEmbeddedSt5EmptyRepr(goor EmbeddedSt5) (empty bool) {
 	}
 	return
 }
-func (goo AminoMarshalerStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
-	var pbo *testspb.AminoMarshalerStruct
+func (goo AminoMarshalerStruct1) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
+	var pbo *testspb.AminoMarshalerStruct1
 	{
 		goor, err1 := goo.MarshalAmino()
 		if err1 != nil {
 			return nil, err1
 		}
-		if isAminoMarshalerStructEmptyRepr(goor) {
-			var pbov *testspb.AminoMarshalerStruct
+		if isAminoMarshalerStruct1EmptyRepr(goor) {
+			var pbov *testspb.AminoMarshalerStruct1
+			msg = pbov
+			return
+		}
+		pbo = new(testspb.AminoMarshalerStruct1)
+		{
+			pbo.C = goor.C
+		}
+		{
+			pbo.D = goor.D
+		}
+	}
+	msg = pbo
+	return
+}
+func (goo AminoMarshalerStruct1) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.AminoMarshalerStruct1)
+	msg = pbo
+	return
+}
+func (goo *AminoMarshalerStruct1) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
+	var pbo *testspb.AminoMarshalerStruct1 = msg.(*testspb.AminoMarshalerStruct1)
+	{
+		if pbo != nil {
+			var goor ReprStruct1
+			{
+				goor.C = pbo.C
+			}
+			{
+				goor.D = pbo.D
+			}
+			err = goo.UnmarshalAmino(goor)
+			if err != nil {
+				return
+			}
+		}
+	}
+	return
+}
+func (_ AminoMarshalerStruct1) GetTypeURL() (typeURL string) {
+	return "/tests.AminoMarshalerStruct1"
+}
+func isAminoMarshalerStruct1EmptyRepr(goor ReprStruct1) (empty bool) {
+	{
+		empty = true
+		{
+			if goor.C != 0 {
+				return false
+			}
+		}
+		{
+			if goor.D != 0 {
+				return false
+			}
+		}
+	}
+	return
+}
+func (goo ReprStruct1) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
+	var pbo *testspb.ReprStruct1
+	{
+		if isReprStruct1EmptyRepr(goo) {
+			var pbov *testspb.ReprStruct1
+			msg = pbov
+			return
+		}
+		pbo = new(testspb.ReprStruct1)
+		{
+			pbo.C = goo.C
+		}
+		{
+			pbo.D = goo.D
+		}
+	}
+	msg = pbo
+	return
+}
+func (goo ReprStruct1) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.ReprStruct1)
+	msg = pbo
+	return
+}
+func (goo *ReprStruct1) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
+	var pbo *testspb.ReprStruct1 = msg.(*testspb.ReprStruct1)
+	{
+		if pbo != nil {
+			{
+				(*goo).C = pbo.C
+			}
+			{
+				(*goo).D = pbo.D
+			}
+		}
+	}
+	return
+}
+func (_ ReprStruct1) GetTypeURL() (typeURL string) {
+	return "/tests.ReprStruct1"
+}
+func isReprStruct1EmptyRepr(goor ReprStruct1) (empty bool) {
+	{
+		empty = true
+		{
+			if goor.C != 0 {
+				return false
+			}
+		}
+		{
+			if goor.D != 0 {
+				return false
+			}
+		}
+	}
+	return
+}
+func (goo AminoMarshalerStruct2) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
+	var pbo *testspb.AminoMarshalerStruct2
+	{
+		goor, err1 := goo.MarshalAmino()
+		if err1 != nil {
+			return nil, err1
+		}
+		if isAminoMarshalerStruct2EmptyRepr(goor) {
+			var pbov *testspb.AminoMarshalerStruct2
 			msg = pbov
 			return
 		}
@@ -7186,7 +7309,7 @@ func (goo AminoMarshalerStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message
 		if goorl == 0 {
 			pbo = nil
 		} else {
-			var pbos = make([]*testspb.Pair, goorl)
+			var pbos = make([]*testspb.ReprElem2, goorl)
 			for i := 0; i < goorl; i += 1 {
 				{
 					goore := goor[i]
@@ -7196,25 +7319,25 @@ func (goo AminoMarshalerStruct) ToPBMessage(cdc *amino.Codec) (msg proto.Message
 						if err != nil {
 							return
 						}
-						pbos[i] = pbom.(*testspb.Pair)
+						pbos[i] = pbom.(*testspb.ReprElem2)
 					}
 				}
 			}
-			pbo = &testspb.AminoMarshalerStruct{Value: pbos}
+			pbo = &testspb.AminoMarshalerStruct2{Value: pbos}
 		}
 	}
 	msg = pbo
 	return
 }
-func (goo AminoMarshalerStruct) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
-	pbo := new(testspb.AminoMarshalerStruct)
+func (goo AminoMarshalerStruct2) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.AminoMarshalerStruct2)
 	msg = pbo
 	return
 }
-func (goo *AminoMarshalerStruct) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
-	var pbo *testspb.AminoMarshalerStruct = msg.(*testspb.AminoMarshalerStruct)
+func (goo *AminoMarshalerStruct2) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
+	var pbo *testspb.AminoMarshalerStruct2 = msg.(*testspb.AminoMarshalerStruct2)
 	{
-		var goor []Pair
+		var goor []ReprElem2
 		var pbol int = 0
 		if pbo != nil {
 			pbol = len(pbo.Value)
@@ -7222,7 +7345,7 @@ func (goo *AminoMarshalerStruct) FromPBMessage(cdc *amino.Codec, msg proto.Messa
 		if pbol == 0 {
 			goor = nil
 		} else {
-			var goors = make([]Pair, pbol)
+			var goors = make([]ReprElem2, pbol)
 			for i := 0; i < pbol; i += 1 {
 				{
 					pboe := pbo.Value[i]
@@ -7246,10 +7369,10 @@ func (goo *AminoMarshalerStruct) FromPBMessage(cdc *amino.Codec, msg proto.Messa
 	}
 	return
 }
-func (_ AminoMarshalerStruct) GetTypeURL() (typeURL string) {
-	return "/tests.AminoMarshalerStruct"
+func (_ AminoMarshalerStruct2) GetTypeURL() (typeURL string) {
+	return "/tests.AminoMarshalerStruct2"
 }
-func isAminoMarshalerStructEmptyRepr(goor []Pair) (empty bool) {
+func isAminoMarshalerStruct2EmptyRepr(goor []ReprElem2) (empty bool) {
 	{
 		empty = true
 		if len(goor) != 0 {
@@ -7258,15 +7381,15 @@ func isAminoMarshalerStructEmptyRepr(goor []Pair) (empty bool) {
 	}
 	return
 }
-func (goo Pair) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
-	var pbo *testspb.Pair
+func (goo ReprElem2) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
+	var pbo *testspb.ReprElem2
 	{
-		if isPairEmptyRepr(goo) {
-			var pbov *testspb.Pair
+		if isReprElem2EmptyRepr(goo) {
+			var pbov *testspb.ReprElem2
 			msg = pbov
 			return
 		}
-		pbo = new(testspb.Pair)
+		pbo = new(testspb.ReprElem2)
 		{
 			pbo.Key = goo.Key
 		}
@@ -7285,13 +7408,13 @@ func (goo Pair) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
 	msg = pbo
 	return
 }
-func (goo Pair) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
-	pbo := new(testspb.Pair)
+func (goo ReprElem2) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.ReprElem2)
 	msg = pbo
 	return
 }
-func (goo *Pair) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
-	var pbo *testspb.Pair = msg.(*testspb.Pair)
+func (goo *ReprElem2) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
+	var pbo *testspb.ReprElem2 = msg.(*testspb.ReprElem2)
 	{
 		if pbo != nil {
 			{
@@ -7310,10 +7433,10 @@ func (goo *Pair) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) 
 	}
 	return
 }
-func (_ Pair) GetTypeURL() (typeURL string) {
-	return "/tests.Pair"
+func (_ ReprElem2) GetTypeURL() (typeURL string) {
+	return "/tests.ReprElem2"
 }
-func isPairEmptyRepr(goor Pair) (empty bool) {
+func isReprElem2EmptyRepr(goor ReprElem2) (empty bool) {
 	{
 		empty = true
 		{
@@ -7325,6 +7448,275 @@ func isPairEmptyRepr(goor Pair) (empty bool) {
 			if goor.Value != nil {
 				return false
 			}
+		}
+	}
+	return
+}
+func (goo AminoMarshalerStruct3) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
+	var pbo *testspb.AminoMarshalerStruct3
+	{
+		goor, err1 := goo.MarshalAmino()
+		if err1 != nil {
+			return nil, err1
+		}
+		if isAminoMarshalerStruct3EmptyRepr(goor) {
+			var pbov *testspb.AminoMarshalerStruct3
+			msg = pbov
+			return
+		}
+		pbo = &testspb.AminoMarshalerStruct3{Value: goor}
+	}
+	msg = pbo
+	return
+}
+func (goo AminoMarshalerStruct3) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.AminoMarshalerStruct3)
+	msg = pbo
+	return
+}
+func (goo *AminoMarshalerStruct3) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
+	var pbo *testspb.AminoMarshalerStruct3 = msg.(*testspb.AminoMarshalerStruct3)
+	{
+		var goor int32
+		goor = pbo.Value
+		err = goo.UnmarshalAmino(goor)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+func (_ AminoMarshalerStruct3) GetTypeURL() (typeURL string) {
+	return "/tests.AminoMarshalerStruct3"
+}
+func isAminoMarshalerStruct3EmptyRepr(goor int32) (empty bool) {
+	{
+		empty = true
+		if goor != 0 {
+			return false
+		}
+	}
+	return
+}
+func (goo AminoMarshalerStruct6) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
+	var pbo *testspb.AminoMarshalerStruct6
+	{
+		goor, err1 := goo.MarshalAmino()
+		if err1 != nil {
+			return nil, err1
+		}
+		if isAminoMarshalerStruct6EmptyRepr(goor) {
+			var pbov *testspb.AminoMarshalerStruct6
+			msg = pbov
+			return
+		}
+		goorl := len(goor)
+		if goorl == 0 {
+			pbo = nil
+		} else {
+			var pbos = make([]*testspb.AminoMarshalerStruct1, goorl)
+			for i := 0; i < goorl; i += 1 {
+				{
+					goore := goor[i]
+					{
+						pbom := proto.Message(nil)
+						pbom, err = goore.ToPBMessage(cdc)
+						if err != nil {
+							return
+						}
+						pbos[i] = pbom.(*testspb.AminoMarshalerStruct1)
+					}
+				}
+			}
+			pbo = &testspb.AminoMarshalerStruct6{Value: pbos}
+		}
+	}
+	msg = pbo
+	return
+}
+func (goo AminoMarshalerStruct6) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.AminoMarshalerStruct6)
+	msg = pbo
+	return
+}
+func (goo *AminoMarshalerStruct6) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
+	var pbo *testspb.AminoMarshalerStruct6 = msg.(*testspb.AminoMarshalerStruct6)
+	{
+		var goor []AminoMarshalerStruct1
+		var pbol int = 0
+		if pbo != nil {
+			pbol = len(pbo.Value)
+		}
+		if pbol == 0 {
+			goor = nil
+		} else {
+			var goors = make([]AminoMarshalerStruct1, pbol)
+			for i := 0; i < pbol; i += 1 {
+				{
+					pboe := pbo.Value[i]
+					{
+						pboev := pboe
+						if pboev != nil {
+							err = goors[i].FromPBMessage(cdc, pboev)
+							if err != nil {
+								return
+							}
+						}
+					}
+				}
+			}
+			goor = goors
+		}
+		err = goo.UnmarshalAmino(goor)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+func (_ AminoMarshalerStruct6) GetTypeURL() (typeURL string) {
+	return "/tests.AminoMarshalerStruct6"
+}
+func isAminoMarshalerStruct6EmptyRepr(goor []AminoMarshalerStruct1) (empty bool) {
+	{
+		empty = true
+		if len(goor) != 0 {
+			return false
+		}
+	}
+	return
+}
+func (goo AminoMarshalerStruct7) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
+	var pbo *testspb.AminoMarshalerStruct7
+	{
+		goor, err1 := goo.MarshalAmino()
+		if err1 != nil {
+			return nil, err1
+		}
+		if isAminoMarshalerStruct7EmptyRepr(goor) {
+			var pbov *testspb.AminoMarshalerStruct7
+			msg = pbov
+			return
+		}
+		goorl := len(goor)
+		if goorl == 0 {
+			pbo = nil
+		} else {
+			var pbos = make([]uint8, goorl)
+			for i := 0; i < goorl; i += 1 {
+				{
+					goore := goor[i]
+					{
+						goor1, err2 := goore.MarshalAmino()
+						if err2 != nil {
+							return nil, err2
+						}
+						if !isReprElem7EmptyRepr(goor1) {
+							pbos[i] = byte(goor1)
+						}
+					}
+				}
+			}
+			pbo = &testspb.AminoMarshalerStruct7{Value: pbos}
+		}
+	}
+	msg = pbo
+	return
+}
+func (goo AminoMarshalerStruct7) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.AminoMarshalerStruct7)
+	msg = pbo
+	return
+}
+func (goo *AminoMarshalerStruct7) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
+	var pbo *testspb.AminoMarshalerStruct7 = msg.(*testspb.AminoMarshalerStruct7)
+	{
+		var goor []ReprElem7
+		var pbol int = 0
+		if pbo != nil {
+			pbol = len(pbo.Value)
+		}
+		if pbol == 0 {
+			goor = nil
+		} else {
+			var goors = make([]ReprElem7, pbol)
+			for i := 0; i < pbol; i += 1 {
+				{
+					pboe := pbo.Value[i]
+					{
+						pboev := pboe
+						var goor1 uint8
+						goor1 = uint8(pboev)
+						err = goors[i].UnmarshalAmino(goor1)
+						if err != nil {
+							return
+						}
+					}
+				}
+			}
+			goor = goors
+		}
+		err = goo.UnmarshalAmino(goor)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+func (_ AminoMarshalerStruct7) GetTypeURL() (typeURL string) {
+	return "/tests.AminoMarshalerStruct7"
+}
+func isAminoMarshalerStruct7EmptyRepr(goor []ReprElem7) (empty bool) {
+	{
+		empty = true
+		if len(goor) != 0 {
+			return false
+		}
+	}
+	return
+}
+func (goo ReprElem7) ToPBMessage(cdc *amino.Codec) (msg proto.Message, err error) {
+	var pbo *testspb.ReprElem7
+	{
+		goor, err1 := goo.MarshalAmino()
+		if err1 != nil {
+			return nil, err1
+		}
+		if isReprElem7EmptyRepr(goor) {
+			var pbov *testspb.ReprElem7
+			msg = pbov
+			return
+		}
+		pbo = &testspb.ReprElem7{Value: uint32(goor)}
+	}
+	msg = pbo
+	return
+}
+func (goo ReprElem7) EmptyPBMessage(cdc *amino.Codec) (msg proto.Message) {
+	pbo := new(testspb.ReprElem7)
+	msg = pbo
+	return
+}
+func (goo *ReprElem7) FromPBMessage(cdc *amino.Codec, msg proto.Message) (err error) {
+	var pbo *testspb.ReprElem7 = msg.(*testspb.ReprElem7)
+	{
+		var goor uint8
+		goor = uint8(pbo.Value)
+		err = goo.UnmarshalAmino(goor)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+func (_ ReprElem7) GetTypeURL() (typeURL string) {
+	return "/tests.ReprElem7"
+}
+func isReprElem7EmptyRepr(goor uint8) (empty bool) {
+	{
+		empty = true
+		if goor != 0 {
+			return false
 		}
 	}
 	return

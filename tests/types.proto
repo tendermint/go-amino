@@ -204,12 +204,38 @@ message EmbeddedSt5 {
 	PointersStruct PointersStructField = 8;
 	uint64 Foo5 = 9;
 }
-message AminoMarshalerStruct {
-	repeated Pair Value = 1;
+message AminoMarshalerStruct1 {
+	sint64 C = 1;
+	sint64 D = 2;
 }
-message Pair {
+message ReprStruct1 {
+	sint64 C = 1;
+	sint64 D = 2;
+}
+message AminoMarshalerStruct2 {
+	repeated ReprElem2 Value = 1;
+}
+message ReprElem2 {
 	string Key = 1;
 	google.protobuf.Any Value = 2;
+}
+message AminoMarshalerStruct3 {
+	sint32 Value = 1;
+}
+message AminoMarshalerInt4 {
+	sint32 A = 1;
+}
+message AminoMarshalerInt5 {
+	string Value = 1;
+}
+message AminoMarshalerStruct6 {
+	repeated AminoMarshalerStruct1 Value = 1;
+}
+message AminoMarshalerStruct7 {
+	bytes Value = 1;
+}
+message ReprElem7 {
+	uint32 Value = 1;
 }
 message IntDef {
 	sint64 Value = 1;
