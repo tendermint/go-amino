@@ -50,7 +50,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 	}
 
 	// Handle override if rv implements MarshalAminoJSON.
-	if info.IsAminoMarshalerJSON {
+	if info.IsAminoJSONMarshaler {
 		// First, encode rv into repr instance.
 		var (
 			rrv   reflect.Value
@@ -60,7 +60,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		if err != nil {
 			return
 		}
-		rinfo, err = cdc.getTypeInfoWlock(info.AminoMarshalJSONReprType)
+		rinfo, err = cdc.getTypeInfoWlock(info.AminoJSONMarshalReprType)
 		if err != nil {
 			return
 		}

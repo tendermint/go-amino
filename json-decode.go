@@ -61,11 +61,11 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 	}
 
 	// Handle override if a pointer to rv implements UnmarshalAminoJSON.
-	if info.IsAminoUnmarshalerJSON {
+	if info.IsAminoJSONUnmarshaler {
 		// First, decode repr instance from JSON.
-		rrv := reflect.New(info.AminoUnmarshalJSONReprType).Elem()
+		rrv := reflect.New(info.AminoJSONUnmarshalReprType).Elem()
 		var rinfo *TypeInfo
-		rinfo, err = cdc.getTypeInfoWlock(info.AminoUnmarshalJSONReprType)
+		rinfo, err = cdc.getTypeInfoWlock(info.AminoJSONUnmarshalReprType)
 		if err != nil {
 			return
 		}

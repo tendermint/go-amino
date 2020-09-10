@@ -571,12 +571,12 @@ func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 		info.ConcreteInfo.AminoUnmarshalReprType = unmarshalAminoReprType(rm)
 	}
 	if rm, ok := rt.MethodByName("MarshalAminoJSON"); ok {
-		info.ConcreteInfo.IsAminoMarshalerJSON = true
-		info.ConcreteInfo.AminoMarshalJSONReprType = marshalAminoJSONReprType(rm)
+		info.ConcreteInfo.IsAminoJSONMarshaler = true
+		info.ConcreteInfo.AminoJSONMarshalReprType = marshalAminoJSONReprType(rm)
 	}
 	if rm, ok := reflect.PtrTo(rt).MethodByName("UnmarshalAminoJSON"); ok {
-		info.ConcreteInfo.IsAminoUnmarshalerJSON = true
-		info.ConcreteInfo.AminoUnmarshalJSONReprType = unmarshalAminoJSONReprType(rm)
+		info.ConcreteInfo.IsAminoJSONUnmarshaler = true
+		info.ConcreteInfo.AminoJSONUnmarshalReprType = unmarshalAminoJSONReprType(rm)
 	}
 	return info
 }
