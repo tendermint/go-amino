@@ -88,10 +88,10 @@ type ConcreteInfo struct {
 	AminoMarshalReprType       reflect.Type // <ReprType>
 	IsAminoUnmarshaler         bool         // Implements UnmarshalAmino(<ReprObject>) (error).
 	AminoUnmarshalReprType     reflect.Type // <ReprType>
-	IsAminoMarshalerJSON       bool         // Implements MarshalAminoJSON() (<ReprObject>, error).
-	AminoMarshalJSONReprType   reflect.Type // <ReprType>
-	IsAminoUnmarshalerJSON     bool         // Implements UnmarshalAminoJSON(<ReprObject>) (error).
-	AminoUnmarshalJSONReprType reflect.Type // <ReprType>
+	IsAminoJSONMarshaler       bool         // Implements MarshalAminoJSON() (<ReprObject>, error).
+	AminoJSONMarshalReprType   reflect.Type // <ReprType>
+	IsAminoJSONUnmarshaler     bool         // Implements UnmarshalAminoJSON(<ReprObject>) (error).
+	AminoJSONUnmarshalReprType reflect.Type // <ReprType>
 }
 
 type StructInfo struct {
