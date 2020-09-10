@@ -59,7 +59,38 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		return
 	}
 
+	// Handle override if rv implements MarshalAminoJSON.
+	if info.IsAminoMarshalerJSON {
+		// First, encode rv into repr instance.
+		var (
+			rrv   reflect.Value
+			rinfo *TypeInfo
+		)
+		rrv, err = toReprJSONObject(rv)
+		if err != nil {
+			return
+		}
+		rinfo, err = cdc.getTypeInfoWlock(info.AminoMarshalJSONReprType)
+		if err != nil {
+			return
+		}
+		// Then, encode the repr instance.
+		err = cdc.encodeReflectJSON(w, rinfo, rrv, fopts)
+		return
+	}
+
 	// Handle override if rv implements json.Marshaler.
+	if rv.CanAddr() { // Try pointer first.
+		if rv.Addr().Type().Implements(jsonMarshalerType) {
+			err = invokeMarshalJSON(w, rv.Addr())
+			return
+		}
+	} else if rv.Type().Implements(jsonMarshalerType) {
+		err = invokeMarshalJSON(w, rv)
+		return
+	}
+
+	// Handle override if rv implements MarshalAmino.
 	if info.IsAminoMarshaler {
 		// First, encode rv into repr instance.
 		var rrv, rinfo = reflect.Value{}, (*TypeInfo)(nil)

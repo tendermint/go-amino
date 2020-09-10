@@ -243,3 +243,22 @@ func toReprObject(rv reflect.Value) (rrv reflect.Value, err error) {
 	rrv = mwouts[0]
 	return
 }
+
+func toReprJSONObject(rv reflect.Value) (rrv reflect.Value, err error) {
+	var mwrm reflect.Value
+	if rv.CanAddr() {
+		mwrm = rv.Addr().MethodByName("MarshalAminoJSON")
+	} else {
+		mwrm = rv.MethodByName("MarshalAminoJSON")
+	}
+	mwouts := mwrm.Call(nil)
+	if !mwouts[1].IsNil() {
+		erri := mwouts[1].Interface()
+		if erri != nil {
+			err = erri.(error)
+			return rrv, err
+		}
+	}
+	rrv = mwouts[0]
+	return
+}
