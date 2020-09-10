@@ -37,7 +37,7 @@ func (cdc *Codec) encodeReflectBinary(w io.Writer, info *TypeInfo, rv reflect.Va
 		}()
 	}
 
-	// Handle override if rv implements json.Marshaler.
+	// Handle override if rv implements MarshalAmino.
 	if info.IsAminoMarshaler {
 		// First, encode rv into repr instance.
 		var rrv, rinfo = reflect.Value{}, (*TypeInfo)(nil)
