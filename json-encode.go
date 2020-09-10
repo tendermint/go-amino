@@ -80,17 +80,6 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		return
 	}
 
-	// Handle override if rv implements json.Marshaler.
-	if rv.CanAddr() { // Try pointer first.
-		if rv.Addr().Type().Implements(jsonMarshalerType) {
-			err = invokeMarshalJSON(w, rv.Addr())
-			return
-		}
-	} else if rv.Type().Implements(jsonMarshalerType) {
-		err = invokeMarshalJSON(w, rv)
-		return
-	}
-
 	// Handle override if rv implements MarshalAmino.
 	if info.IsAminoMarshaler {
 		// First, encode rv into repr instance.
