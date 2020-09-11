@@ -60,7 +60,7 @@ func (cdc *Codec) encodeReflectJSON(w io.Writer, info *TypeInfo, rv reflect.Valu
 		if err != nil {
 			return
 		}
-		rinfo, err = cdc.getTypeInfoWlock(info.AminoJSONMarshalReprType)
+		rinfo, err = cdc.getTypeInfo_wlock(info.AminoJSONMarshalReprType)
 		if err != nil {
 			return
 		}

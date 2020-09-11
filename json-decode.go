@@ -65,7 +65,7 @@ func (cdc *Codec) decodeReflectJSON(bz []byte, info *TypeInfo, rv reflect.Value,
 		// First, decode repr instance from JSON.
 		rrv := reflect.New(info.AminoJSONUnmarshalReprType).Elem()
 		var rinfo *TypeInfo
-		rinfo, err = cdc.getTypeInfoWlock(info.AminoJSONUnmarshalReprType)
+		rinfo, err = cdc.getTypeInfo_wlock(info.AminoJSONUnmarshalReprType)
 		if err != nil {
 			return
 		}
@@ -424,7 +424,7 @@ func (cdc *Codec) decodeReflectJSONStruct(bz []byte, info *TypeInfo, rv reflect.
 				// Set nil/zero on frv.
 				frv.Set(reflect.Zero(frv.Type()))
 			}
-			
+
 			continue
 		}
 
