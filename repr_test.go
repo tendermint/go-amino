@@ -96,3 +96,54 @@ func TestMarshalAminoJSON(t *testing.T) {
 	assert.Equal(t, f, f2)
 	assert.Equal(t, f.a, f2.a) // In case the above doesn't check private fields?
 }
+
+type Bar struct {
+	a string
+	b int
+	c []*Bar
+	D string // exposed
+}
+
+func (b Bar) MarshalAminoJSON() ([]pair, error) { // nolint: golint
+	return []pair{
+		{"a", b.a},
+		{"b", b.b},
+		{"c", b.c},
+		{"D", b.D},
+	}, nil
+}
+
+func (b *Bar) UnmarshalAminoJSON(repr []pair) error {
+	b.a = repr[0].get("a").(string)
+	b.b = repr[1].get("b").(int)
+	b.c = repr[2].get("c").([]*Bar)
+	b.D = repr[3].get("D").(string)
+	return nil
+}
+
+func TestMarshalAminoJSON_Override(t *testing.T) {
+
+	cdc := NewCodec()
+	cdc.RegisterInterface((*interface{})(nil), nil)
+	cdc.RegisterConcrete(string(""), "string", nil)
+	cdc.RegisterConcrete(int(0), "int", nil)
+	cdc.RegisterConcrete(([]*Bar)(nil), "[]*Bar", nil)
+
+	var f = Bar{
+		a: "K",
+		b: 2,
+		c: []*Bar{nil, nil, nil},
+		D: "J",
+	}
+	bz, err := cdc.MarshalJSON(f)
+	assert.Nil(t, err)
+
+	t.Logf("bz %X", bz)
+
+	var f2 Bar
+	err = cdc.UnmarshalJSON(bz, &f2)
+	assert.Nil(t, err)
+
+	assert.Equal(t, f, f2)
+	assert.Equal(t, f.a, f2.a) // In case the above doesn't check private fields?
+}

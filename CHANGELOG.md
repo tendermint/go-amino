@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## 0.16.0 (September 11, 2020)
+
+IMPROVEMENTS:
+ - Add support for `Un/MarshalAminoJSON` override: if a type implements
+ `Un/MarshalAminoJSON`, then amino will use these methods for JSON un/marshalling
+ ([#323]).
+
+[#323]: https://github.com/tendermint/go-amino/pull/323
+
 ## 0.15.1 (October 10, 2019)
 
 ### IMPROVEMENTS:

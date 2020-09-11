@@ -84,10 +84,14 @@ type ConcreteInfo struct {
 
 	// These fields get set for all concrete types,
 	// even those not manually registered (e.g. are never interface values).
-	IsAminoMarshaler       bool         // Implements MarshalAmino() (<ReprObject>, error).
-	AminoMarshalReprType   reflect.Type // <ReprType>
-	IsAminoUnmarshaler     bool         // Implements UnmarshalAmino(<ReprObject>) (error).
-	AminoUnmarshalReprType reflect.Type // <ReprType>
+	IsAminoMarshaler           bool         // Implements MarshalAmino() (<ReprObject>, error).
+	AminoMarshalReprType       reflect.Type // <ReprType>
+	IsAminoUnmarshaler         bool         // Implements UnmarshalAmino(<ReprObject>) (error).
+	AminoUnmarshalReprType     reflect.Type // <ReprType>
+	IsAminoJSONMarshaler       bool         // Implements MarshalAminoJSON() (<ReprObject>, error).
+	AminoJSONMarshalReprType   reflect.Type // <ReprType>
+	IsAminoJSONUnmarshaler     bool         // Implements UnmarshalAminoJSON(<ReprObject>) (error).
+	AminoJSONUnmarshalReprType reflect.Type // <ReprType>
 }
 
 type StructInfo struct {
@@ -566,6 +570,14 @@ func (cdc *Codec) newTypeInfoUnregistered(rt reflect.Type) *TypeInfo {
 		info.ConcreteInfo.IsAminoUnmarshaler = true
 		info.ConcreteInfo.AminoUnmarshalReprType = unmarshalAminoReprType(rm)
 	}
+	if rm, ok := rt.MethodByName("MarshalAminoJSON"); ok {
+		info.ConcreteInfo.IsAminoJSONMarshaler = true
+		info.ConcreteInfo.AminoJSONMarshalReprType = marshalAminoJSONReprType(rm)
+	}
+	if rm, ok := reflect.PtrTo(rt).MethodByName("UnmarshalAminoJSON"); ok {
+		info.ConcreteInfo.IsAminoJSONUnmarshaler = true
+		info.ConcreteInfo.AminoJSONUnmarshalReprType = unmarshalAminoJSONReprType(rm)
+	}
 	return info
 }
 
@@ -797,6 +809,45 @@ func unmarshalAminoReprType(rm reflect.Method) (rrt reflect.Type) {
 	}
 	if out := rm.Type.Out(0); out != errorType {
 		panic(fmt.Sprintf("UnmarshalAmino should have first output parameter of error type, got %v", out))
+	}
+	rrt = rm.Type.In(1)
+	if rrt.Kind() == reflect.Ptr {
+		panic(fmt.Sprintf("Representative objects cannot be pointers; got %v", rrt))
+	}
+	return
+}
+
+func marshalAminoJSONReprType(rm reflect.Method) (rrt reflect.Type) {
+	// Verify form of this method.
+	if rm.Type.NumIn() != 1 {
+		panic(fmt.Sprintf("MarshalAminoJSON should have 1 input parameters (including receiver); got %v", rm.Type))
+	}
+	if rm.Type.NumOut() != 2 {
+		panic(fmt.Sprintf("MarshalAminoJSON should have 2 output parameters; got %v", rm.Type))
+	}
+	if out := rm.Type.Out(1); out != errorType {
+		panic(fmt.Sprintf("MarshalAminoJSON should have second output parameter of error type, got %v", out))
+	}
+	rrt = rm.Type.Out(0)
+	if rrt.Kind() == reflect.Ptr {
+		panic(fmt.Sprintf("Representative objects cannot be pointers; got %v", rrt))
+	}
+	return
+}
+
+func unmarshalAminoJSONReprType(rm reflect.Method) (rrt reflect.Type) {
+	// Verify form of this method.
+	if rm.Type.NumIn() != 2 {
+		panic(fmt.Sprintf("UnmarshalAminoJSON should have 2 input parameters (including receiver); got %v", rm.Type))
+	}
+	if in1 := rm.Type.In(0); in1.Kind() != reflect.Ptr {
+		panic(fmt.Sprintf("UnmarshalAminoJSON first input parameter should be pointer type but got %v", in1))
+	}
+	if rm.Type.NumOut() != 1 {
+		panic(fmt.Sprintf("UnmarshalAminoJSON should have 1 output parameters; got %v", rm.Type))
+	}
+	if out := rm.Type.Out(0); out != errorType {
+		panic(fmt.Sprintf("UnmarshalAminoJSON should have first output parameter of error type, got %v", out))
 	}
 	rrt = rm.Type.In(1)
 	if rrt.Kind() == reflect.Ptr {
